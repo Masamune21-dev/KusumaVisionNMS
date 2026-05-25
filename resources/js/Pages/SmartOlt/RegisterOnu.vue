@@ -170,6 +170,70 @@ const submit = () => {
                         </div>
                     </div>
 
+                    <div class="grid gap-6 md:grid-cols-2">
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <input v-model="form.tr069_enabled" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                TR069
+                            </label>
+
+                            <div v-if="form.tr069_enabled" class="mt-4 grid gap-4">
+                                <div>
+                                    <InputLabel for="acs_url" value="ACS URL" />
+                                    <TextInput id="acs_url" v-model="form.acs_url" class="mt-1 block w-full" />
+                                    <InputError class="mt-2" :message="form.errors.acs_url" />
+                                </div>
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <InputLabel for="acs_username" value="ACS Username" />
+                                        <TextInput id="acs_username" v-model="form.acs_username" class="mt-1 block w-full" />
+                                        <InputError class="mt-2" :message="form.errors.acs_username" />
+                                    </div>
+                                    <div>
+                                        <InputLabel for="acs_password" value="ACS Password" />
+                                        <TextInput id="acs_password" v-model="form.acs_password" type="password" class="mt-1 block w-full" />
+                                        <InputError class="mt-2" :message="form.errors.acs_password" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-lg border border-gray-200 p-4">
+                            <label class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <input v-model="form.remote_ont_enabled" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                Remote ONT
+                            </label>
+
+                            <div v-if="form.remote_ont_enabled" class="mt-4 grid gap-4 md:grid-cols-3">
+                                <div>
+                                    <InputLabel for="remote_ont_id" value="ID" />
+                                    <TextInput id="remote_ont_id" v-model="form.remote_ont_id" type="number" min="1" max="16" class="mt-1 block w-full" />
+                                    <InputError class="mt-2" :message="form.errors.remote_ont_id" />
+                                </div>
+                                <div>
+                                    <InputLabel for="remote_ont_mode" value="Mode" />
+                                    <select id="remote_ont_mode" v-model="form.remote_ont_mode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <option value="forward">Forward</option>
+                                        <option value="discard">Discard</option>
+                                    </select>
+                                    <InputError class="mt-2" :message="form.errors.remote_ont_mode" />
+                                </div>
+                                <div>
+                                    <InputLabel for="remote_ont_protocol" value="Protocol" />
+                                    <select id="remote_ont_protocol" v-model="form.remote_ont_protocol" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <option value="web">Web</option>
+                                        <option value="telnet">Telnet</option>
+                                        <option value="ssh">SSH</option>
+                                        <option value="ftp">FTP</option>
+                                        <option value="tftp">TFTP</option>
+                                        <option value="snmp">SNMP</option>
+                                    </select>
+                                    <InputError class="mt-2" :message="form.errors.remote_ont_protocol" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <input v-model="form.oid_index" type="hidden" />
 
                     <div class="flex items-center justify-end gap-3">

@@ -184,3 +184,21 @@ Notes:
 - Verified against OLT `id=1` slot 2 port 1: `gpon-onu_1/2/1:3` returned ONU RX `-14.260 dBm`.
 - Telnet reader now auto-continues pager prompts such as `--More--` by sending Enter, so RX output above one CLI page can be read fully.
 - Verified long RX output against OLT `id=2` slot 2 port 3: parser read 112 RX values and reached the final CLI prompt without leftover pager markers.
+
+### Phase 9 - Provisioning TR069 and Remote ONT
+
+Created:
+
+- `database/migrations/2026_05_25_123000_add_remote_ont_tr069_to_smartolt_onu_registrations_table.php`
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` - added provisioning defaults and validation for TR069 ACS and Remote ONT security management fields.
+- `app/Models/SmartOltOnuRegistration.php` - added encrypted ACS password and casts for TR069/Remote ONT options.
+- `app/Services/ZteProvisioningScriptBuilder.php` - emits `tr069-mgmt` and `security-mgmt` lines inside `pon-onu-mng` when enabled.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` - added TR069 and Remote ONT controls to the provisioning form.
+- `tests/Feature/SmartOltInventoryTest.php` - added provisioning script coverage for TR069 and Remote ONT commands.
+
+Notes:
+
+- TR069 default follows the SmartOLT guide: ACS URL `http://acs.bmkv.net:7547`, user `cms`, password `kusuma123!`.

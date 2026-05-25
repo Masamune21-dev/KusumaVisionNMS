@@ -94,6 +94,14 @@ class SmartOltController extends Controller
                 'ip_profile' => $this->firstProfileName($olt, 'ip', 'INTERNET'),
                 'static_ip' => '',
                 'static_netmask' => '24',
+                'tr069_enabled' => false,
+                'acs_url' => 'http://acs.bmkv.net:7547',
+                'acs_username' => 'cms',
+                'acs_password' => 'kusuma123!',
+                'remote_ont_enabled' => false,
+                'remote_ont_id' => 1,
+                'remote_ont_mode' => 'forward',
+                'remote_ont_protocol' => 'web',
             ],
         ]);
     }
@@ -365,6 +373,14 @@ class SmartOltController extends Controller
             'ip_profile' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'ip')],
             'static_ip' => ['nullable', 'required_if:wan_mode,static', 'ip'],
             'static_netmask' => ['nullable', 'required_if:wan_mode,static', 'integer', 'between:1,32'],
+            'tr069_enabled' => ['boolean'],
+            'acs_url' => ['nullable', 'required_if:tr069_enabled,true,1', 'url', 'max:255'],
+            'acs_username' => ['nullable', 'required_if:tr069_enabled,true,1', 'string', 'max:120'],
+            'acs_password' => ['nullable', 'required_if:tr069_enabled,true,1', 'string', 'max:120'],
+            'remote_ont_enabled' => ['boolean'],
+            'remote_ont_id' => ['nullable', 'required_if:remote_ont_enabled,true,1', 'integer', 'between:1,16'],
+            'remote_ont_mode' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['forward', 'discard'])],
+            'remote_ont_protocol' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['web', 'telnet', 'ssh', 'ftp', 'tftp', 'snmp'])],
         ]);
     }
 

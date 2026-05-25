@@ -39,10 +39,50 @@ class ZteProvisioningScriptBuilder
             '',
             "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
             "service {$serviceName} gemport 1 cos 0 vlan {$vlan}",
+            ...$this->tr069Lines($data),
             $wanLine,
+            $this->remoteOntLine($data),
             'wan-ip 1 ping-response enable traceroute-response enable',
             'exit',
         ], fn (?string $line) => $line !== null));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<int, string>
+     */
+    private function tr069Lines(array $data): array
+    {
+        if (! filter_var($data['tr069_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return [];
+        }
+
+        return [
+            'tr069-mgmt 1 state unlock',
+            sprintf(
+                'tr069-mgmt 1 acs %s validate basic username %s password %s',
+                $data['acs_url'],
+                $data['acs_username'],
+                $data['acs_password'],
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function remoteOntLine(array $data): ?string
+    {
+        if (! filter_var($data['remote_ont_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return null;
+        }
+
+        return sprintf(
+            'security-mgmt %d state enable mode %s protocol %s',
+            (int) $data['remote_ont_id'],
+            $data['remote_ont_mode'],
+            $data['remote_ont_protocol'],
+        );
     }
 
     /**

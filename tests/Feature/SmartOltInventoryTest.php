@@ -396,6 +396,52 @@ OUT,
         $this->assertStringNotContainsString('255.255.255.0', $registration->cli_script);
     }
 
+    public function test_provisioning_script_can_include_tr069_and_remote_ont(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.12',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('smartolt.register.store', $olt), [
+            'serial_number' => 'ZTEG87654322',
+            'slot' => 2,
+            'port' => 2,
+            'onu_id' => 2,
+            'customer_name' => 'TR069 Customer',
+            'onu_type' => 'ALL-ONT',
+            'tcont_profile' => 'SERVER',
+            'vlan' => 100,
+            'service_name' => 'ServiceName',
+            'wan_mode' => 'dhcp',
+            'tr069_enabled' => true,
+            'acs_url' => 'http://acs.bmkv.net:7547',
+            'acs_username' => 'cms',
+            'acs_password' => 'kusuma123!',
+            'remote_ont_enabled' => true,
+            'remote_ont_id' => 1,
+            'remote_ont_mode' => 'forward',
+            'remote_ont_protocol' => 'web',
+        ]);
+
+        $response->assertRedirect(route('smartolt.registrations', $olt));
+
+        $registration = SmartOltOnuRegistration::query()
+            ->where('serial_number', 'ZTEG87654322')
+            ->firstOrFail();
+
+        $this->assertTrue($registration->tr069_enabled);
+        $this->assertTrue($registration->remote_ont_enabled);
+        $this->assertStringContainsString('tr069-mgmt 1 state unlock', $registration->cli_script);
+        $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!', $registration->cli_script);
+        $this->assertStringContainsString('security-mgmt 1 state enable mode forward protocol web', $registration->cli_script);
+    }
+
     public function test_generated_registration_can_be_marked_executed(): void
     {
         $user = User::factory()->create();
