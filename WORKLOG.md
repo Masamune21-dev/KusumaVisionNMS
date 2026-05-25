@@ -322,3 +322,35 @@ Notes:
 - Charts use `vue3-apexcharts` imported locally in `Dashboard.vue` (not registered globally). ApexCharts is heavy (~570KB) but the Dashboard chunk is code-split, so it only loads on that page.
 - Dashboard aggregates entirely from the cached `last_test_result` snapshots + `alarm_events` (no extra live SNMP), so it renders instantly and reflects the latest background poll.
 - Verified aggregation against live data on 2026-05-25: 2 OLTs online, 56 ports (10 down), 2240 ONU (1501 online / 739 offline), 2079 active alarms (10 critical / 70 major / 1956 minor / 43 warning).
+
+### Phase 16 - Configurable Poll Intervals, SNMP RX Power, dan Go Poller
+
+Created:
+
+- `database/migrations/2026_05_25_151500_add_poll_intervals_to_snmp_olts_table.php` — kolom `poll_interval_minutes`, `rx_poll_interval_minutes` (default 5), dan `last_rx_polled_at` di tabel `snmp_olts`.
+- `app/Services/Snmp/GoSnmpPoller.php` — wrapper opsional untuk binary Go SNMP poller (`bin/kv-snmp-poller`); diaktifkan dengan `SNMP_POLLER_DRIVER=go` dan binary yang ada.
+
+Changed:
+
+- `app/Models/SnmpOlt.php` — tambah `poll_interval_minutes`, `rx_poll_interval_minutes`, `last_rx_polled_at` ke fillable/casts; tambah method `isPollDue()`, `isRxPollDue()`, `pollIntervalMinutes()`, `rxPollIntervalMinutes()`.
+- `app/Services/Snmp/OltSnmpClient.php` — tambah OID `ZTE_ONU_RX_POWER` (`1.3.6.1.4.1.3902.1012.3.50.12.1.1.10`); method baru `onuRxPowers()` (SNMP walk seluruh ONU RX power), `mergeOnuRxPowers()`, dan helper internal `extractOnuPortIndex()`, `convertOnuRxPowerToDbm()`, `onuRxPowerKey()`, `countSnmpRxPowers()`, `intFromValue()`; `portOnusSnapshot()` sekarang mengambil RX via SNMP.
+- `app/Jobs/PollOltJob.php` — refactor besar: RX power kini via SNMP walk bukan CLI; RX hanya di-poll saat `isRxPollDue()` berlaku; nilai RX lama dipertahankan saat interval belum lewat; `last_rx_polled_at` di-update setelah RX berhasil; data per-ONU diperkaya dengan `rx_power_source`, `rx_power_port`, `raw_rx_power`; Go poller dicoba lebih dulu jika dikonfigurasi, jatuh balik ke PHP.
+- `app/Console/Commands/PollOltsCommand.php` — hanya dispatch job untuk OLT yang `isPollDue()` (skip OLT yang belum waktunya); laporan dispatched vs skipped.
+- `routes/console.php` — scheduler `olts:poll` diubah dari `everyFiveMinutes()` ke `everyMinute()` karena setiap OLT kini menjaga interval sendiri.
+- `app/Http/Controllers/SmartOltController.php` — `refreshPortOnus()` dihapus ketergantungan `ZteOnuRxPowerService` (RX sudah di dalam `OltSnmpClient`); validasi dan serialisasi ditambah `poll_interval_minutes`, `rx_poll_interval_minutes`, `last_rx_polled_at`; `serializeSnapshot()` memperkaya tiap port dengan `onu_count`, `online_onu_count`, `onu_search_items`, dan `search_text` untuk pencarian frontend.
+- `app/Support/SmartOltSupport.php` — tambah kapabilitas `supports_snmp_rx`; `rx_source_label` diperbarui ke `Rx ONU (SNMP)`.
+- `config/services.php` dan `.env.example` — tambah blok konfigurasi `snmp_poller` (driver, binary, timeout, retries, walk_mode, max_repetitions).
+- `.gitignore` — tambah `/bin/kv-snmp-poller`.
+- `resources/js/Pages/SmartOlt/Detail.vue` — tabel port diganti dengan grid kartu; tiap kartu menampilkan nama port, status, jumlah ONU online/total; tambah search bar untuk filter port/ONU berdasarkan SN, nama, atau deskripsi; hasil pencarian menampilkan preview ONU yang cocok.
+- `resources/js/Pages/SmartOlt/Index.vue` — tampilkan interval polling (`Xm · RX Xm`) di kolom auto-poll.
+- `resources/js/Pages/SmartOlt/Partials/OltForm.vue` — tambah input `poll_interval_minutes` dan `rx_poll_interval_minutes`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — label UX diperbaiki: "Status Cache" → "Data", "OK/Empty" → "Tersedia/Kosong"; hapus `ifIndex` dari subtitle.
+- `resources/js/Pages/SmartOlt/Unconfigured.vue` — label UX diperbaiki: "Detected ONU" → "ONU Terdeteksi", hapus kolom "Source OID".
+- `tests/Feature/OltPollingTest.php` — tambah coverage: poll interval due/not-due, RX dari SNMP, preservasi RX saat interval belum lewat, pembersihan RX lama saat SNMP kosong.
+- `tests/Feature/SmartOltInventoryTest.php` — tambah coverage `onuRxPowers()` via SNMP dengan multi-format raw value (`INTEGER:`, signed decimal, signed short, -32768 sentinel invalid).
+
+Notes:
+
+- RX power kini full SNMP (tidak perlu CLI/Telnet untuk background poll). Nilai raw dari ZTE ONU RX OID dikodekan dalam tiga format berbeda tergantung firmware: milli-dBm (`-18500`), deci-dBm (`-185`), dan linear 14-bit (`5635` → `(raw * 0.002) - 30`). Fungsi `convertOnuRxPowerToDbm()` mendeteksi dan mengkonversi ketiganya.
+- Scheduler kini jalan tiap menit, tapi masing-masing OLT hanya benar-benar di-poll sesuai `poll_interval_minutes`-nya — lebih fleksibel dari sebelumnya yang fixed 5 menit untuk semua.
+- Go poller adalah opsional akselerasi; default tetap PHP. Binary `bin/kv-snmp-poller` di-gitignore.

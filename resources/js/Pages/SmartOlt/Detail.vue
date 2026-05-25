@@ -1,11 +1,10 @@
 <script setup>
-import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, ClipboardList, Eye, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
-import { computed } from 'vue';
+import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -20,6 +19,33 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const portSearch = ref('');
+const isSearching = computed(() => portSearch.value.trim().length > 0);
+const normalizeSearch = (value) => String(value ?? '').toLowerCase();
+
+const filteredPorts = computed(() => {
+    const term = portSearch.value.trim().toLowerCase();
+
+    if (!term) {
+        return props.snapshot.ports.map((port) => ({
+            ...port,
+            matching_onus: [],
+        }));
+    }
+
+    return props.snapshot.ports
+        .map((port) => {
+            const matchingOnus = (port.onu_search_items ?? []).filter((onu) => normalizeSearch(onu.search_text).includes(term));
+            const portMatches = normalizeSearch(`${port.name} ${port.slot}/${port.port}`).includes(term);
+
+            return {
+                ...port,
+                matching_onus: matchingOnus,
+                port_matches: portMatches,
+            };
+        })
+        .filter((port) => port.port_matches || port.matching_onus.length > 0);
+});
 
 const refresh = () => {
     router.post(route('smartolt.refresh', props.olt.id), {}, {
@@ -37,6 +63,9 @@ const formatDate = (value) => {
         timeStyle: 'short',
     }).format(new Date(value));
 };
+
+const portStatusLabel = (status) => String(status || 'unknown').toUpperCase();
+const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || onu.interface || '-';
 </script>
 
 <template>
@@ -191,16 +220,26 @@ const formatDate = (value) => {
                     </div>
                 </div>
 
-                <div class="rounded-lg bg-white shadow-sm">
-                    <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
-                        <Cable class="h-5 w-5 text-gray-500" />
-                        <div>
-                            <h3 class="text-base font-semibold text-gray-900">
-                                GPON Ports
+                <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div class="flex flex-col gap-4 border-b border-gray-900 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                        <div class="flex items-center gap-2">
+                            <Cable class="h-5 w-5 text-gray-900" />
+                            <h3 class="text-base font-semibold uppercase text-gray-900">
+                                GPON Port & ONU
                             </h3>
-                            <p class="text-sm text-gray-500">
-                                Diambil dari IF-MIB `ifDescr` dan `ifOperStatus`.
-                            </p>
+                        </div>
+
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <input
+                                v-model="portSearch"
+                                type="search"
+                                class="h-9 w-full border-0 bg-transparent px-3 text-sm text-gray-700 placeholder:text-gray-500 focus:ring-0 sm:w-72"
+                                placeholder="Cari ONU (SN/Nama)..."
+                            />
+                            <span class="inline-flex h-8 items-center gap-1.5 rounded-full bg-lime-400 px-3 text-xs font-semibold text-gray-950">
+                                <CheckCircle2 class="h-4 w-4" />
+                                Selesai
+                            </span>
                         </div>
                     </div>
 
@@ -208,42 +247,55 @@ const formatDate = (value) => {
                         Belum ada data port. Jalankan Refresh SNMP.
                     </div>
 
-                    <div v-else class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Port</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">ifIndex</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Slot</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200">
-                                <tr v-for="port in snapshot.ports" :key="port.if_index">
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ port.name }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ port.if_index }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ port.slot }}/{{ port.port }}</td>
-                                    <td class="px-6 py-4">
-                                        <span
-                                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
-                                            :class="port.oper_status === 'up'
-                                                ? 'bg-emerald-100 text-emerald-800'
-                                                : 'bg-gray-100 text-gray-700'"
-                                        >
-                                            {{ port.oper_status }}
-                                        </span>
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <div class="flex justify-end">
-                                            <IconButton :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])" title="Lihat ONU">
-                                                <Eye class="h-4 w-4" />
-                                            </IconButton>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div v-else-if="filteredPorts.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+                        Port atau ONU tidak ditemukan.
+                    </div>
+
+                    <div v-else class="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                        <Link
+                            v-for="port in filteredPorts"
+                            :key="port.if_index"
+                            :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])"
+                            class="block rounded-lg border p-4 transition hover:border-emerald-300 hover:bg-emerald-50/50"
+                            :class="port.oper_status === 'up' ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'"
+                        >
+                            <div class="font-mono text-sm font-semibold text-gray-900">
+                                {{ port.name }}
+                            </div>
+
+                            <div class="mt-4 flex items-end justify-between gap-3">
+                                <span
+                                    class="text-xs font-bold"
+                                    :class="port.oper_status === 'up' ? 'text-emerald-600' : 'text-gray-500'"
+                                >
+                                    {{ portStatusLabel(port.oper_status) }}
+                                </span>
+                                <span class="text-xs text-gray-500">
+                                    {{ port.online_onu_count ?? 0 }}/{{ port.onu_count ?? 0 }} ONU
+                                </span>
+                            </div>
+
+                            <div v-if="isSearching && port.matching_onus.length" class="mt-3 space-y-1 border-t border-gray-100 pt-3">
+                                <div
+                                    v-for="onu in port.matching_onus.slice(0, 3)"
+                                    :key="`${port.if_index}-${onu.onu_id}`"
+                                    class="flex items-center justify-between gap-2 text-xs"
+                                >
+                                    <span class="truncate font-medium text-gray-700">
+                                        {{ onuSummary(onu) }}
+                                    </span>
+                                    <span
+                                        class="shrink-0 font-semibold"
+                                        :class="onu.online ? 'text-emerald-600' : 'text-gray-400'"
+                                    >
+                                        {{ onu.online ? 'ON' : 'OFF' }}
+                                    </span>
+                                </div>
+                                <div v-if="port.matching_onus.length > 3" class="text-xs font-medium text-gray-500">
+                                    +{{ port.matching_onus.length - 3 }} ONU
+                                </div>
+                            </div>
+                        </Link>
                     </div>
                 </div>
             </div>

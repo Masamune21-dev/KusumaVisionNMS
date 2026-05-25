@@ -38,6 +38,8 @@ class OltSnmpClient
 
     private const ZTE_ONU_LAST_DOWN_CAUSE = '1.3.6.1.4.1.3902.1012.3.28.2.1.7';
 
+    private const ZTE_ONU_RX_POWER = '1.3.6.1.4.1.3902.1012.3.50.12.1.1.10';
+
     private const ZTE_UNCFG_OIDS = [
         '1.3.6.1.4.1.3902.1012.3.13.3.1.2',
         '1.3.6.1.4.1.3902.1082.500.10.2.1.1',
@@ -230,6 +232,24 @@ class OltSnmpClient
                 fn (array $onu) => (int) $onu['slot'] === $slot && (int) $onu['port'] === $port
             ));
             $ifIndex = $onus[0]['if_index'] ?? $portRow['if_index'] ?? $this->zteEncodeIfIndex($slot, $port);
+            $rxPower = [
+                'ok' => true,
+                'source' => 'snmp',
+                'count' => 0,
+                'error' => null,
+            ];
+
+            try {
+                $onus = $this->mergeOnuRxPowers($onus, $this->onuRxPowers($olt));
+                $rxPower['count'] = $this->countSnmpRxPowers($onus);
+            } catch (Throwable $exception) {
+                $rxPower = [
+                    'ok' => false,
+                    'source' => 'snmp',
+                    'count' => 0,
+                    'error' => $exception->getMessage(),
+                ];
+            }
 
             return [
                 'ok' => true,
@@ -240,6 +260,7 @@ class OltSnmpClient
                 'onus' => $onus,
                 'count' => count($onus),
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'rx_power' => $rxPower,
                 'error' => null,
             ];
         } catch (Throwable $exception) {
@@ -252,6 +273,12 @@ class OltSnmpClient
                 'onus' => [],
                 'count' => 0,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'rx_power' => [
+                    'ok' => false,
+                    'source' => 'snmp',
+                    'count' => 0,
+                    'error' => $exception->getMessage(),
+                ],
                 'error' => $exception->getMessage(),
             ];
         }
@@ -316,6 +343,75 @@ class OltSnmpClient
         usort($onus, fn (array $a, array $b) => [$a['slot'], $a['port'], $a['onu_id']] <=> [$b['slot'], $b['port'], $b['onu_id']]);
 
         return $onus;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function onuRxPowers(SnmpOlt $olt): array
+    {
+        $rows = $this->walk($olt, self::ZTE_ONU_RX_POWER);
+        $powers = [];
+
+        foreach ($rows as $oid => $rawValue) {
+            $index = $this->extractOnuPortIndex($oid, self::ZTE_ONU_RX_POWER);
+            $raw = $this->intFromValue($rawValue);
+
+            if ($index === null || $raw === null) {
+                continue;
+            }
+
+            [$ifIndex, $onuId, $onuPort] = $index;
+            $dbm = $this->convertOnuRxPowerToDbm($raw);
+
+            if ($dbm === null) {
+                continue;
+            }
+
+            $key = $this->onuRxPowerKey($ifIndex, $onuId);
+            if (isset($powers[$key]) && $onuPort !== 1) {
+                continue;
+            }
+
+            $powers[$key] = [
+                'if_index' => $ifIndex,
+                'onu_id' => $onuId,
+                'rx_power_port' => $onuPort,
+                'raw_rx_power' => $raw,
+                'rx_power_dbm' => $dbm,
+                'rx_power_label' => sprintf('%.3f dBm', $dbm),
+                'rx_power_source' => 'snmp_onu_rx',
+            ];
+        }
+
+        return $powers;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $onus
+     * @param  array<string, array<string, mixed>>  $powers
+     * @return array<int, array<string, mixed>>
+     */
+    public function mergeOnuRxPowers(array $onus, array $powers): array
+    {
+        return array_map(function (array $onu) use ($powers) {
+            $ifIndex = (int) ($onu['if_index'] ?? 0);
+            $onuId = (int) ($onu['onu_id'] ?? 0);
+            $power = $powers[$this->onuRxPowerKey($ifIndex, $onuId)] ?? null;
+
+            if ($power === null) {
+                return $onu;
+            }
+
+            return [
+                ...$onu,
+                'rx_power_port' => $power['rx_power_port'],
+                'raw_rx_power' => $power['raw_rx_power'],
+                'rx_power_dbm' => $power['rx_power_dbm'],
+                'rx_power_label' => $power['rx_power_label'],
+                'rx_power_source' => $power['rx_power_source'],
+            ];
+        }, $onus);
     }
 
     /**
@@ -545,6 +641,26 @@ class OltSnmpClient
     }
 
     /**
+     * @return array{0:int, 1:int, 2:int}|null
+     */
+    private function extractOnuPortIndex(string $oid, string $base): ?array
+    {
+        $oid = $this->normalizeOid($oid);
+        $base = $this->normalizeOid($base).'.';
+
+        if (! str_starts_with($oid, $base)) {
+            return null;
+        }
+
+        $parts = explode('.', substr($oid, strlen($base)));
+        if (count($parts) !== 3 || ! ctype_digit($parts[0]) || ! ctype_digit($parts[1]) || ! ctype_digit($parts[2])) {
+            return null;
+        }
+
+        return [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
+    }
+
+    /**
      * @return array{suffix:string|null, if_index:int|null, onu_id:int|null}
      */
     private function extractUnconfiguredIndex(string $oid, string $base): array
@@ -652,13 +768,54 @@ class OltSnmpClient
      */
     private function intFromWalk(array $rows, string $base, string $suffix): ?int
     {
-        $value = $this->walkValue($rows, $base, $suffix);
+        return $this->intFromValue($this->walkValue($rows, $base, $suffix));
+    }
 
+    private function intFromValue(?string $value): ?int
+    {
         if ($value === null || ! preg_match('/-?\d+/', $value, $matches)) {
             return null;
         }
 
         return (int) $matches[0];
+    }
+
+    private function convertOnuRxPowerToDbm(int $raw): ?float
+    {
+        if ($raw <= -80000 || $raw >= 2147480000 || $raw >= 65000 || $raw === -32768) {
+            return null;
+        }
+
+        if ($raw >= -50000 && $raw <= -3000) {
+            return round($raw / 1000, 3);
+        }
+
+        if ($raw >= -500 && $raw <= -5) {
+            return round($raw / 10, 3);
+        }
+
+        if ($raw > 0) {
+            return round(($raw * 0.002) - 30, 3);
+        }
+
+        return null;
+    }
+
+    private function onuRxPowerKey(int $ifIndex, int $onuId): string
+    {
+        return "{$ifIndex}.{$onuId}";
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $onus
+     */
+    private function countSnmpRxPowers(array $onus): int
+    {
+        return count(array_filter(
+            $onus,
+            fn (array $onu) => str_starts_with((string) ($onu['rx_power_source'] ?? ''), 'snmp')
+                && ($onu['rx_power_dbm'] ?? null) !== null,
+        ));
     }
 
     private function decodeOnuSn(?string $raw): ?string

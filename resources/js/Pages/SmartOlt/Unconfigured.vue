@@ -78,9 +78,9 @@ const formatDate = (value) => {
 
                 <div class="grid gap-4 md:grid-cols-3">
                     <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Status Cache</div>
+                        <div class="text-sm font-medium text-gray-500">Data</div>
                         <div class="mt-2 text-2xl font-semibold" :class="snapshot.ok ? 'text-emerald-700' : 'text-gray-900'">
-                            {{ snapshot.ok ? 'OK' : 'Empty' }}
+                            {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
                         </div>
                     </div>
                     <div class="rounded-lg bg-white p-5 shadow-sm">
@@ -96,10 +96,7 @@ const formatDate = (value) => {
                 <div class="rounded-lg bg-white shadow-sm">
                     <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
                         <Wifi class="h-5 w-5 text-gray-500" />
-                        <div>
-                            <h3 class="text-base font-semibold text-gray-900">Detected ONU</h3>
-                            <p class="text-sm text-gray-500">Discovery dari OID unconfigured ZTE.</p>
-                        </div>
+                        <h3 class="text-base font-semibold text-gray-900">ONU Terdeteksi</h3>
                     </div>
 
                     <div v-if="snapshot.onus.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
@@ -112,7 +109,6 @@ const formatDate = (value) => {
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Serial</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Port</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Source OID</th>
                                     <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
@@ -123,7 +119,6 @@ const formatDate = (value) => {
                                         <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
                                         <span v-else>-</span>
                                     </td>
-                                    <td class="px-6 py-4 text-xs text-gray-500">{{ onu.source_oid }}</td>
                                     <td class="px-6 py-4">
                                         <div class="flex justify-end">
                                             <IconButton

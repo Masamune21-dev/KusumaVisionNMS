@@ -7,6 +7,7 @@ use App\Models\SnmpOlt;
 class SmartOltSupport
 {
     public const DRIVER_ZTE = 'zte';
+
     public const DRIVER_UNKNOWN = 'unknown';
 
     public static function driverKey(?SnmpOlt $olt, ?string $sysDescr = null, ?string $sysObjectId = null): string
@@ -39,6 +40,7 @@ class SmartOltSupport
                 'supports_provisioning' => false,
                 'supports_cli_onu_detail' => false,
                 'supports_cli_onu_configure' => false,
+                'supports_snmp_rx' => false,
                 'supports_reboot' => false,
                 'supports_onu_toggle' => false,
                 'supports_onu_info_write' => false,
@@ -52,6 +54,7 @@ class SmartOltSupport
             'port_label' => 'GPON Port',
             'port_name_prefix' => 'gpon-olt_1',
             'onu_interface_pattern' => 'gpon-onu_1/%d/%d:%d',
+            'supports_snmp_rx' => true,
             'supports_cli_rx' => true,
             'supports_cli_onu_detail' => true,
             'supports_cli_onu_configure' => true,
@@ -62,7 +65,7 @@ class SmartOltSupport
             'supports_onu_info_write' => true,
             'description_mode' => 'snmp',
             'supports_onu_toggle' => true,
-            'rx_source_label' => 'Rx ONU',
+            'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
 }

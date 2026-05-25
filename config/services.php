@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'snmp_poller' => [
+        'driver' => env('SNMP_POLLER_DRIVER', 'php'),
+        'binary' => env('SNMP_POLLER_BINARY', base_path('bin/kv-snmp-poller')),
+        'request_timeout' => env('SNMP_POLLER_REQUEST_TIMEOUT', '10s'),
+        'process_timeout' => (int) env('SNMP_POLLER_PROCESS_TIMEOUT', 300),
+        'retries' => (int) env('SNMP_POLLER_RETRIES', 2),
+        'walk_mode' => env('SNMP_POLLER_WALK_MODE', 'bulk'),
+        'max_repetitions' => (int) env('SNMP_POLLER_MAX_REPETITIONS', 10),
+    ],
+
 ];

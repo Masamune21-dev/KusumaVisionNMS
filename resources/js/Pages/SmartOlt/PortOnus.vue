@@ -156,7 +156,7 @@ const rxClass = (value) => {
                         ONU Slot {{ slot }} Port {{ port }}
                     </h2>
                     <p class="mt-1 text-sm text-gray-500">
-                        {{ olt.name }} · {{ olt.ip }} · ifIndex {{ snapshot.if_index || '-' }}
+                        {{ olt.name }} · {{ olt.ip }}
                     </p>
                 </div>
 
@@ -192,12 +192,12 @@ const rxClass = (value) => {
 
                 <div class="grid gap-4 md:grid-cols-4">
                     <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Status Cache</div>
+                        <div class="text-sm font-medium text-gray-500">Data</div>
                         <div
                             class="mt-2 text-2xl font-semibold"
                             :class="snapshot.ok ? 'text-emerald-700' : 'text-gray-900'"
                         >
-                            {{ snapshot.ok ? 'OK' : 'Empty' }}
+                            {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
                         </div>
                     </div>
                     <div class="rounded-lg bg-white p-5 shadow-sm">
@@ -227,9 +227,6 @@ const rxClass = (value) => {
                             <h3 class="text-base font-semibold text-gray-900">
                                 Registered ONU
                             </h3>
-                            <p class="text-sm text-gray-500">
-                                Diambil dari SNMP ZTE dan RX CLI show pon power onu-rx.
-                            </p>
                             <p v-if="snapshot.rx_power?.error" class="mt-1 text-xs text-red-600">
                                 RX gagal dibaca: {{ snapshot.rx_power.error }}
                             </p>

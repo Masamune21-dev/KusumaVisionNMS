@@ -34,6 +34,8 @@ const form = useForm({
     cli_username: props.olt?.cli_username ?? '',
     cli_password: '',
     polling_enabled: props.olt?.polling_enabled ?? true,
+    poll_interval_minutes: props.olt?.poll_interval_minutes ?? props.defaults.poll_interval_minutes ?? 5,
+    rx_poll_interval_minutes: props.olt?.rx_poll_interval_minutes ?? props.defaults.rx_poll_interval_minutes ?? 5,
 });
 
 const submit = () => {
@@ -209,11 +211,36 @@ const submit = () => {
                     type="checkbox"
                     class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
                 />
-                Aktifkan auto-poll SNMP (background, tiap 5 menit)
+                Aktifkan auto-poll SNMP
             </label>
-            <p class="mt-1 text-xs text-gray-500">
-                Matikan saat OLT sedang maintenance agar tidak di-poll otomatis.
-            </p>
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                    <InputLabel for="poll_interval_minutes" value="Interval Polling (menit)" />
+                    <TextInput
+                        id="poll_interval_minutes"
+                        v-model="form.poll_interval_minutes"
+                        class="mt-1 block w-full"
+                        type="number"
+                        min="1"
+                        max="1440"
+                        required
+                    />
+                    <InputError class="mt-2" :message="form.errors.poll_interval_minutes" />
+                </div>
+                <div>
+                    <InputLabel for="rx_poll_interval_minutes" value="Interval RX ONU (menit)" />
+                    <TextInput
+                        id="rx_poll_interval_minutes"
+                        v-model="form.rx_poll_interval_minutes"
+                        class="mt-1 block w-full"
+                        type="number"
+                        min="1"
+                        max="1440"
+                        required
+                    />
+                    <InputError class="mt-2" :message="form.errors.rx_poll_interval_minutes" />
+                </div>
+            </div>
         </div>
 
         <div class="flex items-center justify-end gap-3">

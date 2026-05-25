@@ -12,6 +12,7 @@
 /.vscode
 /.zed
 /auth.json
+/bin/kv-snmp-poller
 /node_modules
 /public/build
 /public/hot

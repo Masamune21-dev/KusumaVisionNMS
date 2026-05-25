@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
+use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
@@ -135,7 +135,7 @@ class SmartOltInventoryTest extends TestCase
 
     public function test_onu_rx_power_output_can_be_parsed(): void
     {
-        $service = new ZteOnuRxPowerService(new ZteCliProvisioningExecutor());
+        $service = new ZteOnuRxPowerService(new ZteCliProvisioningExecutor);
 
         $powers = $service->parse(<<<'OUT'
 gpon-onu_1/2/2:1    -18.762(dbm)
@@ -145,6 +145,39 @@ OUT);
 
         $this->assertSame(-18.762, $powers[1]['rx_power_dbm']);
         $this->assertSame('-22.100 dBm', $powers[3]['rx_power_label']);
+    }
+
+    public function test_onu_rx_power_can_be_read_from_snmp_onu_rx_table(): void
+    {
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.40',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+        $client = new class extends OltSnmpClient
+        {
+            public function walk(SnmpOlt $olt, string $oid): array
+            {
+                return [
+                    "{$oid}.268501760.1.1" => 'INTEGER: 5635',
+                    "{$oid}.268501760.2.1" => '-28930',
+                    "{$oid}.268501760.3.1" => '-280',
+                    "{$oid}.268501760.4.1" => '-32768',
+                ];
+            }
+        };
+
+        $powers = $client->onuRxPowers($olt);
+
+        $this->assertSame(-18.73, $powers['268501760.1']['rx_power_dbm']);
+        $this->assertSame('snmp_onu_rx', $powers['268501760.1']['rx_power_source']);
+        $this->assertSame(1, $powers['268501760.1']['rx_power_port']);
+        $this->assertSame('-28.930 dBm', $powers['268501760.2']['rx_power_label']);
+        $this->assertSame(-28.0, $powers['268501760.3']['rx_power_dbm']);
+        $this->assertArrayNotHasKey('268501760.4', $powers);
     }
 
     public function test_unconfigured_onu_page_can_be_rendered(): void

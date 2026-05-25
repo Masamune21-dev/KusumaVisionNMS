@@ -7,7 +7,6 @@ use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
-use App\Services\ZteOnuRxPowerService;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -39,6 +38,8 @@ class SmartOltController extends Controller
                 'snmp_version' => 'v2c',
                 'cli_transport' => null,
                 'cli_port' => null,
+                'poll_interval_minutes' => 5,
+                'rx_poll_interval_minutes' => 5,
             ],
         ]);
     }
@@ -178,28 +179,10 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, ZteOnuRxPowerService $rxPower): RedirectResponse
+    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): RedirectResponse
     {
         $result = $client->portOnusSnapshot($olt, $slot, $port);
         $result['refreshed_at'] = now()->toIso8601String();
-
-        if ($result['ok']) {
-            try {
-                $rx = $rxPower->portRxPower($olt, $slot, $port);
-                $result['onus'] = $rxPower->merge($result['onus'], $rx['powers']);
-                $result['rx_power'] = [
-                    'ok' => $rx['ok'],
-                    'count' => count($rx['powers']),
-                    'error' => $rx['error'],
-                ];
-            } catch (\Throwable $exception) {
-                $result['rx_power'] = [
-                    'ok' => false,
-                    'count' => 0,
-                    'error' => $exception->getMessage(),
-                ];
-            }
-        }
 
         $snapshot = $olt->last_test_result ?? [];
         data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
@@ -447,6 +430,8 @@ class SmartOltController extends Controller
             'cli_username' => ['nullable', 'string', 'max:100'],
             'cli_password' => ['nullable', 'string', 'max:255'],
             'polling_enabled' => ['boolean'],
+            'poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
+            'rx_poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
         ]);
     }
 
@@ -521,11 +506,14 @@ class SmartOltController extends Controller
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
             'polling_enabled' => (bool) $olt->polling_enabled,
+            'poll_interval_minutes' => $olt->pollIntervalMinutes(),
+            'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),
             'driver' => $driver,
             'capabilities' => SmartOltSupport::capabilities($driver),
             'last_test_result' => $olt->last_test_result,
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
             'last_polled_at' => $olt->last_polled_at?->toIso8601String(),
+            'last_rx_polled_at' => $olt->last_rx_polled_at?->toIso8601String(),
             'created_at' => $olt->created_at?->toIso8601String(),
             'updated_at' => $olt->updated_at?->toIso8601String(),
         ];
@@ -537,13 +525,51 @@ class SmartOltController extends Controller
     private function serializeSnapshot(SnmpOlt $olt): array
     {
         $snapshot = $olt->last_test_result ?? [];
+        $ports = collect(data_get($snapshot, 'ports', []))
+            ->map(function (array $port) use ($snapshot) {
+                $slot = data_get($port, 'slot');
+                $portNumber = data_get($port, 'port');
+                $onus = data_get($snapshot, "port_onus.{$slot}_{$portNumber}.onus", []);
+                $onuSearchItems = collect($onus)
+                    ->map(function (array $onu) {
+                        $searchParts = [
+                            $onu['interface'] ?? null,
+                            $onu['serial_number'] ?? null,
+                            $onu['name'] ?? null,
+                            $onu['description'] ?? null,
+                        ];
+
+                        return [
+                            'onu_id' => data_get($onu, 'onu_id'),
+                            'interface' => data_get($onu, 'interface'),
+                            'serial_number' => data_get($onu, 'serial_number'),
+                            'name' => data_get($onu, 'name'),
+                            'description' => data_get($onu, 'description'),
+                            'online' => (bool) data_get($onu, 'online', false),
+                            'search_text' => collect($searchParts)->filter()->implode(' '),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+                $searchText = collect($onuSearchItems)->pluck('search_text')->filter()->implode(' ');
+
+                return [
+                    ...$port,
+                    'onu_count' => count($onus),
+                    'online_onu_count' => collect($onus)->where('online', true)->count(),
+                    'onu_search_items' => $onuSearchItems,
+                    'search_text' => trim(data_get($port, 'name').' '.$slot.'/'.$portNumber.' '.$searchText),
+                ];
+            })
+            ->values()
+            ->all();
 
         return [
             'ok' => (bool) data_get($snapshot, 'ok', false),
             'driver' => data_get($snapshot, 'driver'),
             'latency_ms' => data_get($snapshot, 'latency_ms'),
             'system' => data_get($snapshot, 'system', []),
-            'ports' => data_get($snapshot, 'ports', []),
+            'ports' => $ports,
             'error' => data_get($snapshot, 'error'),
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
         ];

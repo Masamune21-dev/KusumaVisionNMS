@@ -169,6 +169,9 @@ const formatDate = (value) => {
                                             <div class="text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-gray-400'">
                                                 Auto-poll: {{ olt.polling_enabled ? 'On' : 'Off' }}
                                             </div>
+                                            <div v-if="olt.polling_enabled" class="text-xs text-gray-500">
+                                                {{ olt.poll_interval_minutes }}m · RX {{ olt.rx_poll_interval_minutes }}m
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-sm">

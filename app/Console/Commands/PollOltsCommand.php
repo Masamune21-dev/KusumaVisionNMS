@@ -10,21 +10,28 @@ class PollOltsCommand extends Command
 {
     protected $signature = 'olts:poll';
 
-    protected $description = 'Dispatch a background SNMP poll job for every polling-enabled OLT';
+    protected $description = 'Dispatch background SNMP poll jobs for polling-enabled OLTs that are due';
 
     public function handle(): int
     {
-        $count = 0;
+        $dispatched = 0;
+        $skipped = 0;
 
         SnmpOlt::query()
             ->where('polling_enabled', true)
             ->orderBy('id')
-            ->each(function (SnmpOlt $olt) use (&$count) {
+            ->each(function (SnmpOlt $olt) use (&$dispatched, &$skipped) {
+                if (! $olt->isPollDue()) {
+                    $skipped++;
+
+                    return;
+                }
+
                 PollOltJob::dispatch($olt->id);
-                $count++;
+                $dispatched++;
             });
 
-        $this->info("Dispatched {$count} OLT poll job(s).");
+        $this->info("Dispatched {$dispatched} OLT poll job(s). Skipped {$skipped} not-due OLT(s).");
 
         return self::SUCCESS;
     }

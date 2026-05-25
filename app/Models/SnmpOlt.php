@@ -22,9 +22,12 @@ class SnmpOlt extends Model
         'cli_username',
         'cli_password',
         'polling_enabled',
+        'poll_interval_minutes',
+        'rx_poll_interval_minutes',
         'last_test_result',
         'last_tested_at',
         'last_polled_at',
+        'last_rx_polled_at',
     ];
 
     protected $hidden = [
@@ -42,9 +45,12 @@ class SnmpOlt extends Model
             'snmp_write_community' => 'encrypted',
             'cli_password' => 'encrypted',
             'polling_enabled' => 'boolean',
+            'poll_interval_minutes' => 'integer',
+            'rx_poll_interval_minutes' => 'integer',
             'last_test_result' => 'array',
             'last_tested_at' => 'datetime',
             'last_polled_at' => 'datetime',
+            'last_rx_polled_at' => 'datetime',
         ];
     }
 
@@ -58,5 +64,37 @@ class SnmpOlt extends Model
     public function defaultCliPort(): int
     {
         return $this->cli_transport === 'ssh' ? 22 : 23;
+    }
+
+    public function isPollDue(): bool
+    {
+        if (! $this->polling_enabled) {
+            return false;
+        }
+
+        if ($this->last_polled_at === null) {
+            return true;
+        }
+
+        return $this->last_polled_at->lte(now()->subMinutes($this->pollIntervalMinutes()));
+    }
+
+    public function isRxPollDue(): bool
+    {
+        if ($this->last_rx_polled_at === null) {
+            return true;
+        }
+
+        return $this->last_rx_polled_at->lte(now()->subMinutes($this->rxPollIntervalMinutes()));
+    }
+
+    public function pollIntervalMinutes(): int
+    {
+        return max(1, (int) ($this->poll_interval_minutes ?: 5));
+    }
+
+    public function rxPollIntervalMinutes(): int
+    {
+        return max(1, (int) ($this->rx_poll_interval_minutes ?: 5));
     }
 }
