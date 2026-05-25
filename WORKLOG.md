@@ -203,16 +203,16 @@ Notes:
 
 - TR069 default follows the SmartOLT guide: ACS URL `http://acs.bmkv.net:7547`, user `cms`, password `kusuma123!`.
 
-### Phase 10 - Profile Delete Scope and Cached ONU ID Suggestion
+### Phase 10 - Profile Delete Scope and Live ONU ID Suggestion
 
 Changed:
 
 - `app/Http/Controllers/SmartOltProfileController.php` - profile management page now lists only profiles owned by the selected OLT, avoiding delete/update 404s from global fallback rows.
 - `resources/js/Pages/SmartOlt/Profiles.vue` - hides edit/delete actions for any fallback profile row if present.
-- `app/Http/Controllers/SmartOltController.php` - register form now suggests the next free ONU ID from cached `port_onus` data, with the unconfigured ONU suggested ID as fallback.
+- `app/Http/Controllers/SmartOltController.php` - register form now reads `show gpon onu state gpon-olt_1/{slot}/{port}` to find the next free ONU ID, with cache and unconfigured suggested ID as fallback.
 - `resources/js/Pages/SmartOlt/Unconfigured.vue` - passes the unconfigured ONU suggested ID into the register form.
-- `tests/Feature/SmartOltInventoryTest.php` - added coverage for cached ONU ID suggestion and unconfigured suggested ID fallback.
+- `tests/Feature/SmartOltInventoryTest.php` - added coverage for live CLI ONU ID suggestion and unconfigured suggested ID fallback.
 
 Notes:
 
-- Provisioning ONU ID is automatic without doing a live SNMP walk during the register form load. Refresh the target port ONU table first when a fresh gap check is needed; gaps such as used IDs `1,2,4` suggest `3`.
+- Provisioning ONU ID is automatic from CLI state output. If CLI is unavailable, it falls back to cached port data or the unconfigured suggested ID; gaps such as used IDs `1,2,4` suggest `3`.

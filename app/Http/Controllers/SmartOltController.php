@@ -68,10 +68,11 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt, ZteCliProvisioningExecutor $executor): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
+        $suggestedOnuId = (int) $request->query('suggested_onu_id');
 
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
@@ -80,7 +81,7 @@ class SmartOltController extends Controller
                 'serial_number' => (string) $request->query('sn', ''),
                 'slot' => $slot ?: null,
                 'port' => $port ?: null,
-                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
+                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $suggestedOnuId, $executor),
                 'oid_index' => (string) $request->query('oid_index', ''),
                 'customer_name' => '',
                 'onu_type' => $this->firstProfileName($olt, 'onu_type', 'ALL-ONT'),
@@ -486,19 +487,39 @@ class SmartOltController extends Controller
         ];
     }
 
-    private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port, int $fallback = 1): int
+    private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port, int $fallback = 1, ?ZteCliProvisioningExecutor $executor = null): int
     {
         if ($slot < 1 || $port < 1) {
-            return 1;
+            return $fallback >= 1 && $fallback <= 4096 ? $fallback : 1;
+        }
+
+        $used = [];
+
+        if ($executor && $this->canUseCliForOnuState($olt)) {
+            try {
+                $output = $executor->execute($olt, sprintf(
+                    "terminal length 0\nshow gpon onu state gpon-olt_1/%d/%d",
+                    $slot,
+                    $port,
+                ));
+
+                $used = $this->extractUsedOnuIdsFromStateOutput($output['output'] ?? '', $slot, $port);
+            } catch (\Throwable) {
+                // Fall back to cached data and query hints below.
+            }
         }
 
         $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
 
-        if ($onus === []) {
+        if ($used === []) {
+            $used = collect($onus)->pluck('onu_id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        if ($used === []) {
             return $fallback >= 1 && $fallback <= 4096 ? $fallback : 1;
         }
 
-        $used = collect($onus)->pluck('onu_id')->map(fn ($id) => (int) $id)->flip();
+        $used = array_fill_keys(array_filter(array_map('intval', $used), fn (int $id) => $id > 0), true);
 
         for ($id = 1; $id <= 4096; $id++) {
             if (! isset($used[$id])) {
@@ -506,7 +527,38 @@ class SmartOltController extends Controller
             }
         }
 
-        return 4096;
+        return $fallback >= 1 && $fallback <= 4096 ? $fallback : 1;
+    }
+
+    private function canUseCliForOnuState(SnmpOlt $olt): bool
+    {
+        return $olt->cli_transport === 'telnet'
+            && (bool) $olt->cli_username
+            && (bool) $olt->cli_password;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function extractUsedOnuIdsFromStateOutput(string $output, int $slot, int $port): array
+    {
+        if ($output === '') {
+            return [];
+        }
+
+        preg_match_all('/(\d+)\/(\d+)\/(\d+):(\d+)/', $output, $matches, PREG_SET_ORDER);
+
+        $ids = [];
+
+        foreach ($matches as $match) {
+            if ((int) $match[2] !== $slot || (int) $match[3] !== $port) {
+                continue;
+            }
+
+            $ids[] = (int) $match[4];
+        }
+
+        return array_values(array_unique($ids));
     }
 
     private function firstProfileName(SnmpOlt $olt, string $type, string $fallback): string

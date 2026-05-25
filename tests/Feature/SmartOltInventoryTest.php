@@ -201,7 +201,7 @@ OUT);
         $response->assertOk();
     }
 
-    public function test_register_onu_form_suggests_next_free_onu_id_from_cached_port_onus(): void
+    public function test_register_onu_form_suggests_next_free_onu_id_from_cli_state_output(): void
     {
         $user = User::factory()->create();
         $olt = SnmpOlt::create([
@@ -211,18 +211,30 @@ OUT);
             'snmp_port' => 161,
             'snmp_read_community' => 'public',
             'snmp_version' => 'v2c',
-            'last_test_result' => [
-                'port_onus' => [
-                    '2_1' => [
-                        'onus' => [
-                            ['slot' => 2, 'port' => 1, 'onu_id' => 1],
-                            ['slot' => 2, 'port' => 1, 'onu_id' => 2],
-                            ['slot' => 2, 'port' => 1, 'onu_id' => 4],
-                        ],
-                    ],
-                ],
-            ],
+            'cli_transport' => 'telnet',
+            'cli_port' => 23,
+            'cli_username' => 'admin',
+            'cli_password' => 'secret',
         ]);
+
+        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
+        {
+            public function execute(SnmpOlt $olt, string $script): array
+            {
+                return [
+                    'ok' => true,
+                    'error' => null,
+                    'output' => <<<'OUT'
+ZXAN# show gpon onu state gpon-olt_1/2/1
+ONU Interface    Admin State    OMCC State    Phase State
+gpon-onu_1/2/1:1  enable         active        online
+gpon-onu_1/2/1:2  enable         active        online
+gpon-onu_1/2/1:4  enable         active        online
+gpon-onu_1/2/2:1  enable         active        online
+OUT,
+                ];
+            }
+        });
 
         $response = $this->actingAs($user)->get(route('smartolt.register', [
             'olt' => $olt,
@@ -235,7 +247,7 @@ OUT);
         $response->assertInertia(fn ($page) => $page->where('defaults.onu_id', 3));
     }
 
-    public function test_register_onu_form_uses_unconfigured_suggested_onu_id_when_port_cache_is_empty(): void
+    public function test_register_onu_form_uses_unconfigured_suggested_onu_id_when_cli_is_unavailable(): void
     {
         $user = User::factory()->create();
         $olt = SnmpOlt::create([
