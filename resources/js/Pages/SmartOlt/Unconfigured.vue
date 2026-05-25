@@ -131,6 +131,7 @@ const formatDate = (value) => {
                                                 slot: onu.slot,
                                                 port: onu.port,
                                                 oid_index: onu.oid_index,
+                                                suggested_onu_id: onu.suggested_onu_id,
                                             })"
                                         >
                                             <PrimaryButton type="button">

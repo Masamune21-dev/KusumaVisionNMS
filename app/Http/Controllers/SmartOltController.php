@@ -68,7 +68,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt, OltSnmpClient $client): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
@@ -80,7 +80,7 @@ class SmartOltController extends Controller
                 'serial_number' => (string) $request->query('sn', ''),
                 'slot' => $slot ?: null,
                 'port' => $port ?: null,
-                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $client),
+                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
                 'oid_index' => (string) $request->query('oid_index', ''),
                 'customer_name' => '',
                 'onu_type' => $this->firstProfileName($olt, 'onu_type', 'ALL-ONT'),
@@ -486,7 +486,7 @@ class SmartOltController extends Controller
         ];
     }
 
-    private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port, ?OltSnmpClient $client = null): int
+    private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port, int $fallback = 1): int
     {
         if ($slot < 1 || $port < 1) {
             return 1;
@@ -494,16 +494,8 @@ class SmartOltController extends Controller
 
         $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
 
-        if ($client) {
-            try {
-                $ports = $client->gponPorts($olt);
-                $onus = array_values(array_filter(
-                    $client->registeredOnus($olt, $ports),
-                    fn (array $onu) => (int) $onu['slot'] === $slot && (int) $onu['port'] === $port,
-                ));
-            } catch (\Throwable) {
-                // Keep the cached port_onus fallback when live SNMP is unavailable.
-            }
+        if ($onus === []) {
+            return $fallback >= 1 && $fallback <= 4096 ? $fallback : 1;
         }
 
         $used = collect($onus)->pluck('onu_id')->map(fn ($id) => (int) $id)->flip();
