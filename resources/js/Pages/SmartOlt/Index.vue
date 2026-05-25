@@ -135,7 +135,7 @@ const formatDate = (value) => {
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                                         Test Terakhir
                                     </th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
                                         Aksi
                                     </th>
                                 </tr>
@@ -186,7 +186,7 @@ const formatDate = (value) => {
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="flex justify-end gap-1.5">
+                                        <div class="flex justify-center gap-1.5">
                                             <IconButton :href="route('smartolt.detail', olt.id)" title="Detail">
                                                 <Eye class="h-4 w-4" />
                                             </IconButton>

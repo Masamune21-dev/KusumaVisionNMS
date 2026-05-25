@@ -109,7 +109,7 @@ const formatDate = (value) => {
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Serial</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Port</th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
+                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -120,7 +120,7 @@ const formatDate = (value) => {
                                         <span v-else>-</span>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="flex justify-end">
+                                        <div class="flex justify-center">
                                             <IconButton
                                                 variant="primary"
                                                 title="Register ONU"

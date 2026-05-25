@@ -5,9 +5,10 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
+const page = usePage();
 </script>
 
 <template>
@@ -205,17 +206,23 @@ const showingNavigationDropdown = ref(false);
 
             <!-- Page Heading -->
             <header
-                class="bg-white shadow"
+                class="bg-white shadow-sm"
                 v-if="$slots.header"
             >
-                <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                    <slot name="header" />
+                <div class="mx-auto max-w-7xl min-h-[68px] flex items-center px-4 py-4 sm:px-6 lg:px-8">
+                    <div class="w-full">
+                        <slot name="header" />
+                    </div>
                 </div>
             </header>
 
             <!-- Page Content -->
             <main>
-                <slot />
+                <Transition name="page" mode="out-in">
+                    <div :key="page.component">
+                        <slot />
+                    </div>
+                </Transition>
             </main>
         </div>
     </div>

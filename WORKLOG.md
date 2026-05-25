@@ -354,3 +354,20 @@ Notes:
 - RX power kini full SNMP (tidak perlu CLI/Telnet untuk background poll). Nilai raw dari ZTE ONU RX OID dikodekan dalam tiga format berbeda tergantung firmware: milli-dBm (`-18500`), deci-dBm (`-185`), dan linear 14-bit (`5635` → `(raw * 0.002) - 30`). Fungsi `convertOnuRxPowerToDbm()` mendeteksi dan mengkonversi ketiganya.
 - Scheduler kini jalan tiap menit, tapi masing-masing OLT hanya benar-benar di-poll sesuai `poll_interval_minutes`-nya — lebih fleksibel dari sebelumnya yang fixed 5 menit untuk semua.
 - Go poller adalah opsional akselerasi; default tetap PHP. Binary `bin/kv-snmp-poller` di-gitignore.
+
+### Phase 17 - UI Consistency Pass
+
+Changed:
+
+- `resources/js/Components/Modal.vue` — container diubah ke `flex min-h-full items-center justify-center` sehingga modal muncul di tengah viewport secara vertikal maupun horizontal; `mb-6` dihapus dari panel modal.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — header wrapper ditambah `min-h-[68px] flex items-center` untuk konsistensi tinggi antar halaman; import `usePage` dari Inertia; slot `<main>` dibungkus `<Transition name="page" mode="out-in">` dengan key `page.component` sehingga setiap navigasi antar halaman memiliki efek animasi fade + slide.
+- `resources/css/app.css` — tambah CSS kelas `.page-enter-active`, `.page-leave-active`, `.page-enter-from`, `.page-leave-to` untuk animasi transisi halaman (fade 180ms masuk, 120ms keluar, dengan geseran vertikal 4–6px).
+- `resources/js/Pages/SmartOlt/Index.vue` — header kolom Aksi diubah dari `text-right` ke `text-center`; action cell menggunakan `flex justify-center`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — header kolom Aksi diubah dari `text-right` ke `text-center`; action cell menggunakan `flex justify-center`.
+- `resources/js/Pages/SmartOlt/Profiles.vue` — header kolom Aksi diubah dari `text-right` ke `text-center`; action cell (mode view & mode edit) menggunakan `flex justify-center`.
+- `resources/js/Pages/SmartOlt/Unconfigured.vue` — header kolom Aksi diubah dari `text-right` ke `text-center`; action cell menggunakan `flex justify-center`.
+
+Notes:
+
+- Transisi `out-in` memastikan halaman lama selesai fade-out sebelum halaman baru fade-in — menghilangkan kesan header "melompat" saat navigasi.
+- Modal center fix berlaku untuk semua modal di seluruh aplikasi (ConfirmModal, edit info ONU, dsb.) karena semuanya memakai komponen `Modal.vue`.

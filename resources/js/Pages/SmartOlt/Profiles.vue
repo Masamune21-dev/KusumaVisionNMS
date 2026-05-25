@@ -246,7 +246,7 @@ const syncFromOlt = () => {
                                     <th v-if="type.key === 'vlan'" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">VLAN</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Params</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
+                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white">
@@ -284,7 +284,7 @@ const syncFromOlt = () => {
                                             </label>
                                         </td>
                                         <td class="px-6 py-4">
-                                            <div class="flex justify-end gap-1.5">
+                                            <div class="flex justify-center gap-1.5">
                                                 <IconButton variant="success" title="Simpan" :disabled="editing[profile.id].processing" @click="update(profile)">
                                                     <Check class="h-4 w-4" />
                                                 </IconButton>
@@ -314,7 +314,7 @@ const syncFromOlt = () => {
                                             </div>
                                         </td>
                                         <td class="px-6 py-4">
-                                            <div class="flex items-center justify-end gap-1.5">
+                                            <div class="flex items-center justify-center gap-1.5">
                                                 <IconButton v-if="ownedByCurrentOlt(profile)" title="Edit profile" @click="startEdit(profile)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>

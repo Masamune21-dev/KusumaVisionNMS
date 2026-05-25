@@ -254,7 +254,7 @@ const rxClass = (value) => {
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Phase</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Admin</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Last Down</th>
-                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
+                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -293,7 +293,7 @@ const rxClass = (value) => {
                                         {{ onu.last_down_cause }}
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="flex items-center justify-end gap-1.5">
+                                        <div class="flex items-center justify-center gap-1.5">
                                             <IconButton
                                                 v-if="caps.supports_onu_info_write"
                                                 title="Edit info ONU"
