@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
+import { Cable, Eye, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
 import { computed } from 'vue';
 
 defineProps({
@@ -170,6 +170,12 @@ const formatDate = (value) => {
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex justify-end gap-2">
+                                            <Link :href="route('smartolt.detail', olt.id)">
+                                                <SecondaryButton type="button">
+                                                    <Eye class="mr-2 h-4 w-4" />
+                                                    Detail
+                                                </SecondaryButton>
+                                            </Link>
                                             <SecondaryButton type="button" @click="testOlt(olt)">
                                                 <RefreshCw class="mr-2 h-4 w-4" />
                                                 Test

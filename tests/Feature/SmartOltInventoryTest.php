@@ -20,6 +20,46 @@ class SmartOltInventoryTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_smartolt_detail_can_be_rendered(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.2',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'ok' => true,
+                'driver' => 'zte',
+                'latency_ms' => 42,
+                'system' => [
+                    'sys_name' => 'PAT-C320',
+                    'sys_descr' => 'ZXA10 C320',
+                    'sys_object_id' => '1.3.6.1.4.1.3902',
+                    'sys_uptime' => '123',
+                ],
+                'ports' => [
+                    [
+                        'if_index' => 268501760,
+                        'name' => 'gpon-olt_1/1/1',
+                        'slot' => 1,
+                        'port' => 1,
+                        'oper_status_code' => 1,
+                        'oper_status' => 'up',
+                    ],
+                ],
+                'error' => null,
+            ],
+            'last_tested_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('smartolt.detail', $olt));
+
+        $response->assertOk();
+    }
+
     public function test_authenticated_user_can_store_an_olt(): void
     {
         $user = User::factory()->create();

@@ -37,6 +37,14 @@ class SmartOltController extends Controller
         ]);
     }
 
+    public function detail(SnmpOlt $olt): Response
+    {
+        return Inertia::render('SmartOlt/Detail', [
+            'olt' => $this->serializeOlt($olt),
+            'snapshot' => $this->serializeSnapshot($olt),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         SnmpOlt::create($this->validated($request));
@@ -86,6 +94,24 @@ class SmartOltController extends Controller
 
         return redirect()
             ->route('smartolt.index')
+            ->with($result['ok'] ? 'success' : 'error', $message);
+    }
+
+    public function refresh(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
+    {
+        $result = $client->snapshot($olt);
+
+        $olt->forceFill([
+            'last_test_result' => $result,
+            'last_tested_at' => now(),
+        ])->save();
+
+        $message = $result['ok']
+            ? sprintf('Refresh SNMP OK. %s GPON port ditemukan.', count($result['ports'] ?? []))
+            : sprintf('Refresh SNMP gagal: %s', $result['error'] ?? 'unknown error');
+
+        return redirect()
+            ->route('smartolt.detail', $olt)
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
@@ -155,6 +181,24 @@ class SmartOltController extends Controller
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
             'created_at' => $olt->created_at?->toIso8601String(),
             'updated_at' => $olt->updated_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeSnapshot(SnmpOlt $olt): array
+    {
+        $snapshot = $olt->last_test_result ?? [];
+
+        return [
+            'ok' => (bool) data_get($snapshot, 'ok', false),
+            'driver' => data_get($snapshot, 'driver'),
+            'latency_ms' => data_get($snapshot, 'latency_ms'),
+            'system' => data_get($snapshot, 'system', []),
+            'ports' => data_get($snapshot, 'ports', []),
+            'error' => data_get($snapshot, 'error'),
+            'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
         ];
     }
 }
