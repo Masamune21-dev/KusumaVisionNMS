@@ -41,6 +41,11 @@ class ZteCliProvisioningExecutor
 
             fwrite($connection, "exit\n");
             $output .= $this->readUntilIdle($connection, 1);
+
+            if (preg_match('/confirm to logout without saving|yes\/no|y\/n/i', $output)) {
+                fwrite($connection, "no\n");
+                $output .= $this->readUntilIdle($connection, 1);
+            }
         } finally {
             fclose($connection);
         }

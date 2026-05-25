@@ -11,18 +11,24 @@ class SmartOltProfile extends Model
     protected $table = 'smartolt_profiles';
 
     protected $fillable = [
+        'snmp_olt_id',
         'profile_type',
         'name',
+        'source',
         'vlan',
+        'params',
         'notes',
         'is_active',
+        'last_synced_at',
     ];
 
     protected function casts(): array
     {
         return [
             'vlan' => 'integer',
+            'params' => 'array',
             'is_active' => 'boolean',
+            'last_synced_at' => 'datetime',
         ];
     }
 }

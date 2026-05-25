@@ -26,10 +26,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
-    Route::get('/smartolt/profiles', [SmartOltProfileController::class, 'index'])->name('smartolt.profiles.index');
-    Route::post('/smartolt/profiles', [SmartOltProfileController::class, 'store'])->name('smartolt.profiles.store');
-    Route::put('/smartolt/profiles/{profile}', [SmartOltProfileController::class, 'update'])->name('smartolt.profiles.update');
-    Route::delete('/smartolt/profiles/{profile}', [SmartOltProfileController::class, 'destroy'])->name('smartolt.profiles.destroy');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
     Route::post('/smartolt', [SmartOltController::class, 'store'])->name('smartolt.store');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
@@ -40,6 +36,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/register', [SmartOltController::class, 'storeOnu'])->name('smartolt.register.store');
     Route::get('/smartolt/{olt}/registrations', [SmartOltController::class, 'registrations'])->name('smartolt.registrations');
     Route::post('/smartolt/{olt}/registrations/{registration}/execute', [SmartOltController::class, 'executeRegistration'])->name('smartolt.registrations.execute');
+    Route::get('/smartolt/{olt}/profiles', [SmartOltProfileController::class, 'index'])->name('smartolt.profiles.index');
+    Route::post('/smartolt/{olt}/profiles', [SmartOltProfileController::class, 'store'])->name('smartolt.profiles.store');
+    Route::post('/smartolt/{olt}/profiles/sync', [SmartOltProfileController::class, 'syncFromOlt'])->name('smartolt.profiles.sync');
+    Route::put('/smartolt/{olt}/profiles/{profile}', [SmartOltProfileController::class, 'update'])->name('smartolt.profiles.update');
+    Route::delete('/smartolt/{olt}/profiles/{profile}', [SmartOltProfileController::class, 'destroy'])->name('smartolt.profiles.destroy');
     Route::get('/smartolt/{olt}/edit', [SmartOltController::class, 'edit'])->name('smartolt.edit');
     Route::put('/smartolt/{olt}', [SmartOltController::class, 'update'])->name('smartolt.update');
     Route::delete('/smartolt/{olt}', [SmartOltController::class, 'destroy'])->name('smartolt.destroy');

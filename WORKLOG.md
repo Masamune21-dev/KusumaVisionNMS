@@ -143,3 +143,25 @@ Notes:
 
 - Automatic execution currently supports Telnet only. SSH is intentionally rejected with a clear message until an SSH driver is selected.
 - Execution output is stored for audit and CLI password values are masked from captured output.
+
+### Phase 7 - OLT-Scoped CLI Profile Sync
+
+Created:
+
+- `database/migrations/2026_05_25_112000_scope_smartolt_profiles_to_olt.php`
+- `app/Services/ZteProfileCatalogService.php`
+
+Changed:
+
+- `app/Models/SmartOltProfile.php` - added OLT scope, CLI source metadata, params JSON, and sync timestamp.
+- `app/Http/Controllers/SmartOltProfileController.php` - changed profile management to per-OLT, added sync-from-OLT, and optional CLI execution for add/edit/delete.
+- `app/Http/Controllers/SmartOltController.php` - provisioning profile dropdowns now load profiles scoped to the selected OLT with global defaults as fallback.
+- `routes/web.php` - moved profile routes to `/smartolt/{olt}/profiles` and added sync route.
+- `resources/js/Pages/SmartOlt/Index.vue` - profile action now links to the selected OLT.
+- `resources/js/Pages/SmartOlt/Profiles.vue` - added OLT header, Sync Dari OLT action, CLI execution checkboxes, and type-specific profile parameters.
+- `tests/Feature/SmartOltInventoryTest.php` - added CLI profile sync coverage.
+
+Notes:
+
+- Verified read-only CLI against OLT `id=1`: `show gpon profile tcont`, `show gpon onu profile vlan`, `show gpon onu profile ip`, and `show onu-type` returned live profiles from `OLT-C320-PATI`.
+- Profile add/delete CLI scripts follow the SmartOLT guide commands for `pon` and `gpon` config modes.

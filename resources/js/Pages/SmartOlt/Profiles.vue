@@ -5,11 +5,15 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { Database, Pencil, Plus, Trash2, X } from '@lucide/vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Database, Pencil, Plus, RefreshCw, Trash2, X } from '@lucide/vue';
 import { computed, reactive } from 'vue';
 
 const props = defineProps({
+    olt: {
+        type: Object,
+        required: true,
+    },
     profiles: {
         type: Object,
         required: true,
@@ -24,6 +28,16 @@ const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const editing = reactive({});
 
+const defaultParams = () => ({
+    type: 4,
+    maximum: 1024000,
+    tag_mode: 'tag',
+    pri: 0,
+    gateway: '',
+    primary_dns: '',
+    secondary_dns: '',
+});
+
 const createForms = reactive(Object.fromEntries(
     props.types.map((type) => [
         type.key,
@@ -31,8 +45,10 @@ const createForms = reactive(Object.fromEntries(
             profile_type: type.key,
             name: '',
             vlan: '',
+            params: defaultParams(),
             notes: '',
             is_active: true,
+            execute_cli: false,
         }),
     ]),
 ));
@@ -44,8 +60,10 @@ const startEdit = (profile) => {
         profile_type: profile.profile_type,
         name: profile.name,
         vlan: profile.vlan ?? '',
+        params: { ...defaultParams(), ...(profile.params ?? {}) },
         notes: profile.notes ?? '',
         is_active: profile.is_active,
+        execute_cli: false,
         errors: {},
         processing: false,
     };
@@ -58,9 +76,12 @@ const cancelEdit = (profile) => {
 const store = (type) => {
     const form = createForms[type.key];
 
-    form.post(route('smartolt.profiles.store'), {
+    form.post(route('smartolt.profiles.store', props.olt.id), {
         preserveScroll: true,
-        onSuccess: () => form.reset('name', 'vlan', 'notes'),
+        onSuccess: () => {
+            form.reset('name', 'vlan', 'notes', 'execute_cli');
+            form.params = defaultParams();
+        },
     });
 };
 
@@ -69,7 +90,7 @@ const update = (profile) => {
     form.processing = true;
     form.errors = {};
 
-    router.put(route('smartolt.profiles.update', profile.id), form, {
+    router.put(route('smartolt.profiles.update', { olt: props.olt.id, profile: profile.id }), form, {
         preserveScroll: true,
         onError: (errors) => {
             form.errors = errors;
@@ -83,12 +104,20 @@ const update = (profile) => {
     });
 };
 
-const destroyProfile = (profile) => {
-    if (!window.confirm(`Hapus profile ${profile.name}?`)) {
+const destroyProfile = (profile, executeCli = false) => {
+    const target = executeCli ? 'OLT dan cache lokal' : 'cache lokal';
+    if (!window.confirm(`Hapus profile ${profile.name} dari ${target}?`)) {
         return;
     }
 
-    router.delete(route('smartolt.profiles.destroy', profile.id), {
+    router.delete(route('smartolt.profiles.destroy', { olt: props.olt.id, profile: profile.id }), {
+        data: { execute_cli: executeCli },
+        preserveScroll: true,
+    });
+};
+
+const syncFromOlt = () => {
+    router.post(route('smartolt.profiles.sync', props.olt.id), {}, {
         preserveScroll: true,
     });
 };
@@ -99,9 +128,23 @@ const destroyProfile = (profile) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div>
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">SmartOLT Profiles</h2>
-                <p class="mt-1 text-sm text-gray-500">Master profile untuk provisioning ONU.</p>
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold leading-tight text-gray-800">SmartOLT Profiles</h2>
+                    <p class="mt-1 text-sm text-gray-500">{{ olt.name }} · {{ olt.ip }}</p>
+                </div>
+                <div class="flex gap-2">
+                    <Link :href="route('smartolt.detail', olt.id)">
+                        <SecondaryButton type="button">
+                            <ArrowLeft class="mr-2 h-4 w-4" />
+                            Detail OLT
+                        </SecondaryButton>
+                    </Link>
+                    <PrimaryButton type="button" @click="syncFromOlt">
+                        <RefreshCw class="mr-2 h-4 w-4" />
+                        Sync Dari OLT
+                    </PrimaryButton>
+                </div>
             </div>
         </template>
 
@@ -112,6 +155,12 @@ const destroyProfile = (profile) => {
                     class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
                 >
                     {{ flash.success }}
+                </div>
+                <div
+                    v-if="flash.error"
+                    class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                >
+                    {{ flash.error }}
                 </div>
 
                 <section
@@ -125,7 +174,7 @@ const destroyProfile = (profile) => {
                             <div>
                                 <h3 class="text-base font-semibold text-gray-900">{{ type.label }}</h3>
                                 <p class="text-sm text-gray-500">
-                                    {{ type.uses_vlan ? 'Profile service dan VLAN ID.' : 'Profile nama yang dipakai pada script provisioning.' }}
+                                    {{ type.uses_vlan ? 'Profile service dan VLAN ID dari OLT.' : 'Profile CLI yang dipakai pada script provisioning.' }}
                                 </p>
                             </div>
                         </div>
@@ -133,20 +182,41 @@ const destroyProfile = (profile) => {
 
                     <div class="border-b border-gray-100 bg-gray-50 px-6 py-4">
                         <form class="grid gap-4 md:grid-cols-12 md:items-end" @submit.prevent="store(type)">
-                            <div :class="type.uses_vlan ? 'md:col-span-3' : 'md:col-span-4'">
+                            <div class="md:col-span-3">
                                 <InputLabel :for="`name-${type.key}`" value="Nama Profile" />
                                 <TextInput :id="`name-${type.key}`" v-model="createForms[type.key].name" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.name" />
                             </div>
-                            <div v-if="type.uses_vlan" class="md:col-span-2">
+                            <div v-if="type.key === 'vlan'" class="md:col-span-2">
                                 <InputLabel :for="`vlan-${type.key}`" value="VLAN" />
                                 <TextInput :id="`vlan-${type.key}`" v-model="createForms[type.key].vlan" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.vlan" />
                             </div>
-                            <div :class="type.uses_vlan ? 'md:col-span-5' : 'md:col-span-6'">
+                            <div v-if="type.key === 'tcont'" class="md:col-span-2">
+                                <InputLabel :for="`tcont-type-${type.key}`" value="Type" />
+                                <TextInput :id="`tcont-type-${type.key}`" v-model="createForms[type.key].params.type" type="number" class="mt-1 block w-full" required />
+                                <InputError class="mt-2" :message="createForms[type.key].errors['params.type']" />
+                            </div>
+                            <div v-if="type.key === 'tcont'" class="md:col-span-2">
+                                <InputLabel :for="`maximum-${type.key}`" value="Maximum" />
+                                <TextInput :id="`maximum-${type.key}`" v-model="createForms[type.key].params.maximum" type="number" class="mt-1 block w-full" required />
+                                <InputError class="mt-2" :message="createForms[type.key].errors['params.maximum']" />
+                            </div>
+                            <div v-if="type.key === 'ip'" class="md:col-span-3">
+                                <InputLabel :for="`gateway-${type.key}`" value="Gateway" />
+                                <TextInput :id="`gateway-${type.key}`" v-model="createForms[type.key].params.gateway" class="mt-1 block w-full" required />
+                                <InputError class="mt-2" :message="createForms[type.key].errors['params.gateway']" />
+                            </div>
+                            <div class="md:col-span-3">
                                 <InputLabel :for="`notes-${type.key}`" value="Catatan" />
                                 <TextInput :id="`notes-${type.key}`" v-model="createForms[type.key].notes" class="mt-1 block w-full" />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.notes" />
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                    Eksekusi CLI
+                                </label>
                             </div>
                             <div class="md:col-span-2">
                                 <PrimaryButton class="w-full justify-center" :disabled="createForms[type.key].processing">
@@ -162,16 +232,16 @@ const destroyProfile = (profile) => {
                             <thead class="bg-white">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Nama</th>
-                                    <th v-if="type.uses_vlan" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">VLAN</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Catatan</th>
+                                    <th v-if="type.key === 'vlan'" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">VLAN</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Params</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
                                     <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white">
                                 <tr v-if="rowsFor(type).length === 0">
-                                    <td :colspan="type.uses_vlan ? 5 : 4" class="px-6 py-8 text-center text-sm text-gray-500">
-                                        Belum ada profile.
+                                    <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-gray-500">
+                                        Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
                                     </td>
                                 </tr>
                                 <tr v-for="profile in rowsFor(type)" :key="profile.id">
@@ -180,18 +250,26 @@ const destroyProfile = (profile) => {
                                             <TextInput v-model="editing[profile.id].name" class="block w-48" required />
                                             <InputError class="mt-2" :message="editing[profile.id].errors.name" />
                                         </td>
-                                        <td v-if="type.uses_vlan" class="px-6 py-4">
+                                        <td v-if="type.key === 'vlan'" class="px-6 py-4">
                                             <TextInput v-model="editing[profile.id].vlan" type="number" class="block w-28" required />
                                             <InputError class="mt-2" :message="editing[profile.id].errors.vlan" />
                                         </td>
                                         <td class="px-6 py-4">
-                                            <TextInput v-model="editing[profile.id].notes" class="block w-72" />
-                                            <InputError class="mt-2" :message="editing[profile.id].errors.notes" />
+                                            <div v-if="type.key === 'tcont'" class="grid gap-2 md:grid-cols-2">
+                                                <TextInput v-model="editing[profile.id].params.type" type="number" class="block w-full" />
+                                                <TextInput v-model="editing[profile.id].params.maximum" type="number" class="block w-full" />
+                                            </div>
+                                            <TextInput v-else-if="type.key === 'ip'" v-model="editing[profile.id].params.gateway" class="block w-full" />
+                                            <TextInput v-else v-model="editing[profile.id].notes" class="block w-72" />
                                         </td>
                                         <td class="px-6 py-4">
                                             <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                                                 <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
                                                 Aktif
+                                            </label>
+                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                                Eksekusi CLI
                                             </label>
                                         </td>
                                         <td class="px-6 py-4">
@@ -208,15 +286,22 @@ const destroyProfile = (profile) => {
                                     </template>
                                     <template v-else>
                                         <td class="px-6 py-4 font-medium text-gray-900">{{ profile.name }}</td>
-                                        <td v-if="type.uses_vlan" class="px-6 py-4 text-sm text-gray-700">{{ profile.vlan }}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-600">{{ profile.notes || '-' }}</td>
+                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-gray-700">{{ profile.vlan }}</td>
+                                        <td class="px-6 py-4 text-sm text-gray-600">
+                                            <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
+                                            <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
+                                            <span v-else>{{ profile.notes || '-' }}</span>
+                                        </td>
                                         <td class="px-6 py-4">
-                                            <span
-                                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
-                                                :class="profile.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'"
-                                            >
-                                                {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
-                                            </span>
+                                            <div class="space-y-1">
+                                                <span
+                                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                                                    :class="profile.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'"
+                                                >
+                                                    {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
+                                                </span>
+                                                <div class="text-xs text-gray-500">{{ profile.source || 'manual' }}</div>
+                                            </div>
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="flex justify-end gap-2">
@@ -227,10 +312,18 @@ const destroyProfile = (profile) => {
                                                 <button
                                                     type="button"
                                                     class="inline-flex items-center rounded-md border border-red-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-700 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                                    @click="destroyProfile(profile)"
+                                                    @click="destroyProfile(profile, false)"
                                                 >
                                                     <Trash2 class="mr-2 h-4 w-4" />
                                                     Hapus
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex items-center rounded-md border border-red-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-800 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                                    @click="destroyProfile(profile, true)"
+                                                >
+                                                    <Trash2 class="mr-2 h-4 w-4" />
+                                                    Hapus OLT
                                                 </button>
                                             </div>
                                         </td>

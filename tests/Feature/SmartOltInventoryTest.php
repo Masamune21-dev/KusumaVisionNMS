@@ -187,26 +187,109 @@ class SmartOltInventoryTest extends TestCase
     public function test_profile_management_page_can_create_profile(): void
     {
         $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.10',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
 
-        $response = $this->actingAs($user)->get(route('smartolt.profiles.index'));
+        $response = $this->actingAs($user)->get(route('smartolt.profiles.index', $olt));
 
         $response->assertOk();
 
-        $response = $this->actingAs($user)->post(route('smartolt.profiles.store'), [
+        $response = $this->actingAs($user)->post(route('smartolt.profiles.store', $olt), [
             'profile_type' => 'vlan',
             'name' => 'BUSINESS',
             'vlan' => 200,
+            'params' => [
+                'tag_mode' => 'tag',
+                'pri' => 0,
+            ],
             'notes' => 'Business customer VLAN',
             'is_active' => true,
+            'execute_cli' => false,
         ]);
 
-        $response->assertRedirect(route('smartolt.profiles.index'));
+        $response->assertRedirect(route('smartolt.profiles.index', $olt));
 
         $this->assertDatabaseHas('smartolt_profiles', [
+            'snmp_olt_id' => $olt->id,
             'profile_type' => 'vlan',
             'name' => 'BUSINESS',
             'vlan' => 200,
             'is_active' => true,
+        ]);
+    }
+
+    public function test_profiles_can_be_synced_from_olt_cli_output(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.11',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'cli_transport' => 'telnet',
+            'cli_port' => 23,
+            'cli_username' => 'admin',
+            'cli_password' => 'secret',
+        ]);
+
+        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
+        {
+            public function execute(SnmpOlt $olt, string $script): array
+            {
+                return [
+                    'ok' => true,
+                    'error' => null,
+                    'output' => <<<'OUT'
+Profile name :SERVER
+ Type           FBW(kbps)   ABW(kbps)   MBW(kbps)
+ 4              0           0           1000000
+Profile name:  PPPOEPATI
+Tag mode:      tag
+CVLAN:         22
+CVLAN priority:0
+Profile name:         ST
+Gateway:              192.0.2.1
+Primary DNS:          8.8.8.8
+ONU type name:          ALL-ONT
+PON type:               gpon
+Description:            4ETH,4WIFI,2POTS
+OUT,
+                ];
+            }
+        });
+
+        $response = $this->actingAs($user)->post(route('smartolt.profiles.sync', $olt));
+
+        $response->assertRedirect(route('smartolt.profiles.index', $olt));
+
+        $this->assertDatabaseHas('smartolt_profiles', [
+            'snmp_olt_id' => $olt->id,
+            'profile_type' => 'tcont',
+            'name' => 'SERVER',
+        ]);
+        $this->assertDatabaseHas('smartolt_profiles', [
+            'snmp_olt_id' => $olt->id,
+            'profile_type' => 'vlan',
+            'name' => 'PPPOEPATI',
+            'vlan' => 22,
+        ]);
+        $this->assertDatabaseHas('smartolt_profiles', [
+            'snmp_olt_id' => $olt->id,
+            'profile_type' => 'ip',
+            'name' => 'ST',
+        ]);
+        $this->assertDatabaseHas('smartolt_profiles', [
+            'snmp_olt_id' => $olt->id,
+            'profile_type' => 'onu_type',
+            'name' => 'ALL-ONT',
         ]);
     }
 
@@ -260,6 +343,7 @@ class SmartOltInventoryTest extends TestCase
         ]);
 
         SmartOltProfile::create([
+            'snmp_olt_id' => $olt->id,
             'profile_type' => 'vlan',
             'name' => 'STATICBUS',
             'vlan' => 321,

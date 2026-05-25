@@ -53,20 +53,12 @@ const formatDate = (value) => {
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     SmartOLT
                 </h2>
-                <div class="flex gap-2">
-                    <Link :href="route('smartolt.profiles.index')">
-                        <SecondaryButton>
-                            <Database class="mr-2 h-4 w-4" />
-                            Profile
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.create')">
-                        <PrimaryButton>
-                            <Plus class="mr-2 h-4 w-4" />
-                            Tambah OLT
-                        </PrimaryButton>
-                    </Link>
-                </div>
+                <Link :href="route('smartolt.create')">
+                    <PrimaryButton>
+                        <Plus class="mr-2 h-4 w-4" />
+                        Tambah OLT
+                    </PrimaryButton>
+                </Link>
             </div>
         </template>
 
@@ -192,6 +184,12 @@ const formatDate = (value) => {
                                                 <SecondaryButton type="button">
                                                     <Pencil class="mr-2 h-4 w-4" />
                                                     Edit
+                                                </SecondaryButton>
+                                            </Link>
+                                            <Link :href="route('smartolt.profiles.index', olt.id)">
+                                                <SecondaryButton type="button">
+                                                    <Database class="mr-2 h-4 w-4" />
+                                                    Profile
                                                 </SecondaryButton>
                                             </Link>
                                             <button
