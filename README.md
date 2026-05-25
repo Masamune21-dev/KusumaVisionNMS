@@ -239,7 +239,19 @@ Tambahkan baris:
 
 ### 8. Buat akun pertama
 
-Buka `http://ip-server-anda/register` di browser untuk membuat akun pertama. Setelah itu halaman registrasi publik dapat ditutup di `routes/auth.php` jika diperlukan.
+Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
+
+```bash
+php artisan user:create
+```
+
+Atau langsung satu baris tanpa interaktif:
+
+```bash
+php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password="P@ssw0rd123"
+```
+
+Untuk user berikutnya, perintah yang sama bisa dijalankan kapan saja dari server.
 
 ---
 
