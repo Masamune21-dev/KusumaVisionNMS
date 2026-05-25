@@ -38,7 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
     Route::post('/smartolt', [SmartOltController::class, 'store'])->name('smartolt.store');
+    Route::get('/smartolt/unconfigured', [SmartOltController::class, 'unconfiguredGlobal'])->name('smartolt.unconfigured-all');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
+    Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');
     Route::get('/smartolt/{olt}/dashboard', [SmartOltController::class, 'dashboard'])->name('smartolt.dashboard');
     Route::post('/smartolt/{olt}/dashboard/refresh', [SmartOltController::class, 'refreshDashboard'])->name('smartolt.dashboard.refresh');
     Route::get('/smartolt/{olt}/dashboard/traffic', [SmartOltController::class, 'dashboardTraffic'])->name('smartolt.dashboard.traffic');

@@ -56,6 +56,39 @@ class SmartOltController extends Controller
         ]);
     }
 
+    public function gponPorts(SnmpOlt $olt): Response
+    {
+        return Inertia::render('SmartOlt/GponPorts', [
+            'olt' => $this->serializeOlt($olt),
+            'snapshot' => $this->serializeSnapshot($olt),
+        ]);
+    }
+
+    public function unconfiguredGlobal(Request $request): Response
+    {
+        $olts = SnmpOlt::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt));
+
+        $selectedOlt = null;
+        $snapshot = null;
+
+        if ($id = $request->query('olt_id')) {
+            $olt = SnmpOlt::find((int) $id);
+            if ($olt) {
+                $selectedOlt = $this->serializeOlt($olt);
+                $snapshot = $this->serializeUnconfiguredSnapshot($olt);
+            }
+        }
+
+        return Inertia::render('SmartOlt/UnconfiguredGlobal', [
+            'olts' => $olts,
+            'selected_olt' => $selectedOlt,
+            'snapshot' => $snapshot,
+        ]);
+    }
+
     public function dashboard(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
         $cards = Cache::get("olt:{$olt->id}:cards", []);

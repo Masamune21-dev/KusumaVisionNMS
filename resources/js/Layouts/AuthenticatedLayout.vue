@@ -42,9 +42,15 @@ const page = usePage();
                                 </NavLink>
                                 <NavLink
                                     :href="route('smartolt.index')"
-                                    :active="route().current('smartolt.*')"
+                                    :active="route().current('smartolt.*') && !route().current('smartolt.unconfigured-all')"
                                 >
                                     SmartOLT
+                                </NavLink>
+                                <NavLink
+                                    :href="route('smartolt.unconfigured-all')"
+                                    :active="route().current('smartolt.unconfigured-all')"
+                                >
+                                    Unconfigured
                                 </NavLink>
                                 <NavLink
                                     :href="route('alarms.index')"
@@ -167,9 +173,15 @@ const page = usePage();
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             :href="route('smartolt.index')"
-                            :active="route().current('smartolt.*')"
+                            :active="route().current('smartolt.*') && !route().current('smartolt.unconfigured-all')"
                         >
                             SmartOLT
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('smartolt.unconfigured-all')"
+                            :active="route().current('smartolt.unconfigured-all')"
+                        >
+                            Unconfigured
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             :href="route('alarms.index')"

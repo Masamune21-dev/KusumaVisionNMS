@@ -3,8 +3,8 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Layers, LayoutDashboard, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Layers, LayoutDashboard, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { computed } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -26,34 +26,6 @@ const flash = computed(() => page.props.flash ?? {});
 
 const onuTotal  = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.onu_count ?? 0), 0));
 const onuOnline = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.online_onu_count ?? 0), 0));
-
-const portSearch = ref('');
-const isSearching = computed(() => portSearch.value.trim().length > 0);
-const normalizeSearch = (value) => String(value ?? '').toLowerCase();
-
-const filteredPorts = computed(() => {
-    const term = portSearch.value.trim().toLowerCase();
-
-    if (!term) {
-        return props.snapshot.ports.map((port) => ({
-            ...port,
-            matching_onus: [],
-        }));
-    }
-
-    return props.snapshot.ports
-        .map((port) => {
-            const matchingOnus = (port.onu_search_items ?? []).filter((onu) => normalizeSearch(onu.search_text).includes(term));
-            const portMatches = normalizeSearch(`${port.name} ${port.slot}/${port.port}`).includes(term);
-
-            return {
-                ...port,
-                matching_onus: matchingOnus,
-                port_matches: portMatches,
-            };
-        })
-        .filter((port) => port.port_matches || port.matching_onus.length > 0);
-});
 
 const refresh = () => {
     router.post(route('smartolt.refresh', props.olt.id), {}, {
@@ -86,9 +58,6 @@ const formatUptime = (timeticks) => {
     if (seconds || parts.length === 0) parts.push(`${seconds}d`);
     return parts.join(' ');
 };
-
-const portStatusLabel = (status) => String(status || 'unknown').toUpperCase();
-const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || onu.interface || '-';
 
 const cardStatusColor = (status) => {
     const s = String(status ?? '').toUpperCase();
@@ -139,10 +108,10 @@ const oltImage = computed(() => {
                             Edit
                         </SecondaryButton>
                     </Link>
-                    <Link :href="route('smartolt.unconfigured', olt.id)">
+                    <Link :href="route('smartolt.gpon-ports', olt.id)">
                         <SecondaryButton type="button">
-                            <Wifi class="mr-2 h-4 w-4" />
-                            Unconfigured
+                            <Cable class="mr-2 h-4 w-4" />
+                            GPON Port & ONU
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.registrations', olt.id)">
@@ -289,85 +258,6 @@ const oltImage = computed(() => {
                     </div>
                 </div>
 
-                <!-- GPON Port & ONU -->
-                <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div class="flex flex-col gap-4 border-b border-gray-900 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Cable class="h-5 w-5 text-gray-900" />
-                            <h3 class="text-base font-semibold uppercase text-gray-900">
-                                GPON Port & ONU
-                            </h3>
-                        </div>
-
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <input
-                                v-model="portSearch"
-                                type="search"
-                                class="h-9 w-full border-0 bg-transparent px-3 text-sm text-gray-700 placeholder:text-gray-500 focus:ring-0 sm:w-72"
-                                placeholder="Cari ONU (SN/Nama)..."
-                            />
-                            <span class="inline-flex h-8 items-center gap-1.5 rounded-full bg-lime-400 px-3 text-xs font-semibold text-gray-950">
-                                <CheckCircle2 class="h-4 w-4" />
-                                Selesai
-                            </span>
-                        </div>
-                    </div>
-
-                    <div v-if="snapshot.ports.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-                        Belum ada data port. Jalankan Refresh SNMP.
-                    </div>
-
-                    <div v-else-if="filteredPorts.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
-                        Port atau ONU tidak ditemukan.
-                    </div>
-
-                    <div v-else class="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                        <Link
-                            v-for="port in filteredPorts"
-                            :key="port.if_index"
-                            :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])"
-                            class="block rounded-lg border p-4 transition hover:border-emerald-300 hover:bg-emerald-50/50"
-                            :class="port.oper_status === 'up' ? 'border-emerald-200 bg-white' : 'border-gray-200 bg-gray-50'"
-                        >
-                            <div class="font-mono text-sm font-semibold text-gray-900">
-                                {{ port.name }}
-                            </div>
-
-                            <div class="mt-4 flex items-end justify-between gap-3">
-                                <span
-                                    class="text-xs font-bold"
-                                    :class="port.oper_status === 'up' ? 'text-emerald-600' : 'text-gray-500'"
-                                >
-                                    {{ portStatusLabel(port.oper_status) }}
-                                </span>
-                                <span class="text-xs text-gray-500">
-                                    {{ port.online_onu_count ?? 0 }}/{{ port.onu_count ?? 0 }} ONU
-                                </span>
-                            </div>
-
-                            <div v-if="isSearching && port.matching_onus.length" class="mt-3 space-y-1 border-t border-gray-100 pt-3">
-                                <div
-                                    v-for="onu in port.matching_onus.slice(0, 3)"
-                                    :key="`${port.if_index}-${onu.onu_id}`"
-                                    class="flex items-center justify-between gap-2 text-xs"
-                                >
-                                    <span class="truncate font-medium text-gray-700">
-                                        {{ onuSummary(onu) }}
-                                    </span>
-                                    <span
-                                        class="shrink-0 font-semibold"
-                                        :class="onu.online ? 'text-emerald-600' : 'text-gray-400'"
-                                    >
-                                        {{ onu.online ? 'ON' : 'OFF' }}
-                                    </span>
-                                </div>
-                                <div v-if="port.matching_onus.length > 3" class="text-xs font-medium text-gray-500">
-                                    +{{ port.matching_onus.length - 3 }} ONU
-                                </div>
-                            </div>
-                        </Link>
-                    </div>
-                </div>
             </div>
         </div>
     </AuthenticatedLayout>
