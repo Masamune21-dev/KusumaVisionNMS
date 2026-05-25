@@ -1,4 +1,5 @@
 <script setup>
+import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -123,22 +124,23 @@ const formatDate = (value) => {
                                         <span v-else>-</span>
                                     </td>
                                     <td class="px-6 py-4 text-xs text-gray-500">{{ onu.source_oid }}</td>
-                                    <td class="px-6 py-4 text-right">
-                                        <Link
-                                            :href="route('smartolt.register', {
-                                                olt: olt.id,
-                                                sn: onu.serial_number,
-                                                slot: onu.slot,
-                                                port: onu.port,
-                                                oid_index: onu.oid_index,
-                                                suggested_onu_id: onu.suggested_onu_id,
-                                            })"
-                                        >
-                                            <PrimaryButton type="button">
-                                                <Plus class="mr-2 h-4 w-4" />
-                                                Register
-                                            </PrimaryButton>
-                                        </Link>
+                                    <td class="px-6 py-4">
+                                        <div class="flex justify-end">
+                                            <IconButton
+                                                variant="primary"
+                                                title="Register ONU"
+                                                :href="route('smartolt.register', {
+                                                    olt: olt.id,
+                                                    sn: onu.serial_number,
+                                                    slot: onu.slot,
+                                                    port: onu.port,
+                                                    oid_index: onu.oid_index,
+                                                    suggested_onu_id: onu.suggested_onu_id,
+                                                })"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                            </IconButton>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>

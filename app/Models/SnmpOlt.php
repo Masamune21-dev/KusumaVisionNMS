@@ -21,8 +21,10 @@ class SnmpOlt extends Model
         'cli_port',
         'cli_username',
         'cli_password',
+        'polling_enabled',
         'last_test_result',
         'last_tested_at',
+        'last_polled_at',
     ];
 
     protected $hidden = [
@@ -39,8 +41,10 @@ class SnmpOlt extends Model
             'snmp_read_community' => 'encrypted',
             'snmp_write_community' => 'encrypted',
             'cli_password' => 'encrypted',
+            'polling_enabled' => 'boolean',
             'last_test_result' => 'array',
             'last_tested_at' => 'datetime',
+            'last_polled_at' => 'datetime',
         ];
     }
 

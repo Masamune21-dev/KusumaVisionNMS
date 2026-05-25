@@ -1,6 +1,9 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import IconButton from '@/Components/IconButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, ClipboardList, Play } from '@lucide/vue';
 import { computed } from 'vue';
@@ -18,6 +21,7 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 const formatDate = (value) => {
     if (!value) return '-';
@@ -28,8 +32,15 @@ const formatDate = (value) => {
     }).format(new Date(value));
 };
 
-const executeRegistration = (registration) => {
-    if (!window.confirm(`Eksekusi script provisioning untuk ${registration.pon_port}?`)) {
+const executeRegistration = async (registration) => {
+    const ok = await confirm({
+        title: 'Eksekusi Provisioning',
+        message: `Eksekusi script provisioning untuk ${registration.pon_port} ke OLT?`,
+        confirmLabel: 'Eksekusi',
+        variant: 'primary',
+    });
+
+    if (!ok) {
         return;
     }
 
@@ -101,14 +112,9 @@ const statusClass = (status) => ({
                                     <span class="inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(registration.status)">
                                         {{ registration.status }}
                                     </span>
-                                    <button
-                                        type="button"
-                                        class="inline-flex items-center rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-emerald-700 shadow-sm transition duration-150 ease-in-out hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-                                        @click="executeRegistration(registration)"
-                                    >
-                                        <Play class="mr-2 h-4 w-4" />
-                                        Execute
-                                    </button>
+                                    <IconButton variant="success" title="Eksekusi ke OLT" @click="executeRegistration(registration)">
+                                        <Play class="h-4 w-4" />
+                                    </IconButton>
                                 </div>
                             </div>
                             <pre class="mt-4 overflow-x-auto rounded-md bg-gray-950 p-4 text-xs text-gray-100">{{ registration.cli_script }}</pre>
@@ -126,5 +132,7 @@ const statusClass = (status) => ({
                 </div>
             </div>
         </div>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

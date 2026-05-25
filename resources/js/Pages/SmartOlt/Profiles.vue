@@ -1,12 +1,15 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import IconButton from '@/Components/IconButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Database, Pencil, Plus, RefreshCw, Trash2, X } from '@lucide/vue';
+import { ArrowLeft, Check, Database, Pencil, Plus, RefreshCw, ServerOff, Trash2, X } from '@lucide/vue';
 import { computed, reactive } from 'vue';
 
 const props = defineProps({
@@ -27,6 +30,7 @@ const props = defineProps({
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const editing = reactive({});
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 const defaultParams = () => ({
     type: 4,
@@ -105,9 +109,15 @@ const update = (profile) => {
     });
 };
 
-const destroyProfile = (profile, executeCli = false) => {
+const destroyProfile = async (profile, executeCli = false) => {
     const target = executeCli ? 'OLT dan cache lokal' : 'cache lokal';
-    if (!window.confirm(`Hapus profile ${profile.name} dari ${target}?`)) {
+    const ok = await confirm({
+        title: executeCli ? 'Hapus Profile dari OLT' : 'Hapus Profile',
+        message: `Hapus profile ${profile.name} dari ${target}?`,
+        confirmLabel: 'Hapus',
+    });
+
+    if (!ok) {
         return;
     }
 
@@ -274,14 +284,13 @@ const syncFromOlt = () => {
                                             </label>
                                         </td>
                                         <td class="px-6 py-4">
-                                            <div class="flex justify-end gap-2">
-                                                <PrimaryButton type="button" :disabled="editing[profile.id].processing" @click="update(profile)">
-                                                    Simpan
-                                                </PrimaryButton>
-                                                <SecondaryButton type="button" @click="cancelEdit(profile)">
-                                                    <X class="mr-2 h-4 w-4" />
-                                                    Batal
-                                                </SecondaryButton>
+                                            <div class="flex justify-end gap-1.5">
+                                                <IconButton variant="success" title="Simpan" :disabled="editing[profile.id].processing" @click="update(profile)">
+                                                    <Check class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton title="Batal" @click="cancelEdit(profile)">
+                                                    <X class="h-4 w-4" />
+                                                </IconButton>
                                             </div>
                                         </td>
                                     </template>
@@ -305,29 +314,16 @@ const syncFromOlt = () => {
                                             </div>
                                         </td>
                                         <td class="px-6 py-4">
-                                            <div class="flex justify-end gap-2">
-                                                <SecondaryButton v-if="ownedByCurrentOlt(profile)" type="button" @click="startEdit(profile)">
-                                                    <Pencil class="mr-2 h-4 w-4" />
-                                                    Edit
-                                                </SecondaryButton>
-                                                <button
-                                                    v-if="ownedByCurrentOlt(profile)"
-                                                    type="button"
-                                                    class="inline-flex items-center rounded-md border border-red-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-700 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                                    @click="destroyProfile(profile, false)"
-                                                >
-                                                    <Trash2 class="mr-2 h-4 w-4" />
-                                                    Hapus
-                                                </button>
-                                                <button
-                                                    v-if="ownedByCurrentOlt(profile)"
-                                                    type="button"
-                                                    class="inline-flex items-center rounded-md border border-red-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-800 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                                    @click="destroyProfile(profile, true)"
-                                                >
-                                                    <Trash2 class="mr-2 h-4 w-4" />
-                                                    Hapus OLT
-                                                </button>
+                                            <div class="flex items-center justify-end gap-1.5">
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" title="Edit profile" @click="startEdit(profile)">
+                                                    <Pencil class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari cache lokal" @click="destroyProfile(profile, false)">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari OLT + cache" @click="destroyProfile(profile, true)">
+                                                    <ServerOff class="h-4 w-4" />
+                                                </IconButton>
                                                 <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-gray-500">Fallback global</span>
                                             </div>
                                         </td>
@@ -339,5 +335,7 @@ const syncFromOlt = () => {
                 </section>
             </div>
         </div>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

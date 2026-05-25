@@ -33,6 +33,7 @@ const form = useForm({
     cli_port: props.olt?.cli_port ?? props.defaults.cli_port ?? '',
     cli_username: props.olt?.cli_username ?? '',
     cli_password: '',
+    polling_enabled: props.olt?.polling_enabled ?? true,
 });
 
 const submit = () => {
@@ -199,6 +200,20 @@ const submit = () => {
                 </p>
                 <InputError class="mt-2" :message="form.errors.cli_password" />
             </div>
+        </div>
+
+        <div class="rounded-md border border-gray-200 bg-gray-50 px-4 py-3">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                    v-model="form.polling_enabled"
+                    type="checkbox"
+                    class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500"
+                />
+                Aktifkan auto-poll SNMP (background, tiap 5 menit)
+            </label>
+            <p class="mt-1 text-xs text-gray-500">
+                Matikan saat OLT sedang maintenance agar tidak di-poll otomatis.
+            </p>
         </div>
 
         <div class="flex items-center justify-end gap-3">

@@ -3,6 +3,7 @@
 namespace App\Services\Snmp;
 
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use RuntimeException;
 use SNMP;
 use Throwable;
@@ -10,19 +11,33 @@ use Throwable;
 class OltSnmpClient
 {
     private const SYS_DESCR = '1.3.6.1.2.1.1.1.0';
+
     private const SYS_OBJECT_ID = '1.3.6.1.2.1.1.2.0';
+
     private const SYS_UPTIME = '1.3.6.1.2.1.1.3.0';
+
     private const SYS_NAME = '1.3.6.1.2.1.1.5.0';
+
     private const IF_DESCR = '1.3.6.1.2.1.2.2.1.2';
+
     private const IF_OPER_STATUS = '1.3.6.1.2.1.2.2.1.8';
+
     private const IF_NAME = '1.3.6.1.2.1.31.1.1.1.1';
+
     private const ZTE_ONU_TYPE = '1.3.6.1.4.1.3902.1012.3.28.1.1.1';
+
     private const ZTE_ONU_NAME = '1.3.6.1.4.1.3902.1012.3.28.1.1.2';
+
     private const ZTE_ONU_DESCRIPTION = '1.3.6.1.4.1.3902.1012.3.28.1.1.3';
+
     private const ZTE_ONU_SN = '1.3.6.1.4.1.3902.1012.3.28.1.1.5';
+
     private const ZTE_ONU_ADMIN_STATE = '1.3.6.1.4.1.3902.1012.3.28.1.1.17';
+
     private const ZTE_ONU_PHASE_STATE = '1.3.6.1.4.1.3902.1012.3.28.2.1.4';
+
     private const ZTE_ONU_LAST_DOWN_CAUSE = '1.3.6.1.4.1.3902.1012.3.28.2.1.7';
+
     private const ZTE_UNCFG_OIDS = [
         '1.3.6.1.4.1.3902.1012.3.13.3.1.2',
         '1.3.6.1.4.1.3902.1082.500.10.2.1.1',
@@ -42,7 +57,7 @@ class OltSnmpClient
 
             return [
                 'ok' => true,
-                'driver' => \App\Support\SmartOltSupport::driverKey(
+                'driver' => SmartOltSupport::driverKey(
                     $olt,
                     $system['sys_descr'] ?? null,
                     $system['sys_object_id'] ?? null,
@@ -54,7 +69,7 @@ class OltSnmpClient
         } catch (Throwable $exception) {
             return [
                 'ok' => false,
-                'driver' => \App\Support\SmartOltSupport::driverKey($olt),
+                'driver' => SmartOltSupport::driverKey($olt),
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'system' => [],
                 'error' => $exception->getMessage(),
@@ -72,7 +87,7 @@ class OltSnmpClient
         try {
             $system = $this->systemInfo($olt);
             $ports = $this->gponPorts($olt);
-            $driver = \App\Support\SmartOltSupport::driverKey(
+            $driver = SmartOltSupport::driverKey(
                 $olt,
                 $system['sys_descr'] ?? null,
                 $system['sys_object_id'] ?? null,
@@ -89,7 +104,7 @@ class OltSnmpClient
         } catch (Throwable $exception) {
             return [
                 'ok' => false,
-                'driver' => \App\Support\SmartOltSupport::driverKey($olt),
+                'driver' => SmartOltSupport::driverKey($olt),
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'system' => [],
                 'ports' => [],
@@ -243,7 +258,7 @@ class OltSnmpClient
     }
 
     /**
-     * @param array<int, array<string, mixed>>|null $ports
+     * @param  array<int, array<string, mixed>>|null  $ports
      * @return array<int, array<string, mixed>>
      */
     public function registeredOnus(SnmpOlt $olt, ?array $ports = null): array
@@ -387,6 +402,50 @@ class OltSnmpClient
     }
 
     /**
+     * Write a single OID via SNMP SET using the write community.
+     *
+     * @param  string  $type  single-char SNMP type ('i' integer, 's' string)
+     */
+    public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
+    {
+        if ($olt->snmp_version === 'v3') {
+            throw new RuntimeException('SNMP v3 belum didukung pada writer awal.');
+        }
+
+        $community = $olt->snmp_write_community;
+
+        if ($community === null || $community === '') {
+            throw new RuntimeException('SNMP write community OLT wajib diisi untuk operasi tulis.');
+        }
+
+        if (class_exists(SNMP::class)) {
+            $version = $olt->snmp_version === 'v1' ? SNMP::VERSION_1 : SNMP::VERSION_2C;
+            $session = new SNMP($version, $olt->getHostAddress(), $community, 3_000_000, 2);
+
+            try {
+                $ok = @$session->set($oid, $type, $value);
+            } finally {
+                $session->close();
+            }
+
+            if ($ok === false) {
+                throw new RuntimeException("SNMP set failed for {$oid}");
+            }
+
+            return true;
+        }
+
+        $function = $olt->snmp_version === 'v1' ? 'snmpset' : 'snmp2_set';
+        $ok = @$function($olt->getHostAddress(), $community, $oid, $type, $value, 3_000_000, 2);
+
+        if ($ok === false) {
+            throw new RuntimeException("SNMP set failed for {$oid}");
+        }
+
+        return true;
+    }
+
+    /**
      * @return array<string, string>
      */
     public function walk(SnmpOlt $olt, string $oid): array
@@ -427,7 +486,7 @@ class OltSnmpClient
     }
 
     /**
-     * @param array<string, mixed> $rows
+     * @param  array<string, mixed>  $rows
      * @return array<string, string>
      */
     private function normalizeWalkRows(array $rows): array
@@ -566,7 +625,7 @@ class OltSnmpClient
     }
 
     /**
-     * @param array<int, array<string, mixed>> $ports
+     * @param  array<int, array<string, mixed>>  $ports
      * @return array<int, array<string, mixed>>
      */
     private function buildPortMap(array $ports): array
@@ -581,7 +640,7 @@ class OltSnmpClient
     }
 
     /**
-     * @param array<string, string> $rows
+     * @param  array<string, string>  $rows
      */
     private function walkValue(array $rows, string $base, string $suffix): ?string
     {
@@ -589,7 +648,7 @@ class OltSnmpClient
     }
 
     /**
-     * @param array<string, string> $rows
+     * @param  array<string, string>  $rows
      */
     private function intFromWalk(array $rows, string $base, string $suffix): ?int
     {

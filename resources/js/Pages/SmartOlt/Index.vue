@@ -1,7 +1,9 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Cable, Database, Eye, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
 import { computed } from 'vue';
@@ -15,9 +17,16 @@ defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
-const destroyOlt = (olt) => {
-    if (!window.confirm(`Hapus OLT ${olt.name}?`)) {
+const destroyOlt = async (olt) => {
+    const ok = await confirm({
+        title: 'Hapus OLT',
+        message: `Hapus OLT ${olt.name}? Tindakan ini permanen.`,
+        confirmLabel: 'Hapus',
+    });
+
+    if (!ok) {
         return;
     }
 
@@ -148,14 +157,19 @@ const formatDate = (value) => {
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <span
-                                            class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
-                                            :class="olt.driver === 'zte'
-                                                ? 'bg-sky-100 text-sky-800'
-                                                : 'bg-gray-100 text-gray-700'"
-                                        >
-                                            {{ olt.capabilities.vendor_family }}
-                                        </span>
+                                        <div class="space-y-1">
+                                            <span
+                                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                                                :class="olt.driver === 'zte'
+                                                    ? 'bg-sky-100 text-sky-800'
+                                                    : 'bg-gray-100 text-gray-700'"
+                                            >
+                                                {{ olt.capabilities.vendor_family }}
+                                            </span>
+                                            <div class="text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-gray-400'">
+                                                Auto-poll: {{ olt.polling_enabled ? 'On' : 'Off' }}
+                                            </div>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-sm">
                                         <div
@@ -169,37 +183,22 @@ const formatDate = (value) => {
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="flex justify-end gap-2">
-                                            <Link :href="route('smartolt.detail', olt.id)">
-                                                <SecondaryButton type="button">
-                                                    <Eye class="mr-2 h-4 w-4" />
-                                                    Detail
-                                                </SecondaryButton>
-                                            </Link>
-                                            <SecondaryButton type="button" @click="testOlt(olt)">
-                                                <RefreshCw class="mr-2 h-4 w-4" />
-                                                Test
-                                            </SecondaryButton>
-                                            <Link :href="route('smartolt.edit', olt.id)">
-                                                <SecondaryButton type="button">
-                                                    <Pencil class="mr-2 h-4 w-4" />
-                                                    Edit
-                                                </SecondaryButton>
-                                            </Link>
-                                            <Link :href="route('smartolt.profiles.index', olt.id)">
-                                                <SecondaryButton type="button">
-                                                    <Database class="mr-2 h-4 w-4" />
-                                                    Profile
-                                                </SecondaryButton>
-                                            </Link>
-                                            <button
-                                                type="button"
-                                                class="inline-flex items-center rounded-md border border-red-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-700 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                                                @click="destroyOlt(olt)"
-                                            >
-                                                <Trash2 class="mr-2 h-4 w-4" />
-                                                Hapus
-                                            </button>
+                                        <div class="flex justify-end gap-1.5">
+                                            <IconButton :href="route('smartolt.detail', olt.id)" title="Detail">
+                                                <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton title="Test SNMP" @click="testOlt(olt)">
+                                                <RefreshCw class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton :href="route('smartolt.edit', olt.id)" title="Edit">
+                                                <Pencil class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton :href="route('smartolt.profiles.index', olt.id)" title="Profile">
+                                                <Database class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                                <Trash2 class="h-4 w-4" />
+                                            </IconButton>
                                         </div>
                                     </td>
                                 </tr>
@@ -209,5 +208,7 @@ const formatDate = (value) => {
                 </div>
             </div>
         </div>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

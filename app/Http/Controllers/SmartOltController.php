@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
+use App\Models\SnmpOlt;
+use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuRxPowerService;
-use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteProvisioningScriptBuilder;
+use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -237,6 +238,103 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
+    public function rebootOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_reboot');
+
+        try {
+            $result = $remote->reboot($olt, $slot, $port, $onuId);
+
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? sprintf('Perintah reboot ONU gpon-onu_1/%d/%d:%d terkirim. ONU restart 30-60 detik.', $slot, $port, $onuId)
+                        : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
+                );
+        } catch (\Throwable $exception) {
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('error', 'Reboot ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    public function setOnuState(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_toggle');
+
+        $data = $request->validate([
+            'active' => ['required', 'boolean'],
+            'if_index' => ['nullable', 'integer'],
+        ]);
+
+        $active = (bool) $data['active'];
+        $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
+
+        try {
+            $remote->setActiveState($olt, $ifIndex, $onuId, $active);
+            $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($active) {
+                $onu['admin_state_code'] = $active ? 1 : 2;
+                $onu['admin_state'] = $active ? 'active' : 'disabled';
+
+                return $onu;
+            });
+
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('success', $active ? 'ONU berhasil di-enable.' : 'ONU berhasil di-disable.');
+        } catch (\Throwable $exception) {
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('error', 'Ubah status ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_info_write');
+
+        $data = $request->validate([
+            'name' => ['nullable', 'string', 'max:191'],
+            'description' => ['nullable', 'string', 'max:191'],
+            'if_index' => ['nullable', 'integer'],
+        ]);
+
+        $name = ($data['name'] ?? '') !== '' ? $data['name'] : null;
+        $description = ($data['description'] ?? '') !== '' ? $data['description'] : null;
+
+        if ($name === null && $description === null) {
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('error', 'Isi minimal nama atau deskripsi ONU.');
+        }
+
+        $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
+
+        try {
+            $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
+            $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($name, $description) {
+                if ($name !== null) {
+                    $onu['name'] = $name;
+                }
+                if ($description !== null) {
+                    $onu['description'] = $description;
+                }
+
+                return $onu;
+            });
+
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('success', 'Info ONU berhasil diperbarui.');
+        } catch (\Throwable $exception) {
+            return redirect()
+                ->route('smartolt.port-onus', [$olt, $slot, $port])
+                ->with('error', 'Update info ONU gagal: '.$exception->getMessage());
+        }
+    }
+
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
     {
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
@@ -348,6 +446,7 @@ class SmartOltController extends Controller
             'cli_port' => ['nullable', 'integer', 'between:1,65535'],
             'cli_username' => ['nullable', 'string', 'max:100'],
             'cli_password' => ['nullable', 'string', 'max:255'],
+            'polling_enabled' => ['boolean'],
         ]);
     }
 
@@ -386,7 +485,7 @@ class SmartOltController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function withoutEmptySecrets(array $data): array
@@ -421,10 +520,12 @@ class SmartOltController extends Controller
             'cli_transport' => $olt->cli_transport,
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
+            'polling_enabled' => (bool) $olt->polling_enabled,
             'driver' => $driver,
             'capabilities' => SmartOltSupport::capabilities($driver),
             'last_test_result' => $olt->last_test_result,
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
+            'last_polled_at' => $olt->last_polled_at?->toIso8601String(),
             'created_at' => $olt->created_at?->toIso8601String(),
             'updated_at' => $olt->updated_at?->toIso8601String(),
         ];
@@ -485,6 +586,62 @@ class SmartOltController extends Controller
             'error' => data_get($snapshot, 'error'),
             'refreshed_at' => data_get($snapshot, 'refreshed_at'),
         ];
+    }
+
+    private function assertCapability(SnmpOlt $olt, string $capability): void
+    {
+        $driver = SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        );
+
+        abort_unless(
+            (bool) (SmartOltSupport::capabilities($driver)[$capability] ?? false),
+            403,
+            'Aksi ini tidak didukung untuk driver OLT ini.',
+        );
+    }
+
+    private function resolveOnuIfIndex(SnmpOlt $olt, int $slot, int $port, int $onuId, ?int $provided): int
+    {
+        if ($provided !== null && $provided > 0) {
+            return $provided;
+        }
+
+        $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+
+        foreach ($onus as $onu) {
+            if ((int) ($onu['onu_id'] ?? 0) === $onuId && ($onu['if_index'] ?? null) !== null) {
+                return (int) $onu['if_index'];
+            }
+        }
+
+        return 0x10000000 | ($slot << 16) | ($port << 8);
+    }
+
+    /**
+     * @param  callable(array<string, mixed>): array<string, mixed>  $mutator
+     */
+    private function mutateCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, callable $mutator): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $path = "port_onus.{$slot}_{$port}.onus";
+        $onus = data_get($snapshot, $path);
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        foreach ($onus as $index => $onu) {
+            if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
+                $onus[$index] = $mutator($onu);
+            }
+        }
+
+        data_set($snapshot, $path, $onus);
+
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
     }
 
     private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port, int $fallback = 1, ?ZteCliProvisioningExecutor $executor = null): int
@@ -586,7 +743,7 @@ class SmartOltController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     private function hydrateProvisioningProfiles(SnmpOlt $olt, array $data): array

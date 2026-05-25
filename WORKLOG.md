@@ -216,3 +216,109 @@ Changed:
 Notes:
 
 - Provisioning ONU ID is automatic from CLI state output. If CLI is unavailable, it falls back to cached port data or the unconfigured suggested ID; gaps such as used IDs `1,2,4` suggest `3`.
+
+### Phase 12 - Remote ONU Management
+
+Created:
+
+- `app/Services/ZteRemoteOnuService.php`
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` - added `set()` for SNMP write (admin state, name, description) using the write community; rejects v3 and missing write community.
+- `app/Services/ZteCliProvisioningExecutor.php` - extracted shared `run()` and added `executeConfirmable()` that auto-answers `y` to reboot confirmation prompts; `execute()` keeps its signature so existing test fakes are unaffected.
+- `app/Http/Controllers/SmartOltController.php` - added `rebootOnu`, `setOnuState`, `updateOnuInfo`; capability-gated via `assertCapability`; updates the cached `port_onus` row so admin/name reflect immediately; resolves the ONU-table ifIndex from cache (falls back to request value, then encoded port ifIndex).
+- `routes/web.php` - added `smartolt.onu.reboot`, `smartolt.onu.state`, `smartolt.onu.info` POST routes scoped under `onus/{onuId}`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` - added per-row Reboot (confirm), Enable/Disable (label from admin_state), and Edit Info modal (name/description); buttons gated by OLT capabilities.
+- `tests/Feature/SmartOltInventoryTest.php` - added coverage for reboot CLI script, SNMP SET on toggle and info, and capability gate (403 for non-ZTE driver).
+
+Notes:
+
+- Reboot uses CLI (`pon-onu-mng gpon-onu_1/{slot}/{port}:{onuId}` then `reboot`), per guide §5.5/§12.5. Enable/disable and edit name/description use SNMP SET (guide §5.6/§5.7), which is faster than CLI but requires the OLT write community to be set.
+- The ONU admin-state/name/description OIDs are indexed by the ONU-table ifIndex (`.28.1.1.x.{ifIndex}.{onuId}`), which on `OLT-C320-PATI` differs from the IF-MIB port ifIndex; the frontend passes the row's `if_index` and the controller prefers it.
+- Tests use fakes for both the CLI executor and SNMP client. Verified working against a live OLT on 2026-05-25: edit info, enable, disable, and reboot all function from the UI.
+
+### UI Consistency Pass
+
+Created:
+
+- `resources/js/Components/ConfirmModal.vue`
+- `resources/js/Components/IconButton.vue`
+- `resources/js/Composables/useConfirm.js`
+
+Changed:
+
+- Replaced all native `window.confirm()` calls with the reusable `ConfirmModal` + `useConfirm()` promise flow (Index delete, Profiles delete x2, Registrations execute, PortOnus reboot/toggle).
+- Row "Aksi" buttons across Index, Detail, Unconfigured, Registrations, Profiles, PortOnus are now icon-only (`IconButton`) with tooltips, standardized icon vocabulary, and variant colors. Header/toolbar buttons keep their labels.
+- PortOnus icons: Reboot uses `Power`; Enable/Disable uses a dynamic toggle switch (`ToggleRight` active/amber, `ToggleLeft` disabled/green); Edit uses `Pencil`.
+
+### Phase 13 - Background Polling Foundation
+
+Created:
+
+- `database/migrations/2026_05_25_140000_add_polling_fields_to_snmp_olts_table.php`
+- `app/Jobs/PollOltJob.php`
+- `app/Console/Commands/PollOltsCommand.php`
+- `tests/Feature/OltPollingTest.php`
+
+Changed:
+
+- `app/Models/SnmpOlt.php` - added `polling_enabled` (bool, default true) and `last_polled_at` to fillable/casts.
+- `routes/console.php` - schedules `olts:poll` every five minutes with `withoutOverlapping()`.
+- `app/Http/Controllers/SmartOltController.php` - validates and serializes `polling_enabled` + `last_polled_at`.
+- `resources/js/Pages/SmartOlt/Partials/OltForm.vue` - added auto-poll enable checkbox.
+- `resources/js/Pages/SmartOlt/Index.vue` and `Detail.vue` - show auto-poll On/Off status and last poll time.
+
+Notes:
+
+- Poll depth is "standard": SNMP only (system info + GPON ports + full ONU table walk bucketed into `port_onus.{slot}_{port}` for online/offline). No CLI/Telnet RX during background poll to keep OLT load low; manual port refresh still adds RX.
+- `PollOltJob` merges into the existing `last_test_result` instead of overwriting, preserving previously fetched RX power and unconfigured ONU data; RX is carried over per ONU by `onu_id`.
+- `WithoutOverlapping($oltId)->dontRelease()` prevents stacked polls for the same OLT. Errors (OLT unreachable, SNMP v3) are stored in the snapshot, not thrown, so one bad OLT does not block the others.
+- Requires a running scheduler (`php artisan schedule:work` or cron) and a queue worker/Horizon to actually execute.
+- Verified end-to-end against live OLTs on 2026-05-25 (command -> redis -> worker): OLT-C320-PATI 8 ports / 156 ONU / 132 online (~1s); OLT-C300-SEKARJALAK 48 ports / 2084 ONU / 1400 online (~32s). The large C300 poll is heavy (~32s) but well within the 5-minute cycle, and `WithoutOverlapping` prevents stacking.
+
+### Phase 14 - Alarm Engine (basic)
+
+Created:
+
+- `database/migrations/2026_05_25_150000_create_alarm_events_table.php`
+- `app/Models/AlarmEvent.php`
+- `app/Services/AlarmEvaluator.php`
+- `app/Http/Controllers/AlarmController.php`
+- `resources/js/Pages/SmartOlt/Alarms.vue`
+- `tests/Feature/AlarmEngineTest.php`
+
+Changed:
+
+- `app/Jobs/PollOltJob.php` - calls `AlarmEvaluator::evaluate()` after each snapshot save.
+- `routes/web.php` - added `alarms.index` (`GET /alarms`).
+- `resources/js/Layouts/AuthenticatedLayout.vue` - added Alarms nav link (desktop + responsive).
+
+Notes:
+
+- Stateful raise/clear lifecycle: an active alarm is keyed by a `signature` (e.g. `onu:{serial}:los`, `port:{slot}/{port}:port_down`, `olt:unreachable`). Each evaluation updates `last_seen_at` on still-present conditions, raises new ones, and clears (status=cleared, cleared_at) conditions no longer present. No duplicate spam.
+- Types & severity (tuned 2026-05-25 so `critical` stays actionable): `olt_unreachable` critical (skips ONU/port eval when OLT down), `port_down` critical, `los` major, `onu_offline` minor, `dying_gasp` minor, `high_rx_attenuation` warning (only when RX present, outside -28..-8 dBm). Admin-disabled ONUs are skipped.
+- Rationale: live poll first produced 2079 active alarms dominated by 1948 `dying_gasp` (each customer ONT powered off reports dying gasp). Subscriber-side down events were downgraded to minor/major so `critical` is reserved for network-side faults. After tuning, live distribution = critical 10 (all `port_down`), major 70 (`los`), minor 1956, warning 43.
+- Flapping and PON-port correlation (one alarm when most ONUs on a port drop together) are intentionally deferred.
+
+### Phase 15 - Dashboard
+
+Created:
+
+- `app/Http/Controllers/DashboardController.php`
+- `resources/js/Components/Pagination.vue`
+- `tests/Feature/DashboardTest.php`
+
+Changed:
+
+- `routes/web.php` - `/dashboard` now uses `DashboardController` instead of a static Inertia render.
+- `resources/js/Pages/Dashboard.vue` - rebuilt from the Breeze placeholder into a real dashboard: 4 stat cards (OLT online/total, ONU online, ONU offline, critical alarms), three ApexCharts (ONU online/offline donut, alarm severity donut, ONU-per-OLT stacked bar), per-OLT status table, and a recent-active-alarms panel.
+- `app/Http/Controllers/AlarmController.php` - alarms list now `paginate(20)->withQueryString()->through()` instead of a flat 300-row list.
+- `resources/js/Pages/SmartOlt/Alarms.vue` - renders `alarms.data`, a "showing X-Y of N" line, and the `Pagination` component.
+- `tests/Feature/AlarmEngineTest.php` - added pagination assertion (25 alarms -> 20 per page).
+
+Notes:
+
+- Charts use `vue3-apexcharts` imported locally in `Dashboard.vue` (not registered globally). ApexCharts is heavy (~570KB) but the Dashboard chunk is code-split, so it only loads on that page.
+- Dashboard aggregates entirely from the cached `last_test_result` snapshots + `alarm_events` (no extra live SNMP), so it renders instantly and reflects the latest background poll.
+- Verified aggregation against live data on 2026-05-25: 2 OLTs online, 56 ports (10 down), 2240 ONU (1501 online / 739 offline), 2079 active alarms (10 critical / 70 major / 1956 minor / 43 warning).

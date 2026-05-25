@@ -1,4 +1,5 @@
 <script setup>
+import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -128,6 +129,9 @@ const formatDate = (value) => {
                         <div class="mt-2 text-sm font-semibold text-gray-900">
                             {{ formatDate(snapshot.last_tested_at) }}
                         </div>
+                        <div class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-gray-400'">
+                            Auto-poll {{ olt.polling_enabled ? 'On' : 'Off' }} · {{ formatDate(olt.last_polled_at) }}
+                        </div>
                     </div>
                 </div>
 
@@ -230,13 +234,12 @@ const formatDate = (value) => {
                                             {{ port.oper_status }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-right">
-                                        <Link :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])">
-                                            <SecondaryButton type="button">
-                                                <Eye class="mr-2 h-4 w-4" />
-                                                ONU
-                                            </SecondaryButton>
-                                        </Link>
+                                    <td class="px-6 py-4">
+                                        <div class="flex justify-end">
+                                            <IconButton :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])" title="Lihat ONU">
+                                                <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                        </div>
                                     </td>
                                 </tr>
                             </tbody>

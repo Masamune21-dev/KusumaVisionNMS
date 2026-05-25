@@ -1,59 +1,120 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# KusumaVision NMS
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-## About Laravel
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320 (ZXA10)**: monitoring OLT/ONU, provisioning ONU, remote management, background polling, alarm engine, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+> Dokumentasi fitur lengkap: [`docs/KusumaVision_NMS_Dokumentasi_Fitur.pdf`](docs/KusumaVision_NMS_Dokumentasi_Fitur.pdf). Riwayat pengembangan per fase: [`WORKLOG.md`](WORKLOG.md).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Fitur
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Inventory OLT** — CRUD OLT, uji koneksi SNMP, kredensial (community & password CLI) tersimpan terenkripsi.
+- **Monitoring** — GPON port (up/down) dan ONU per port (online/offline, phase state, RX power).
+- **Discovery ONU unconfigured** — temukan ONU baru via OID ZTE, langsung ke form provisioning.
+- **Provisioning ONU** — VLAN, T-CONT, PPPoE/DHCP/Static, TR069, Remote ONT; tersimpan sebagai audit log lalu dieksekusi via Telnet.
+- **Manajemen Profile** — ONU Type / T-CONT / VLAN / IP per-OLT, dengan sinkronisasi langsung dari OLT.
+- **Remote ONU Management** — reboot (CLI), enable/disable & edit nama/deskripsi (SNMP SET).
+- **Background polling** — job terjadwal men-snapshot tiap OLT (SNMP) tiap 5 menit.
+- **Alarm engine** — siklus raise/clear untuk `olt_unreachable`, `port_down`, `los`, `onu_offline`, `dying_gasp`, `high_rx_attenuation`.
+- **Dashboard** — ringkasan OLT/ONU/alarm dengan grafik (ApexCharts).
 
-## Learning Laravel
+## Stack Teknologi
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+| Lapisan | Teknologi |
+|---|---|
+| Backend | Laravel 12 (PHP 8.3), Inertia.js, Sanctum |
+| Frontend | Vue 3 + Inertia, TailwindCSS, ApexCharts |
+| Database | PostgreSQL |
+| Cache / Queue / Session | Redis (queue diproses queue worker / Horizon) |
+| Akses OLT | SNMP v1/v2c (read & write), CLI Telnet |
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Persyaratan
 
-## Laravel Sponsors
+- PHP **8.3**, Composer, Node.js **22**, npm
+- PostgreSQL, Redis, Net-SNMP (`snmpwalk`)
+- Ekstensi PHP: `bcmath`, `curl`, `dom`, `intl`, `mbstring`, `openssl`, `pcntl`, `pdo_pgsql`, `pdo_sqlite`, `redis`, `snmp`, `sockets`, `xml`, `zip`
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Cek otomatis kelengkapan environment:
 
-### Premium Partners
+```bash
+bash scripts/check-requirements.sh
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## Instalasi
 
-## Contributing
+```bash
+# 1. Dependensi PHP & JS
+composer install
+npm install
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 2. Konfigurasi environment
+cp .env.example .env
+php artisan key:generate
+```
 
-## Code of Conduct
+Sunting `.env` sesuai server Anda (nilai default ada di `.env.example`):
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```dotenv
+DB_CONNECTION=pgsql
+DB_DATABASE=kusumavision_nms
+DB_USERNAME=kusumavision
+DB_PASSWORD=secret
 
-## Security Vulnerabilities
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+REDIS_HOST=127.0.0.1
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Siapkan database lalu jalankan migrasi dan build aset:
 
-## License
+```bash
+# Buat database PostgreSQL terlebih dahulu (mis. createdb kusumavision_nms)
+php artisan migrate
+npm run build
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Buat user pertama lewat halaman registrasi (`/register`) setelah aplikasi berjalan.
+
+## Menjalankan
+
+### Development
+
+Satu perintah menjalankan server + queue + log + Vite secara paralel:
+
+```bash
+composer dev
+```
+
+### Produksi
+
+Jalankan ketiga proses berikut (kelola dengan Supervisor/systemd):
+
+```bash
+php artisan serve --host=0.0.0.0 --port=8000   # atau Nginx + PHP-FPM
+php artisan queue:work redis --tries=1          # atau: php artisan horizon
+php artisan schedule:work                       # atau entri cron Laravel scheduler
+```
+
+> **Penting:** background polling & alarm hanya ter-update otomatis bila **queue worker** dan **scheduler** berjalan. Scheduler memicu `olts:poll` tiap 5 menit; worker yang mengeksekusinya.
+
+Build aset untuk produksi: `npm run build`.
+
+## Perintah Berguna
+
+```bash
+php artisan olts:poll      # dispatch poll semua OLT (auto-poll aktif) sekarang
+php artisan test           # jalankan test suite
+./vendor/bin/pint          # format kode (PHP)
+```
+
+## Catatan & Batasan
+
+- **Vendor:** hanya ZTE C300/C320. OLT non-ZTE terdeteksi `unknown` dengan kapabilitas dimatikan.
+- **SNMP:** v1/v2c (v3 belum didukung). Enable/disable & edit info ONU butuh **write community** terisi.
+- **CLI:** eksekusi provisioning/reboot hanya via **Telnet** (set `cli_transport=telnet` + username/password).
+- Dashboard & alarm seakurat poll terakhir — jaga scheduler dan worker tetap hidup.
+
+## Lisensi
+
+Proprietary — PT Berkah Media Kusuma Vision (BMKV).

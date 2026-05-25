@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\User;
+use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuRxPowerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -567,6 +568,141 @@ OUT,
         $this->assertSame('Provisioning OK', $registration->execution_output);
         $this->assertSame($user->id, $registration->executed_by);
         $this->assertNotNull($registration->executed_at);
+    }
+
+    public function test_onu_reboot_sends_cli_script_via_confirmable_executor(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.20',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'cli_transport' => 'telnet',
+            'cli_port' => 23,
+            'cli_username' => 'admin',
+            'cli_password' => 'secret',
+        ]);
+
+        $executor = new class extends ZteCliProvisioningExecutor
+        {
+            /** @var array<int, string> */
+            public array $scripts = [];
+
+            public function executeConfirmable(SnmpOlt $olt, string $script): array
+            {
+                $this->scripts[] = $script;
+
+                return ['ok' => true, 'output' => 'reboot ok', 'error' => null];
+            }
+        };
+        $this->app->instance(ZteCliProvisioningExecutor::class, $executor);
+
+        $response = $this->actingAs($user)->post(route('smartolt.onu.reboot', [$olt, 2, 1, 1]));
+
+        $response->assertRedirect(route('smartolt.port-onus', [$olt, 2, 1]));
+        $this->assertCount(1, $executor->scripts);
+        $this->assertStringContainsString('pon-onu-mng gpon-onu_1/2/1:1', $executor->scripts[0]);
+        $this->assertStringContainsString('reboot', $executor->scripts[0]);
+    }
+
+    public function test_onu_state_toggle_writes_admin_state_via_snmp_set(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.21',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_write_community' => 'private',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $snmp = new class extends OltSnmpClient
+        {
+            /** @var array<int, array<string, string>> */
+            public array $sets = [];
+
+            public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
+            {
+                $this->sets[] = compact('oid', 'type', 'value');
+
+                return true;
+            }
+        };
+        $this->app->instance(OltSnmpClient::class, $snmp);
+
+        $response = $this->actingAs($user)->post(route('smartolt.onu.state', [$olt, 2, 1, 1]), [
+            'active' => 0,
+            'if_index' => 268566784,
+        ]);
+
+        $response->assertRedirect(route('smartolt.port-onus', [$olt, 2, 1]));
+        $this->assertCount(1, $snmp->sets);
+        $this->assertSame('1.3.6.1.4.1.3902.1012.3.28.1.1.17.268566784.1', $snmp->sets[0]['oid']);
+        $this->assertSame('i', $snmp->sets[0]['type']);
+        $this->assertSame('2', $snmp->sets[0]['value']);
+    }
+
+    public function test_onu_info_update_writes_name_and_description_via_snmp_set(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.22',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_write_community' => 'private',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $snmp = new class extends OltSnmpClient
+        {
+            /** @var array<int, array<string, string>> */
+            public array $sets = [];
+
+            public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
+            {
+                $this->sets[] = compact('oid', 'type', 'value');
+
+                return true;
+            }
+        };
+        $this->app->instance(OltSnmpClient::class, $snmp);
+
+        $response = $this->actingAs($user)->post(route('smartolt.onu.info', [$olt, 2, 1, 1]), [
+            'name' => 'Budi Santoso',
+            'description' => 'Paket 50Mbps',
+            'if_index' => 268566784,
+        ]);
+
+        $response->assertRedirect(route('smartolt.port-onus', [$olt, 2, 1]));
+        $this->assertCount(2, $snmp->sets);
+        $this->assertSame('1.3.6.1.4.1.3902.1012.3.28.1.1.2.268566784.1', $snmp->sets[0]['oid']);
+        $this->assertSame('Budi Santoso', $snmp->sets[0]['value']);
+        $this->assertSame('1.3.6.1.4.1.3902.1012.3.28.1.1.3.268566784.1', $snmp->sets[1]['oid']);
+        $this->assertSame('Paket 50Mbps', $snmp->sets[1]['value']);
+    }
+
+    public function test_remote_onu_actions_are_forbidden_for_non_zte_driver(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'Lab OLT',
+            'vendor' => 'Generic Vendor',
+            'ip' => '10.10.10.23',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('smartolt.onu.reboot', [$olt, 2, 1, 1]));
+
+        $response->assertForbidden();
     }
 
     public function test_authenticated_user_can_store_an_olt(): void

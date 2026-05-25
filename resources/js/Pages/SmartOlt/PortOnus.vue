@@ -1,10 +1,17 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import IconButton from '@/Components/IconButton.vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, RefreshCw, Router, Wifi } from '@lucide/vue';
-import { computed } from 'vue';
+import { useConfirm } from '@/Composables/useConfirm';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Pencil, Power, RefreshCw, Router, ToggleLeft, ToggleRight, Wifi } from '@lucide/vue';
+import { computed, reactive } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -27,10 +34,86 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const caps = computed(() => props.olt.capabilities ?? {});
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 const refresh = () => {
     router.post(route('smartolt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, {
         preserveScroll: true,
+    });
+};
+
+const busy = reactive({});
+const actionKey = (onu) => `${onu.if_index}-${onu.onu_id}`;
+
+const rebootOnu = async (onu) => {
+    const ok = await confirm({
+        title: 'Reboot ONU',
+        message: `Reboot ${onu.interface}? ONU akan restart 30-60 detik.`,
+        confirmLabel: 'Reboot',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    const key = actionKey(onu);
+    busy[key] = true;
+    router.post(route('smartolt.onu.reboot', [props.olt.id, props.slot, props.port, onu.onu_id]), {
+        if_index: onu.if_index,
+    }, {
+        preserveScroll: true,
+        onFinish: () => { busy[key] = false; },
+    });
+};
+
+const toggleOnu = async (onu) => {
+    const active = onu.admin_state !== 'active';
+    const verb = active ? 'enable' : 'disable';
+    const ok = await confirm({
+        title: active ? 'Enable ONU' : 'Disable ONU',
+        message: `Yakin ${verb} ${onu.interface}?`,
+        confirmLabel: active ? 'Enable' : 'Disable',
+        variant: active ? 'primary' : 'danger',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    const key = actionKey(onu);
+    busy[key] = true;
+    router.post(route('smartolt.onu.state', [props.olt.id, props.slot, props.port, onu.onu_id]), {
+        active,
+        if_index: onu.if_index,
+    }, {
+        preserveScroll: true,
+        onFinish: () => { busy[key] = false; },
+    });
+};
+
+const editForm = useForm({
+    onu_id: null,
+    if_index: null,
+    name: '',
+    description: '',
+});
+const editing = reactive({ open: false, interface: '' });
+
+const openEdit = (onu) => {
+    editForm.clearErrors();
+    editForm.onu_id = onu.onu_id;
+    editForm.if_index = onu.if_index;
+    editForm.name = onu.name ?? '';
+    editForm.description = onu.description ?? '';
+    editing.interface = onu.interface;
+    editing.open = true;
+};
+
+const submitEdit = () => {
+    editForm.post(route('smartolt.onu.info', [props.olt.id, props.slot, props.port, editForm.onu_id]), {
+        preserveScroll: true,
+        onSuccess: () => { editing.open = false; },
     });
 };
 
@@ -174,6 +257,7 @@ const rxClass = (value) => {
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Phase</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Admin</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Last Down</th>
+                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -211,6 +295,36 @@ const rxClass = (value) => {
                                     <td class="px-6 py-4 text-sm text-gray-700">
                                         {{ onu.last_down_cause }}
                                     </td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center justify-end gap-1.5">
+                                            <IconButton
+                                                v-if="caps.supports_onu_info_write"
+                                                title="Edit info ONU"
+                                                @click="openEdit(onu)"
+                                            >
+                                                <Pencil class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="caps.supports_onu_toggle"
+                                                :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
+                                                :disabled="busy[actionKey(onu)]"
+                                                :title="onu.admin_state === 'active' ? 'Disable ONU' : 'Enable ONU'"
+                                                @click="toggleOnu(onu)"
+                                            >
+                                                <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
+                                                <ToggleLeft v-else class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="caps.supports_reboot"
+                                                variant="danger"
+                                                :disabled="busy[actionKey(onu)]"
+                                                title="Reboot ONU"
+                                                @click="rebootOnu(onu)"
+                                            >
+                                                <Power class="h-4 w-4" />
+                                            </IconButton>
+                                        </div>
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -218,5 +332,40 @@ const rxClass = (value) => {
                 </div>
             </div>
         </div>
+
+        <Modal :show="editing.open" @close="editing.open = false">
+            <form class="p-6" @submit.prevent="submitEdit">
+                <h3 class="text-base font-semibold text-gray-900">
+                    Edit Info ONU
+                </h3>
+                <p class="mt-1 text-sm text-gray-500">
+                    {{ editing.interface }} · ditulis via SNMP SET.
+                </p>
+
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <InputLabel for="onu_name" value="Nama ONU" />
+                        <TextInput id="onu_name" v-model="editForm.name" type="text" class="mt-1 block w-full" maxlength="191" />
+                        <InputError :message="editForm.errors.name" class="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel for="onu_description" value="Deskripsi" />
+                        <TextInput id="onu_description" v-model="editForm.description" type="text" class="mt-1 block w-full" maxlength="191" />
+                        <InputError :message="editForm.errors.description" class="mt-1" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-2">
+                    <SecondaryButton type="button" @click="editing.open = false">
+                        Batal
+                    </SecondaryButton>
+                    <PrimaryButton type="submit" :disabled="editForm.processing">
+                        Simpan
+                    </PrimaryButton>
+                </div>
+            </form>
+        </Modal>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

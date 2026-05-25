@@ -12,6 +12,24 @@ class ZteCliProvisioningExecutor
      */
     public function execute(SnmpOlt $olt, string $script): array
     {
+        return $this->run($olt, $script, false);
+    }
+
+    /**
+     * Like execute(), but auto-answers "y" to confirmation prompts (e.g. ONU reboot).
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function executeConfirmable(SnmpOlt $olt, string $script): array
+    {
+        return $this->run($olt, $script, true);
+    }
+
+    /**
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes): array
+    {
         if ($olt->cli_transport !== 'telnet') {
             throw new RuntimeException('Eksekusi otomatis saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
         }
@@ -36,7 +54,7 @@ class ZteCliProvisioningExecutor
             foreach ($this->commands($script) as $command) {
                 $output .= "\n> {$command}\n";
                 fwrite($connection, $command."\n");
-                $output .= $this->readUntilIdle($connection, 15);
+                $output .= $this->readUntilIdle($connection, 15, $autoConfirmYes);
             }
 
             fwrite($connection, "exit\n");
@@ -60,7 +78,7 @@ class ZteCliProvisioningExecutor
     }
 
     /**
-     * @param resource $connection
+     * @param  resource  $connection
      */
     private function login($connection, SnmpOlt $olt): string
     {
@@ -81,13 +99,14 @@ class ZteCliProvisioningExecutor
     }
 
     /**
-     * @param resource $connection
+     * @param  resource  $connection
      */
-    private function readUntilIdle($connection, int $timeoutSeconds = 8): string
+    private function readUntilIdle($connection, int $timeoutSeconds = 8, bool $autoConfirmYes = false): string
     {
         $output = '';
         $started = microtime(true);
         $lastRead = microtime(true);
+        $confirms = 0;
 
         while ((microtime(true) - $started) < $timeoutSeconds) {
             $chunk = fread($connection, 8192);
@@ -102,6 +121,7 @@ class ZteCliProvisioningExecutor
                 }
 
                 usleep(150000);
+
                 continue;
             }
 
@@ -111,6 +131,14 @@ class ZteCliProvisioningExecutor
             if ($this->hasPagerPrompt($output)) {
                 fwrite($connection, "\n");
                 $output = $this->stripPagerPrompts($output);
+                $started = microtime(true);
+                $lastRead = microtime(true);
+            }
+
+            if ($autoConfirmYes && $confirms < 3 && $this->hasConfirmPrompt($output)) {
+                fwrite($connection, "y\n");
+                $confirms++;
+                $output = $this->stripConfirmPrompts($output);
                 $started = microtime(true);
                 $lastRead = microtime(true);
             }
@@ -166,5 +194,15 @@ class ZteCliProvisioningExecutor
     private function stripPagerPrompts(string $output): string
     {
         return preg_replace('/(--More--|----\s*More\s*----|<---\s*More\s*--->|press\s+(enter|return|any key)\s+to\s+continue)/i', '', $output) ?? $output;
+    }
+
+    private function hasConfirmPrompt(string $output): bool
+    {
+        return preg_match('/(\(y\/n\)|\[y\/n\]|yes\/no|are you sure|confirm to reboot|continue\?)/i', $output) === 1;
+    }
+
+    private function stripConfirmPrompts(string $output): string
+    {
+        return preg_replace('/(\(y\/n\)|\[y\/n\]|yes\/no|are you sure|confirm to reboot|continue\?)/i', '', $output) ?? $output;
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\AlarmController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SmartOltController;
 use App\Http\Controllers\SmartOltProfileController;
@@ -16,14 +18,16 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/alarms', [AlarmController::class, 'index'])->name('alarms.index');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
@@ -47,6 +51,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->name('smartolt.test');
     Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->name('smartolt.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [SmartOltController::class, 'rebootOnu'])->name('smartolt.onu.reboot');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [SmartOltController::class, 'setOnuState'])->name('smartolt.onu.state');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [SmartOltController::class, 'updateOnuInfo'])->name('smartolt.onu.info');
 });
 
 require __DIR__.'/auth.php';
