@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, CheckCircle2, ClipboardList, LayoutDashboard, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
+import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Layers, LayoutDashboard, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -14,6 +14,10 @@ const props = defineProps({
     snapshot: {
         type: Object,
         required: true,
+    },
+    cards: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -86,6 +90,13 @@ const formatUptime = (timeticks) => {
 const portStatusLabel = (status) => String(status || 'unknown').toUpperCase();
 const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || onu.interface || '-';
 
+const cardStatusColor = (status) => {
+    const s = String(status ?? '').toUpperCase();
+    if (s === 'INSERVICE') return 'text-green-600 bg-green-50';
+    if (s === 'STANDBY') return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+};
+
 const oltImage = computed(() => {
     const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
     if (hay.includes('c320')) return '/img/c320.jpg';
@@ -119,7 +130,7 @@ const oltImage = computed(() => {
                     <Link :href="route('smartolt.dashboard', olt.id)">
                         <SecondaryButton type="button">
                             <LayoutDashboard class="mr-2 h-4 w-4" />
-                            Dashboard
+                            Port Manager
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.edit', olt.id)">
@@ -238,6 +249,47 @@ const oltImage = computed(() => {
                     </div>
                 </div>
 
+                <!-- Status Card / Hardware -->
+                <div v-if="cards.length > 0" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div class="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
+                        <Layers class="h-5 w-5 text-gray-500" />
+                        <h3 class="text-base font-semibold text-gray-900">Status Card / Hardware</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <th class="px-4 py-3">Rack/Shelf/Slot</th>
+                                    <th class="px-4 py-3">Tipe</th>
+                                    <th class="px-4 py-3">Real</th>
+                                    <th class="px-4 py-3">Port</th>
+                                    <th class="px-4 py-3">HW Ver</th>
+                                    <th class="px-4 py-3">SW Ver</th>
+                                    <th class="px-4 py-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`"
+                                    class="transition-colors hover:bg-gray-50">
+                                    <td class="px-4 py-3 font-mono text-gray-700">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
+                                    <td class="px-4 py-3 font-semibold text-gray-800">{{ card.cfg_type }}</td>
+                                    <td class="px-4 py-3 text-gray-600">{{ card.real_type || '—' }}</td>
+                                    <td class="px-4 py-3 text-gray-600">{{ card.port_count }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.hard_ver || '—' }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.soft_ver || '—' }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                              :class="cardStatusColor(card.status)">
+                                            {{ card.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- GPON Port & ONU -->
                 <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-4 border-b border-gray-900 px-5 py-4 md:flex-row md:items-center md:justify-between">
                         <div class="flex items-center gap-2">

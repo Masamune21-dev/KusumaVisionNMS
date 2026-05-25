@@ -8,6 +8,7 @@ use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
+use Illuminate\Support\Facades\Cache;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -51,15 +52,20 @@ class SmartOltController extends Controller
         return Inertia::render('SmartOlt/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
+            'cards' => Cache::get("olt:{$olt->id}:cards", []),
         ]);
     }
 
     public function dashboard(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
-        try {
-            $cards = $service->getCardStatus($olt);
-        } catch (\Throwable $e) {
-            $cards = [];
+        $cards = Cache::get("olt:{$olt->id}:cards", []);
+
+        if (empty($cards)) {
+            try {
+                $cards = $service->getCardStatus($olt);
+            } catch (\Throwable) {
+                $cards = [];
+            }
         }
 
         $uplinkInterfaces = $service->discoverUplinkInterfaces($cards);
@@ -73,9 +79,8 @@ class SmartOltController extends Controller
             }
         }
 
-        return Inertia::render('SmartOlt/Dashboard', [
+        return Inertia::render('SmartOlt/PortManager', [
             'olt' => $this->serializeOlt($olt),
-            'cards' => $cards,
             'uplink_interfaces' => $uplinkInterfaces,
             'vlans_by_interface' => $vlansByInterface,
         ]);
@@ -97,7 +102,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.dashboard', $olt)
-                ->with('success', 'Data card dan VLAN berhasil diperbarui dari OLT.');
+                ->with('success', 'Data VLAN berhasil diperbarui dari OLT.');
         } catch (\Throwable $e) {
             return redirect()
                 ->route('smartolt.dashboard', $olt)

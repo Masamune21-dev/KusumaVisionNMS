@@ -3,13 +3,12 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, Layers, Network, RefreshCw, Signal, Wifi, XCircle } from '@lucide/vue';
+import { ArrowLeft, CheckCircle2, Network, RefreshCw, Signal, Wifi, XCircle } from '@lucide/vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 
 const props = defineProps({
     olt: { type: Object, required: true },
-    cards: { type: Array, default: () => [] },
     uplink_interfaces: { type: Array, default: () => [] },
     vlans_by_interface: { type: Object, default: () => ({}) },
 });
@@ -170,13 +169,6 @@ const doRefresh = () => {
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────
-const statusColor = (status) => {
-    const s = String(status ?? '').toUpperCase();
-    if (s === 'INSERVICE') return 'text-green-600 bg-green-50';
-    if (s === 'STANDBY') return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
-};
-
 const formatBps = (bps) => toMbps(bps).toFixed(2) + ' Mbps';
 
 const vlanBadgeColor = (range) => {
@@ -201,14 +193,14 @@ const uplinkCardType = (iface) => {
 </script>
 
 <template>
-    <Head :title="`Dashboard ${olt.name}`" />
+    <Head :title="`Port Manager — ${olt.name}`" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                        Dashboard — {{ olt.name }}
+                        Port Manager — {{ olt.name }}
                     </h2>
                     <p class="mt-1 text-sm text-gray-500">
                         {{ olt.ip }}:{{ olt.snmp_port }} · {{ olt.capabilities.vendor_family }}
@@ -221,6 +213,7 @@ const uplinkCardType = (iface) => {
                             Detail OLT
                         </SecondaryButton>
                     </Link>
+
                     <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         Refresh Data
@@ -241,56 +234,7 @@ const uplinkCardType = (iface) => {
                 </div>
 
                 <!-- ══════════════════════════════════════
-                     SECTION 1: Panel Status Card
-                     ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
-                        <Layers class="h-5 w-5 text-gray-500" />
-                        <h3 class="font-semibold text-gray-800">Status Card / Hardware</h3>
-                    </div>
-
-                    <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
-                        Tidak ada data card. Klik <strong>Refresh Data</strong> untuk memuat dari OLT.
-                    </div>
-
-                    <div v-else class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    <th class="px-4 py-3">Rack/Shelf/Slot</th>
-                                    <th class="px-4 py-3">Tipe Konfigurasi</th>
-                                    <th class="px-4 py-3">Tipe Real</th>
-                                    <th class="px-4 py-3">Port</th>
-                                    <th class="px-4 py-3">HW Ver</th>
-                                    <th class="px-4 py-3">SW Ver</th>
-                                    <th class="px-4 py-3">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                <tr v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`"
-                                    class="transition-colors hover:bg-gray-50">
-                                    <td class="px-4 py-3 font-mono text-gray-700">
-                                        {{ card.rack }}/{{ card.shelf }}/{{ card.slot }}
-                                    </td>
-                                    <td class="px-4 py-3 font-semibold text-gray-800">{{ card.cfg_type }}</td>
-                                    <td class="px-4 py-3 text-gray-600">{{ card.real_type || '—' }}</td>
-                                    <td class="px-4 py-3 text-gray-600">{{ card.port_count }}</td>
-                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.hard_ver || '—' }}</td>
-                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.soft_ver || '—' }}</td>
-                                    <td class="px-4 py-3">
-                                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                                              :class="statusColor(card.status)">
-                                            {{ card.status }}
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- ══════════════════════════════════════
-                     SECTION 2: Uplink Interface & Trafik
+                     SECTION 1: Uplink Interface & Trafik
                      ══════════════════════════════════════ -->
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
