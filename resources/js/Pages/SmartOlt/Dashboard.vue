@@ -28,28 +28,20 @@ const uplinkInfo = reactive({ line_status: null, input_bps: 0, output_bps: 0, in
 const trafficError = ref(null);
 let pollTimer = null;
 
+// Convert Bps → Mbps: ×8 ÷ 1,000,000
+const toMbps = (bps) => (bps * 8) / 1_000_000;
+
 const chartOptions = computed(() => ({
     chart: { type: 'line', animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 800 } }, toolbar: { show: false }, zoom: { enabled: false } },
     stroke: { curve: 'smooth', width: 2 },
     colors: ['#3b82f6', '#10b981'],
     xaxis: { categories: trafficHistory.labels, labels: { show: false }, axisTicks: { show: false } },
     yaxis: {
-        labels: {
-            formatter: (v) => {
-                if (v >= 1e6) return (v / 1e6).toFixed(1) + ' MB/s';
-                if (v >= 1e3) return (v / 1e3).toFixed(0) + ' KB/s';
-                return v + ' B/s';
-            },
-        },
+        labels: { formatter: (v) => v.toFixed(1) + ' Mbps' },
+        min: 0,
     },
     tooltip: {
-        y: {
-            formatter: (v) => {
-                if (v >= 1e6) return (v / 1e6).toFixed(2) + ' MB/s';
-                if (v >= 1e3) return (v / 1e3).toFixed(1) + ' KB/s';
-                return v + ' B/s';
-            },
-        },
+        y: { formatter: (v) => v.toFixed(2) + ' Mbps' },
     },
     legend: { position: 'top', horizontalAlign: 'left' },
     grid: { strokeDashArray: 4, borderColor: '#e5e7eb' },
@@ -82,8 +74,8 @@ const fetchTraffic = async () => {
 
         const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         trafficHistory.labels.push(time);
-        trafficHistory.input.push(data.input_bps);
-        trafficHistory.output.push(data.output_bps);
+        trafficHistory.input.push(parseFloat(toMbps(data.input_bps).toFixed(3)));
+        trafficHistory.output.push(parseFloat(toMbps(data.output_bps).toFixed(3)));
 
         if (trafficHistory.labels.length > MAX_POINTS) {
             trafficHistory.labels.shift();
@@ -185,12 +177,7 @@ const statusColor = (status) => {
     return 'text-red-600 bg-red-50';
 };
 
-const formatBps = (bps) => {
-    if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' GB/s';
-    if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' MB/s';
-    if (bps >= 1e3) return (bps / 1e3).toFixed(1) + ' KB/s';
-    return bps + ' B/s';
-};
+const formatBps = (bps) => toMbps(bps).toFixed(2) + ' Mbps';
 
 const vlanBadgeColor = (range) => {
     const n = parseInt(range);

@@ -109,7 +109,7 @@ class SmartOltController extends Controller
     {
         $interface = $request->query('interface', '');
 
-        if (! preg_match('/^[xg]gei_\d+\/\d+\/\d+$/', $interface)) {
+        if (! preg_match('/^(?:xgei|gei)_\d+\/\d+\/\d+$/', $interface)) {
             return response()->json(['error' => 'Parameter interface tidak valid.'], 422);
         }
 
@@ -123,7 +123,7 @@ class SmartOltController extends Controller
     public function storeDashboardVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
     {
         $data = $request->validate([
-            'interface' => ['required', 'string', 'regex:/^[xg]gei_\d+\/\d+\/\d+$/'],
+            'interface' => ['required', 'string', 'regex:/^(?:xgei|gei)_\d+\/\d+\/\d+$/'],
             'vlan_id' => ['required', 'integer', 'min:1', 'max:4094'],
         ]);
 
