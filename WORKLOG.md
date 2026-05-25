@@ -53,3 +53,22 @@ Notes:
 
 - Detail page reads cached `last_test_result` so it remains accessible when OLT is unreachable.
 - Refresh SNMP updates system info and GPON ports in `last_test_result`.
+
+### Phase 3 - ONU Per-Port Monitoring
+
+Created:
+
+- `resources/js/Pages/SmartOlt/PortOnus.vue`
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` - added ZTE registered ONU walks, SN decoder, admin/phase/last-down decoders, and per-port ONU snapshots.
+- `app/Http/Controllers/SmartOltController.php` - added port ONU page and refresh action.
+- `routes/web.php` - added port ONU read and refresh routes.
+- `resources/js/Pages/SmartOlt/Detail.vue` - linked each GPON port to its ONU page.
+- `tests/Feature/SmartOltInventoryTest.php` - added port ONU page coverage.
+
+Notes:
+
+- Per-port ONU cache is stored in `last_test_result.port_onus.{slot}_{port}`.
+- Current implementation uses the ZTE modern ONU management table; legacy fallback remains a later task.

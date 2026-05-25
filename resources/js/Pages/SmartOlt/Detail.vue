@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, Eye, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -200,6 +200,7 @@ const formatDate = (value) => {
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">ifIndex</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Slot</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
+                                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -216,6 +217,14 @@ const formatDate = (value) => {
                                         >
                                             {{ port.oper_status }}
                                         </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <Link :href="route('smartolt.port-onus', [olt.id, port.slot, port.port])">
+                                            <SecondaryButton type="button">
+                                                <Eye class="mr-2 h-4 w-4" />
+                                                ONU
+                                            </SecondaryButton>
+                                        </Link>
                                     </td>
                                 </tr>
                             </tbody>

@@ -45,6 +45,16 @@ class SmartOltController extends Controller
         ]);
     }
 
+    public function portOnus(SnmpOlt $olt, int $slot, int $port): Response
+    {
+        return Inertia::render('SmartOlt/PortOnus', [
+            'olt' => $this->serializeOlt($olt),
+            'slot' => $slot,
+            'port' => $port,
+            'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         SnmpOlt::create($this->validated($request));
@@ -112,6 +122,27 @@ class SmartOltController extends Controller
 
         return redirect()
             ->route('smartolt.detail', $olt)
+            ->with($result['ok'] ? 'success' : 'error', $message);
+    }
+
+    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): RedirectResponse
+    {
+        $result = $client->portOnusSnapshot($olt, $slot, $port);
+        $result['refreshed_at'] = now()->toIso8601String();
+
+        $snapshot = $olt->last_test_result ?? [];
+        data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
+
+        $olt->forceFill([
+            'last_test_result' => $snapshot,
+        ])->save();
+
+        $message = $result['ok']
+            ? sprintf('Refresh ONU OK. %s ONU ditemukan di slot %s port %s.', $result['count'], $slot, $port)
+            : sprintf('Refresh ONU gagal: %s', $result['error'] ?? 'unknown error');
+
+        return redirect()
+            ->route('smartolt.port-onus', [$olt, $slot, $port])
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
@@ -199,6 +230,27 @@ class SmartOltController extends Controller
             'ports' => data_get($snapshot, 'ports', []),
             'error' => data_get($snapshot, 'error'),
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializePortOnusSnapshot(SnmpOlt $olt, int $slot, int $port): array
+    {
+        $snapshot = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+
+        return [
+            'ok' => (bool) data_get($snapshot, 'ok', false),
+            'slot' => $slot,
+            'port' => $port,
+            'if_index' => data_get($snapshot, 'if_index'),
+            'port_row' => data_get($snapshot, 'port_row'),
+            'onus' => data_get($snapshot, 'onus', []),
+            'count' => data_get($snapshot, 'count', 0),
+            'latency_ms' => data_get($snapshot, 'latency_ms'),
+            'error' => data_get($snapshot, 'error'),
+            'refreshed_at' => data_get($snapshot, 'refreshed_at'),
         ];
     }
 }

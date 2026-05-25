@@ -60,6 +60,72 @@ class SmartOltInventoryTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_smartolt_port_onus_page_can_be_rendered(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.4',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'ok' => true,
+                'driver' => 'zte',
+                'system' => [],
+                'ports' => [
+                    [
+                        'if_index' => 268501760,
+                        'name' => 'gpon-olt_1/1/1',
+                        'slot' => 1,
+                        'port' => 1,
+                        'oper_status_code' => 1,
+                        'oper_status' => 'up',
+                    ],
+                ],
+                'port_onus' => [
+                    '1_1' => [
+                        'ok' => true,
+                        'slot' => 1,
+                        'port' => 1,
+                        'if_index' => 268501760,
+                        'port_row' => null,
+                        'count' => 1,
+                        'latency_ms' => 88,
+                        'refreshed_at' => now()->toIso8601String(),
+                        'error' => null,
+                        'onus' => [
+                            [
+                                'if_index' => 268501760,
+                                'onu_id' => 1,
+                                'slot' => 1,
+                                'port' => 1,
+                                'interface' => 'gpon-onu_1/1/1:1',
+                                'type_name' => 'F660V7.0',
+                                'name' => 'Customer A',
+                                'description' => '1$$Customer A$$',
+                                'serial_number' => 'ZTEG12345678',
+                                'admin_state_code' => 1,
+                                'admin_state' => 'active',
+                                'phase_state_code' => 3,
+                                'phase_state' => 'Working',
+                                'online' => true,
+                                'last_down_cause_code' => 0,
+                                'last_down_cause' => 'Normal',
+                            ],
+                        ],
+                    ],
+                ],
+                'error' => null,
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('smartolt.port-onus', [$olt, 1, 1]));
+
+        $response->assertOk();
+    }
+
     public function test_authenticated_user_can_store_an_olt(): void
     {
         $user = User::factory()->create();
