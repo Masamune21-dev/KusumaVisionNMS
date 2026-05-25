@@ -429,3 +429,17 @@ Notes:
 - Interface naming berbeda per chassis: C300 HUVQ → `xgei_1/{slot}/1-2`; C320 SMXA → `gei_1/{slot}/1-N`. SCXN juga punya `gei_` tapi bukan uplink traffic, sengaja di-skip dari discovery.
 - Parser VLAN (`parseTaggedVlans`) handle `\r\n` dan akumulasi multi-baris sampai bertemu baris non-VLAN (prompt CLI).
 - Grafik trafik: Y-axis dan tooltip otomatis format B/s → KB/s → MB/s → GB/s. Polling berhenti saat komponen di-unmount (`onBeforeUnmount`).
+
+### Perbaikan Navigasi dan ONU ID dari Cache
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tombol kembali diubah dari `smartolt.detail` ke `smartolt.gpon-ports` dengan label "GPON Port & ONU".
+- `resources/js/Pages/SmartOlt/Registrations.vue` — tombol kembali diubah dari `smartolt.detail` ke `smartolt.unconfigured-all?olt_id={id}` agar kembali ke halaman Unconfigured dengan OLT tetap terpilih.
+- `app/Http/Controllers/SmartOltController.php` — `refreshUnconfigured()` redirect ke `smartolt.unconfigured-all` (bukan `smartolt.unconfigured` lama) agar flash message muncul di halaman yang benar. Hapus CLI call dari `suggestNextOnuId()` — sekarang hanya pakai data cache `last_test_result.port_onus.{slot}_{port}.onus`; hapus helper `canUseCliForOnuState()` dan `extractUsedOnuIdsFromStateOutput()` yang tidak lagi dipakai; hapus injeksi `ZteCliProvisioningExecutor` dari `registerOnuForm()`.
+- `README.md` — tambah seksi instalasi Go (step 2) dan cara build binary `bin/kv-snmp-poller`; tambah Go ke tabel stack teknologi dan daftar persyaratan; renumber step instalasi 1–10.
+
+Notes:
+
+- Suggest ONU ID via cache sudah cukup karena data port ONU di-refresh setiap kali SNMP Refresh dijalankan. Telnet call saat buka form registrasi memperlambat halaman tanpa manfaat signifikan.
+- Binary Go poller sudah ada di `cmd/kv-snmp-poller/main.go` dan `go.mod`; diaktifkan via `SNMP_POLLER_DRIVER=go` di `.env`.

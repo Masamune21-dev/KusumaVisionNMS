@@ -161,10 +161,10 @@ const rxClass = (value) => {
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                    <Link :href="route('smartolt.detail', olt.id)">
+                    <Link :href="route('smartolt.gpon-ports', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Detail OLT
+                            GPON Port & ONU
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">

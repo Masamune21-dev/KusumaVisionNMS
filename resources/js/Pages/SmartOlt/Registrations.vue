@@ -69,10 +69,10 @@ const statusClass = (status) => ({
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">Registration History</h2>
                     <p class="mt-1 text-sm text-gray-500">{{ olt.name }}</p>
                 </div>
-                <Link :href="route('smartolt.detail', olt.id)">
+                <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
                     <SecondaryButton type="button">
                         <ArrowLeft class="mr-2 h-4 w-4" />
-                        Detail OLT
+                        Unconfigured
                     </SecondaryButton>
                 </Link>
             </div>

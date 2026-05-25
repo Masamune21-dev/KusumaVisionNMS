@@ -32,6 +32,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 | Cache / Queue / Session | Redis |
 | Web Server | Nginx + PHP-FPM 8.3 |
 | Akses OLT | SNMP v1/v2c (read & write), CLI Telnet |
+| SNMP Poller (opsional) | Go 1.18+ — binary `bin/kv-snmp-poller` |
 
 ---
 
@@ -42,6 +43,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - PostgreSQL, Redis
 - Nginx
 - Ekstensi PHP: `bcmath curl dom intl mbstring openssl pcntl pdo_pgsql pdo_sqlite redis snmp sockets xml zip`
+- Go **1.18+** (opsional — diperlukan hanya jika ingin build binary Go SNMP poller)
 
 ---
 
@@ -68,14 +70,47 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs
 ```
 
-### 2. Siapkan database PostgreSQL
+### 2. Instalasi Go & Build SNMP Poller (opsional)
+
+> Lewati langkah ini jika ingin tetap menggunakan PHP poller (default). Go poller lebih efisien di server dengan banyak OLT.
+
+```bash
+# Install Go 1.22 (atau versi terbaru)
+wget https://go.dev/dl/go1.22.5.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.22.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
+source /etc/profile.d/go.sh
+
+# Verifikasi
+go version
+```
+
+Build binary poller:
+
+```bash
+cd /var/www/KusumaVisionNMS
+go mod download
+go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
+chmod +x bin/kv-snmp-poller
+```
+
+Aktifkan Go driver di `.env`:
+
+```dotenv
+SNMP_POLLER_DRIVER=go
+SNMP_POLLER_BINARY=bin/kv-snmp-poller
+```
+
+> Jika binary tidak ditemukan atau tidak executable, sistem otomatis fallback ke PHP poller.
+
+### 4. Siapkan database PostgreSQL
 
 ```bash
 su - postgres -c "psql -c \"CREATE USER kusumavision WITH PASSWORD 'ganti_password_ini';\""
 su - postgres -c "psql -c \"CREATE DATABASE kusumavision_nms OWNER kusumavision;\""
 ```
 
-### 3. Clone dan konfigurasi aplikasi
+### 5. Clone dan konfigurasi aplikasi
 
 ```bash
 cd /var/www
@@ -116,7 +151,7 @@ REDIS_PORT=6379
 SNMP_POLLER_DRIVER=php
 ```
 
-### 4. Migrasi database dan build aset
+### 6. Migrasi database dan build aset
 
 ```bash
 php artisan migrate --force
@@ -130,7 +165,7 @@ chmod -R 775 /var/www/KusumaVisionNMS/storage \
     /var/www/KusumaVisionNMS/bootstrap/cache
 ```
 
-### 5. Konfigurasi Nginx
+### 7. Konfigurasi Nginx
 
 Buat file konfigurasi site:
 
@@ -188,7 +223,7 @@ nginx -t && systemctl restart nginx
 systemctl enable nginx php8.3-fpm
 ```
 
-### 6. Konfigurasi Queue Worker (Supervisor)
+### 8. Konfigurasi Queue Worker (Supervisor)
 
 Install Supervisor untuk menjaga queue worker tetap berjalan:
 
@@ -221,7 +256,7 @@ stopwaitsecs=120
 supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-worker:*
 ```
 
-### 7. Konfigurasi Laravel Scheduler (Cron)
+### 9. Konfigurasi Laravel Scheduler (Cron)
 
 Tambahkan entri cron untuk menjalankan scheduler Laravel setiap menit:
 
@@ -237,7 +272,7 @@ Tambahkan baris:
 
 > Scheduler menjalankan `olts:poll` setiap menit. Setiap OLT hanya benar-benar di-poll sesuai interval masing-masing (`poll_interval_minutes`).
 
-### 8. Buat akun pertama
+### 10. Buat akun pertama
 
 Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
 
