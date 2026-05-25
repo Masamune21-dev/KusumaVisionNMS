@@ -1,11 +1,11 @@
 <script setup>
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, ClipboardList } from '@lucide/vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, ClipboardList, Play } from '@lucide/vue';
 import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     olt: {
         type: Object,
         required: true,
@@ -27,6 +27,25 @@ const formatDate = (value) => {
         timeStyle: 'short',
     }).format(new Date(value));
 };
+
+const executeRegistration = (registration) => {
+    if (!window.confirm(`Eksekusi script provisioning untuk ${registration.pon_port}?`)) {
+        return;
+    }
+
+    router.post(route('smartolt.registrations.execute', {
+        olt: props.olt.id,
+        registration: registration.id,
+    }), {}, {
+        preserveScroll: true,
+    });
+};
+
+const statusClass = (status) => ({
+    generated: 'bg-gray-100 text-gray-700',
+    executed: 'bg-emerald-100 text-emerald-800',
+    failed: 'bg-red-100 text-red-800',
+}[status] ?? 'bg-gray-100 text-gray-700');
 </script>
 
 <template>
@@ -53,6 +72,9 @@ const formatDate = (value) => {
                 <div v-if="flash.success" class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
                     {{ flash.success }}
                 </div>
+                <div v-if="flash.error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {{ flash.error }}
+                </div>
 
                 <div class="rounded-lg bg-white shadow-sm">
                     <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
@@ -75,11 +97,30 @@ const formatDate = (value) => {
                                         {{ registration.serial_number }} · VLAN {{ registration.vlan }} · {{ registration.wan_mode }} · {{ formatDate(registration.created_at) }}
                                     </div>
                                 </div>
-                                <span class="inline-flex w-fit rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                                    {{ registration.status }}
-                                </span>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(registration.status)">
+                                        {{ registration.status }}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-widest text-emerald-700 shadow-sm transition duration-150 ease-in-out hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                                        @click="executeRegistration(registration)"
+                                    >
+                                        <Play class="mr-2 h-4 w-4" />
+                                        Execute
+                                    </button>
+                                </div>
                             </div>
                             <pre class="mt-4 overflow-x-auto rounded-md bg-gray-950 p-4 text-xs text-gray-100">{{ registration.cli_script }}</pre>
+                            <div v-if="registration.executed_at || registration.execution_output || registration.execution_error" class="mt-4 space-y-2">
+                                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    Execution · {{ formatDate(registration.executed_at) }}
+                                </div>
+                                <div v-if="registration.execution_error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                    {{ registration.execution_error }}
+                                </div>
+                                <pre v-if="registration.execution_output" class="overflow-x-auto rounded-md bg-gray-900 p-4 text-xs text-gray-100">{{ registration.execution_output }}</pre>
+                            </div>
                         </div>
                     </div>
                 </div>

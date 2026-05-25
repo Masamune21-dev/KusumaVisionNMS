@@ -30,6 +30,10 @@ class SmartOltOnuRegistration extends Model
         'static_ip',
         'static_netmask',
         'cli_script',
+        'execution_output',
+        'execution_error',
+        'executed_at',
+        'executed_by',
         'status',
         'created_by',
     ];
@@ -42,6 +46,7 @@ class SmartOltOnuRegistration extends Model
             'onu_id' => 'integer',
             'vlan' => 'integer',
             'pppoe_password' => 'encrypted',
+            'executed_at' => 'datetime',
         ];
     }
 
@@ -53,5 +58,10 @@ class SmartOltOnuRegistration extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function executor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'executed_by');
     }
 }

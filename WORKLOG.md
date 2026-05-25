@@ -123,3 +123,23 @@ Notes:
 
 - Default profiles are inserted by migration: `ALL-ONT`, `SERVER`, `ServiceName` VLAN 100, and `INTERNET`.
 - VLAN profile selection overwrites the submitted VLAN and service name with the active profile's configured values.
+
+### Phase 6 - Provisioning Execution Audit
+
+Created:
+
+- `database/migrations/2026_05_25_101500_add_execution_fields_to_smartolt_onu_registrations_table.php`
+- `app/Services/ZteCliProvisioningExecutor.php`
+
+Changed:
+
+- `app/Models/SmartOltOnuRegistration.php` - added execution output/error metadata and executor relation.
+- `app/Http/Controllers/SmartOltController.php` - added provisioning execution action with status updates.
+- `routes/web.php` - added registration execution route.
+- `resources/js/Pages/SmartOlt/Registrations.vue` - added Execute action and execution output display.
+- `tests/Feature/SmartOltInventoryTest.php` - added execution status coverage with a fake executor.
+
+Notes:
+
+- Automatic execution currently supports Telnet only. SSH is intentionally rejected with a clear message until an SSH driver is selected.
+- Execution output is stored for audit and CLI password values are masked from captured output.

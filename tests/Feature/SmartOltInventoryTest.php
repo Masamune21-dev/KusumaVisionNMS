@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\User;
+use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -292,6 +293,63 @@ class SmartOltInventoryTest extends TestCase
         $this->assertStringContainsString('service STATICBUS gemport 1 cos 0 vlan 321', $registration->cli_script);
         $this->assertStringContainsString('ip-profile INTERNET ip-address 192.0.2.10 mask 24', $registration->cli_script);
         $this->assertStringNotContainsString('255.255.255.0', $registration->cli_script);
+    }
+
+    public function test_generated_registration_can_be_marked_executed(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.9',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'cli_transport' => 'telnet',
+            'cli_port' => 23,
+            'cli_username' => 'admin',
+            'cli_password' => 'secret',
+        ]);
+        $registration = SmartOltOnuRegistration::create([
+            'snmp_olt_id' => $olt->id,
+            'serial_number' => 'ZTEG12345679',
+            'slot' => 2,
+            'port' => 1,
+            'onu_id' => 4,
+            'pon_port' => 'gpon-onu_1/2/1:4',
+            'customer_name' => 'Customer B',
+            'onu_type' => 'ALL-ONT',
+            'tcont_profile' => 'SERVER',
+            'vlan' => 100,
+            'service_name' => 'ServiceName',
+            'wan_mode' => 'dhcp',
+            'cli_script' => 'conf t',
+            'status' => 'generated',
+            'created_by' => $user->id,
+        ]);
+
+        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
+        {
+            public function execute(SnmpOlt $olt, string $script): array
+            {
+                return [
+                    'ok' => true,
+                    'output' => 'Provisioning OK',
+                    'error' => null,
+                ];
+            }
+        });
+
+        $response = $this->actingAs($user)->post(route('smartolt.registrations.execute', [$olt, $registration]));
+
+        $response->assertRedirect(route('smartolt.registrations', $olt));
+
+        $registration->refresh();
+
+        $this->assertSame('executed', $registration->status);
+        $this->assertSame('Provisioning OK', $registration->execution_output);
+        $this->assertSame($user->id, $registration->executed_by);
+        $this->assertNotNull($registration->executed_at);
     }
 
     public function test_authenticated_user_can_store_an_olt(): void
