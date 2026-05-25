@@ -44,6 +44,22 @@ const formatDate = (value) => {
         timeStyle: 'short',
     }).format(new Date(value));
 };
+
+const rxClass = (value) => {
+    if (value === null || value === undefined) {
+        return 'text-gray-400';
+    }
+
+    if (value <= -28 || value >= -8) {
+        return 'text-red-700';
+    }
+
+    if (value <= -25 || value >= -10) {
+        return 'text-amber-700';
+    }
+
+    return 'text-emerald-700';
+};
 </script>
 
 <template>
@@ -129,7 +145,10 @@ const formatDate = (value) => {
                                 Registered ONU
                             </h3>
                             <p class="text-sm text-gray-500">
-                                Diambil dari ZTE zxGponOntDevMgmtTable dan phase state table.
+                                Diambil dari SNMP ZTE dan RX CLI show pon power onu-rx.
+                            </p>
+                            <p v-if="snapshot.rx_power?.error" class="mt-1 text-xs text-red-600">
+                                RX gagal dibaca: {{ snapshot.rx_power.error }}
                             </p>
                         </div>
                     </div>
@@ -151,6 +170,7 @@ const formatDate = (value) => {
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">ONU</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Serial</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">ONU RX</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Phase</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Admin</th>
                                     <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Last Down</th>
@@ -171,6 +191,9 @@ const formatDate = (value) => {
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-700">
                                         {{ onu.type_name || '-' }}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm font-semibold" :class="rxClass(onu.rx_power_dbm)">
+                                        {{ onu.rx_power_label || '-' }}
                                     </td>
                                     <td class="px-6 py-4">
                                         <span

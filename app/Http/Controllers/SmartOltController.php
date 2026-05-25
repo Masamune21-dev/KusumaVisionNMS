@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Services\ZteCliProvisioningExecutor;
+use App\Services\ZteOnuRxPowerService;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\SmartOltSupport;
@@ -167,10 +168,28 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): RedirectResponse
+    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, ZteOnuRxPowerService $rxPower): RedirectResponse
     {
         $result = $client->portOnusSnapshot($olt, $slot, $port);
         $result['refreshed_at'] = now()->toIso8601String();
+
+        if ($result['ok']) {
+            try {
+                $rx = $rxPower->portRxPower($olt, $slot, $port);
+                $result['onus'] = $rxPower->merge($result['onus'], $rx['powers']);
+                $result['rx_power'] = [
+                    'ok' => $rx['ok'],
+                    'count' => count($rx['powers']),
+                    'error' => $rx['error'],
+                ];
+            } catch (\Throwable $exception) {
+                $result['rx_power'] = [
+                    'ok' => false,
+                    'count' => 0,
+                    'error' => $exception->getMessage(),
+                ];
+            }
+        }
 
         $snapshot = $olt->last_test_result ?? [];
         data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
@@ -426,6 +445,7 @@ class SmartOltController extends Controller
             'if_index' => data_get($snapshot, 'if_index'),
             'port_row' => data_get($snapshot, 'port_row'),
             'onus' => data_get($snapshot, 'onus', []),
+            'rx_power' => data_get($snapshot, 'rx_power', []),
             'count' => data_get($snapshot, 'count', 0),
             'latency_ms' => data_get($snapshot, 'latency_ms'),
             'error' => data_get($snapshot, 'error'),

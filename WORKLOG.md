@@ -165,3 +165,20 @@ Notes:
 
 - Verified read-only CLI against OLT `id=1`: `show gpon profile tcont`, `show gpon onu profile vlan`, `show gpon onu profile ip`, and `show onu-type` returned live profiles from `OLT-C320-PATI`.
 - Profile add/delete CLI scripts follow the SmartOLT guide commands for `pon` and `gpon` config modes.
+
+### Phase 8 - ONU RX Power in Port Table
+
+Created:
+
+- `app/Services/ZteOnuRxPowerService.php`
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` - refresh ONU per port now reads `show pon power onu-rx gpon-olt_1/{slot}/{port}` via CLI and merges RX values into cached ONU rows.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` - added ONU RX column with simple signal health coloring and RX error display.
+- `tests/Feature/SmartOltInventoryTest.php` - added RX parser coverage and table fixture field.
+
+Notes:
+
+- If CLI RX read fails, SNMP ONU table still refreshes and the RX error is stored under `last_test_result.port_onus.{slot}_{port}.rx_power.error`.
+- Verified against OLT `id=1` slot 2 port 1: `gpon-onu_1/2/1:3` returned ONU RX `-14.260 dBm`.

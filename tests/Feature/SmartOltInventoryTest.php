@@ -7,6 +7,7 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\User;
 use App\Services\ZteCliProvisioningExecutor;
+use App\Services\ZteOnuRxPowerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -114,6 +115,8 @@ class SmartOltInventoryTest extends TestCase
                                 'phase_state_code' => 3,
                                 'phase_state' => 'Working',
                                 'online' => true,
+                                'rx_power_dbm' => -18.762,
+                                'rx_power_label' => '-18.762 dBm',
                                 'last_down_cause_code' => 0,
                                 'last_down_cause' => 'Normal',
                             ],
@@ -127,6 +130,19 @@ class SmartOltInventoryTest extends TestCase
         $response = $this->actingAs($user)->get(route('smartolt.port-onus', [$olt, 1, 1]));
 
         $response->assertOk();
+    }
+
+    public function test_onu_rx_power_output_can_be_parsed(): void
+    {
+        $service = new ZteOnuRxPowerService(new ZteCliProvisioningExecutor());
+
+        $powers = $service->parse(<<<'OUT'
+gpon-onu_1/2/2:1    -18.762(dbm)
+gpon-onu_1/2/2:3    -22.100(dbm)
+OUT);
+
+        $this->assertSame(-18.762, $powers[1]['rx_power_dbm']);
+        $this->assertSame('-22.100 dBm', $powers[3]['rx_power_label']);
     }
 
     public function test_unconfigured_onu_page_can_be_rendered(): void
