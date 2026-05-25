@@ -39,6 +39,12 @@ const showingNavigationDropdown = ref(false);
                                 >
                                     Dashboard
                                 </NavLink>
+                                <NavLink
+                                    :href="route('smartolt.index')"
+                                    :active="route().current('smartolt.*')"
+                                >
+                                    SmartOLT
+                                </NavLink>
                             </div>
                         </div>
 
@@ -145,6 +151,12 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('dashboard')"
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('smartolt.index')"
+                            :active="route().current('smartolt.*')"
+                        >
+                            SmartOLT
                         </ResponsiveNavLink>
                     </div>
 
