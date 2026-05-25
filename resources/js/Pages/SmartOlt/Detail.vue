@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
+import { ArrowLeft, Cable, CheckCircle2, ClipboardList, LayoutDashboard, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -114,6 +114,12 @@ const oltImage = computed(() => {
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
                             Kembali
+                        </SecondaryButton>
+                    </Link>
+                    <Link :href="route('smartolt.dashboard', olt.id)">
+                        <SecondaryButton type="button">
+                            <LayoutDashboard class="mr-2 h-4 w-4" />
+                            Dashboard
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.edit', olt.id)">

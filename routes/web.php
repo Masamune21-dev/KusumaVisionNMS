@@ -39,6 +39,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
     Route::post('/smartolt', [SmartOltController::class, 'store'])->name('smartolt.store');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
+    Route::get('/smartolt/{olt}/dashboard', [SmartOltController::class, 'dashboard'])->name('smartolt.dashboard');
+    Route::post('/smartolt/{olt}/dashboard/refresh', [SmartOltController::class, 'refreshDashboard'])->name('smartolt.dashboard.refresh');
+    Route::get('/smartolt/{olt}/dashboard/traffic', [SmartOltController::class, 'dashboardTraffic'])->name('smartolt.dashboard.traffic');
+    Route::post('/smartolt/{olt}/dashboard/vlan', [SmartOltController::class, 'storeDashboardVlan'])->name('smartolt.dashboard.vlan');
     Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus', [SmartOltController::class, 'portOnus'])->name('smartolt.port-onus');
     Route::get('/smartolt/{olt}/unconfigured', [SmartOltController::class, 'unconfigured'])->name('smartolt.unconfigured');
     Route::post('/smartolt/{olt}/unconfigured/refresh', [SmartOltController::class, 'refreshUnconfigured'])->name('smartolt.unconfigured.refresh');

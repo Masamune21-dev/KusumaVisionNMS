@@ -405,3 +405,27 @@ Changed:
 
 - `resources/js/Pages/SmartOlt/Detail.vue` — card Capability diganti card gambar OLT (`/img/c320.jpg` atau `/img/c300.jpg` sesuai nama OLT, fallback icon Router); tambah computed `oltImage`, `onuTotal`, `onuOnline`; card Latency diganti card **Total ONU** (online / total); sysUptime diformat dari timeticks ke `Xh Xj Xm Xd`.
 - `resources/js/Pages/Dashboard.vue` — chart ONU per OLT diubah dari horizontal bar ke vertical column chart (`horizontal: false`, `columnWidth: 50%`, label X rotasi -30°).
+
+---
+
+## 2026-05-26
+
+### Dashboard OLT — Status Card, Trafik Uplink, VLAN Mapping, Form Add VLAN
+
+Created:
+
+- `app/Services/ZteCardUplinkService.php` — service baru untuk operasi CLI terkait hardware dan uplink: `getCardStatus()` (parse `show card`), `discoverUplinkInterfaces()` (deteksi otomatis dari tipe card), `getUplinkInfo()` (parse `show interface`, status + traffic Bps), `getVlanMapping()` (parse `show vlan port`, support range notation multi-baris), `addAndTagVlan()` (eksekusi script `configure terminal → vlan → switchport vlan tag → write`). Card status dan VLAN di-cache 5 menit; traffic selalu fresh.
+- `resources/js/Pages/SmartOlt/Dashboard.vue` — halaman dashboard baru: tabel status card hardware (INSERVICE/STANDBY/OFFLINE), indikator UP/DOWN interface uplink, grafik trafik real-time ApexCharts (polling 10 detik), badge VLAN tagged per range, form tambah & tag VLAN dengan toast notification.
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — tambah 4 method: `dashboard()` (render halaman Inertia), `refreshDashboard()` (POST, paksa reload dari CLI dan invalidate cache), `dashboardTraffic()` (GET JSON, live traffic polling tiap 10 detik), `storeDashboardVlan()` (POST JSON, eksekusi CLI tambah VLAN + invalidate cache).
+- `routes/web.php` — daftarkan 4 route baru: `smartolt.dashboard`, `smartolt.dashboard.refresh`, `smartolt.dashboard.traffic`, `smartolt.dashboard.vlan`.
+- `resources/js/Pages/SmartOlt/Detail.vue` — tambah tombol **Dashboard** di action bar header yang link ke halaman dashboard baru.
+
+Notes:
+
+- Diverifikasi langsung di OLT-1 (C320-PATI) dan OLT-2 (C300-SEKARJALAK). Format CLI berbeda dari dokumen PRD: interval traffic `20 seconds` (bukan 300), satuan `Bps` bytes/sec (bukan bits/sec), VLAN list pakai range notation (`20-120`) dan bisa multi-baris.
+- Interface naming berbeda per chassis: C300 HUVQ → `xgei_1/{slot}/1-2`; C320 SMXA → `gei_1/{slot}/1-N`. SCXN juga punya `gei_` tapi bukan uplink traffic, sengaja di-skip dari discovery.
+- Parser VLAN (`parseTaggedVlans`) handle `\r\n` dan akumulasi multi-baris sampai bertemu baris non-VLAN (prompt CLI).
+- Grafik trafik: Y-axis dan tooltip otomatis format B/s → KB/s → MB/s → GB/s. Polling berhenti saat komponen di-unmount (`onBeforeUnmount`).

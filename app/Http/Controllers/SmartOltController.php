@@ -6,10 +6,12 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -50,6 +52,93 @@ class SmartOltController extends Controller
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
         ]);
+    }
+
+    public function dashboard(SnmpOlt $olt, ZteCardUplinkService $service): Response
+    {
+        try {
+            $cards = $service->getCardStatus($olt);
+        } catch (\Throwable $e) {
+            $cards = [];
+        }
+
+        $uplinkInterfaces = $service->discoverUplinkInterfaces($cards);
+
+        $vlansByInterface = [];
+        foreach ($uplinkInterfaces as $iface) {
+            try {
+                $vlansByInterface[$iface['interface']] = $service->getVlanMapping($olt, $iface['interface'])['tagged_vlans'];
+            } catch (\Throwable) {
+                $vlansByInterface[$iface['interface']] = [];
+            }
+        }
+
+        return Inertia::render('SmartOlt/Dashboard', [
+            'olt' => $this->serializeOlt($olt),
+            'cards' => $cards,
+            'uplink_interfaces' => $uplinkInterfaces,
+            'vlans_by_interface' => $vlansByInterface,
+        ]);
+    }
+
+    public function refreshDashboard(SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    {
+        try {
+            $cards = $service->refreshCardStatus($olt);
+            $uplinkInterfaces = $service->discoverUplinkInterfaces($cards);
+
+            foreach ($uplinkInterfaces as $iface) {
+                try {
+                    $service->refreshVlanMapping($olt, $iface['interface']);
+                } catch (\Throwable) {
+                    //
+                }
+            }
+
+            return redirect()
+                ->route('smartolt.dashboard', $olt)
+                ->with('success', 'Data card dan VLAN berhasil diperbarui dari OLT.');
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('smartolt.dashboard', $olt)
+                ->with('error', 'Refresh gagal: '.$e->getMessage());
+        }
+    }
+
+    public function dashboardTraffic(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
+    {
+        $interface = $request->query('interface', '');
+
+        if (! preg_match('/^[xg]gei_\d+\/\d+\/\d+$/', $interface)) {
+            return response()->json(['error' => 'Parameter interface tidak valid.'], 422);
+        }
+
+        try {
+            return response()->json($service->getUplinkInfo($olt, $interface));
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeDashboardVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'interface' => ['required', 'string', 'regex:/^[xg]gei_\d+\/\d+\/\d+$/'],
+            'vlan_id' => ['required', 'integer', 'min:1', 'max:4094'],
+        ]);
+
+        try {
+            $result = $service->addAndTagVlan($olt, $data['interface'], (int) $data['vlan_id']);
+
+            return response()->json([
+                'ok' => $result['ok'],
+                'message' => $result['ok']
+                    ? "VLAN {$data['vlan_id']} berhasil ditambahkan ke {$data['interface']}."
+                    : 'Eksekusi CLI selesai dengan error: '.($result['error'] ?? 'unknown'),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function portOnus(SnmpOlt $olt, int $slot, int $port): Response
