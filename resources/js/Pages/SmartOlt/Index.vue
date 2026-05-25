@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Eye, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
+import { Cable, Database, Eye, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
 import { computed } from 'vue';
 
 defineProps({
@@ -53,12 +53,20 @@ const formatDate = (value) => {
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     SmartOLT
                 </h2>
-                <Link :href="route('smartolt.create')">
-                    <PrimaryButton>
-                        <Plus class="mr-2 h-4 w-4" />
-                        Tambah OLT
-                    </PrimaryButton>
-                </Link>
+                <div class="flex gap-2">
+                    <Link :href="route('smartolt.profiles.index')">
+                        <SecondaryButton>
+                            <Database class="mr-2 h-4 w-4" />
+                            Profile
+                        </SecondaryButton>
+                    </Link>
+                    <Link :href="route('smartolt.create')">
+                        <PrimaryButton>
+                            <Plus class="mr-2 h-4 w-4" />
+                            Tambah OLT
+                        </PrimaryButton>
+                    </Link>
+                </div>
             </div>
         </template>
 

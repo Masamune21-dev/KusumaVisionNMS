@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\SnmpOlt;
+use App\Models\SmartOltOnuRegistration;
+use App\Models\SmartOltProfile;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -181,6 +183,32 @@ class SmartOltInventoryTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_profile_management_page_can_create_profile(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('smartolt.profiles.index'));
+
+        $response->assertOk();
+
+        $response = $this->actingAs($user)->post(route('smartolt.profiles.store'), [
+            'profile_type' => 'vlan',
+            'name' => 'BUSINESS',
+            'vlan' => 200,
+            'notes' => 'Business customer VLAN',
+            'is_active' => true,
+        ]);
+
+        $response->assertRedirect(route('smartolt.profiles.index'));
+
+        $this->assertDatabaseHas('smartolt_profiles', [
+            'profile_type' => 'vlan',
+            'name' => 'BUSINESS',
+            'vlan' => 200,
+            'is_active' => true,
+        ]);
+    }
+
     public function test_provisioning_script_can_be_generated(): void
     {
         $user = User::factory()->create();
@@ -216,6 +244,54 @@ class SmartOltInventoryTest extends TestCase
             'pon_port' => 'gpon-onu_1/2/1:3',
             'status' => 'generated',
         ]);
+    }
+
+    public function test_static_provisioning_uses_profile_dropdown_values_and_prefix_subnet(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.8',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        SmartOltProfile::create([
+            'profile_type' => 'vlan',
+            'name' => 'STATICBUS',
+            'vlan' => 321,
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($user)->post(route('smartolt.register.store', $olt), [
+            'serial_number' => 'ZTEG87654321',
+            'slot' => 2,
+            'port' => 2,
+            'onu_id' => 1,
+            'customer_name' => 'Static Customer',
+            'onu_type' => 'ALL-ONT',
+            'tcont_profile' => 'SERVER',
+            'vlan' => 999,
+            'vlan_profile' => 'STATICBUS',
+            'service_name' => 'ManualName',
+            'wan_mode' => 'static',
+            'ip_profile' => 'INTERNET',
+            'static_ip' => '192.0.2.10',
+            'static_netmask' => '24',
+        ]);
+
+        $response->assertRedirect(route('smartolt.registrations', $olt));
+
+        $registration = SmartOltOnuRegistration::query()
+            ->where('serial_number', 'ZTEG87654321')
+            ->firstOrFail();
+
+        $this->assertSame(321, $registration->vlan);
+        $this->assertStringContainsString('service STATICBUS gemport 1 cos 0 vlan 321', $registration->cli_script);
+        $this->assertStringContainsString('ip-profile INTERNET ip-address 192.0.2.10 mask 24', $registration->cli_script);
+        $this->assertStringNotContainsString('255.255.255.0', $registration->cli_script);
     }
 
     public function test_authenticated_user_can_store_an_olt(): void

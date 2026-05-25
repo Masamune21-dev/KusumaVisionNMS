@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SnmpOlt;
 use App\Models\SmartOltOnuRegistration;
+use App\Models\SmartOltProfile;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\SmartOltSupport;
@@ -72,6 +73,7 @@ class SmartOltController extends Controller
 
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
+            'profiles' => SmartOltProfileController::profileOptions(),
             'defaults' => [
                 'serial_number' => (string) $request->query('sn', ''),
                 'slot' => $slot ?: null,
@@ -79,17 +81,17 @@ class SmartOltController extends Controller
                 'onu_id' => $this->suggestNextOnuId($olt, $slot, $port),
                 'oid_index' => (string) $request->query('oid_index', ''),
                 'customer_name' => '',
-                'onu_type' => 'ALL-ONT',
-                'tcont_profile' => 'SERVER',
+                'onu_type' => $this->firstProfileName('onu_type', 'ALL-ONT'),
+                'tcont_profile' => $this->firstProfileName('tcont', 'SERVER'),
                 'vlan' => 100,
-                'vlan_profile' => '',
-                'service_name' => 'ServiceName',
+                'vlan_profile' => $this->firstProfileName('vlan', 'ServiceName'),
+                'service_name' => $this->firstProfileName('vlan', 'ServiceName'),
                 'wan_mode' => 'pppoe',
                 'pppoe_username' => '',
                 'pppoe_password' => '',
-                'ip_profile' => '',
+                'ip_profile' => $this->firstProfileName('ip', 'INTERNET'),
                 'static_ip' => '',
-                'static_netmask' => '255.255.255.0',
+                'static_netmask' => '24',
             ],
         ]);
     }
@@ -208,7 +210,7 @@ class SmartOltController extends Controller
 
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
     {
-        $data = $this->validatedProvisioning($request);
+        $data = $this->hydrateProvisioningProfiles($this->validatedProvisioning($request));
         $script = $builder->build($data);
 
         SmartOltOnuRegistration::create([
@@ -288,17 +290,17 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191'],
-            'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
-            'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule('onu_type')],
+            'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule('tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
-            'vlan_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'vlan_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule('vlan')],
             'service_name' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
             'wan_mode' => ['required', Rule::in(['pppoe', 'dhcp', 'static'])],
             'pppoe_username' => ['nullable', 'string', 'max:120'],
             'pppoe_password' => ['nullable', 'string', 'max:120'],
-            'ip_profile' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'ip_profile' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule('ip')],
             'static_ip' => ['nullable', 'required_if:wan_mode,static', 'ip'],
-            'static_netmask' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:45'],
+            'static_netmask' => ['nullable', 'required_if:wan_mode,static', 'integer', 'between:1,32'],
         ]);
     }
 
@@ -419,5 +421,45 @@ class SmartOltController extends Controller
         }
 
         return 4096;
+    }
+
+    private function firstProfileName(string $type, string $fallback): string
+    {
+        return SmartOltProfile::query()
+            ->where('profile_type', $type)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->value('name') ?? $fallback;
+    }
+
+    private function activeProfileRule(string $type): mixed
+    {
+        return Rule::exists('smartolt_profiles', 'name')
+            ->where('profile_type', $type)
+            ->where('is_active', true);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function hydrateProvisioningProfiles(array $data): array
+    {
+        if (($data['vlan_profile'] ?? null) === null || $data['vlan_profile'] === '') {
+            return $data;
+        }
+
+        $profile = SmartOltProfile::query()
+            ->where('profile_type', 'vlan')
+            ->where('is_active', true)
+            ->where('name', $data['vlan_profile'])
+            ->first();
+
+        if ($profile) {
+            $data['vlan'] = $profile->vlan;
+            $data['service_name'] = $profile->name;
+        }
+
+        return $data;
     }
 }

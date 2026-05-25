@@ -6,6 +6,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { computed, watch } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -16,9 +17,27 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    profiles: {
+        type: Object,
+        required: true,
+    },
 });
 
 const form = useForm({ ...props.defaults });
+const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
+const tcontProfiles = computed(() => props.profiles.tcont ?? []);
+const vlanProfiles = computed(() => props.profiles.vlan ?? []);
+const ipProfiles = computed(() => props.profiles.ip ?? []);
+
+watch(() => form.vlan_profile, (name) => {
+    const profile = vlanProfiles.value.find((item) => item.name === name);
+    if (!profile) {
+        return;
+    }
+
+    form.vlan = profile.vlan;
+    form.service_name = profile.name;
+});
 
 const submit = () => {
     form.post(route('smartolt.register.store', props.olt.id), {
@@ -69,12 +88,20 @@ const submit = () => {
                         </div>
                         <div>
                             <InputLabel for="onu_type" value="ONU Type" />
-                            <TextInput id="onu_type" v-model="form.onu_type" class="mt-1 block w-full" required />
+                            <select id="onu_type" v-model="form.onu_type" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                                <option v-for="profile in onuTypeProfiles" :key="profile.id" :value="profile.name">
+                                    {{ profile.name }}
+                                </option>
+                            </select>
                             <InputError class="mt-2" :message="form.errors.onu_type" />
                         </div>
                         <div>
                             <InputLabel for="tcont_profile" value="TCONT Profile" />
-                            <TextInput id="tcont_profile" v-model="form.tcont_profile" class="mt-1 block w-full" required />
+                            <select id="tcont_profile" v-model="form.tcont_profile" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                                <option v-for="profile in tcontProfiles" :key="profile.id" :value="profile.name">
+                                    {{ profile.name }}
+                                </option>
+                            </select>
                             <InputError class="mt-2" :message="form.errors.tcont_profile" />
                         </div>
                         <div>
@@ -84,7 +111,12 @@ const submit = () => {
                         </div>
                         <div>
                             <InputLabel for="vlan_profile" value="VLAN Profile" />
-                            <TextInput id="vlan_profile" v-model="form.vlan_profile" class="mt-1 block w-full" />
+                            <select id="vlan_profile" v-model="form.vlan_profile" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option value="">Tanpa profile</option>
+                                <option v-for="profile in vlanProfiles" :key="profile.id" :value="profile.name">
+                                    {{ profile.name }} · VLAN {{ profile.vlan }}
+                                </option>
+                            </select>
                             <InputError class="mt-2" :message="form.errors.vlan_profile" />
                         </div>
                         <div>
@@ -119,7 +151,11 @@ const submit = () => {
                     <div v-if="form.wan_mode === 'static'" class="grid gap-6 md:grid-cols-3">
                         <div>
                             <InputLabel for="ip_profile" value="IP Profile" />
-                            <TextInput id="ip_profile" v-model="form.ip_profile" class="mt-1 block w-full" />
+                            <select id="ip_profile" v-model="form.ip_profile" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                                <option v-for="profile in ipProfiles" :key="profile.id" :value="profile.name">
+                                    {{ profile.name }}
+                                </option>
+                            </select>
                             <InputError class="mt-2" :message="form.errors.ip_profile" />
                         </div>
                         <div>
@@ -128,8 +164,8 @@ const submit = () => {
                             <InputError class="mt-2" :message="form.errors.static_ip" />
                         </div>
                         <div>
-                            <InputLabel for="static_netmask" value="Netmask" />
-                            <TextInput id="static_netmask" v-model="form.static_netmask" class="mt-1 block w-full" />
+                            <InputLabel for="static_netmask" value="Subnet Prefix" />
+                            <TextInput id="static_netmask" v-model="form.static_netmask" type="number" min="1" max="32" class="mt-1 block w-full" />
                             <InputError class="mt-2" :message="form.errors.static_netmask" />
                         </div>
                     </div>

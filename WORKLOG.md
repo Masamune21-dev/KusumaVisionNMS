@@ -100,3 +100,26 @@ Notes:
 
 - Provisioning currently generates and stores the CLI script only; CLI execution will be implemented after Telnet/SSH session handling is added.
 - Verified against OLT `id=1`: unconfigured ONU discovery returned SN `ZTEGCD7D2FD6` on slot 2 port 2 with suggested ONU ID 1.
+
+### Phase 5 - Provisioning Profile Management
+
+Created:
+
+- `database/migrations/2026_05_25_093000_create_smartolt_profiles_table.php`
+- `app/Models/SmartOltProfile.php`
+- `app/Http/Controllers/SmartOltProfileController.php`
+- `resources/js/Pages/SmartOlt/Profiles.vue`
+
+Changed:
+
+- `routes/web.php` - added SmartOLT profile management routes.
+- `app/Http/Controllers/SmartOltController.php` - loads active ONU Type, T-CONT, VLAN, and IP profiles into provisioning defaults and validates selected profile values.
+- `app/Services/ZteProvisioningScriptBuilder.php` - static WAN provisioning now accepts prefix subnet values such as `24`.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` - replaced profile text inputs with dropdowns and changed static netmask input to prefix subnet.
+- `resources/js/Pages/SmartOlt/Index.vue` - added navigation to profile management.
+- `tests/Feature/SmartOltInventoryTest.php` - added coverage for profile management and static provisioning profile loading.
+
+Notes:
+
+- Default profiles are inserted by migration: `ALL-ONT`, `SERVER`, `ServiceName` VLAN 100, and `INTERNET`.
+- VLAN profile selection overwrites the submitted VLAN and service name with the active profile's configured values.
