@@ -8,6 +8,7 @@ use App\Models\SmartOltProfile;
 use App\Models\User;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuRxPowerService;
+use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -199,6 +200,46 @@ OUT);
         ]));
 
         $response->assertOk();
+    }
+
+    public function test_register_onu_form_suggests_next_free_onu_id_from_live_snmp(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.13',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $this->app->instance(OltSnmpClient::class, new class extends OltSnmpClient
+        {
+            public function gponPorts(SnmpOlt $olt): array
+            {
+                return [];
+            }
+
+            public function registeredOnus(SnmpOlt $olt, ?array $ports = null): array
+            {
+                return [
+                    ['slot' => 2, 'port' => 1, 'onu_id' => 1],
+                    ['slot' => 2, 'port' => 1, 'onu_id' => 2],
+                    ['slot' => 2, 'port' => 1, 'onu_id' => 4],
+                ];
+            }
+        });
+
+        $response = $this->actingAs($user)->get(route('smartolt.register', [
+            'olt' => $olt,
+            'sn' => 'ZTEG12345678',
+            'slot' => 2,
+            'port' => 1,
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page->where('defaults.onu_id', 3));
     }
 
     public function test_profile_management_page_can_create_profile(): void

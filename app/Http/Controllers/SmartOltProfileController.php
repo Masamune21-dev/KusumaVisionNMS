@@ -18,7 +18,7 @@ class SmartOltProfileController extends Controller
     {
         return Inertia::render('SmartOlt/Profiles', [
             'olt' => $this->serializeOlt($olt),
-            'profiles' => self::profileOptions($olt, includeInactive: true),
+            'profiles' => self::profileOptions($olt, includeInactive: true, includeGlobalFallback: false),
             'types' => $this->types(),
         ]);
     }
@@ -137,20 +137,27 @@ class SmartOltProfileController extends Controller
     /**
      * @return array<string, array<int, array<string, mixed>>>
      */
-    public static function profileOptions(?SnmpOlt $olt = null, bool $includeInactive = false): array
+    public static function profileOptions(?SnmpOlt $olt = null, bool $includeInactive = false, bool $includeGlobalFallback = true): array
     {
         $query = SmartOltProfile::query()
             ->orderBy('profile_type')
             ->orderBy('name');
 
         if ($olt) {
-            $query->where(function ($query) use ($olt) {
-                $query->where('snmp_olt_id', $olt->id)
-                    ->orWhereNull('snmp_olt_id');
-            });
+            $query->where('snmp_olt_id', $olt->id);
+
+            if ($includeGlobalFallback) {
+                $query->orWhere(function ($query) use ($olt, $includeInactive) {
+                    $query->whereNull('snmp_olt_id');
+
+                    if (! $includeInactive) {
+                        $query->where('is_active', true);
+                    }
+                });
+            }
         }
 
-        if (! $includeInactive) {
+        if (! $includeInactive && (! $olt || ! $includeGlobalFallback)) {
             $query->where('is_active', true);
         }
 

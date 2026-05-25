@@ -54,6 +54,7 @@ const createForms = reactive(Object.fromEntries(
 ));
 
 const rowsFor = (type) => props.profiles[type.key] ?? [];
+const ownedByCurrentOlt = (profile) => profile.snmp_olt_id === props.olt.id;
 
 const startEdit = (profile) => {
     editing[profile.id] = {
@@ -305,11 +306,12 @@ const syncFromOlt = () => {
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="flex justify-end gap-2">
-                                                <SecondaryButton type="button" @click="startEdit(profile)">
+                                                <SecondaryButton v-if="ownedByCurrentOlt(profile)" type="button" @click="startEdit(profile)">
                                                     <Pencil class="mr-2 h-4 w-4" />
                                                     Edit
                                                 </SecondaryButton>
                                                 <button
+                                                    v-if="ownedByCurrentOlt(profile)"
                                                     type="button"
                                                     class="inline-flex items-center rounded-md border border-red-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-700 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                                                     @click="destroyProfile(profile, false)"
@@ -318,6 +320,7 @@ const syncFromOlt = () => {
                                                     Hapus
                                                 </button>
                                                 <button
+                                                    v-if="ownedByCurrentOlt(profile)"
                                                     type="button"
                                                     class="inline-flex items-center rounded-md border border-red-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-red-800 shadow-sm transition duration-150 ease-in-out hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                                                     @click="destroyProfile(profile, true)"
@@ -325,6 +328,7 @@ const syncFromOlt = () => {
                                                     <Trash2 class="mr-2 h-4 w-4" />
                                                     Hapus OLT
                                                 </button>
+                                                <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-gray-500">Fallback global</span>
                                             </div>
                                         </td>
                                     </template>
