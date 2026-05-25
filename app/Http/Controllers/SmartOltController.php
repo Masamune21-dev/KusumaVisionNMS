@@ -47,12 +47,22 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function detail(SnmpOlt $olt): Response
+    public function detail(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
+        $cards = Cache::get("olt:{$olt->id}:cards", []);
+
+        if (empty($cards)) {
+            try {
+                $cards = $service->getCardStatus($olt);
+            } catch (\Throwable) {
+                $cards = [];
+            }
+        }
+
         return Inertia::render('SmartOlt/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
-            'cards' => Cache::get("olt:{$olt->id}:cards", []),
+            'cards' => $cards,
         ]);
     }
 
