@@ -237,7 +237,7 @@ const submit = () => {
                     <input v-model="form.oid_index" type="hidden" />
 
                     <div class="flex items-center justify-end gap-3">
-                        <Link :href="route('smartolt.unconfigured', olt.id)">
+                        <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
                             <SecondaryButton type="button">Batal</SecondaryButton>
                         </Link>
                         <PrimaryButton :disabled="form.processing">Generate Script</PrimaryButton>

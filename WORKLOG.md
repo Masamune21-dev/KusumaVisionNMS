@@ -443,3 +443,15 @@ Notes:
 
 - Suggest ONU ID via cache sudah cukup karena data port ONU di-refresh setiap kali SNMP Refresh dijalankan. Telnet call saat buka form registrasi memperlambat halaman tanpa manfaat signifikan.
 - Binary Go poller sudah ada di `cmd/kv-snmp-poller/main.go` dan `go.mod`; diaktifkan via `SNMP_POLLER_DRIVER=go` di `.env`.
+
+### Port Manager — Chart Area Gradient dan Refactor Axios
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/PortManager.vue` — chart trafik uplink diubah dari `line` ke `area` dengan gradient fill (opasitas 35% → 5%); urutan warna dibalik (hijau = RX/In, biru = TX/Out); formatter Y-axis ditingkatkan: tampilkan suffix `G` untuk nilai ≥ 1000 Mbps; nama seri disederhanakan menjadi `In (Mbps)` / `Out (Mbps)`; `dataLabels` dimatikan; border X-axis disembunyikan. `submitVlan` direfactor dari raw `fetch` API ke `axios.post` agar konsisten dengan seluruh codebase; error message kini ambil dari `e.response?.data?.message` sehingga pesan error dari server tertampil dengan benar; hapus dead code (manual VLAN fetch + komentar usang).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — tombol Batal diubah route-nya dari `smartolt.unconfigured` ke `smartolt.unconfigured-all` dengan parameter `{ olt_id: olt.id }` agar navigasi kembali ke halaman Unconfigured global yang benar.
+
+Notes:
+
+- Chart `area` lebih informatif secara visual dibanding `line` karena area terisi menunjukkan volume trafik secara intuitif.
+- `fetch` diganti `axios` karena axios sudah di-import global via Inertia dan menangani CSRF token secara otomatis; error response juga lebih mudah di-parse melalui `e.response?.data`.

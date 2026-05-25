@@ -31,24 +31,45 @@ let pollTimer = null;
 const toMbps = (bps) => (bps * 8) / 1_000_000;
 
 const chartOptions = computed(() => ({
-    chart: { type: 'line', animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 800 } }, toolbar: { show: false }, zoom: { enabled: false } },
+    chart: {
+        type: 'area',
+        animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 800 } },
+        toolbar: { show: false },
+        zoom: { enabled: false },
+    },
     stroke: { curve: 'smooth', width: 2 },
-    colors: ['#3b82f6', '#10b981'],
-    xaxis: { categories: trafficHistory.labels, labels: { show: false }, axisTicks: { show: false } },
+    colors: ['#10b981', '#3b82f6'],
+    fill: {
+        type: 'gradient',
+        gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.35,
+            opacityTo: 0.05,
+            stops: [0, 95, 100],
+        },
+    },
+    dataLabels: { enabled: false },
+    xaxis: { categories: trafficHistory.labels, labels: { show: false }, axisTicks: { show: false }, axisBorder: { show: false } },
     yaxis: {
-        labels: { formatter: (v) => v.toFixed(1) + ' Mbps' },
+        labels: {
+            formatter: (v) => {
+                if (v >= 1000) return (v / 1000).toFixed(1) + ' G';
+                if (v >= 1)    return v.toFixed(0) + ' M';
+                return v.toFixed(1) + ' M';
+            },
+        },
         min: 0,
     },
     tooltip: {
         y: { formatter: (v) => v.toFixed(2) + ' Mbps' },
     },
     legend: { position: 'top', horizontalAlign: 'left' },
-    grid: { strokeDashArray: 4, borderColor: '#e5e7eb' },
+    grid: { strokeDashArray: 3, borderColor: '#e5e7eb' },
 }));
 
 const chartSeries = computed(() => [
-    { name: 'Input (RX)', data: [...trafficHistory.input] },
-    { name: 'Output (TX)', data: [...trafficHistory.output] },
+    { name: 'In (Mbps)',  data: [...trafficHistory.input] },
+    { name: 'Out (Mbps)', data: [...trafficHistory.output] },
 ]);
 
 const fetchTraffic = async () => {
@@ -122,28 +143,17 @@ const submitVlan = async () => {
     toast.show = false;
 
     try {
-        const res = await fetch(route('smartolt.dashboard.vlan', props.olt.id), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            },
-            body: JSON.stringify({ interface: vlanForm.interface, vlan_id: vlanId }),
-        });
+        const { data } = await axios.post(
+            route('smartolt.dashboard.vlan', props.olt.id),
+            { interface: vlanForm.interface, vlan_id: vlanId },
+        );
 
-        const data = await res.json();
         toast.ok = data.ok;
         toast.message = data.message;
         toast.show = true;
 
         if (data.ok) {
             vlanForm.vlan_id = '';
-            // Refresh VLAN list from server
-            const vlanRes = await fetch(route('smartolt.dashboard', props.olt.id), {
-                headers: { 'X-Inertia': 'true', 'X-Requested-With': 'XMLHttpRequest' },
-            });
-            // Simpler: re-fetch via Inertia visit which reloads props
             router.reload({ only: ['vlans_by_interface'], onSuccess: (page) => {
                 Object.assign(vlansByInterface, page.props.vlans_by_interface ?? {});
             }});
@@ -152,7 +162,7 @@ const submitVlan = async () => {
         setTimeout(() => { toast.show = false; }, 5000);
     } catch (e) {
         toast.ok = false;
-        toast.message = 'Request gagal: ' + e.message;
+        toast.message = 'Request gagal: ' + (e.response?.data?.message ?? e.message);
         toast.show = true;
     } finally {
         vlanForm.submitting = false;
