@@ -72,3 +72,5 @@ Notes:
 
 - Per-port ONU cache is stored in `last_test_result.port_onus.{slot}_{port}`.
 - Current implementation uses the ZTE modern ONU management table; legacy fallback remains a later task.
+- Firmware `OLT-C320-PATI` exposes GPON port names via IF-MIB `ifName` (`gpon_1/2/1`), so GPON port detection now checks `ifName` before `ifDescr`.
+- Firmware `OLT-C320-PATI` uses different IF-MIB port ifIndex values than ZTE ONU table ifIndex values, so per-port ONU filtering now matches decoded `slot/port` instead of raw ifIndex equality.

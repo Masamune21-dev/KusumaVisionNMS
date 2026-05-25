@@ -15,6 +15,7 @@ class OltSnmpClient
     private const SYS_NAME = '1.3.6.1.2.1.1.5.0';
     private const IF_DESCR = '1.3.6.1.2.1.2.2.1.2';
     private const IF_OPER_STATUS = '1.3.6.1.2.1.2.2.1.8';
+    private const IF_NAME = '1.3.6.1.2.1.31.1.1.1.1';
     private const ZTE_ONU_TYPE = '1.3.6.1.4.1.3902.1012.3.28.1.1.1';
     private const ZTE_ONU_NAME = '1.3.6.1.4.1.3902.1012.3.28.1.1.2';
     private const ZTE_ONU_DESCRIPTION = '1.3.6.1.4.1.3902.1012.3.28.1.1.3';
@@ -145,26 +146,38 @@ class OltSnmpClient
     public function gponPorts(SnmpOlt $olt): array
     {
         $descriptions = $this->walk($olt, self::IF_DESCR);
+        $names = $this->walk($olt, self::IF_NAME);
         $statuses = $this->walk($olt, self::IF_OPER_STATUS);
         $ports = [];
+        $seen = [];
 
-        foreach ($descriptions as $oid => $description) {
-            if (! preg_match('/gpon.{0,2}olt/i', $description)) {
-                continue;
-            }
-
+        foreach ($names + $descriptions as $oid => $label) {
             $ifIndex = $this->extractIndex($oid, self::IF_DESCR);
+            $ifIndex ??= $this->extractIndex($oid, self::IF_NAME);
             if ($ifIndex === null) {
                 continue;
             }
+            if (isset($seen[$ifIndex])) {
+                continue;
+            }
 
-            [$slot, $port] = $this->parseSlotPort($description, $ifIndex);
+            $description = $descriptions[$this->joinOid(self::IF_DESCR, (string) $ifIndex)] ?? null;
+            $name = $names[$this->joinOid(self::IF_NAME, (string) $ifIndex)] ?? null;
+            $portLabel = $this->resolvePortLabel($name, $description);
+            if ($portLabel === null) {
+                continue;
+            }
+            $seen[$ifIndex] = true;
+
+            [$slot, $port] = $this->parseSlotPort($portLabel, $ifIndex);
             $operRaw = $statuses[$this->joinOid(self::IF_OPER_STATUS, (string) $ifIndex)] ?? null;
             $operCode = $operRaw !== null ? (int) preg_replace('/\D+/', '', $operRaw) : null;
 
             $ports[] = [
                 'if_index' => $ifIndex,
-                'name' => $description,
+                'name' => $portLabel,
+                'if_name' => $name,
+                'if_descr' => $description,
                 'slot' => $slot,
                 'port' => $port,
                 'oper_status_code' => $operCode,
@@ -190,11 +203,12 @@ class OltSnmpClient
                 fn (array $row) => (int) $row['slot'] === $slot && (int) $row['port'] === $port
             );
 
-            $ifIndex = $portRow['if_index'] ?? $this->zteEncodeIfIndex($slot, $port);
+            $allOnus = $this->registeredOnus($olt, $ports);
             $onus = array_values(array_filter(
-                $this->registeredOnus($olt, $ports),
-                fn (array $onu) => (int) $onu['if_index'] === (int) $ifIndex
+                $allOnus,
+                fn (array $onu) => (int) $onu['slot'] === $slot && (int) $onu['port'] === $port
             ));
+            $ifIndex = $onus[0]['if_index'] ?? $portRow['if_index'] ?? $this->zteEncodeIfIndex($slot, $port);
 
             return [
                 'ok' => true,
@@ -395,6 +409,21 @@ class OltSnmpClient
             ($ifIndex >> 16) & 0xFF,
             ($ifIndex >> 8) & 0xFF,
         ];
+    }
+
+    private function resolvePortLabel(?string $name, ?string $description): ?string
+    {
+        foreach ([$name, $description] as $candidate) {
+            if ($candidate === null || $candidate === '') {
+                continue;
+            }
+
+            if (preg_match('/^gpon(?:[-_]olt)?[-_]?\d+\/\d+\/\d+$/i', $candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function zteEncodeIfIndex(int $slot, int $port): int
