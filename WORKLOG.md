@@ -74,3 +74,29 @@ Notes:
 - Current implementation uses the ZTE modern ONU management table; legacy fallback remains a later task.
 - Firmware `OLT-C320-PATI` exposes GPON port names via IF-MIB `ifName` (`gpon_1/2/1`), so GPON port detection now checks `ifName` before `ifDescr`.
 - Firmware `OLT-C320-PATI` uses different IF-MIB port ifIndex values than ZTE ONU table ifIndex values, so per-port ONU filtering now matches decoded `slot/port` instead of raw ifIndex equality.
+
+### Phase 4 - Unconfigured ONU and Provisioning Preview
+
+Created:
+
+- `database/migrations/2026_05_25_081500_create_smartolt_onu_registrations_table.php`
+- `app/Models/SmartOltOnuRegistration.php`
+- `app/Services/ZteProvisioningScriptBuilder.php`
+- `resources/js/Pages/SmartOlt/Unconfigured.vue`
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue`
+- `resources/js/Pages/SmartOlt/Registrations.vue`
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` - added ZTE unconfigured ONU discovery across documented OID candidates.
+- `app/Services/Snmp/OltSnmpClient.php` - skips unavailable unconfigured ONU OID candidates and continues probing remaining candidates.
+- `app/Http/Controllers/SmartOltController.php` - added unconfigured discovery, register form, generated script storage, and registration history.
+- `app/Models/SmartOltOnuRegistration.php` - set explicit database table name for Laravel model resolution.
+- `routes/web.php` - added unconfigured, register, and registration history routes.
+- `resources/js/Pages/SmartOlt/Detail.vue` - added Unconfigured and Registration navigation.
+- `tests/Feature/SmartOltInventoryTest.php` - added unconfigured and provisioning preview coverage.
+
+Notes:
+
+- Provisioning currently generates and stores the CLI script only; CLI execution will be implemented after Telnet/SSH session handling is added.
+- Verified against OLT `id=1`: unconfigured ONU discovery returned SN `ZTEGCD7D2FD6` on slot 2 port 2 with suggested ONU ID 1.

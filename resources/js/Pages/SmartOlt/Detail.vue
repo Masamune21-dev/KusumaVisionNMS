@@ -3,7 +3,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, Eye, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, ClipboardList, Eye, Pencil, RefreshCw, Router, Server, Wifi } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -64,6 +64,18 @@ const formatDate = (value) => {
                         <SecondaryButton type="button">
                             <Pencil class="mr-2 h-4 w-4" />
                             Edit
+                        </SecondaryButton>
+                    </Link>
+                    <Link :href="route('smartolt.unconfigured', olt.id)">
+                        <SecondaryButton type="button">
+                            <Wifi class="mr-2 h-4 w-4" />
+                            Unconfigured
+                        </SecondaryButton>
+                    </Link>
+                    <Link :href="route('smartolt.registrations', olt.id)">
+                        <SecondaryButton type="button">
+                            <ClipboardList class="mr-2 h-4 w-4" />
+                            Registrasi
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">

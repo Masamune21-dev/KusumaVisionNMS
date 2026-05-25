@@ -1,0 +1,84 @@
+<?php
+
+namespace App\Services;
+
+class ZteProvisioningScriptBuilder
+{
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function build(array $data): string
+    {
+        $slot = (int) $data['slot'];
+        $port = (int) $data['port'];
+        $onuId = (int) $data['onu_id'];
+        $sn = strtoupper((string) $data['serial_number']);
+        $name = trim((string) $data['customer_name']);
+        $onuType = strtoupper((string) ($data['onu_type'] ?? 'ALL-ONT'));
+        $tcontProfile = (string) ($data['tcont_profile'] ?? 'SERVER');
+        $vlan = (int) $data['vlan'];
+        $serviceName = (string) ($data['service_name'] ?? 'ServiceName');
+        $wanLine = $this->wanLine($data, $name);
+        $description = "{$onuId}\$\${$name}\$\$";
+
+        return implode("\n", array_filter([
+            'conf t',
+            '',
+            "interface gpon-olt_1/{$slot}/{$port}",
+            "onu {$onuId} type {$onuType} sn {$sn}",
+            'exit',
+            '',
+            "interface gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            "name {$name}",
+            "description {$description}",
+            "tcont 1 name 1 profile {$tcontProfile}",
+            'gemport 1 name 1 tcont 1',
+            'encrypt 1 enable downstream',
+            "service-port 1 vport 1 user-vlan {$vlan} vlan {$vlan}",
+            'exit',
+            '',
+            "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            "service {$serviceName} gemport 1 cos 0 vlan {$vlan}",
+            $wanLine,
+            'wan-ip 1 ping-response enable traceroute-response enable',
+            'exit',
+        ], fn (?string $line) => $line !== null));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function wanLine(array $data, string $name): string
+    {
+        $mode = (string) ($data['wan_mode'] ?? 'pppoe');
+        $vlanProfile = trim((string) ($data['vlan_profile'] ?? ''));
+
+        if ($mode === 'dhcp') {
+            $line = 'wan-ip 1 mode dhcp';
+        } elseif ($mode === 'static') {
+            $line = sprintf(
+                'wan-ip 1 mode static ip-profile %s ip-address %s mask %s',
+                $data['ip_profile'],
+                $data['static_ip'],
+                $data['static_netmask'],
+            );
+        } else {
+            $username = trim((string) ($data['pppoe_username'] ?? '')) ?: $this->defaultCredential($name);
+            $password = trim((string) ($data['pppoe_password'] ?? '')) ?: $username;
+            $line = "wan-ip 1 mode pppoe username {$username} password {$password}";
+        }
+
+        if ($vlanProfile !== '') {
+            $line .= " vlan-profile {$vlanProfile}";
+        }
+
+        return $line.' host 1';
+    }
+
+    private function defaultCredential(string $name): string
+    {
+        $value = strtolower(preg_replace('/[^A-Za-z0-9]+/', '', $name) ?? '');
+
+        return substr($value !== '' ? $value : 'customer', 0, 32);
+    }
+}

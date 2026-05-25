@@ -23,6 +23,12 @@ class OltSnmpClient
     private const ZTE_ONU_ADMIN_STATE = '1.3.6.1.4.1.3902.1012.3.28.1.1.17';
     private const ZTE_ONU_PHASE_STATE = '1.3.6.1.4.1.3902.1012.3.28.2.1.4';
     private const ZTE_ONU_LAST_DOWN_CAUSE = '1.3.6.1.4.1.3902.1012.3.28.2.1.7';
+    private const ZTE_UNCFG_OIDS = [
+        '1.3.6.1.4.1.3902.1012.3.13.3.1.2',
+        '1.3.6.1.4.1.3902.1082.500.10.2.1.1',
+        '1.3.6.1.4.1.3902.1082.500.10.2.1.2',
+        '1.3.6.1.4.1.3902.1082.500.10.1.1.1',
+    ];
 
     /**
      * @return array<string, mixed>
@@ -298,6 +304,89 @@ class OltSnmpClient
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function unconfiguredOnusSnapshot(SnmpOlt $olt): array
+    {
+        $startedAt = microtime(true);
+
+        try {
+            $rows = $this->unconfiguredOnus($olt);
+
+            return [
+                'ok' => true,
+                'count' => count($rows),
+                'onus' => $rows,
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => null,
+            ];
+        } catch (Throwable $exception) {
+            return [
+                'ok' => false,
+                'count' => 0,
+                'onus' => [],
+                'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error' => $exception->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function unconfiguredOnus(SnmpOlt $olt): array
+    {
+        $seen = [];
+        $onus = [];
+
+        foreach (self::ZTE_UNCFG_OIDS as $baseOid) {
+            try {
+                $rows = $this->walk($olt, $baseOid);
+            } catch (Throwable) {
+                continue;
+            }
+
+            foreach ($rows as $oid => $rawValue) {
+                $sn = $this->decodeOnuSn($rawValue);
+                if ($sn === null || strlen($sn) < 8 || strlen($sn) > 16) {
+                    continue;
+                }
+
+                if (isset($seen[$sn])) {
+                    continue;
+                }
+
+                $index = $this->extractUnconfiguredIndex($oid, $baseOid);
+                [$slot, $port] = $index['if_index'] !== null
+                    ? $this->decodeIfIndex((int) $index['if_index'])
+                    : [null, null];
+
+                $seen[$sn] = true;
+                $onus[] = [
+                    'serial_number' => $sn,
+                    'raw_value' => $rawValue,
+                    'oid' => $oid,
+                    'source_oid' => $baseOid,
+                    'oid_index' => $index['suffix'],
+                    'if_index' => $index['if_index'],
+                    'suggested_onu_id' => $index['onu_id'],
+                    'slot' => $slot,
+                    'port' => $port,
+                    'port_alias' => $slot && $port ? sprintf('gpon-onu_1/%d/%d:%d', $slot, $port, $index['onu_id'] ?? 0) : null,
+                ];
+            }
+
+            if ($onus !== []) {
+                break;
+            }
+        }
+
+        usort($onus, fn (array $a, array $b) => [$a['slot'] ?? 999, $a['port'] ?? 999, $a['serial_number']] <=> [$b['slot'] ?? 999, $b['port'] ?? 999, $b['serial_number']]);
+
+        return $onus;
+    }
+
+    /**
      * @return array<string, string>
      */
     public function walk(SnmpOlt $olt, string $oid): array
@@ -394,6 +483,40 @@ class OltSnmpClient
         }
 
         return [(int) $parts[0], (int) $parts[1]];
+    }
+
+    /**
+     * @return array{suffix:string|null, if_index:int|null, onu_id:int|null}
+     */
+    private function extractUnconfiguredIndex(string $oid, string $base): array
+    {
+        $oid = $this->normalizeOid($oid);
+        $base = $this->normalizeOid($base).'.';
+
+        if (! str_starts_with($oid, $base)) {
+            return ['suffix' => null, 'if_index' => null, 'onu_id' => null];
+        }
+
+        $suffix = substr($oid, strlen($base));
+        $parts = array_values(array_filter(explode('.', $suffix), fn (string $part) => ctype_digit($part)));
+
+        if (count($parts) >= 2) {
+            return [
+                'suffix' => $suffix,
+                'if_index' => (int) $parts[count($parts) - 2],
+                'onu_id' => (int) $parts[count($parts) - 1],
+            ];
+        }
+
+        if (count($parts) === 1) {
+            return [
+                'suffix' => $suffix,
+                'if_index' => (int) $parts[0],
+                'onu_id' => null,
+            ];
+        }
+
+        return ['suffix' => $suffix, 'if_index' => null, 'onu_id' => null];
     }
 
     /**

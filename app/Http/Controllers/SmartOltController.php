@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\SnmpOlt;
+use App\Models\SmartOltOnuRegistration;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -52,6 +54,43 @@ class SmartOltController extends Controller
             'slot' => $slot,
             'port' => $port,
             'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
+        ]);
+    }
+
+    public function unconfigured(SnmpOlt $olt): Response
+    {
+        return Inertia::render('SmartOlt/Unconfigured', [
+            'olt' => $this->serializeOlt($olt),
+            'snapshot' => $this->serializeUnconfiguredSnapshot($olt),
+        ]);
+    }
+
+    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
+    {
+        $slot = (int) $request->query('slot');
+        $port = (int) $request->query('port');
+
+        return Inertia::render('SmartOlt/RegisterOnu', [
+            'olt' => $this->serializeOlt($olt),
+            'defaults' => [
+                'serial_number' => (string) $request->query('sn', ''),
+                'slot' => $slot ?: null,
+                'port' => $port ?: null,
+                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port),
+                'oid_index' => (string) $request->query('oid_index', ''),
+                'customer_name' => '',
+                'onu_type' => 'ALL-ONT',
+                'tcont_profile' => 'SERVER',
+                'vlan' => 100,
+                'vlan_profile' => '',
+                'service_name' => 'ServiceName',
+                'wan_mode' => 'pppoe',
+                'pppoe_username' => '',
+                'pppoe_password' => '',
+                'ip_profile' => '',
+                'static_ip' => '',
+                'static_netmask' => '255.255.255.0',
+            ],
         ]);
     }
 
@@ -146,6 +185,73 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
+    public function refreshUnconfigured(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
+    {
+        $result = $client->unconfiguredOnusSnapshot($olt);
+        $result['refreshed_at'] = now()->toIso8601String();
+
+        $snapshot = $olt->last_test_result ?? [];
+        data_set($snapshot, 'unconfigured_onus', $result);
+
+        $olt->forceFill([
+            'last_test_result' => $snapshot,
+        ])->save();
+
+        $message = $result['ok']
+            ? sprintf('Discovery unconfigured ONU OK. %s ONU ditemukan.', $result['count'])
+            : sprintf('Discovery unconfigured ONU gagal: %s', $result['error'] ?? 'unknown error');
+
+        return redirect()
+            ->route('smartolt.unconfigured', $olt)
+            ->with($result['ok'] ? 'success' : 'error', $message);
+    }
+
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
+    {
+        $data = $this->validatedProvisioning($request);
+        $script = $builder->build($data);
+
+        SmartOltOnuRegistration::create([
+            ...$data,
+            'snmp_olt_id' => $olt->id,
+            'pon_port' => sprintf('gpon-onu_1/%d/%d:%d', $data['slot'], $data['port'], $data['onu_id']),
+            'cli_script' => $script,
+            'status' => 'generated',
+            'created_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('smartolt.registrations', $olt)
+            ->with('success', 'Provisioning script berhasil digenerate dan disimpan ke audit log.');
+    }
+
+    public function registrations(SnmpOlt $olt): Response
+    {
+        $registrations = SmartOltOnuRegistration::query()
+            ->where('snmp_olt_id', $olt->id)
+            ->latest()
+            ->limit(50)
+            ->get()
+            ->map(fn (SmartOltOnuRegistration $registration) => [
+                'id' => $registration->id,
+                'serial_number' => $registration->serial_number,
+                'pon_port' => $registration->pon_port,
+                'customer_name' => $registration->customer_name,
+                'onu_type' => $registration->onu_type,
+                'tcont_profile' => $registration->tcont_profile,
+                'vlan' => $registration->vlan,
+                'wan_mode' => $registration->wan_mode,
+                'status' => $registration->status,
+                'cli_script' => $registration->cli_script,
+                'created_at' => $registration->created_at?->toIso8601String(),
+            ]);
+
+        return Inertia::render('SmartOlt/Registrations', [
+            'olt' => $this->serializeOlt($olt),
+            'registrations' => $registrations,
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -167,6 +273,32 @@ class SmartOltController extends Controller
             'cli_port' => ['nullable', 'integer', 'between:1,65535'],
             'cli_username' => ['nullable', 'string', 'max:100'],
             'cli_password' => ['nullable', 'string', 'max:255'],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedProvisioning(Request $request): array
+    {
+        return $request->validate([
+            'serial_number' => ['required', 'string', 'max:64'],
+            'slot' => ['required', 'integer', 'between:1,255'],
+            'port' => ['required', 'integer', 'between:1,255'],
+            'onu_id' => ['required', 'integer', 'between:1,4096'],
+            'oid_index' => ['nullable', 'string', 'max:191'],
+            'customer_name' => ['required', 'string', 'max:191'],
+            'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'vlan' => ['required', 'integer', 'between:1,4094'],
+            'vlan_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'service_name' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'wan_mode' => ['required', Rule::in(['pppoe', 'dhcp', 'static'])],
+            'pppoe_username' => ['nullable', 'string', 'max:120'],
+            'pppoe_password' => ['nullable', 'string', 'max:120'],
+            'ip_profile' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'static_ip' => ['nullable', 'required_if:wan_mode,static', 'ip'],
+            'static_netmask' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:45'],
         ]);
     }
 
@@ -252,5 +384,40 @@ class SmartOltController extends Controller
             'error' => data_get($snapshot, 'error'),
             'refreshed_at' => data_get($snapshot, 'refreshed_at'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeUnconfiguredSnapshot(SnmpOlt $olt): array
+    {
+        $snapshot = data_get($olt->last_test_result ?? [], 'unconfigured_onus', []);
+
+        return [
+            'ok' => (bool) data_get($snapshot, 'ok', false),
+            'onus' => data_get($snapshot, 'onus', []),
+            'count' => data_get($snapshot, 'count', 0),
+            'latency_ms' => data_get($snapshot, 'latency_ms'),
+            'error' => data_get($snapshot, 'error'),
+            'refreshed_at' => data_get($snapshot, 'refreshed_at'),
+        ];
+    }
+
+    private function suggestNextOnuId(SnmpOlt $olt, int $slot, int $port): int
+    {
+        if ($slot < 1 || $port < 1) {
+            return 1;
+        }
+
+        $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+        $used = collect($onus)->pluck('onu_id')->map(fn ($id) => (int) $id)->flip();
+
+        for ($id = 1; $id <= 4096; $id++) {
+            if (! isset($used[$id])) {
+                return $id;
+            }
+        }
+
+        return 4096;
     }
 }

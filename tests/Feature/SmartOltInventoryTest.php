@@ -126,6 +126,98 @@ class SmartOltInventoryTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_unconfigured_onu_page_can_be_rendered(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.5',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'unconfigured_onus' => [
+                    'ok' => true,
+                    'count' => 1,
+                    'refreshed_at' => now()->toIso8601String(),
+                    'onus' => [
+                        [
+                            'serial_number' => 'ZTEG12345678',
+                            'slot' => 2,
+                            'port' => 1,
+                            'oid_index' => '268566784.1',
+                            'source_oid' => '1.3.6.1.4.1.3902.1012.3.13.3.1.2',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->get(route('smartolt.unconfigured', $olt));
+
+        $response->assertOk();
+    }
+
+    public function test_register_onu_form_can_be_rendered(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.6',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $response = $this->actingAs($user)->get(route('smartolt.register', [
+            'olt' => $olt,
+            'sn' => 'ZTEG12345678',
+            'slot' => 2,
+            'port' => 1,
+        ]));
+
+        $response->assertOk();
+    }
+
+    public function test_provisioning_script_can_be_generated(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.7',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('smartolt.register.store', $olt), [
+            'serial_number' => 'ZTEG12345678',
+            'slot' => 2,
+            'port' => 1,
+            'onu_id' => 3,
+            'customer_name' => 'Customer A',
+            'onu_type' => 'ALL-ONT',
+            'tcont_profile' => 'SERVER',
+            'vlan' => 100,
+            'service_name' => 'ServiceName',
+            'wan_mode' => 'pppoe',
+            'pppoe_username' => 'customer_a',
+            'pppoe_password' => 'secret123',
+        ]);
+
+        $response->assertRedirect(route('smartolt.registrations', $olt));
+
+        $this->assertDatabaseHas('smartolt_onu_registrations', [
+            'snmp_olt_id' => $olt->id,
+            'serial_number' => 'ZTEG12345678',
+            'pon_port' => 'gpon-onu_1/2/1:3',
+            'status' => 'generated',
+        ]);
+    }
+
     public function test_authenticated_user_can_store_an_olt(): void
     {
         $user = User::factory()->create();
