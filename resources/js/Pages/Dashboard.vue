@@ -44,11 +44,16 @@ const oltOnuChart = computed(() => ({
     ],
     options: {
         chart: { type: 'bar', stacked: true, toolbar: { show: false } },
-        plotOptions: { bar: { horizontal: true, borderRadius: 4 } },
+        plotOptions: { bar: { horizontal: false, borderRadius: 4, columnWidth: '50%' } },
         colors: ['#10b981', '#9ca3af'],
-        xaxis: { categories: props.olts.map((o) => o.name) },
+        xaxis: {
+            categories: props.olts.map((o) => o.name),
+            labels: { style: { fontSize: '11px' }, rotate: -30, trim: true, maxHeight: 60 },
+        },
+        yaxis: { labels: { formatter: (v) => Math.round(v) } },
         legend: { position: 'top' },
         dataLabels: { enabled: false },
+        grid: { borderColor: '#f3f4f6' },
     },
 }));
 

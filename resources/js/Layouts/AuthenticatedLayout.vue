@@ -52,6 +52,12 @@ const page = usePage();
                                 >
                                     Alarms
                                 </NavLink>
+                                <NavLink
+                                    :href="route('users.index')"
+                                    :active="route().current('users.*')"
+                                >
+                                    Users
+                                </NavLink>
                             </div>
                         </div>
 
@@ -170,6 +176,12 @@ const page = usePage();
                             :active="route().current('alarms.*')"
                         >
                             Alarms
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('users.index')"
+                            :active="route().current('users.*')"
+                        >
+                            Users
                         </ResponsiveNavLink>
                     </div>
 

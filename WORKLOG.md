@@ -371,3 +371,37 @@ Notes:
 
 - Transisi `out-in` memastikan halaman lama selesai fade-out sebelum halaman baru fade-in — menghilangkan kesan header "melompat" saat navigasi.
 - Modal center fix berlaku untuk semua modal di seluruh aplikasi (ConfirmModal, edit info ONU, dsb.) karena semuanya memakai komponen `Modal.vue`.
+
+## 2026-05-25 (lanjutan)
+
+### Phase 18 - Manajemen User
+
+Created:
+
+- `app/Http/Controllers/UserController.php` — CRUD user: index, store, update, destroy; proteksi self-delete; password opsional saat edit.
+- `resources/js/Pages/Users/Index.vue` — halaman tabel user dengan modal tambah/edit (name, email, password) dan konfirmasi hapus; label "(Anda)" untuk user aktif; avatar inisial.
+- `.claude/commands/done.md` — skill `/done` untuk update WORKLOG dan push GitHub setiap selesai task.
+
+Changed:
+
+- `routes/web.php` — tambah 4 route user: `GET /users`, `POST /users`, `PUT /users/{user}`, `DELETE /users/{user}`.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — tambah nav link **Users** (desktop + responsive).
+
+Notes:
+
+- Registrasi publik sudah dinonaktifkan sejak commit sebelumnya; halaman ini menjadi satu-satunya cara menambah user baru selain `php artisan user:create`.
+- Self-delete diblokir di controller (kembalikan error flash jika `$user->id === $request->user()->id`).
+
+### UI Consistency Pass (lanjutan)
+
+Changed:
+
+- `resources/js/Pages/Profile/Edit.vue` — `py-12` → `py-8`, `shadow sm:rounded-lg` → `rounded-lg shadow-sm`, `p-4 sm:p-8` → `p-6`, tambah `px-4` pada container; sekarang konsisten dengan semua halaman lain.
+- `resources/js/Pages/Users/Index.vue` — `max-w-4xl` → `max-w-7xl` (konsisten dengan halaman tabel lainnya).
+
+### Detail OLT - Gambar Hardware dan Info Tambahan
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/Detail.vue` — card Capability diganti card gambar OLT (`/img/c320.jpg` atau `/img/c300.jpg` sesuai nama OLT, fallback icon Router); tambah computed `oltImage`, `onuTotal`, `onuOnline`; card Latency diganti card **Total ONU** (online / total); sysUptime diformat dari timeticks ke `Xh Xj Xm Xd`.
+- `resources/js/Pages/Dashboard.vue` — chart ONU per OLT diubah dari horizontal bar ke vertical column chart (`horizontal: false`, `columnWidth: 50%`, label X rotasi -30°).

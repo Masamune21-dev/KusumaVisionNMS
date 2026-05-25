@@ -19,6 +19,10 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+
+const onuTotal  = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.onu_count ?? 0), 0));
+const onuOnline = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.online_onu_count ?? 0), 0));
+
 const portSearch = ref('');
 const isSearching = computed(() => portSearch.value.trim().length > 0);
 const normalizeSearch = (value) => String(value ?? '').toLowerCase();
@@ -64,8 +68,30 @@ const formatDate = (value) => {
     }).format(new Date(value));
 };
 
+const formatUptime = (timeticks) => {
+    if (!timeticks) return '-';
+    const totalSeconds = Math.floor(Number(timeticks) / 100);
+    const days    = Math.floor(totalSeconds / 86400);
+    const hours   = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [];
+    if (days)    parts.push(`${days}h`);
+    if (hours)   parts.push(`${hours}j`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds || parts.length === 0) parts.push(`${seconds}d`);
+    return parts.join(' ');
+};
+
 const portStatusLabel = (status) => String(status || 'unknown').toUpperCase();
 const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || onu.interface || '-';
+
+const oltImage = computed(() => {
+    const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
+    if (hay.includes('c320')) return '/img/c320.jpg';
+    if (hay.includes('c300')) return '/img/c300.jpg';
+    return null;
+});
 </script>
 
 <template>
@@ -148,9 +174,9 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                         </div>
                     </div>
                     <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Latency</div>
+                        <div class="text-sm font-medium text-gray-500">Total ONU</div>
                         <div class="mt-2 text-2xl font-semibold text-gray-900">
-                            {{ snapshot.latency_ms ?? '-' }}<span v-if="snapshot.latency_ms != null" class="text-sm text-gray-500"> ms</span>
+                            {{ onuOnline }}<span class="text-sm text-gray-400"> / {{ onuTotal }} online</span>
                         </div>
                     </div>
                     <div class="rounded-lg bg-white p-5 shadow-sm">
@@ -187,36 +213,22 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                             </div>
                             <div class="px-6 py-4">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">sysUptime</dt>
-                                <dd class="mt-1 break-words text-sm text-gray-900">{{ snapshot.system.sys_uptime || '-' }}</dd>
+                                <dd class="mt-1 break-words text-sm text-gray-900">{{ formatUptime(snapshot.system.sys_uptime) }}</dd>
                             </div>
                         </dl>
                     </div>
 
-                    <div class="rounded-lg bg-white shadow-sm">
-                        <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
-                            <Router class="h-5 w-5 text-gray-500" />
-                            <h3 class="text-base font-semibold text-gray-900">
-                                Capability
-                            </h3>
+                    <div class="flex items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+                        <img
+                            v-if="oltImage"
+                            :src="oltImage"
+                            :alt="olt.name"
+                            class="max-h-96 w-full object-contain p-8"
+                        />
+                        <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-gray-300">
+                            <Router class="h-16 w-16" />
+                            <span class="text-sm">Gambar tidak tersedia</span>
                         </div>
-                        <dl class="divide-y divide-gray-100">
-                            <div class="flex items-center justify-between px-6 py-4">
-                                <dt class="text-sm text-gray-600">Driver</dt>
-                                <dd class="text-sm font-semibold text-gray-900">{{ olt.driver }}</dd>
-                            </div>
-                            <div class="flex items-center justify-between px-6 py-4">
-                                <dt class="text-sm text-gray-600">Provisioning</dt>
-                                <dd class="text-sm font-semibold text-gray-900">{{ olt.capabilities.supports_provisioning ? 'Ya' : 'Tidak' }}</dd>
-                            </div>
-                            <div class="flex items-center justify-between px-6 py-4">
-                                <dt class="text-sm text-gray-600">CLI Detail ONU</dt>
-                                <dd class="text-sm font-semibold text-gray-900">{{ olt.capabilities.supports_cli_onu_detail ? 'Ya' : 'Tidak' }}</dd>
-                            </div>
-                            <div class="flex items-center justify-between px-6 py-4">
-                                <dt class="text-sm text-gray-600">ONU Toggle</dt>
-                                <dd class="text-sm font-semibold text-gray-900">{{ olt.capabilities.supports_onu_toggle ? 'Ya' : 'Tidak' }}</dd>
-                            </div>
-                        </dl>
                     </div>
                 </div>
 
