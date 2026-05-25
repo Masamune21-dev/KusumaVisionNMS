@@ -138,6 +138,7 @@ class SmartOltInventoryTest extends TestCase
 
         $powers = $service->parse(<<<'OUT'
 gpon-onu_1/2/2:1    -18.762(dbm)
+--More--
 gpon-onu_1/2/2:3    -22.100(dbm)
 OUT);
 

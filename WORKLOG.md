@@ -182,3 +182,5 @@ Notes:
 
 - If CLI RX read fails, SNMP ONU table still refreshes and the RX error is stored under `last_test_result.port_onus.{slot}_{port}.rx_power.error`.
 - Verified against OLT `id=1` slot 2 port 1: `gpon-onu_1/2/1:3` returned ONU RX `-14.260 dBm`.
+- Telnet reader now auto-continues pager prompts such as `--More--` by sending Enter, so RX output above one CLI page can be read fully.
+- Verified long RX output against OLT `id=2` slot 2 port 3: parser read 112 RX values and reached the final CLI prompt without leftover pager markers.

@@ -36,7 +36,7 @@ class ZteCliProvisioningExecutor
             foreach ($this->commands($script) as $command) {
                 $output .= "\n> {$command}\n";
                 fwrite($connection, $command."\n");
-                $output .= $this->readUntilIdle($connection);
+                $output .= $this->readUntilIdle($connection, 15);
             }
 
             fwrite($connection, "exit\n");
@@ -83,7 +83,7 @@ class ZteCliProvisioningExecutor
     /**
      * @param resource $connection
      */
-    private function readUntilIdle($connection, int $timeoutSeconds = 2): string
+    private function readUntilIdle($connection, int $timeoutSeconds = 8): string
     {
         $output = '';
         $started = microtime(true);
@@ -93,7 +93,11 @@ class ZteCliProvisioningExecutor
             $chunk = fread($connection, 8192);
 
             if ($chunk === false || $chunk === '') {
-                if ($output !== '' && (microtime(true) - $lastRead) >= 0.35) {
+                if ($output !== '' && $this->hasCliPrompt($output) && (microtime(true) - $lastRead) >= 0.25) {
+                    break;
+                }
+
+                if ($output !== '' && (microtime(true) - $lastRead) >= 1.25) {
                     break;
                 }
 
@@ -103,9 +107,16 @@ class ZteCliProvisioningExecutor
 
             $output .= $chunk;
             $lastRead = microtime(true);
+
+            if ($this->hasPagerPrompt($output)) {
+                fwrite($connection, "\n");
+                $output = $this->stripPagerPrompts($output);
+                $started = microtime(true);
+                $lastRead = microtime(true);
+            }
         }
 
-        return $output;
+        return $this->stripPagerPrompts($output);
     }
 
     /**
@@ -140,5 +151,20 @@ class ZteCliProvisioningExecutor
         }
 
         return trim($output);
+    }
+
+    private function hasPagerPrompt(string $output): bool
+    {
+        return preg_match('/(--More--|----\s*More\s*----|<---\s*More\s*--->|press\s+(enter|return|any key)\s+to\s+continue)/i', $output) === 1;
+    }
+
+    private function hasCliPrompt(string $output): bool
+    {
+        return preg_match('/[\r\n][A-Za-z0-9_.()\/-]+(?:\(config[^\)]*\))?#\s*$/', $output) === 1;
+    }
+
+    private function stripPagerPrompts(string $output): string
+    {
+        return preg_replace('/(--More--|----\s*More\s*----|<---\s*More\s*--->|press\s+(enter|return|any key)\s+to\s+continue)/i', '', $output) ?? $output;
     }
 }
