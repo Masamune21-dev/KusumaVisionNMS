@@ -27,10 +27,10 @@ const props = defineProps({
 const rows = computed(() => props.alarms.data ?? []);
 
 const cards = computed(() => [
-    { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-700' },
-    { key: 'major', label: 'Major', value: props.summary.major, class: 'text-orange-700' },
-    { key: 'minor', label: 'Minor', value: props.summary.minor, class: 'text-amber-700' },
-    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-700' },
+    { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-400' },
+    { key: 'major', label: 'Major', value: props.summary.major, class: 'text-orange-400' },
+    { key: 'minor', label: 'Minor', value: props.summary.minor, class: 'text-amber-400' },
+    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-400' },
 ]);
 
 const form = reactive({
@@ -105,15 +105,15 @@ const setSeverity = (severity) => {
 };
 
 const severityClass = (severity) => ({
-    critical: 'bg-red-100 text-red-800',
-    major: 'bg-orange-100 text-orange-800',
-    minor: 'bg-amber-100 text-amber-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-}[severity] ?? 'bg-gray-100 text-gray-700');
+    critical: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25',
+    major: 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/25',
+    minor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/25',
+    warning: 'bg-yellow-500/15 text-yellow-300 ring-1 ring-yellow-500/25',
+}[severity] ?? 'bg-slate-500/15 text-slate-400 ring-1 ring-slate-500/25');
 
 const statusClass = (status) => status === 'active'
-    ? 'bg-red-100 text-red-800'
-    : 'bg-emerald-100 text-emerald-800';
+    ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25'
+    : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25';
 
 const scopeLabel = (alarm) => {
     if (alarm.scope === 'onu') {
@@ -148,11 +148,11 @@ const formatDate = (value) => {
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">Alarms</h2>
-                <div class="inline-flex overflow-hidden rounded-md border border-gray-300">
+                <div class="inline-flex overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-sm">
                     <button
                         type="button"
                         class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'active' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                        :class="form.status === 'active' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
                         @click="setStatus('active')"
                     >
                         Aktif
@@ -160,7 +160,7 @@ const formatDate = (value) => {
                     <button
                         type="button"
                         class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'cleared' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                        :class="form.status === 'cleared' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
                         @click="setStatus('cleared')"
                     >
                         Selesai
@@ -168,7 +168,7 @@ const formatDate = (value) => {
                     <button
                         type="button"
                         class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'all' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+                        :class="form.status === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
                         @click="setStatus('all')"
                     >
                         Semua
@@ -177,47 +177,47 @@ const formatDate = (value) => {
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                 <div class="grid gap-4 sm:grid-cols-4">
                     <button
                         v-for="card in cards"
                         :key="card.key"
                         type="button"
-                        class="rounded-lg bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
-                        :class="form.severity === card.key ? 'ring-2 ring-indigo-500' : ''"
+                        class="rounded-xl border border-white/10 bg-white/[0.06] p-5 text-left backdrop-blur-xl transition hover:-translate-y-0.5"
+                        :class="form.severity === card.key ? 'ring-2 ring-indigo-500/50' : ''"
                         @click="setSeverity(card.key)"
                     >
-                        <div class="text-sm font-medium text-gray-500">{{ card.label }}</div>
+                        <div class="text-sm font-medium text-slate-400">{{ card.label }}</div>
                         <div class="mt-2 text-3xl font-semibold" :class="card.class">{{ card.value }}</div>
                     </button>
                 </div>
 
-                <form class="rounded-lg bg-white p-5 shadow-sm" @submit.prevent="applyFilters">
-                    <div class="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                        <Filter class="h-4 w-4 text-gray-500" />
+                <form class="rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl" @submit.prevent="applyFilters">
+                    <div class="flex items-center gap-2 text-sm font-semibold text-white">
+                        <Filter class="h-4 w-4 text-slate-400" />
                         Filter
                     </div>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-6">
                         <label class="block md:col-span-2">
-                            <span class="text-xs font-medium uppercase text-gray-500">Cari</span>
-                            <div class="mt-1 flex rounded-md border border-gray-300 bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
-                                <span class="flex items-center px-3 text-gray-400">
+                            <span class="text-xs font-medium uppercase text-slate-400">Cari</span>
+                            <div class="mt-1 flex rounded-md border border-white/20 bg-white/[0.08] focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                                <span class="flex items-center px-3 text-slate-400">
                                     <Search class="h-4 w-4" />
                                 </span>
                                 <input
                                     v-model="form.q"
                                     type="search"
-                                    class="block w-full border-0 bg-transparent py-2 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0"
+                                    class="block w-full border-0 bg-transparent py-2 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:ring-0"
                                     placeholder="Serial, pesan, tipe, OLT"
                                 >
                             </div>
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-gray-500">Severity</span>
-                            <select v-model="form.severity" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-400">Severity</span>
+                            <select v-model="form.severity" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="all">Semua</option>
                                 <option v-for="severity in filterOptions.severities" :key="severity" :value="severity">
                                     {{ severity }}
@@ -226,8 +226,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-gray-500">OLT</span>
-                            <select v-model="form.olt_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-400">OLT</span>
+                            <select v-model="form.olt_id" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="">Semua</option>
                                 <option v-for="olt in filterOptions.olts" :key="olt.id" :value="olt.id">
                                     {{ olt.name }}
@@ -236,8 +236,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-gray-500">Scope</span>
-                            <select v-model="form.scope" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-400">Scope</span>
+                            <select v-model="form.scope" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="all">Semua</option>
                                 <option v-for="scope in filterOptions.scopes" :key="scope" :value="scope">
                                     {{ scopeOptionLabel(scope) }}
@@ -246,8 +246,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-gray-500">Tipe</span>
-                            <select v-model="form.type" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-400">Tipe</span>
+                            <select v-model="form.type" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="all">Semua</option>
                                 <option v-for="type in filterOptions.types" :key="type" :value="type">
                                     {{ type }}
@@ -259,85 +259,89 @@ const formatDate = (value) => {
                     <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
                         <button
                             type="button"
-                            class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="!hasFilters"
                             @click="resetFilters"
                         >
                             <RotateCcw class="h-4 w-4" />
                             Reset
                         </button>
-                        <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                        <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
                             <Search class="h-4 w-4" />
                             Terapkan
                         </button>
                     </div>
                 </form>
 
-                <div class="rounded-lg bg-white shadow-sm">
-                    <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
-                        <BellRing class="h-5 w-5 text-gray-500" />
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-red-500/20 ring-1 ring-red-500/30">
+                            <BellRing class="h-5 w-5 text-red-400" />
+                        </div>
                         <div>
-                            <h3 class="text-base font-semibold text-gray-900">
+                            <h3 class="text-base font-semibold text-white">
                                 {{ statusTitle }}
                             </h3>
-                            <p class="text-sm text-gray-500">Hasil evaluasi otomatis dari background poll.</p>
+                            <p class="text-xs text-slate-400">Hasil evaluasi otomatis dari background poll.</p>
                         </div>
                     </div>
 
                     <div v-if="rows.length === 0" class="px-6 py-12 text-center">
-                        <ShieldCheck class="mx-auto h-10 w-10 text-emerald-300" />
-                        <h3 class="mt-3 text-sm font-semibold text-gray-900">Tidak ada alarm</h3>
-                        <p class="mt-1 text-sm text-gray-500">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+                            <ShieldCheck class="h-7 w-7 text-slate-500" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-200">Tidak ada alarm</h3>
+                        <p class="mt-1 text-sm text-slate-400">
                             {{ hasFilters ? 'Tidak ada alarm yang cocok dengan filter.' : 'Semua kondisi normal pada poll terakhir.' }}
                         </p>
                     </div>
 
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Severity</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Tipe</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">OLT / Target</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Pesan</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Terakhir</th>
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Severity</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Tipe</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">OLT / Target</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Pesan</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Terakhir</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200">
-                                <tr v-for="alarm in rows" :key="alarm.id">
+                            <tbody class="divide-y divide-white/[0.05]">
+                                <tr v-for="alarm in rows" :key="alarm.id" class="transition-colors duration-150 hover:bg-white/[0.04]">
                                     <td class="px-6 py-4">
-                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
+                                        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
                                             {{ alarm.severity }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ alarm.type }}</td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">
-                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-indigo-600 hover:underline">
+                                    <td class="px-6 py-4 text-sm font-medium text-slate-200">{{ alarm.type }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-300">
+                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-indigo-400 hover:text-indigo-300">
                                             {{ alarm.olt.name }}
                                         </Link>
-                                        <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-gray-900">
+                                        <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-slate-200">
                                             {{ alarm.customer_name }}
                                         </div>
-                                        <div class="text-xs text-gray-500">{{ scopeLabel(alarm) }}</div>
+                                        <div class="text-xs text-slate-500">{{ scopeLabel(alarm) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">{{ alarm.message }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-300">{{ alarm.message }}</td>
                                     <td class="px-6 py-4">
-                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
+                                        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusClass(alarm.status)">
                                             {{ alarm.status }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">
+                                    <td class="px-6 py-4 text-sm text-slate-300">
                                         <div>{{ formatDate(alarm.last_seen_at) }}</div>
-                                        <div class="text-xs text-gray-500">sejak {{ formatDate(alarm.first_seen_at) }}</div>
+                                        <div class="text-xs text-slate-500">sejak {{ formatDate(alarm.first_seen_at) }}</div>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row">
-                        <p class="text-sm text-gray-500">
+                    <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 sm:flex-row">
+                        <p class="text-sm text-slate-400">
                             Menampilkan {{ alarms.from }}–{{ alarms.to }} dari {{ alarms.total }} alarm
                         </p>
                         <Pagination :links="alarms.links" />

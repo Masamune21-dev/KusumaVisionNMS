@@ -537,3 +537,43 @@ Notes:
 - Phase state C600 mulai dari 1 (bukan 0): `4=Working` (bukan `3`). `online` check diupdate sesuai.
 - C600 tidak punya OID deskripsi ONU terpisah; field description bernilai `null` dan perintah `description` tidak dimasukkan ke provisioning script.
 - Belum diverifikasi di real C600 device — perlu test langsung untuk konfirmasi ifIndex encode dan OID walks.
+
+### Konsistensi Design System — Dark & Light Glassmorphism
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/Profiles.vue` — terapkan DARK glassmorphism: content wrapper `from-slate-900 via-slate-800 to-indigo-950`, setiap section jadi dark glass card (`bg-white/[0.06] border-white/10 backdrop-blur-xl`), flash messages dark glass style, table header `text-slate-400 bg-white/[0.03]`, badge aktif/nonaktif pakai `ring-1` dark variant, checkbox label `text-slate-300`.
+- `resources/js/Pages/SmartOlt/Create.vue` — content wrapper ganti ke LIGHT gradient `from-slate-50 via-blue-50/80 to-indigo-100/60`; white card wrapper dihapus karena form sudah dihandle OltForm.vue.
+- `resources/js/Pages/SmartOlt/Edit.vue` — sama seperti Create.vue, content wrapper light gradient.
+- `resources/js/Pages/SmartOlt/Partials/OltForm.vue` — refactor dari satu flat form menjadi 4 LIGHT glass section terpisah (Identitas OLT, Konfigurasi SNMP, Konfigurasi CLI, Auto-Poll); setiap section punya header icon (`Cpu`, `Network`, `KeyRound`, `Activity` dari Lucide); submit bar jadi light glass floating bar di bawah; import ikon ditambahkan.
+- `resources/js/Pages/SmartOlt/PortManager.vue` — terapkan DARK glassmorphism menyeluruh: content wrapper dark gradient, flash messages dark glass, 3 section card (Trafik Uplink, Port Uplink, GPON Port) pakai dark glass card dengan header icon; table header/rows dark styling; `vlanBadgeColor()` dan `linkBadgeColor()` diganti ke dark variant (`*/15 text-*/300 ring-1 ring-*/25`); status indicator pill (UP/DOWN/loading) dark style; VLAN inline panel dark; tombol VLAN aksi dark; refresh button per GPON row dark.
+
+Notes:
+
+- `<script setup>` tidak diubah di Profiles.vue dan PortManager.vue — hanya template dan dua helper function badge di PortManager yang diupdate return value class-nya.
+- OltForm.vue kini import `{ Activity, Cpu, KeyRound, Network }` dari `@lucide/vue` untuk ikon section header.
+- Form komponen (`TextInput`, `InputLabel`, `InputError`) tetap light-styled karena didesain untuk background putih — LIGHT glassmorphism menjaga kontras agar tetap terbaca.
+
+### Sidebar Navigation + Konsistensi Semua Halaman
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — total rewrite: navbar atas → sidebar kiri tetap `w-64` dark (`bg-slate-900`); mobile overlay + hamburger dengan Transition fade; logo + nav link dengan active state `bg-white/10`; user section di bawah sidebar (avatar initials + link Profil & Keluar); main content `lg:pl-64 flex flex-col min-h-screen`; footer in-flow (bukan `fixed bottom-0`) untuk hindari content overlap.
+- `resources/js/Pages/Dashboard.vue` — dark glassmorphism: stat cards, chart containers, OLT table, alarm list; ApexCharts options `background: 'transparent'`, label/axis color `#94a3b8`, grid `rgba(255,255,255,0.06)`; `severityClass` dark variant.
+- `resources/js/Pages/SmartOlt/Alarms.vue` — dark glassmorphism: severity cards clickable dengan `ring-2 ring-indigo-500/50` saat aktif; filter panel input `bg-white/[0.08]` dan select `bg-slate-800`; status toggle (Aktif/Selesai/Semua) masuk ke wrapper dark glass; `severityClass` dan `statusClass` dark variant.
+- `resources/js/Pages/Users/Index.vue` — dark glassmorphism: table, avatar `bg-indigo-500/20 text-indigo-300 ring-1 ring-indigo-500/30`, flash messages dark glass.
+- `resources/js/Pages/SmartOlt/Index.vue` — dark glassmorphism: OLT cards, status dot glowing `shadow-[0_0_8px_...]`, ZTE badge `bg-sky-500/15`, action buttons dark.
+- `resources/js/Pages/SmartOlt/GponPorts.vue` — dark glassmorphism: 3 stat cards, port cards `border-emerald-500/20 bg-white/[0.06]` untuk port up; search input dark; badge "Selesai" `bg-emerald-500/20 ring-emerald-500/30`.
+- `resources/js/Pages/SmartOlt/Detail.vue` — dark glassmorphism: 4 stat cards, System Info card dengan icon badge sky, hardware table dark; `cardStatusColor()` return dark badge class.
+- `resources/js/Pages/SmartOlt/Registrations.vue` — dark glassmorphism: registration items `divide-white/[0.06]`; `<pre>` script dan execution output `rounded-xl bg-slate-950 border border-white/[0.06]`; `statusClass()` dark variant.
+- `resources/js/Pages/SmartOlt/Unconfigured.vue` — dark glassmorphism: stat cards, tabel ONU unconfigured, flash messages.
+- `resources/js/Pages/SmartOlt/UnconfiguredGlobal.vue` — dark glassmorphism: OLT selector cards dengan selected state indigo, summary cards, tabel ONU.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — dark glassmorphism: 4 stat cards, ONU table, `rxBadgeClass()` dengan threshold warna (-28/-8 merah, -25/-10 amber, hijau untuk normal), phase dot glowing.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — LIGHT glassmorphism: 4 section kartu (Identitas/GPON/WAN/Fitur) masing-masing dengan icon header; WAN Mode jadi visual button selector (PPPOE/DHCP/STATIC); submit bar light glass floating.
+
+Notes:
+
+- Design token konsisten di semua halaman — DARK: `bg-white/[0.06] border-white/10 backdrop-blur-xl` di atas `bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950`; LIGHT: `bg-white/70 border-white/70 backdrop-blur-xl` di atas `from-slate-50 via-blue-50/80 to-indigo-100/60`.
+- Halaman form (RegisterOnu, Create, Edit, OltForm) pakai LIGHT karena komponen `TextInput`/`InputLabel` hard-coded untuk background terang.
+- Sidebar mobile menggunakan Transition Vue bawaan untuk overlay fade — tidak butuh library animasi tambahan.
+- Build Vite `npm run build` berhasil 13.84s tanpa error setelah semua perubahan digabung.

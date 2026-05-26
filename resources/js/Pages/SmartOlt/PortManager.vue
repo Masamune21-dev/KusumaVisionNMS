@@ -345,14 +345,14 @@ const formatBps = (bps) => {
 const vlanBadgeColor = (range) => {
     const n = parseInt(range);
     const colors = [
-        'bg-blue-100 text-blue-700',
-        'bg-purple-100 text-purple-700',
-        'bg-pink-100 text-pink-700',
-        'bg-indigo-100 text-indigo-700',
-        'bg-teal-100 text-teal-700',
-        'bg-orange-100 text-orange-700',
-        'bg-cyan-100 text-cyan-700',
-        'bg-emerald-100 text-emerald-700',
+        'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/25',
+        'bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/25',
+        'bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/25',
+        'bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/25',
+        'bg-teal-500/15 text-teal-300 ring-1 ring-teal-500/25',
+        'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/25',
+        'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/25',
+        'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25',
     ];
     return colors[n % colors.length];
 };
@@ -382,9 +382,9 @@ const typeLabel = (type) => type === 'uplink' ? 'Uplink' : (type === 'gpon' ? 'G
 
 const linkBadgeColor = (status) => {
     const s = String(status ?? '').toLowerCase();
-    if (s === 'up') return 'bg-green-50 text-green-700';
-    if (s === 'down') return 'bg-red-50 text-red-700';
-    return 'bg-gray-100 text-gray-600';
+    if (s === 'up') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25';
+    if (s === 'down') return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25';
+    return 'bg-slate-500/15 text-slate-400 ring-1 ring-slate-500/25';
 };
 
 const compactVlans = (vlans) => {
@@ -431,39 +431,41 @@ const onuSummary = (row) => {
             </div>
         </template>
 
-        <div class="py-6">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-6 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
 
                 <!-- Flash messages (auto-dismiss after 4s) -->
                 <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
                             leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
                     <div v-if="flash.success && flashVisible.success"
-                         class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                        {{ flash.success }}
+                         class="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm">
+                        <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>{{ flash.success }}
                     </div>
                 </Transition>
                 <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
                             leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
                     <div v-if="flash.error && flashVisible.error"
-                         class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                        {{ flash.error }}
+                         class="flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm">
+                        <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>{{ flash.error }}
                     </div>
                 </Transition>
 
                 <!-- ══════════════════════════════════════
                      SECTION 1: Uplink Interface & Trafik
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Signal class="h-5 w-5 text-gray-500" />
-                            <h3 class="font-semibold text-gray-800">Trafik Interface Uplink</h3>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex flex-col gap-3 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Signal class="h-5 w-5 text-sky-400" />
+                            </div>
+                            <h3 class="font-semibold text-white">Trafik Interface Uplink</h3>
                         </div>
 
                         <div v-if="uplink_interfaces.length > 0" class="flex flex-wrap items-center gap-2">
-                            <label class="text-xs font-medium text-gray-500">Interface:</label>
+                            <label class="text-xs font-medium text-slate-400">Interface:</label>
                             <select v-model="selectedInterface"
-                                    class="rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-1.5 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                                    class="rounded-lg border border-white/15 bg-slate-800/60 pl-3 pr-8 py-1.5 text-sm text-slate-200 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30">
                                 <option v-for="iface in uplink_interfaces" :key="iface.interface" :value="iface.interface">
                                     {{ iface.interface }} ({{ iface.card_type }})
                                 </option>
@@ -475,53 +477,53 @@ const onuSummary = (row) => {
                         </div>
                     </div>
 
-                    <div v-if="uplink_interfaces.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
-                        Tidak ada interface uplink terdeteksi. Pastikan card HUVQ/SMXA terpasang dan klik <strong>Refresh Data</strong>.
+                    <div v-if="uplink_interfaces.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
+                        Tidak ada interface uplink terdeteksi. Pastikan card HUVQ/SMXA terpasang dan klik <strong class="text-slate-300">Refresh Data</strong>.
                     </div>
 
                     <div v-else class="p-5">
                         <!-- Status indicator -->
                         <div class="mb-5 flex flex-wrap items-center gap-4">
                             <div v-if="!liveTrafficEnabled && uplinkInfo.line_status === null"
-                                 class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
-                                <div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div>
-                                <span class="text-sm text-gray-500">Live traffic standby</span>
+                                 class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2">
+                                <div class="h-2.5 w-2.5 rounded-full bg-slate-500"></div>
+                                <span class="text-sm text-slate-400">Live traffic standby</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === null"
-                                 class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
-                                <div class="h-2.5 w-2.5 animate-pulse rounded-full bg-gray-400"></div>
-                                <span class="text-sm text-gray-500">Memuat status…</span>
+                                 class="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2">
+                                <div class="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-400"></div>
+                                <span class="text-sm text-slate-400">Memuat status…</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === 'up'"
-                                 class="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2">
-                                <CheckCircle2 class="h-5 w-5 text-green-600" />
-                                <span class="font-semibold text-green-700">UP</span>
+                                 class="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-4 py-2">
+                                <CheckCircle2 class="h-5 w-5 text-emerald-400" />
+                                <span class="font-semibold text-emerald-300">UP</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === 'admin-down'"
-                                 class="flex items-center gap-2 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2">
-                                <XCircle class="h-5 w-5 text-yellow-600" />
-                                <span class="font-semibold text-yellow-700">ADMIN DOWN</span>
+                                 class="flex items-center gap-2 rounded-lg border border-yellow-500/25 bg-yellow-500/10 px-4 py-2">
+                                <XCircle class="h-5 w-5 text-yellow-400" />
+                                <span class="font-semibold text-yellow-300">ADMIN DOWN</span>
                             </div>
 
                             <div v-else
-                                 class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
-                                <XCircle class="h-5 w-5 text-red-600" />
-                                <span class="font-semibold text-red-700">DOWN</span>
+                                 class="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/10 px-4 py-2">
+                                <XCircle class="h-5 w-5 text-red-400" />
+                                <span class="font-semibold text-red-300">DOWN</span>
                             </div>
 
                             <!-- Live stats pills -->
                             <div v-if="uplinkInfo.line_status !== null && uplinkInfo.line_status !== 'admin-down' && uplinkInfo.line_status !== 'down'"
                                  class="flex flex-wrap gap-2">
-                                <span class="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-sky-500/15 text-sky-300 ring-sky-500/25">
                                     ↓ RX {{ formatBps(uplinkInfo.input_bps) }}
                                 </span>
-                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-emerald-500/15 text-emerald-300 ring-emerald-500/25">
                                     ↑ TX {{ formatBps(uplinkInfo.output_bps) }}
                                 </span>
-                                <span class="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs ring-1 bg-slate-500/15 text-slate-400 ring-slate-500/25">
                                     {{ uplinkInfo.input_pps.toLocaleString('id-ID') }} pps in /
                                     {{ uplinkInfo.output_pps.toLocaleString('id-ID') }} pps out
                                 </span>
@@ -529,8 +531,8 @@ const onuSummary = (row) => {
                         </div>
 
                         <!-- Error banner -->
-                        <div v-if="trafficError" class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
-                            Gagal ambil data trafik: {{ trafficError }}
+                        <div v-if="trafficError" class="mb-4 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-xs text-red-300">
+                            <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>Gagal ambil data trafik: {{ trafficError }}
                         </div>
 
                         <!-- Chart -->
@@ -540,85 +542,89 @@ const onuSummary = (row) => {
                             :options="chartOptions"
                             :series="chartSeries"
                         />
-                        <p v-if="liveTrafficEnabled" class="mt-1 text-right text-xs text-gray-400">Auto-refresh setiap 10 detik · 20-second average</p>
+                        <p v-if="liveTrafficEnabled" class="mt-1 text-right text-xs text-slate-500">Auto-refresh setiap 10 detik · 20-second average</p>
                     </div>
                 </div>
 
                 <!-- ══════════════════════════════════════
                      SECTION 2: Port Uplink
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex flex-col gap-1 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Network class="h-5 w-5 text-gray-500" />
-                            <h3 class="font-semibold text-gray-800">Port Uplink</h3>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex flex-col gap-1 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Network class="h-5 w-5 text-sky-400" />
+                            </div>
+                            <h3 class="font-semibold text-white">Port Uplink</h3>
                         </div>
-                        <span class="text-xs text-gray-500">{{ uplinkDetails.length }} port tersimpan</span>
+                        <span class="text-xs text-slate-400">{{ uplinkDetails.length }} port tersimpan</span>
                     </div>
 
                     <!-- Toast for VLAN actions -->
                     <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-y-1"
                                 leave-active-class="transition duration-150 ease-in" leave-to-class="opacity-0 -translate-y-1">
                         <div v-if="toast.show"
-                             class="mx-5 mt-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
-                             :class="toast.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'">
-                            <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                            <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                             class="mx-5 mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm backdrop-blur-sm"
+                             :class="toast.ok
+                                 ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                                 : 'border-red-500/25 bg-red-500/10 text-red-300'">
+                            <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                            <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
                             {{ toast.message }}
                         </div>
                     </Transition>
 
-                    <div v-if="uplinkDetails.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                    <div v-if="uplinkDetails.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
                         Belum ada data port uplink tersimpan.
                     </div>
 
                     <div v-else class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
-                                <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    <th class="px-4 py-3">Interface</th>
-                                    <th class="px-4 py-3">Card</th>
-                                    <th class="px-4 py-3">Admin</th>
-                                    <th class="px-4 py-3">Link</th>
-                                    <th class="px-4 py-3">Speed</th>
-                                    <th class="px-4 py-3">VLAN</th>
-                                    <th class="px-4 py-3">Optical</th>
-                                    <th class="px-4 py-3">Module</th>
-                                    <th class="px-4 py-3">Refresh</th>
-                                    <th class="px-4 py-3">Aksi VLAN</th>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03] text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    <th class="px-4 py-3.5">Interface</th>
+                                    <th class="px-4 py-3.5">Card</th>
+                                    <th class="px-4 py-3.5">Admin</th>
+                                    <th class="px-4 py-3.5">Link</th>
+                                    <th class="px-4 py-3.5">Speed</th>
+                                    <th class="px-4 py-3.5">VLAN</th>
+                                    <th class="px-4 py-3.5">Optical</th>
+                                    <th class="px-4 py-3.5">Module</th>
+                                    <th class="px-4 py-3.5">Refresh</th>
+                                    <th class="px-4 py-3.5">Aksi VLAN</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/[0.05]">
                                 <template v-for="row in uplinkDetails" :key="row.interface">
-                                    <tr class="transition-colors hover:bg-gray-50">
-                                        <td class="px-4 py-3 font-mono text-gray-800">{{ row.interface }}</td>
-                                        <td class="px-4 py-3 text-gray-600">{{ row.card_type || '-' }}</td>
-                                        <td class="px-4 py-3 text-gray-600">{{ row.admin_status || '-' }}</td>
+                                    <tr class="transition-colors duration-150 hover:bg-white/[0.04]">
+                                        <td class="px-4 py-3 font-mono text-slate-200">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-slate-300">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-slate-300">{{ row.admin_status || '-' }}</td>
                                         <td class="px-4 py-3">
-                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="linkBadgeColor(row.link_status)">
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
                                                 {{ row.link_status || '-' }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             {{ row.speed_mbps ? `${row.speed_mbps} Mbps` : '-' }}
-                                            <span v-if="row.duplex" class="block text-xs text-gray-400">{{ row.duplex }}</span>
+                                            <span v-if="row.duplex" class="block text-xs text-slate-500">{{ row.duplex }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">Native {{ row.native_vlan ?? '-' }}</span>
-                                            <span class="block max-w-48 truncate text-xs text-gray-400">Tagged {{ compactVlans(row.tagged_vlans) }}</span>
+                                            <span class="block max-w-48 truncate text-xs text-slate-500">Tagged {{ compactVlans(row.tagged_vlans) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
-                                            <span class="block text-xs text-gray-400">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                            <span class="block text-xs text-slate-500">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
-                                            <span class="block max-w-44 truncate text-xs text-gray-400">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
-                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-gray-400">
+                                            <span class="block max-w-44 truncate text-xs text-slate-500">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
+                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-slate-500">
                                                 {{ formatNumber(row.temperature_c, '°C') }} · {{ formatNumber(row.supply_voltage_v, 'V') }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(row.refreshed_at) }}</td>
+                                        <td class="px-4 py-3 text-xs text-slate-500">{{ formatDate(row.refreshed_at) }}</td>
                                         <td class="px-4 py-3">
                                             <div class="flex items-center gap-1.5">
                                                 <!-- Lihat VLAN -->
@@ -626,8 +632,8 @@ const onuSummary = (row) => {
                                                     type="button"
                                                     class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
                                                     :class="vlanPanelInterface === row.interface && vlanPanelMode === 'view'
-                                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                                                        ? 'border-sky-500/40 bg-sky-500/15 text-sky-300'
+                                                        : 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.08] hover:text-slate-200'"
                                                     :title="`Lihat VLAN ${row.interface}`"
                                                     @click="openVlanPanel(row.interface, 'view')"
                                                 >
@@ -639,8 +645,8 @@ const onuSummary = (row) => {
                                                     type="button"
                                                     class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
                                                     :class="vlanPanelInterface === row.interface && vlanPanelMode === 'add'
-                                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                                                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                                                        : 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.08] hover:text-slate-200'"
                                                     :title="`Tag VLAN ke ${row.interface}`"
                                                     @click="openVlanPanel(row.interface, 'add')"
                                                 >
@@ -659,12 +665,12 @@ const onuSummary = (row) => {
                                         leave-to-class="opacity-0"
                                     >
                                         <tr v-if="vlanPanelInterface === row.interface">
-                                            <td colspan="10" class="border-t border-indigo-100 bg-indigo-50/40 px-5 py-4">
+                                            <td colspan="10" class="border-t border-white/[0.06] bg-white/[0.03] px-5 py-4">
                                                 <!-- View mode -->
                                                 <div v-if="vlanPanelMode === 'view'">
-                                                    <p class="mb-2 text-xs font-semibold text-indigo-700">VLAN Tagged — {{ row.interface }}</p>
-                                                    <div v-if="panelVlans.length === 0" class="text-sm text-gray-400">
-                                                        Tidak ada VLAN tagged. Klik <strong>Refresh Data</strong> atau tag VLAN baru.
+                                                    <p class="mb-2 text-xs font-semibold text-sky-400">VLAN Tagged — {{ row.interface }}</p>
+                                                    <div v-if="panelVlans.length === 0" class="text-sm text-slate-500">
+                                                        Tidak ada VLAN tagged. Klik <strong class="text-slate-300">Refresh Data</strong> atau tag VLAN baru.
                                                     </div>
                                                     <div v-else class="flex flex-wrap gap-1.5">
                                                         <span
@@ -680,17 +686,17 @@ const onuSummary = (row) => {
 
                                                 <!-- Add mode -->
                                                 <div v-else>
-                                                    <p class="mb-3 text-xs font-semibold text-emerald-700">Tag VLAN ke {{ row.interface }}</p>
+                                                    <p class="mb-3 text-xs font-semibold text-emerald-400">Tag VLAN ke {{ row.interface }}</p>
                                                     <div class="flex flex-wrap items-end gap-3">
                                                         <div>
-                                                            <label class="mb-1.5 block text-xs font-medium text-gray-600">Nomor VLAN (1–4094)</label>
+                                                            <label class="mb-1.5 block text-xs font-medium text-slate-400">Nomor VLAN (1–4094)</label>
                                                             <input
                                                                 v-model.number="vlanForm.vlan_id"
                                                                 type="number"
                                                                 min="1"
                                                                 max="4094"
                                                                 placeholder="contoh: 500"
-                                                                class="w-36 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                                                class="w-36 rounded-lg border border-white/15 bg-slate-800/60 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
                                                                 @keydown.enter="submitVlan"
                                                             />
                                                         </div>
@@ -704,8 +710,8 @@ const onuSummary = (row) => {
                                                             {{ vlanForm.submitting ? 'Menerapkan…' : 'Terapkan' }}
                                                         </PrimaryButton>
                                                     </div>
-                                                    <p class="mt-2 text-xs text-gray-400">
-                                                        Script: <code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600">configure terminal → vlan {id} → exit → interface {{ row.interface }} → switchport vlan {id} tag → end → write</code>
+                                                    <p class="mt-2 text-xs text-slate-500">
+                                                        Script: <code class="rounded bg-white/[0.06] px-1.5 py-0.5 font-mono text-slate-400">configure terminal → vlan {id} → exit → interface {{ row.interface }} → switchport vlan {id} tag → end → write</code>
                                                     </p>
                                                 </div>
                                             </td>
@@ -720,22 +726,24 @@ const onuSummary = (row) => {
                 <!-- ══════════════════════════════════════
                      SECTION 3: GPON Port
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex flex-col gap-1 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Wifi class="h-5 w-5 text-gray-500" />
-                            <h3 class="font-semibold text-gray-800">GPON Port</h3>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex flex-col gap-1 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Wifi class="h-5 w-5 text-sky-400" />
+                            </div>
+                            <h3 class="font-semibold text-white">GPON Port</h3>
                         </div>
-                        <span class="text-xs text-gray-500">{{ gponDetails.length }} port terdeteksi</span>
+                        <span class="text-xs text-slate-400">{{ gponDetails.length }} port terdeteksi</span>
                     </div>
 
-                    <div v-if="gponDetails.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                    <div v-if="gponDetails.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
                         Belum ada GPON port terdeteksi dari snapshot.
                     </div>
 
                     <template v-else>
                         <!-- Card/slot selector tabs -->
-                        <div class="border-b border-gray-100 px-5">
+                        <div class="border-b border-white/[0.06] px-5">
                             <div class="flex gap-0 overflow-x-auto">
                                 <button
                                     v-for="slot in gponSlots"
@@ -743,12 +751,12 @@ const onuSummary = (row) => {
                                     type="button"
                                     class="flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
                                     :class="selectedGponSlot === slot
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                                        ? 'border-sky-400 text-sky-300'
+                                        : 'border-transparent text-slate-500 hover:border-white/20 hover:text-slate-300'"
                                     @click="selectedGponSlot = slot"
                                 >
                                     <span class="font-mono">{{ gponCardLabel(slot) }}</span>
-                                    <span class="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+                                    <span class="rounded-full bg-white/[0.08] px-1.5 py-0.5 text-xs text-slate-400">
                                         {{ gponDetails.filter(r => r.slot === slot).length }}
                                     </span>
                                 </button>
@@ -758,59 +766,59 @@ const onuSummary = (row) => {
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
                                 <thead>
-                                    <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                                        <th class="px-4 py-3">Interface</th>
-                                        <th class="px-4 py-3">Card</th>
-                                        <th class="px-4 py-3">Admin</th>
-                                        <th class="px-4 py-3">Link</th>
-                                        <th class="px-4 py-3">ONU</th>
-                                        <th class="px-4 py-3">Traffic</th>
-                                        <th class="px-4 py-3">Throughput</th>
-                                        <th class="px-4 py-3">Optical</th>
-                                        <th class="px-4 py-3">Module</th>
-                                        <th class="px-4 py-3">Peak</th>
-                                        <th class="px-4 py-3">Aksi</th>
-                                        <th class="px-4 py-3">Refresh</th>
+                                    <tr class="border-b border-white/[0.06] bg-white/[0.03] text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                        <th class="px-4 py-3.5">Interface</th>
+                                        <th class="px-4 py-3.5">Card</th>
+                                        <th class="px-4 py-3.5">Admin</th>
+                                        <th class="px-4 py-3.5">Link</th>
+                                        <th class="px-4 py-3.5">ONU</th>
+                                        <th class="px-4 py-3.5">Traffic</th>
+                                        <th class="px-4 py-3.5">Throughput</th>
+                                        <th class="px-4 py-3.5">Optical</th>
+                                        <th class="px-4 py-3.5">Module</th>
+                                        <th class="px-4 py-3.5">Peak</th>
+                                        <th class="px-4 py-3.5">Aksi</th>
+                                        <th class="px-4 py-3.5">Refresh</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-gray-100">
-                                    <tr v-for="row in filteredGponDetails" :key="row.interface" class="transition-colors hover:bg-gray-50">
-                                        <td class="px-4 py-3 font-mono text-gray-800">{{ row.interface }}</td>
-                                        <td class="px-4 py-3 text-gray-600">{{ row.card_type || '-' }}</td>
-                                        <td class="px-4 py-3 text-gray-600">{{ row.admin_status || '-' }}</td>
+                                <tbody class="divide-y divide-white/[0.05]">
+                                    <tr v-for="row in filteredGponDetails" :key="row.interface" class="transition-colors duration-150 hover:bg-white/[0.04]">
+                                        <td class="px-4 py-3 font-mono text-slate-200">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-slate-300">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-slate-300">{{ row.admin_status || '-' }}</td>
                                         <td class="px-4 py-3">
-                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="linkBadgeColor(row.link_status)">
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
                                                 {{ row.link_status || '-' }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">{{ onuSummary(row) }}</td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">{{ onuSummary(row) }}</td>
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">↓ {{ formatBps(row.input_bps) }}</span>
-                                            <span class="block text-xs text-gray-400">↑ {{ formatBps(row.output_bps) }}</span>
+                                            <span class="block text-xs text-slate-500">↑ {{ formatBps(row.output_bps) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">In {{ formatPercent(row.input_throughput_percent) }}</span>
-                                            <span class="block text-xs text-gray-400">Out {{ formatPercent(row.output_throughput_percent) }}</span>
+                                            <span class="block text-xs text-slate-500">Out {{ formatPercent(row.output_throughput_percent) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
-                                            <span class="block text-xs text-gray-400">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                            <span class="block text-xs text-slate-500">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
-                                            <span class="block max-w-44 truncate text-xs text-gray-400">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
-                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-gray-400">
+                                            <span class="block max-w-44 truncate text-xs text-slate-500">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
+                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-slate-500">
                                                 {{ formatNumber(row.temperature_c, '°C') }} · {{ formatNumber(row.supply_voltage_v, 'V') }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-gray-600">
+                                        <td class="px-4 py-3 text-slate-300">
                                             <span class="block">↓ {{ formatBps(row.input_peak_bps) }}</span>
-                                            <span class="block text-xs text-gray-400">↑ {{ formatBps(row.output_peak_bps) }}</span>
+                                            <span class="block text-xs text-slate-500">↑ {{ formatBps(row.output_peak_bps) }}</span>
                                         </td>
                                         <td class="px-4 py-3">
                                             <button
                                                 type="button"
-                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-slate-400 shadow-sm transition hover:bg-white/[0.08] hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
                                                 :disabled="refreshingInterface === row.interface"
                                                 :title="`Refresh ${row.interface}`"
                                                 @click="refreshInterface(row)"
@@ -818,7 +826,7 @@ const onuSummary = (row) => {
                                                 <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': refreshingInterface === row.interface }" />
                                             </button>
                                         </td>
-                                        <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(row.refreshed_at) }}</td>
+                                        <td class="px-4 py-3 text-xs text-slate-500">{{ formatDate(row.refreshed_at) }}</td>
                                     </tr>
                                 </tbody>
                             </table>

@@ -107,40 +107,38 @@ const formatDate = (value) => {
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div
-                    v-if="flash.success"
-                    class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-                >
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>
                     {{ flash.success }}
                 </div>
-                <div
-                    v-if="flash.error"
-                    class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-                >
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
                     {{ flash.error }}
                 </div>
 
-                <div class="overflow-hidden rounded-lg bg-white shadow-sm">
-                    <div class="border-b border-gray-200 px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <Users class="h-5 w-5 text-gray-500" />
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900">
-                                    Daftar User
-                                </h3>
-                                <p class="text-sm text-gray-500">
-                                    Kelola akun pengguna sistem KusumaVision NMS.
-                                </p>
-                            </div>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 ring-1 ring-emerald-500/30">
+                            <Users class="h-5 w-5 text-emerald-400" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">
+                                Daftar User
+                            </h3>
+                            <p class="text-xs text-slate-400">
+                                Kelola akun pengguna sistem KusumaVision NMS.
+                            </p>
                         </div>
                     </div>
 
                     <div v-if="users.length === 0" class="px-6 py-12 text-center">
-                        <Users class="mx-auto h-10 w-10 text-gray-300" />
-                        <h3 class="mt-3 text-sm font-semibold text-gray-900">Belum ada user</h3>
-                        <p class="mt-1 text-sm text-gray-500">Tambahkan user pertama untuk memulai.</p>
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+                            <Users class="h-7 w-7 text-slate-500" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-200">Belum ada user</h3>
+                        <p class="mt-1 text-sm text-slate-400">Tambahkan user pertama untuk memulai.</p>
                         <div class="mt-5">
                             <PrimaryButton @click="openCreate">
                                 <Plus class="mr-2 h-4 w-4" />
@@ -150,42 +148,42 @@ const formatDate = (value) => {
                     </div>
 
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                                         Nama
                                     </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                                         Email
                                     </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                                         Terdaftar
                                     </th>
-                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
                                         Aksi
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
-                                <tr v-for="user in users" :key="user.id">
+                            <tbody class="divide-y divide-white/[0.05]">
+                                <tr v-for="user in users" :key="user.id" class="transition-colors duration-150 hover:bg-white/[0.04]">
                                     <td class="px-6 py-4">
                                         <div class="flex items-center gap-3">
-                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
+                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-semibold text-indigo-300 ring-1 ring-indigo-500/30">
                                                 {{ user.name.charAt(0).toUpperCase() }}
                                             </div>
                                             <div>
-                                                <div class="font-medium text-gray-900">{{ user.name }}</div>
-                                                <div v-if="user.id === $page.props.auth.user.id" class="text-xs text-indigo-600">
+                                                <div class="font-medium text-slate-100">{{ user.name }}</div>
+                                                <div v-if="user.id === $page.props.auth.user.id" class="text-xs text-indigo-400">
                                                     (Anda)
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">
+                                    <td class="px-6 py-4 text-sm text-slate-300">
                                         {{ user.email }}
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-gray-500">
+                                    <td class="px-6 py-4 text-sm text-slate-400">
                                         {{ formatDate(user.created_at) }}
                                     </td>
                                     <td class="px-6 py-4">

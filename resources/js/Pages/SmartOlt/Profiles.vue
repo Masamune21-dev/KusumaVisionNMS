@@ -159,73 +159,70 @@ const syncFromOlt = () => {
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                <div
-                    v-if="flash.success"
-                    class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-                >
-                    {{ flash.success }}
+                <!-- Flash messages -->
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>{{ flash.success }}
                 </div>
-                <div
-                    v-if="flash.error"
-                    class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-                >
-                    {{ flash.error }}
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>{{ flash.error }}
                 </div>
 
                 <section
                     v-for="type in types"
                     :key="type.key"
-                    class="overflow-hidden rounded-lg bg-white shadow-sm"
+                    class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl"
                 >
-                    <div class="border-b border-gray-200 px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <Database class="h-5 w-5 text-gray-500" />
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900">{{ type.label }}</h3>
-                                <p class="text-sm text-gray-500">
-                                    {{ type.uses_vlan ? 'Profile service dan VLAN ID dari OLT.' : 'Profile CLI yang dipakai pada script provisioning.' }}
-                                </p>
-                            </div>
+                    <!-- Card header -->
+                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                            <Database class="h-5 w-5 text-sky-400" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">{{ type.label }}</h3>
+                            <p class="text-sm text-slate-400">
+                                {{ type.uses_vlan ? 'Profile service dan VLAN ID dari OLT.' : 'Profile CLI yang dipakai pada script provisioning.' }}
+                            </p>
                         </div>
                     </div>
 
-                    <div class="border-b border-gray-100 bg-gray-50 px-6 py-4">
+                    <!-- Add form row -->
+                    <div class="border-b border-white/[0.06] bg-white/[0.03] px-6 py-4">
                         <form class="grid gap-4 md:grid-cols-12 md:items-end" @submit.prevent="store(type)">
                             <div class="md:col-span-3">
-                                <InputLabel :for="`name-${type.key}`" value="Nama Profile" />
+                                <InputLabel :for="`name-${type.key}`" value="Nama Profile" class="text-slate-300" />
                                 <TextInput :id="`name-${type.key}`" v-model="createForms[type.key].name" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.name" />
                             </div>
                             <div v-if="type.key === 'vlan'" class="md:col-span-2">
-                                <InputLabel :for="`vlan-${type.key}`" value="VLAN" />
+                                <InputLabel :for="`vlan-${type.key}`" value="VLAN" class="text-slate-300" />
                                 <TextInput :id="`vlan-${type.key}`" v-model="createForms[type.key].vlan" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.vlan" />
                             </div>
                             <div v-if="type.key === 'tcont'" class="md:col-span-2">
-                                <InputLabel :for="`tcont-type-${type.key}`" value="Type" />
+                                <InputLabel :for="`tcont-type-${type.key}`" value="Type" class="text-slate-300" />
                                 <TextInput :id="`tcont-type-${type.key}`" v-model="createForms[type.key].params.type" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors['params.type']" />
                             </div>
                             <div v-if="type.key === 'tcont'" class="md:col-span-2">
-                                <InputLabel :for="`maximum-${type.key}`" value="Maximum" />
+                                <InputLabel :for="`maximum-${type.key}`" value="Maximum" class="text-slate-300" />
                                 <TextInput :id="`maximum-${type.key}`" v-model="createForms[type.key].params.maximum" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors['params.maximum']" />
                             </div>
                             <div v-if="type.key === 'ip'" class="md:col-span-3">
-                                <InputLabel :for="`gateway-${type.key}`" value="Gateway" />
+                                <InputLabel :for="`gateway-${type.key}`" value="Gateway" class="text-slate-300" />
                                 <TextInput :id="`gateway-${type.key}`" v-model="createForms[type.key].params.gateway" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors['params.gateway']" />
                             </div>
                             <div class="md:col-span-3">
-                                <InputLabel :for="`notes-${type.key}`" value="Catatan" />
+                                <InputLabel :for="`notes-${type.key}`" value="Catatan" class="text-slate-300" />
                                 <TextInput :id="`notes-${type.key}`" v-model="createForms[type.key].notes" class="mt-1 block w-full" />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.notes" />
                             </div>
                             <div class="md:col-span-2">
-                                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                    <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                                    <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-slate-600 bg-slate-700 text-indigo-500 shadow-sm focus:ring-indigo-500" />
                                     Eksekusi CLI
                                 </label>
                             </div>
@@ -238,24 +235,25 @@ const syncFromOlt = () => {
                         </form>
                     </div>
 
+                    <!-- Table -->
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-white">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Nama</th>
-                                    <th v-if="type.key === 'vlan'" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">VLAN</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Params</th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">Status</th>
-                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Aksi</th>
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Nama</th>
+                                    <th v-if="type.key === 'vlan'" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">VLAN</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Params</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
+                            <tbody class="divide-y divide-white/[0.05]">
                                 <tr v-if="rowsFor(type).length === 0">
-                                    <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-gray-500">
+                                    <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-slate-500">
                                         Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
                                     </td>
                                 </tr>
-                                <tr v-for="profile in rowsFor(type)" :key="profile.id">
+                                <tr v-for="profile in rowsFor(type)" :key="profile.id" class="transition-colors duration-150 hover:bg-white/[0.04]">
                                     <template v-if="editing[profile.id]">
                                         <td class="px-6 py-4">
                                             <TextInput v-model="editing[profile.id].name" class="block w-48" required />
@@ -274,12 +272,12 @@ const syncFromOlt = () => {
                                             <TextInput v-else v-model="editing[profile.id].notes" class="block w-72" />
                                         </td>
                                         <td class="px-6 py-4">
-                                            <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                                                <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                            <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                                                <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-slate-600 bg-slate-700 text-indigo-500 shadow-sm focus:ring-indigo-500" />
                                                 Aktif
                                             </label>
-                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
-                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-300">
+                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-slate-600 bg-slate-700 text-indigo-500 shadow-sm focus:ring-indigo-500" />
                                                 Eksekusi CLI
                                             </label>
                                         </td>
@@ -295,9 +293,9 @@ const syncFromOlt = () => {
                                         </td>
                                     </template>
                                     <template v-else>
-                                        <td class="px-6 py-4 font-medium text-gray-900">{{ profile.name }}</td>
-                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-gray-700">{{ profile.vlan }}</td>
-                                        <td class="px-6 py-4 text-sm text-gray-600">
+                                        <td class="px-6 py-4 text-sm font-medium text-white">{{ profile.name }}</td>
+                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-slate-300">{{ profile.vlan }}</td>
+                                        <td class="px-6 py-4 text-sm text-slate-300">
                                             <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
                                             <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
                                             <span v-else>{{ profile.notes || '-' }}</span>
@@ -305,12 +303,14 @@ const syncFromOlt = () => {
                                         <td class="px-6 py-4">
                                             <div class="space-y-1">
                                                 <span
-                                                    class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
-                                                    :class="profile.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'"
+                                                    class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1"
+                                                    :class="profile.is_active
+                                                        ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25'
+                                                        : 'bg-slate-500/15 text-slate-400 ring-slate-500/25'"
                                                 >
                                                     {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
                                                 </span>
-                                                <div class="text-xs text-gray-500">{{ profile.source || 'manual' }}</div>
+                                                <div class="text-xs text-slate-500">{{ profile.source || 'manual' }}</div>
                                             </div>
                                         </td>
                                         <td class="px-6 py-4">
@@ -324,7 +324,7 @@ const syncFromOlt = () => {
                                                 <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari OLT + cache" @click="destroyProfile(profile, true)">
                                                     <ServerOff class="h-4 w-4" />
                                                 </IconButton>
-                                                <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-gray-500">Fallback global</span>
+                                                <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-500">Fallback global</span>
                                             </div>
                                         </td>
                                     </template>

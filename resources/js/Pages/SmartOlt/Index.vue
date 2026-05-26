@@ -71,44 +71,44 @@ const formatDate = (value) => {
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <!-- Flash messages -->
                 <div
                     v-if="flash.success"
-                    class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                    class="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm"
                 >
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>
                     {{ flash.success }}
                 </div>
                 <div
                     v-if="flash.error"
-                    class="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    class="mb-5 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm"
                 >
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
                     {{ flash.error }}
                 </div>
 
-                <div class="overflow-hidden rounded-lg bg-white shadow-sm">
-                    <div class="border-b border-gray-200 px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <Cable class="h-5 w-5 text-gray-500" />
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900">
-                                    OLT Inventory
-                                </h3>
-                                <p class="text-sm text-gray-500">
-                                    SNMP inventory dan test koneksi awal untuk ZTE C300/C320.
-                                </p>
-                            </div>
+                <!-- Glass card -->
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <!-- Card header -->
+                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                            <Cable class="h-5 w-5 text-sky-400" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">OLT Inventory</h3>
+                            <p class="text-xs text-slate-400">SNMP inventory & test koneksi ZTE C300/C320</p>
                         </div>
                     </div>
 
-                    <div v-if="olts.length === 0" class="px-6 py-12 text-center">
-                        <Cable class="mx-auto h-10 w-10 text-gray-300" />
-                        <h3 class="mt-3 text-sm font-semibold text-gray-900">
-                            Belum ada OLT
-                        </h3>
-                        <p class="mt-1 text-sm text-gray-500">
-                            Tambahkan OLT pertama untuk mulai test SNMP.
-                        </p>
+                    <!-- Empty state -->
+                    <div v-if="olts.length === 0" class="px-6 py-16 text-center">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
+                            <Cable class="h-7 w-7 text-slate-500" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
+                        <p class="mt-1 text-sm text-slate-400">Tambahkan OLT pertama untuk mulai test SNMP.</p>
                         <div class="mt-5">
                             <Link :href="route('smartolt.create')">
                                 <PrimaryButton>
@@ -119,71 +119,79 @@ const formatDate = (value) => {
                         </div>
                     </div>
 
+                    <!-- Table -->
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                        OLT
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                        SNMP
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                        Driver
-                                    </th>
-                                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                        Test Terakhir
-                                    </th>
-                                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-600">
-                                        Aksi
-                                    </th>
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">OLT</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">SNMP</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Driver</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Test Terakhir</th>
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
-                                <tr v-for="olt in olts" :key="olt.id">
+                            <tbody class="divide-y divide-white/[0.05]">
+                                <tr
+                                    v-for="olt in olts"
+                                    :key="olt.id"
+                                    class="transition-colors duration-150 hover:bg-white/[0.04]"
+                                >
                                     <td class="px-6 py-4">
-                                        <div class="font-medium text-gray-900">
-                                            {{ olt.name }}
-                                        </div>
-                                        <div class="text-sm text-gray-500">
-                                            {{ olt.vendor || 'Vendor belum diisi' }}
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-700">
-                                        <div>{{ olt.ip }}:{{ olt.snmp_port }}</div>
-                                        <div class="text-xs uppercase text-gray-500">
-                                            {{ olt.snmp_version }}
-                                        </div>
+                                        <div class="font-semibold text-slate-100">{{ olt.name }}</div>
+                                        <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || 'Vendor belum diisi' }}</div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="space-y-1">
+                                        <div class="font-mono text-sm text-slate-200">{{ olt.ip }}:{{ olt.snmp_port }}</div>
+                                        <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="space-y-1.5">
                                             <span
-                                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium"
+                                                class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1"
                                                 :class="olt.driver === 'zte'
-                                                    ? 'bg-sky-100 text-sky-800'
-                                                    : 'bg-gray-100 text-gray-700'"
+                                                    ? 'bg-sky-500/15 text-sky-300 ring-sky-500/25'
+                                                    : 'bg-slate-500/15 text-slate-400 ring-slate-500/25'"
                                             >
                                                 {{ olt.capabilities.vendor_family }}
                                             </span>
-                                            <div class="text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-gray-400'">
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="olt.polling_enabled ? 'bg-emerald-400' : 'bg-slate-600'"
+                                                ></span>
                                                 Auto-poll: {{ olt.polling_enabled ? 'On' : 'Off' }}
                                             </div>
-                                            <div v-if="olt.polling_enabled" class="text-xs text-gray-500">
+                                            <div v-if="olt.polling_enabled" class="text-xs text-slate-500">
                                                 {{ olt.poll_interval_minutes }}m · RX {{ olt.rx_poll_interval_minutes }}m
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-sm">
-                                        <div
-                                            class="font-medium"
-                                            :class="olt.last_test_result?.ok ? 'text-emerald-700' : 'text-gray-700'"
-                                        >
-                                            {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span
+                                                class="inline-flex h-2 w-2 flex-shrink-0 rounded-full"
+                                                :class="olt.last_test_result?.ok
+                                                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]'
+                                                    : olt.last_test_result
+                                                        ? 'bg-red-400'
+                                                        : 'bg-slate-600'"
+                                            ></span>
+                                            <span
+                                                class="text-sm font-semibold"
+                                                :class="olt.last_test_result?.ok
+                                                    ? 'text-emerald-400'
+                                                    : olt.last_test_result
+                                                        ? 'text-red-400'
+                                                        : 'text-slate-500'"
+                                            >
+                                                {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
+                                            </span>
                                         </div>
-                                        <div class="text-xs text-gray-500">
-                                            {{ formatDate(olt.last_tested_at) }}
-                                        </div>
+                                        <div class="mt-1 text-xs text-slate-500">{{ formatDate(olt.last_tested_at) }}</div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex justify-center gap-1.5">

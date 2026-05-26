@@ -53,10 +53,10 @@ const executeRegistration = async (registration) => {
 };
 
 const statusClass = (status) => ({
-    generated: 'bg-gray-100 text-gray-700',
-    executed: 'bg-emerald-100 text-emerald-800',
-    failed: 'bg-red-100 text-red-800',
-}[status] ?? 'bg-gray-100 text-gray-700');
+    generated: 'bg-slate-500/15 text-slate-400 ring-1 ring-slate-500/25',
+    executed:  'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25',
+    failed:    'bg-red-500/15 text-red-300 ring-1 ring-red-500/25',
+}[status] ?? 'bg-slate-500/15 text-slate-400 ring-1 ring-slate-500/25');
 </script>
 
 <template>
@@ -78,33 +78,37 @@ const statusClass = (status) => ({
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                <div v-if="flash.success" class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>
                     {{ flash.success }}
                 </div>
-                <div v-if="flash.error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
                     {{ flash.error }}
                 </div>
 
-                <div class="rounded-lg bg-white shadow-sm">
-                    <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
-                        <ClipboardList class="h-5 w-5 text-gray-500" />
-                        <h3 class="text-base font-semibold text-gray-900">Generated Scripts</h3>
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30">
+                            <ClipboardList class="h-5 w-5 text-violet-400" />
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Generated Scripts</h3>
                     </div>
 
-                    <div v-if="registrations.length === 0" class="px-6 py-10 text-center text-sm text-gray-500">
+                    <div v-if="registrations.length === 0" class="px-6 py-10 text-center text-sm text-slate-400">
                         Belum ada provisioning script.
                     </div>
 
-                    <div v-else class="divide-y divide-gray-200">
+                    <div v-else class="divide-y divide-white/[0.06]">
                         <div v-for="registration in registrations" :key="registration.id" class="p-6">
                             <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
-                                    <div class="font-semibold text-gray-900">
+                                    <div class="font-semibold text-slate-100">
                                         {{ registration.customer_name }} · {{ registration.pon_port }}
                                     </div>
-                                    <div class="text-sm text-gray-500">
+                                    <div class="text-sm text-slate-400">
                                         {{ registration.serial_number }} · VLAN {{ registration.vlan }} · {{ registration.wan_mode }} · {{ formatDate(registration.created_at) }}
                                     </div>
                                 </div>
@@ -117,15 +121,15 @@ const statusClass = (status) => ({
                                     </IconButton>
                                 </div>
                             </div>
-                            <pre class="mt-4 overflow-x-auto rounded-md bg-gray-950 p-4 text-xs text-gray-100">{{ registration.cli_script }}</pre>
+                            <pre class="mt-4 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-300 border border-white/[0.06]">{{ registration.cli_script }}</pre>
                             <div v-if="registration.executed_at || registration.execution_output || registration.execution_error" class="mt-4 space-y-2">
-                                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                <div class="text-xs font-medium uppercase tracking-wide text-slate-500">
                                     Execution · {{ formatDate(registration.executed_at) }}
                                 </div>
-                                <div v-if="registration.execution_error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                                <div v-if="registration.execution_error" class="flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm">
                                     {{ registration.execution_error }}
                                 </div>
-                                <pre v-if="registration.execution_output" class="overflow-x-auto rounded-md bg-gray-900 p-4 text-xs text-gray-100">{{ registration.execution_output }}</pre>
+                                <pre v-if="registration.execution_output" class="overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-300 border border-white/[0.06]">{{ registration.execution_output }}</pre>
                             </div>
                         </div>
                     </div>

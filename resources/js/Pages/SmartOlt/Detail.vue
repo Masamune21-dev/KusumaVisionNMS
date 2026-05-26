@@ -71,9 +71,9 @@ const formatUptime = (timeticks) => {
 
 const cardStatusColor = (status) => {
     const s = String(status ?? '').toUpperCase();
-    if (s === 'INSERVICE') return 'text-green-600 bg-green-50';
-    if (s === 'STANDBY') return 'text-yellow-600 bg-yellow-50';
-    return 'text-red-600 bg-red-50';
+    if (s === 'INSERVICE') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25';
+    if (s === 'STANDBY') return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/25';
+    return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25';
 };
 
 const oltImage = computed(() => {
@@ -138,104 +138,97 @@ const oltImage = computed(() => {
             </div>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
                 <div
                     v-if="flash.success"
-                    class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+                    class="mb-5 flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm"
                 >
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>
                     {{ flash.success }}
                 </div>
                 <div
                     v-if="flash.error"
-                    class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    class="mb-5 flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm"
                 >
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
                     {{ flash.error }}
                 </div>
 
                 <div class="grid gap-4 md:grid-cols-4">
-                    <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Status</div>
-                        <div
-                            class="mt-2 text-2xl font-semibold"
-                            :class="snapshot.ok ? 'text-emerald-700' : 'text-gray-900'"
-                        >
+                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Status</p>
+                        <p class="mt-3 text-2xl font-bold"
+                            :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
                             {{ snapshot.ok ? 'Online' : 'Unknown' }}
-                        </div>
+                        </p>
                     </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">GPON Port</div>
-                        <div class="mt-2 text-2xl font-semibold text-gray-900">
-                            {{ snapshot.ports.length }}
-                        </div>
+                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">GPON Port</p>
+                        <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
                     </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Total ONU</div>
-                        <div class="mt-2 text-2xl font-semibold text-gray-900">
-                            {{ onuOnline }}<span class="text-sm text-gray-400"> / {{ onuTotal }} online</span>
-                        </div>
+                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total ONU</p>
+                        <p class="mt-3 text-2xl font-bold text-white">
+                            {{ onuOnline }}<span class="text-sm font-normal text-slate-400"> / {{ onuTotal }} online</span>
+                        </p>
                     </div>
-                    <div class="rounded-lg bg-white p-5 shadow-sm">
-                        <div class="text-sm font-medium text-gray-500">Refresh Terakhir</div>
-                        <div class="mt-2 text-sm font-semibold text-gray-900">
-                            {{ formatDate(snapshot.last_tested_at) }}
-                        </div>
-                        <div class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-gray-400'">
+                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Refresh Terakhir</p>
+                        <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.last_tested_at) }}</p>
+                        <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'">
                             Auto-poll {{ olt.polling_enabled ? 'On' : 'Off' }} · {{ formatDate(olt.last_polled_at) }}
-                        </div>
+                        </p>
                     </div>
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
-                    <div class="rounded-lg bg-white shadow-sm">
-                        <div class="flex items-center gap-3 border-b border-gray-200 px-6 py-4">
-                            <Server class="h-5 w-5 text-gray-500" />
-                            <h3 class="text-base font-semibold text-gray-900">
-                                System Info
-                            </h3>
+                    <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Server class="h-5 w-5 text-sky-400" />
+                            </div>
+                            <h3 class="text-base font-semibold text-white">System Info</h3>
                         </div>
-                        <dl class="divide-y divide-gray-100">
+                        <dl class="divide-y divide-white/[0.06]">
                             <div class="px-6 py-4">
-                                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">sysName</dt>
-                                <dd class="mt-1 break-words text-sm text-gray-900">{{ snapshot.system.sys_name || '-' }}</dd>
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysName</dt>
+                                <dd class="mt-1 break-words text-sm text-slate-200">{{ snapshot.system.sys_name || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
-                                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">sysDescr</dt>
-                                <dd class="mt-1 break-words text-sm text-gray-900">{{ snapshot.system.sys_descr || '-' }}</dd>
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysDescr</dt>
+                                <dd class="mt-1 break-words text-sm text-slate-200">{{ snapshot.system.sys_descr || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
-                                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">sysObjectID</dt>
-                                <dd class="mt-1 break-words text-sm text-gray-900">{{ snapshot.system.sys_object_id || '-' }}</dd>
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysObjectID</dt>
+                                <dd class="mt-1 break-words text-sm text-slate-200">{{ snapshot.system.sys_object_id || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
-                                <dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">sysUptime</dt>
-                                <dd class="mt-1 break-words text-sm text-gray-900">{{ formatUptime(snapshot.system.sys_uptime) }}</dd>
+                                <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysUptime</dt>
+                                <dd class="mt-1 break-words text-sm text-slate-200">{{ formatUptime(snapshot.system.sys_uptime) }}</dd>
                             </div>
                         </dl>
                     </div>
 
-                    <div class="flex items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
-                        <img
-                            v-if="oltImage"
-                            :src="oltImage"
-                            :alt="olt.name"
-                            class="max-h-96 w-full object-contain p-8"
-                        />
-                        <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-gray-300">
+                    <div class="flex items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-2xl">
+                        <img v-if="oltImage" :src="oltImage" :alt="olt.name" class="max-h-96 w-full object-contain p-8" />
+                        <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-slate-600">
                             <Router class="h-16 w-16" />
-                            <span class="text-sm">Gambar tidak tersedia</span>
+                            <span class="text-sm text-slate-500">Gambar tidak tersedia</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Status Card / Hardware -->
-                <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-2">
-                            <Layers class="h-5 w-5 text-gray-500" />
+                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
+                    <div class="flex flex-col gap-3 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Layers class="h-5 w-5 text-sky-400" />
+                            </div>
                             <div>
-                                <h3 class="text-base font-semibold text-gray-900">Status Card / Hardware</h3>
-                                <p class="mt-0.5 text-xs text-gray-500">Refresh terakhir: {{ formatDate(hardwareLastRefresh) }}</p>
+                                <h3 class="text-base font-semibold text-white">Status Card / Hardware</h3>
+                                <p class="mt-0.5 text-xs text-slate-500">Refresh terakhir: {{ formatDate(hardwareLastRefresh) }}</p>
                             </div>
                         </div>
                         <SecondaryButton type="button" :disabled="hardwareRefreshing" @click="refreshHardware">
@@ -243,32 +236,32 @@ const oltImage = computed(() => {
                             Refresh Hardware
                         </SecondaryButton>
                     </div>
-                    <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                    <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-slate-400">
                         Belum ada data hardware tersimpan.
                     </div>
                     <div v-else class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
-                                <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
-                                    <th class="px-4 py-3">Rack/Shelf/Slot</th>
-                                    <th class="px-4 py-3">Tipe</th>
-                                    <th class="px-4 py-3">Real</th>
-                                    <th class="px-4 py-3">Port</th>
-                                    <th class="px-4 py-3">HW Ver</th>
-                                    <th class="px-4 py-3">SW Ver</th>
-                                    <th class="px-4 py-3">Status</th>
+                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Rack/Shelf/Slot</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Tipe</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Real</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Port</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">HW Ver</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">SW Ver</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-white/[0.05]">
                                 <tr v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`"
-                                    class="transition-colors hover:bg-gray-50">
-                                    <td class="px-4 py-3 font-mono text-gray-700">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
-                                    <td class="px-4 py-3 font-semibold text-gray-800">{{ card.cfg_type }}</td>
-                                    <td class="px-4 py-3 text-gray-600">{{ card.real_type || '—' }}</td>
-                                    <td class="px-4 py-3 text-gray-600">{{ card.port_count }}</td>
-                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.hard_ver || '—' }}</td>
-                                    <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ card.soft_ver || '—' }}</td>
-                                    <td class="px-4 py-3">
+                                    class="transition-colors duration-150 hover:bg-white/[0.04]">
+                                    <td class="px-4 py-4 font-mono text-sm text-slate-200">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
+                                    <td class="px-4 py-4 font-semibold text-slate-100">{{ card.cfg_type }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-300">{{ card.real_type || '—' }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-300">{{ card.port_count }}</td>
+                                    <td class="px-4 py-4 font-mono text-xs text-slate-400">{{ card.hard_ver || '—' }}</td>
+                                    <td class="px-4 py-4 font-mono text-xs text-slate-400">{{ card.soft_ver || '—' }}</td>
+                                    <td class="px-4 py-4">
                                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
                                               :class="cardStatusColor(card.status)">
                                             {{ card.status }}

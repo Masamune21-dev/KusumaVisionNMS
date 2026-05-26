@@ -21,11 +21,9 @@ defineProps({
             </h2>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-100/60 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                <div class="rounded-lg bg-white p-6 shadow-sm">
-                    <OltForm :defaults="defaults" submit-label="Simpan OLT" />
-                </div>
+                <OltForm :defaults="defaults" submit-label="Simpan OLT" />
             </div>
         </div>
     </AuthenticatedLayout>
