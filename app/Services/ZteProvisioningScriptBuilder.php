@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Support\SmartOltSupport;
+
 class ZteProvisioningScriptBuilder
 {
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function build(array $data): string
     {
@@ -20,35 +22,47 @@ class ZteProvisioningScriptBuilder
         $serviceName = (string) ($data['service_name'] ?? 'ServiceName');
         $wanLine = $this->wanLine($data, $name);
         $description = "{$onuId}\$\${$name}\$\$";
+        $isC600 = (bool) ($data['is_c600'] ?? false);
+        $oltIface = SmartOltSupport::gponOltInterface($slot, $port, $isC600);
+        $onuIface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
 
-        return implode("\n", array_filter([
+        $lines = [
             'conf t',
             '',
-            "interface gpon-olt_1/{$slot}/{$port}",
+            "interface {$oltIface}",
             "onu {$onuId} type {$onuType} sn {$sn}",
             'exit',
             '',
-            "interface gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            "interface {$onuIface}",
             "name {$name}",
-            "description {$description}",
+        ];
+
+        // C600 has no separate description OID; omit from script
+        if (! $isC600) {
+            $lines[] = "description {$description}";
+        }
+
+        $lines = array_merge($lines, [
             "tcont 1 name 1 profile {$tcontProfile}",
             'gemport 1 name 1 tcont 1',
             'encrypt 1 enable downstream',
             "service-port 1 vport 1 user-vlan {$vlan} vlan {$vlan}",
             'exit',
             '',
-            "pon-onu-mng gpon-onu_1/{$slot}/{$port}:{$onuId}",
+            "pon-onu-mng {$onuIface}",
             "service {$serviceName} gemport 1 cos 0 vlan {$vlan}",
             ...$this->tr069Lines($data),
             $wanLine,
             $this->remoteOntLine($data),
             'wan-ip 1 ping-response enable traceroute-response enable',
             'exit',
-        ], fn (?string $line) => $line !== null));
+        ]);
+
+        return implode("\n", array_filter($lines, fn (?string $line) => $line !== null));
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<int, string>
      */
     private function tr069Lines(array $data): array
@@ -69,7 +83,7 @@ class ZteProvisioningScriptBuilder
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     private function remoteOntLine(array $data): ?string
     {
@@ -86,7 +100,7 @@ class ZteProvisioningScriptBuilder
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     private function wanLine(array $data, string $name): string
     {

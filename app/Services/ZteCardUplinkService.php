@@ -10,9 +10,17 @@ use RuntimeException;
 
 class ZteCardUplinkService
 {
+    // C300/C320 card type codes
     private const XGEI_CARDS = ['HUVQ', 'HUVG', 'HUVX'];
 
     private const GEI_CARDS = ['SMXA', 'SMXB'];
+
+    // C600 (Titan platform) card type codes
+    private const C600_XGEI_CARDS = ['XGEI', 'SFUL', 'SFUM'];
+
+    private const C600_GEI_CARDS = ['GEI'];
+
+    private const C600_GPON_CARDS = ['GFGH', 'GFXH', 'GFXL'];
 
     private const INACTIVE_CARD_STATUSES = ['OFFLINE', 'EMPTY', 'PWROFF'];
 
@@ -94,10 +102,17 @@ class ZteCardUplinkService
                 continue;
             }
 
-            if (in_array($cfgType, self::XGEI_CARDS, true)) {
+            $isC600Xgei = in_array($cfgType, self::C600_XGEI_CARDS, true);
+            $isC600Gei = in_array($cfgType, self::C600_GEI_CARDS, true);
+            $isC600Gpon = in_array($cfgType, self::C600_GPON_CARDS, true);
+
+            if (in_array($cfgType, self::XGEI_CARDS, true) || $isC600Xgei) {
+                // C600 uses 4-tier: xgei-1/1/slot/port; C300/C320 uses 3-tier: xgei_1/slot/port
+                $ifacePrefix = $isC600Xgei ? "xgei-1/1/{$slot}" : "xgei_1/{$slot}";
+
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [
-                        'interface' => "xgei_1/{$slot}/{$port}",
+                        'interface' => "{$ifacePrefix}/{$port}",
                         'interface_type' => 'uplink',
                         'card_type' => $cfgType,
                         'slot' => $slot,
@@ -106,10 +121,12 @@ class ZteCardUplinkService
                 }
             }
 
-            if (in_array($cfgType, self::GEI_CARDS, true)) {
+            if (in_array($cfgType, self::GEI_CARDS, true) || $isC600Gei) {
+                $ifacePrefix = $isC600Gei ? "gei-1/1/{$slot}" : "gei_1/{$slot}";
+
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [
-                        'interface' => "gei_1/{$slot}/{$port}",
+                        'interface' => "{$ifacePrefix}/{$port}",
                         'interface_type' => 'uplink',
                         'card_type' => $cfgType,
                         'slot' => $slot,

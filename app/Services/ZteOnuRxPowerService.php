@@ -3,23 +3,23 @@
 namespace App\Services;
 
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 
 class ZteOnuRxPowerService
 {
-    public function __construct(private readonly ZteCliProvisioningExecutor $executor)
-    {
-    }
+    public function __construct(private readonly ZteCliProvisioningExecutor $executor) {}
 
     /**
      * @return array{ok:bool, powers:array<int, array<string, mixed>>, output:string, error:string|null}
      */
     public function portRxPower(SnmpOlt $olt, int $slot, int $port): array
     {
-        $result = $this->executor->execute($olt, "terminal length 0\nshow pon power onu-rx gpon-olt_1/{$slot}/{$port}");
+        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $result = $this->executor->execute($olt, "terminal length 0\nshow pon power onu-rx {$iface}");
 
         return [
             'ok' => $result['ok'],
-            'powers' => $this->parse($result['output']),
+            'powers' => $this->parse($result['output'], SmartOltSupport::isC600($olt)),
             'output' => $result['output'],
             'error' => $result['error'],
         ];
@@ -28,9 +28,14 @@ class ZteOnuRxPowerService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function parse(string $output): array
+    public function parse(string $output, bool $isC600 = false): array
     {
-        preg_match_all('/gpon-onu_1\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i', $output, $matches, PREG_SET_ORDER);
+        // C600: gpon-onu_1/1/3/1:5  C300/C320: gpon-onu_1/3/1:5
+        $pattern = $isC600
+            ? '/gpon-onu_\d+\/\d+\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i'
+            : '/gpon-onu_\d+\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i';
+
+        preg_match_all($pattern, $output, $matches, PREG_SET_ORDER);
 
         $powers = [];
 
@@ -49,8 +54,8 @@ class ZteOnuRxPowerService
     }
 
     /**
-     * @param array<int, array<string, mixed>> $onus
-     * @param array<int, array<string, mixed>> $powers
+     * @param  array<int, array<string, mixed>>  $onus
+     * @param  array<int, array<string, mixed>>  $powers
      * @return array<int, array<string, mixed>>
      */
     public function merge(array $onus, array $powers): array

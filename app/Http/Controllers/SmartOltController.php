@@ -392,7 +392,7 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? sprintf('Perintah reboot ONU gpon-onu_1/%d/%d:%d terkirim. ONU restart 30-60 detik.', $slot, $port, $onuId)
+                        ? sprintf('Perintah reboot ONU %s terkirim. ONU restart 30-60 detik.', SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)))
                         : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
                 );
         } catch (\Throwable $exception) {
@@ -480,12 +480,18 @@ class SmartOltController extends Controller
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
     {
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
+        $data['is_c600'] = SmartOltSupport::isC600($olt);
         $script = $builder->build($data);
 
         SmartOltOnuRegistration::create([
             ...$data,
             'snmp_olt_id' => $olt->id,
-            'pon_port' => sprintf('gpon-onu_1/%d/%d:%d', $data['slot'], $data['port'], $data['onu_id']),
+            'pon_port' => SmartOltSupport::onuInterfaceId(
+                (int) $data['slot'],
+                (int) $data['port'],
+                (int) $data['onu_id'],
+                SmartOltSupport::isC600($olt),
+            ),
             'cli_script' => $script,
             'status' => 'generated',
             'created_by' => $request->user()?->id,
@@ -668,7 +674,7 @@ class SmartOltController extends Controller
             'poll_interval_minutes' => $olt->pollIntervalMinutes(),
             'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),
             'driver' => $driver,
-            'capabilities' => SmartOltSupport::capabilities($driver),
+            'capabilities' => SmartOltSupport::capabilities($driver, $olt),
             'last_test_result' => $olt->last_test_result,
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
             'last_polled_at' => $olt->last_polled_at?->toIso8601String(),

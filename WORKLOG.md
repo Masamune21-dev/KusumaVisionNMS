@@ -506,3 +506,34 @@ Notes:
 - Customer name di-lookup dua lapis: pertama dari `smartolt_onu_registrations` (data provisioning), fallback ke snapshot `last_test_result.port_onus.*.onus` (data SNMP live). Ini memastikan nama pelanggan tampil meski ONU belum pernah diregistrasi lewat sistem.
 - Route rename dari `dashboard` ke `port-manager` lebih deskriptif dan menghindari konflik bila ke depan ada halaman dashboard terpisah.
 - `expireAfter(900)` pada `WithoutOverlapping` penting: tanpa ini, lock Redis tidak pernah expire bila job mati mendadak (OOM, kill), dan OLT berikutnya tidak akan di-poll.
+
+### ZTE C600 Support — SNMP + CLI + Provisioning
+
+Created:
+
+- `docs/ZTE ZXA10 C600 SNMP ifIndex Structure and Calculation.pdf` — dokumentasi formula ifIndex C600 (4-tier: rack/shelf/slot/port).
+- `docs/ZTE ZXA10 C600 SNMP OID Management Guide.pdf` — OID tabel ONU config dan status C600 (.1082 subtree).
+- `docs/ZTE ZXA10 C600 SNMP OIDs for ONU Optical Power.pdf` — OID RX power C600 dan formula konversi.
+- `docs/SNMP Discovery Guide for ZTE C600 Unconfigured ONUs.pdf` — OID discovery ONU belum terkonfigurasi.
+- `docs/ZXA10 C600 vs C300 CLI Command Migration Guide.pdf` — perbandingan CLI C300/C320 vs C600.
+- `docs/ZTE ZXA10 C600 Line Card Identification and CLI Codes.pdf` — kode card type C600 (GFGH, GFXH, XGEI, dll).
+- `docs/ZTE Titan C600 ONU Admin Status SNMP Configuration.pdf` — OID admin state ONU C600.
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — tambah `'c600'` ke keyword deteksi; tambah helper statis `isC600()`, `onuInterfaceId()`, `gponOltInterface()`; update `capabilities()` terima parameter opsional `$olt` untuk metadata C600 (vendor_family, port_name_prefix, is_c600, supports_separate_description).
+- `app/Services/Snmp/OltSnmpClient.php` — tambah konstanta OID C600 (.1082 subtree): `C600_ONU_TYPE/NAME/SN/ADMIN_STATE/PHASE_STATE/LAST_DOWN_CAUSE/RX_POWER` dan `C600_UNCFG_OIDS`; tambah `onuOids()` helper per model; refactor `registeredOnus()`, `onuRxPowers()`, `unconfiguredOnus()` jadi model-aware; update `zteEncodeIfIndex()` dan `decodeIfIndex()` terima `$olt` untuk encoding 4-tier C600; update `parseSlotPort()` kenali interface 4-tier; update `resolvePortLabel()` kenali pola 3 dan 4 angka; update `decodePhaseState()` untuk phase code C600 (mulai dari 1, bukan 0).
+- `app/Services/ZteRemoteOnuService.php` — tambah konstanta OID C600 untuk admin state dan name; `reboot()` kini pakai `SmartOltSupport::onuInterfaceId()` sehingga generate interface 4-tier untuk C600; `setActiveState()` dan `setInfo()` pilih OID berdasarkan model; description SNMP SET di-skip untuk C600 (tidak ada OID terpisah).
+- `app/Services/ZteProvisioningScriptBuilder.php` — baca `is_c600` dari `$data`; gunakan `SmartOltSupport::gponOltInterface()` dan `onuInterfaceId()` untuk generate interface 3-tier/4-tier; perintah `description` dihilangkan untuk C600.
+- `app/Services/ZteOnuRxPowerService.php` — `portRxPower()` pakai `SmartOltSupport::gponOltInterface()` untuk CLI command 4-tier; `parse()` gunakan regex berbeda untuk C600 (4 angka di nama interface).
+- `app/Services/ZteCardUplinkService.php` — tambah konstanta card type C600: `C600_XGEI_CARDS` (`XGEI`, `SFUL`, `SFUM`), `C600_GEI_CARDS` (`GEI`), `C600_GPON_CARDS` (`GFGH`, `GFXH`, `GFXL`); `discoverUplinkInterfaces()` generate interface 4-tier (`xgei-1/1/slot/port`) untuk card C600.
+- `app/Http/Controllers/SmartOltController.php` — inject `is_c600` ke data provisioning sebelum dikirim ke builder; `pon_port` audit record pakai `SmartOltSupport::onuInterfaceId()`; reboot flash message pakai interface dinamis; `capabilities()` dipanggil dengan `$olt` agar metadata C600 tersedia di frontend.
+
+Notes:
+
+- Deteksi C600 berdasarkan substring `'c600'` di `$olt->name`, `$olt->vendor`, atau `sysDescr` dari `last_test_result`. Cukup set nama OLT mengandung "C600" saat input data.
+- ifIndex C600 berbeda total: C600 pakai 4-tier `(1<<28)|(1<<24)|(1<<16)|(slot<<8)|port` vs C300/C320 `0x10000000|(slot<<16)|(port<<8)`. Tanpa fix ini semua SNMP lookup ONU akan salah slot/port.
+- Semua OID C600 ada di subtree `.1082.500` (zxAccessNode/zxAnPon), berbeda dari C300/C320 yang pakai `.1012` (ZTE-GPON-MIB legacy).
+- Phase state C600 mulai dari 1 (bukan 0): `4=Working` (bukan `3`). `online` check diupdate sesuai.
+- C600 tidak punya OID deskripsi ONU terpisah; field description bernilai `null` dan perintah `description` tidak dimasukkan ke provisioning script.
+- Belum diverifikasi di real C600 device — perlu test langsung untuk konfirmasi ifIndex encode dan OID walks.

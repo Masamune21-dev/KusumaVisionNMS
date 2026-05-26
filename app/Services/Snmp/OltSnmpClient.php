@@ -24,6 +24,7 @@ class OltSnmpClient
 
     private const IF_NAME = '1.3.6.1.2.1.31.1.1.1.1';
 
+    // C300/C320 OIDs (.1012 subtree)
     private const ZTE_ONU_TYPE = '1.3.6.1.4.1.3902.1012.3.28.1.1.1';
 
     private const ZTE_ONU_NAME = '1.3.6.1.4.1.3902.1012.3.28.1.1.2';
@@ -45,6 +46,27 @@ class OltSnmpClient
         '1.3.6.1.4.1.3902.1082.500.10.2.1.1',
         '1.3.6.1.4.1.3902.1082.500.10.2.1.2',
         '1.3.6.1.4.1.3902.1082.500.10.1.1.1',
+    ];
+
+    // C600 OIDs (.1082 subtree — zxAccessNode)
+    private const C600_ONU_TYPE = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.1';
+
+    private const C600_ONU_NAME = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.2';
+
+    private const C600_ONU_SN = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.6';
+
+    private const C600_ONU_ADMIN_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.1';
+
+    // Values: 1=logging, 2=los, 3=syncMib, 4=working, 5=dyingGasp, 6=authFailed, 7=offline
+    private const C600_ONU_PHASE_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.4';
+
+    private const C600_ONU_LAST_DOWN_CAUSE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.7';
+
+    // OLT-side RX power; raw / 1000 = dBm; -80000=no signal, 65535000=N/A
+    private const C600_ONU_RX_POWER = '1.3.6.1.4.1.3902.1082.500.10.2.11.1.2';
+
+    private const C600_UNCFG_OIDS = [
+        '1.3.6.1.4.1.3902.1082.500.10.2.2.1.2',
     ];
 
     /**
@@ -192,7 +214,7 @@ class OltSnmpClient
             }
             $seen[$ifIndex] = true;
 
-            [$slot, $port] = $this->parseSlotPort($portLabel, $ifIndex);
+            [$slot, $port] = $this->parseSlotPort($portLabel, $ifIndex, $olt);
             $operRaw = $statuses[$this->joinOid(self::IF_OPER_STATUS, (string) $ifIndex)] ?? null;
             $operCode = $operRaw !== null ? (int) preg_replace('/\D+/', '', $operRaw) : null;
 
@@ -231,7 +253,7 @@ class OltSnmpClient
                 $allOnus,
                 fn (array $onu) => (int) $onu['slot'] === $slot && (int) $onu['port'] === $port
             ));
-            $ifIndex = $onus[0]['if_index'] ?? $portRow['if_index'] ?? $this->zteEncodeIfIndex($slot, $port);
+            $ifIndex = $onus[0]['if_index'] ?? $portRow['if_index'] ?? $this->zteEncodeIfIndex($olt, $slot, $port);
             $rxPower = [
                 'ok' => true,
                 'source' => 'snmp',
@@ -268,7 +290,7 @@ class OltSnmpClient
                 'ok' => false,
                 'slot' => $slot,
                 'port' => $port,
-                'if_index' => $this->zteEncodeIfIndex($slot, $port),
+                'if_index' => $this->zteEncodeIfIndex($olt, $slot, $port),
                 'port_row' => null,
                 'onus' => [],
                 'count' => 0,
@@ -285,27 +307,60 @@ class OltSnmpClient
     }
 
     /**
+     * @return array<string, string|null>
+     */
+    private function onuOids(SnmpOlt $olt): array
+    {
+        if (SmartOltSupport::isC600($olt)) {
+            return [
+                'type' => self::C600_ONU_TYPE,
+                'name' => self::C600_ONU_NAME,
+                'description' => null, // C600 has no separate description OID
+                'sn' => self::C600_ONU_SN,
+                'admin_state' => self::C600_ONU_ADMIN_STATE,
+                'phase_state' => self::C600_ONU_PHASE_STATE,
+                'last_down' => self::C600_ONU_LAST_DOWN_CAUSE,
+                'rx_power' => self::C600_ONU_RX_POWER,
+            ];
+        }
+
+        return [
+            'type' => self::ZTE_ONU_TYPE,
+            'name' => self::ZTE_ONU_NAME,
+            'description' => self::ZTE_ONU_DESCRIPTION,
+            'sn' => self::ZTE_ONU_SN,
+            'admin_state' => self::ZTE_ONU_ADMIN_STATE,
+            'phase_state' => self::ZTE_ONU_PHASE_STATE,
+            'last_down' => self::ZTE_ONU_LAST_DOWN_CAUSE,
+            'rx_power' => self::ZTE_ONU_RX_POWER,
+        ];
+    }
+
+    /**
      * @param  array<int, array<string, mixed>>|null  $ports
      * @return array<int, array<string, mixed>>
      */
     public function registeredOnus(SnmpOlt $olt, ?array $ports = null): array
     {
-        $types = $this->walk($olt, self::ZTE_ONU_TYPE);
+        $isC600 = SmartOltSupport::isC600($olt);
+        $oids = $this->onuOids($olt);
+
+        $types = $this->walk($olt, $oids['type']);
         if ($types === []) {
             return [];
         }
 
-        $names = $this->walk($olt, self::ZTE_ONU_NAME);
-        $descriptions = $this->walk($olt, self::ZTE_ONU_DESCRIPTION);
-        $serials = $this->walk($olt, self::ZTE_ONU_SN);
-        $adminStates = $this->walk($olt, self::ZTE_ONU_ADMIN_STATE);
-        $phaseStates = $this->walk($olt, self::ZTE_ONU_PHASE_STATE);
-        $lastDownCauses = $this->walk($olt, self::ZTE_ONU_LAST_DOWN_CAUSE);
+        $names = $this->walk($olt, $oids['name']);
+        $descriptions = $oids['description'] ? $this->walk($olt, $oids['description']) : [];
+        $serials = $this->walk($olt, $oids['sn']);
+        $adminStates = $this->walk($olt, $oids['admin_state']);
+        $phaseStates = $this->walk($olt, $oids['phase_state']);
+        $lastDownCauses = $this->walk($olt, $oids['last_down']);
         $portMap = $this->buildPortMap($ports ?? $this->gponPorts($olt));
         $onus = [];
 
         foreach ($types as $oid => $typeName) {
-            $index = $this->extractOnuIndex($oid, self::ZTE_ONU_TYPE);
+            $index = $this->extractOnuIndex($oid, $oids['type']);
             if ($index === null) {
                 continue;
             }
@@ -315,26 +370,28 @@ class OltSnmpClient
             $portRow = $portMap[$ifIndex] ?? null;
             [$slot, $port] = $portRow
                 ? [(int) $portRow['slot'], (int) $portRow['port']]
-                : $this->decodeIfIndex($ifIndex);
-            $phaseRaw = $this->intFromWalk($phaseStates, self::ZTE_ONU_PHASE_STATE, $suffix);
-            $adminRaw = $this->intFromWalk($adminStates, self::ZTE_ONU_ADMIN_STATE, $suffix);
-            $lastDownRaw = $this->intFromWalk($lastDownCauses, self::ZTE_ONU_LAST_DOWN_CAUSE, $suffix);
+                : $this->decodeIfIndex($olt, $ifIndex);
+            $phaseRaw = $this->intFromWalk($phaseStates, $oids['phase_state'], $suffix);
+            $adminRaw = $this->intFromWalk($adminStates, $oids['admin_state'], $suffix);
+            $lastDownRaw = $this->intFromWalk($lastDownCauses, $oids['last_down'], $suffix);
 
             $onus[] = [
                 'if_index' => $ifIndex,
                 'onu_id' => $onuId,
                 'slot' => $slot,
                 'port' => $port,
-                'interface' => sprintf('gpon-onu_1/%d/%d:%d', $slot, $port, $onuId),
+                'interface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600),
                 'type_name' => $typeName,
-                'name' => $this->walkValue($names, self::ZTE_ONU_NAME, $suffix),
-                'description' => $this->walkValue($descriptions, self::ZTE_ONU_DESCRIPTION, $suffix),
-                'serial_number' => $this->decodeOnuSn($this->walkValue($serials, self::ZTE_ONU_SN, $suffix)),
+                'name' => $this->walkValue($names, $oids['name'], $suffix),
+                'description' => $oids['description']
+                    ? $this->walkValue($descriptions, $oids['description'], $suffix)
+                    : null,
+                'serial_number' => $this->decodeOnuSn($this->walkValue($serials, $oids['sn'], $suffix)),
                 'admin_state_code' => $adminRaw,
                 'admin_state' => $this->decodeAdminState($adminRaw),
                 'phase_state_code' => $phaseRaw,
-                'phase_state' => $this->decodePhaseState($phaseRaw),
-                'online' => $phaseRaw === 3,
+                'phase_state' => $this->decodePhaseState($phaseRaw, $isC600),
+                'online' => $isC600 ? $phaseRaw === 4 : $phaseRaw === 3,
                 'last_down_cause_code' => $lastDownRaw,
                 'last_down_cause' => $this->decodeLastDownCause($lastDownRaw),
             ];
@@ -350,26 +407,41 @@ class OltSnmpClient
      */
     public function onuRxPowers(SnmpOlt $olt): array
     {
-        $rows = $this->walk($olt, self::ZTE_ONU_RX_POWER);
+        $isC600 = SmartOltSupport::isC600($olt);
+        $rxOid = $isC600 ? self::C600_ONU_RX_POWER : self::ZTE_ONU_RX_POWER;
+        $rows = $this->walk($olt, $rxOid);
         $powers = [];
 
         foreach ($rows as $oid => $rawValue) {
-            $index = $this->extractOnuPortIndex($oid, self::ZTE_ONU_RX_POWER);
             $raw = $this->intFromValue($rawValue);
-
-            if ($index === null || $raw === null) {
+            if ($raw === null) {
                 continue;
             }
 
-            [$ifIndex, $onuId, $onuPort] = $index;
-            $dbm = $this->convertOnuRxPowerToDbm($raw);
+            if ($isC600) {
+                // C600 RX power OID indexed by ifIndex.onuId (2-tuple), raw/1000 = dBm
+                $index = $this->extractOnuIndex($oid, $rxOid);
+                if ($index === null) {
+                    continue;
+                }
+                [$ifIndex, $onuId] = $index;
+                $onuPort = 1;
+            } else {
+                // C300/C320 RX power OID indexed by ifIndex.onuId.port (3-tuple)
+                $index = $this->extractOnuPortIndex($oid, $rxOid);
+                if ($index === null) {
+                    continue;
+                }
+                [$ifIndex, $onuId, $onuPort] = $index;
+            }
 
+            $dbm = $this->convertOnuRxPowerToDbm($raw);
             if ($dbm === null) {
                 continue;
             }
 
             $key = $this->onuRxPowerKey($ifIndex, $onuId);
-            if (isset($powers[$key]) && $onuPort !== 1) {
+            if (isset($powers[$key]) && ! $isC600 && $onuPort !== 1) {
                 continue;
             }
 
@@ -447,10 +519,12 @@ class OltSnmpClient
      */
     public function unconfiguredOnus(SnmpOlt $olt): array
     {
+        $isC600 = SmartOltSupport::isC600($olt);
+        $uncfgOids = $isC600 ? self::C600_UNCFG_OIDS : self::ZTE_UNCFG_OIDS;
         $seen = [];
         $onus = [];
 
-        foreach (self::ZTE_UNCFG_OIDS as $baseOid) {
+        foreach ($uncfgOids as $baseOid) {
             try {
                 $rows = $this->walk($olt, $baseOid);
             } catch (Throwable) {
@@ -469,7 +543,7 @@ class OltSnmpClient
 
                 $index = $this->extractUnconfiguredIndex($oid, $baseOid);
                 [$slot, $port] = $index['if_index'] !== null
-                    ? $this->decodeIfIndex((int) $index['if_index'])
+                    ? $this->decodeIfIndex($olt, (int) $index['if_index'])
                     : [null, null];
 
                 $seen[$sn] = true;
@@ -483,7 +557,9 @@ class OltSnmpClient
                     'suggested_onu_id' => $index['onu_id'],
                     'slot' => $slot,
                     'port' => $port,
-                    'port_alias' => $slot && $port ? sprintf('gpon-onu_1/%d/%d:%d', $slot, $port, $index['onu_id'] ?? 0) : null,
+                    'port_alias' => $slot && $port
+                        ? SmartOltSupport::onuInterfaceId($slot, $port, $index['onu_id'] ?? 0, $isC600)
+                        : null,
                 ];
             }
 
@@ -697,16 +773,19 @@ class OltSnmpClient
     /**
      * @return array{0:int|null, 1:int|null}
      */
-    private function parseSlotPort(string $description, int $ifIndex): array
+    private function parseSlotPort(string $description, int $ifIndex, SnmpOlt $olt): array
     {
+        // 4-tier (C600): rack/shelf/slot/port — check before 3-tier to avoid partial match
+        if (preg_match('/(\d+)\/(\d+)\/(\d+)\/(\d+)/', $description, $matches)) {
+            return [(int) $matches[3], (int) $matches[4]];
+        }
+
+        // 3-tier (C300/C320): rack/slot/port
         if (preg_match('/(\d+)\/(\d+)\/(\d+)/', $description, $matches)) {
             return [(int) $matches[2], (int) $matches[3]];
         }
 
-        return [
-            ($ifIndex >> 16) & 0xFF,
-            ($ifIndex >> 8) & 0xFF,
-        ];
+        return $this->decodeIfIndex($olt, $ifIndex);
     }
 
     private function resolvePortLabel(?string $name, ?string $description): ?string
@@ -716,10 +795,9 @@ class OltSnmpClient
                 continue;
             }
 
-            if (preg_match('/^gpon(?:[-_]olt)?[-_]?\d+\/\d+\/\d+$/i', $candidate)) {
-                // Normalise to canonical gpon-olt_ format so SNMP names always
-                // match CLI-persisted names (e.g. C300 reports gpon_1/2/1 via SNMP
-                // but its CLI uses gpon-olt_1/2/1).
+            // Match 3-tier (C300: gpon-olt_1/2/1) or 4-tier (C600: gpon-olt_1/1/2/1)
+            if (preg_match('/^gpon(?:[-_]olt)?[-_]?\d+(?:\/\d+){2,3}$/i', $candidate)) {
+                // Normalise gpon_ → gpon-olt_ so SNMP names match CLI names
                 return preg_replace('/^gpon_/i', 'gpon-olt_', $candidate) ?? $candidate;
             }
         }
@@ -727,16 +805,31 @@ class OltSnmpClient
         return null;
     }
 
-    private function zteEncodeIfIndex(int $slot, int $port): int
+    private function zteEncodeIfIndex(SnmpOlt $olt, int $slot, int $port): int
     {
+        if (SmartOltSupport::isC600($olt)) {
+            // C600: (type=1<<28) | (rack=1<<24) | (shelf=1<<16) | (slot<<8) | port
+            return (1 << 28) | (1 << 24) | (1 << 16) | ($slot << 8) | $port;
+        }
+
+        // C300/C320: (type=1<<28) | (slot<<16) | (port<<8)
         return 0x10000000 | ($slot << 16) | ($port << 8);
     }
 
     /**
      * @return array{0:int, 1:int}
      */
-    private function decodeIfIndex(int $ifIndex): array
+    private function decodeIfIndex(SnmpOlt $olt, int $ifIndex): array
     {
+        if (SmartOltSupport::isC600($olt)) {
+            // C600: slot at bits 15–8, port at bits 7–0
+            return [
+                ($ifIndex >> 8) & 0xFF,
+                $ifIndex & 0xFF,
+            ];
+        }
+
+        // C300/C320: slot at bits 23–16, port at bits 15–8
         return [
             ($ifIndex >> 16) & 0xFF,
             ($ifIndex >> 8) & 0xFF,
@@ -850,8 +943,22 @@ class OltSnmpClient
         };
     }
 
-    private function decodePhaseState(?int $code): string
+    private function decodePhaseState(?int $code, bool $isC600 = false): string
     {
+        if ($isC600) {
+            // C600 phase codes start at 1 (not 0)
+            return match ($code) {
+                1 => 'Logging',
+                2 => 'LOS',
+                3 => 'Sync MIB',
+                4 => 'Working',
+                5 => 'DyingGasp',
+                6 => 'Auth Failed',
+                7 => 'Offline',
+                default => 'Unknown',
+            };
+        }
+
         return match ($code) {
             0 => 'Logging',
             1 => 'LOS',
