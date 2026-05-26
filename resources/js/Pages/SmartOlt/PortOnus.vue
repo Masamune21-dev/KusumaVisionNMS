@@ -130,7 +130,7 @@ const formatDate = (value) => {
 
 const rxClass = (value) => {
     if (value === null || value === undefined) {
-        return 'text-gray-400';
+        return 'text-slate-400';
     }
 
     if (value <= -28 || value >= -8) {
@@ -145,10 +145,10 @@ const rxClass = (value) => {
 };
 
 const rxBadgeClass = (value) => {
-    if (value === null || value === undefined) return 'bg-slate-500/10 text-slate-500 ring-slate-500/20';
-    if (value <= -28 || value >= -8) return 'bg-red-500/15 text-red-300 ring-red-500/25';
-    if (value <= -25 || value >= -10) return 'bg-amber-500/15 text-amber-300 ring-amber-500/25';
-    return 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/25';
+    if (value === null || value === undefined) return 'bg-slate-100 text-slate-500 ring-1 ring-slate-200';
+    if (value <= -28 || value >= -8) return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    if (value <= -25 || value >= -10) return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+    return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
 };
 </script>
 
@@ -159,14 +159,14 @@ const rxBadgeClass = (value) => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-xl font-semibold leading-tight text-gray-800">
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
                         ONU Slot {{ slot }} Port {{ port }}
                     </h2>
-                    <p class="mt-1 text-sm text-gray-500">
+                    <p class="mt-1 text-sm text-slate-500">
                         {{ olt.name }} · {{ olt.ip }}
                     </p>
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
                     <Link :href="route('smartolt.gpon-ports', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
@@ -181,74 +181,74 @@ const rxBadgeClass = (value) => {
             </div>
         </template>
 
-        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
-            <div class="mx-auto max-w-7xl space-y-5 px-4 sm:px-6 lg:px-8">
+        <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
+            <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
                 <!-- Flash messages -->
                 <div
                     v-if="flash.success"
-                    class="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 backdrop-blur-sm"
+                    class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
                 >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"></span>
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
                     {{ flash.success }}
                 </div>
                 <div
                     v-if="flash.error"
-                    class="flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300 backdrop-blur-sm"
+                    class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
                 >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
                     {{ flash.error }}
                 </div>
 
                 <!-- Stat cards -->
                 <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                     <!-- Data status -->
-                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
+                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Status</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
                             <span
                                 class="h-2 w-2 rounded-full"
-                                :class="snapshot.ok ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]' : 'bg-slate-600'"
+                                :class="snapshot.ok ? 'bg-emerald-500' : 'bg-slate-300'"
                             ></span>
                         </div>
                         <p
                             class="mt-3 text-2xl font-bold"
-                            :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'"
+                            :class="snapshot.ok ? 'text-emerald-600' : 'text-slate-400'"
                         >
                             {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
                         </p>
                     </div>
                     <!-- Total ONU -->
-                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Total ONU</p>
-                        <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.count }}</p>
+                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
+                        <p class="mt-3 text-2xl font-bold text-slate-900">{{ snapshot.count }}</p>
                     </div>
                     <!-- Online -->
-                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Online</p>
+                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Online</p>
                         <div class="mt-3 flex items-end gap-2">
-                            <p class="text-2xl font-bold text-emerald-400">
+                            <p class="text-2xl font-bold text-emerald-600">
                                 {{ snapshot.onus.filter((o) => o.online).length }}
                             </p>
-                            <p class="mb-0.5 text-sm text-slate-500">/ {{ snapshot.count }}</p>
+                            <p class="mb-0.5 text-sm text-slate-400">/ {{ snapshot.count }}</p>
                         </div>
                     </div>
                     <!-- Refresh terakhir -->
-                    <div class="rounded-xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-400">Refresh Terakhir</p>
-                        <p class="mt-3 text-sm font-semibold text-slate-200">{{ formatDate(snapshot.refreshed_at) }}</p>
+                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
+                        <p class="mt-3 text-sm font-semibold text-slate-900">{{ formatDate(snapshot.refreshed_at) }}</p>
                     </div>
                 </div>
 
                 <!-- ONU table card -->
-                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
-                    <div class="flex items-center justify-between border-b border-white/10 px-6 py-5">
+                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30">
-                                <Router class="h-5 w-5 text-violet-400" />
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
+                                <Router class="h-5 w-5 text-sky-600" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Registered ONU</h3>
-                                <p v-if="snapshot.rx_power?.error" class="mt-0.5 text-xs text-red-400">
+                                <h3 class="text-base font-semibold text-slate-900">Registered ONU</h3>
+                                <p v-if="snapshot.rx_power?.error" class="mt-0.5 text-xs text-red-600">
                                     RX gagal dibaca: {{ snapshot.rx_power.error }}
                                 </p>
                             </div>
@@ -257,49 +257,49 @@ const rxBadgeClass = (value) => {
 
                     <!-- Empty state -->
                     <div v-if="snapshot.onus.length === 0" class="px-6 py-14 text-center">
-                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
-                            <Wifi class="h-7 w-7 text-slate-500" />
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200">
+                            <Wifi class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-200">Belum ada data ONU</h3>
-                        <p class="mt-1 text-sm text-slate-400">
+                        <h3 class="text-sm font-semibold text-slate-700">Belum ada data ONU</h3>
+                        <p class="mt-1 text-sm text-slate-500">
                             Jalankan Refresh ONU untuk membaca ONU terdaftar di port ini.
                         </p>
                     </div>
 
                     <!-- Table -->
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-full">
+                        <table class="min-w-[720px] w-full">
                             <thead>
-                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Serial</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Type</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU RX</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Phase</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Admin</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Last Down</th>
-                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
+                                <tr class="border-b border-slate-100 bg-slate-50">
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ONU</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Serial</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Type</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ONU RX</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Phase</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Admin</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Last Down</th>
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-white/[0.05]">
+                            <tbody class="divide-y divide-slate-100">
                                 <tr
                                     v-for="onu in snapshot.onus"
                                     :key="`${onu.if_index}-${onu.onu_id}`"
-                                    class="transition-colors duration-150 hover:bg-white/[0.04]"
+                                    class="transition-colors duration-150 hover:bg-slate-50"
                                 >
                                     <td class="px-6 py-4">
-                                        <div class="font-semibold text-slate-100">{{ onu.interface }}</div>
+                                        <div class="font-semibold text-slate-900">{{ onu.interface }}</div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ onu.name || onu.description || '—' }}</div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <span class="font-mono text-sm text-slate-300">{{ onu.serial_number || '—' }}</span>
+                                        <span class="font-mono text-sm text-slate-700">{{ onu.serial_number || '—' }}</span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-300">
+                                    <td class="px-6 py-4 text-sm text-slate-700">
                                         {{ onu.type_name || '—' }}
                                     </td>
                                     <td class="px-6 py-4">
                                         <span
-                                            class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1"
+                                            class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
                                             :class="rxBadgeClass(onu.rx_power_dbm)"
                                         >
                                             {{ onu.rx_power_label || '—' }}
@@ -309,13 +309,11 @@ const rxBadgeClass = (value) => {
                                         <div class="flex items-center gap-1.5">
                                             <span
                                                 class="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                                                :class="onu.online
-                                                    ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
-                                                    : 'bg-slate-600'"
+                                                :class="onu.online ? 'bg-emerald-500' : 'bg-slate-300'"
                                             ></span>
                                             <span
                                                 class="text-sm"
-                                                :class="onu.online ? 'text-emerald-400' : 'text-slate-400'"
+                                                :class="onu.online ? 'text-emerald-600' : 'text-slate-500'"
                                             >
                                                 {{ onu.phase_state }}
                                             </span>
@@ -325,13 +323,13 @@ const rxBadgeClass = (value) => {
                                         <span
                                             class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
                                             :class="onu.admin_state === 'active'
-                                                ? 'bg-sky-500/15 text-sky-300 ring-sky-500/25'
-                                                : 'bg-slate-500/15 text-slate-400 ring-slate-500/25'"
+                                                ? 'bg-sky-50 text-sky-700 ring-sky-200'
+                                                : 'bg-slate-100 text-slate-500 ring-slate-200'"
                                         >
                                             {{ onu.admin_state }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-400">
+                                    <td class="px-6 py-4 text-sm text-slate-500">
                                         {{ onu.last_down_cause || '—' }}
                                     </td>
                                     <td class="px-6 py-4">
@@ -374,8 +372,8 @@ const rxBadgeClass = (value) => {
 
         <Modal :show="editing.open" @close="editing.open = false">
             <form class="p-6" @submit.prevent="submitEdit">
-                <h3 class="text-base font-semibold text-gray-900">Edit Info ONU</h3>
-                <p class="mt-1 text-sm text-gray-500">{{ editing.interface }} · ditulis via SNMP SET.</p>
+                <h3 class="text-base font-semibold text-slate-900">Edit Info ONU</h3>
+                <p class="mt-1 text-sm text-slate-500">{{ editing.interface }} · ditulis via SNMP SET.</p>
                 <div class="mt-4 space-y-4">
                     <div>
                         <InputLabel for="onu_name" value="Nama ONU" />
@@ -388,7 +386,7 @@ const rxBadgeClass = (value) => {
                         <InputError :message="editForm.errors.description" class="mt-1" />
                     </div>
                 </div>
-                <div class="mt-6 flex justify-end gap-2">
+                <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
                     <SecondaryButton type="button" @click="editing.open = false">Batal</SecondaryButton>
                     <PrimaryButton type="submit" :disabled="editForm.processing">Simpan</PrimaryButton>
                 </div>

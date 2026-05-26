@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SnmpOlt;
+use App\Support\CliOutputSanitizer;
 use RuntimeException;
 
 class ZteCliProvisioningExecutor
@@ -68,6 +69,7 @@ class ZteCliProvisioningExecutor
             fclose($connection);
         }
 
+        $output = CliOutputSanitizer::clean($output);
         $error = $this->detectError($output);
 
         return [

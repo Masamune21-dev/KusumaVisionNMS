@@ -27,10 +27,10 @@ const props = defineProps({
 const rows = computed(() => props.alarms.data ?? []);
 
 const cards = computed(() => [
-    { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-400' },
-    { key: 'major', label: 'Major', value: props.summary.major, class: 'text-orange-400' },
-    { key: 'minor', label: 'Minor', value: props.summary.minor, class: 'text-amber-400' },
-    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-400' },
+    { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-600' },
+    { key: 'major', label: 'Major', value: props.summary.major, class: 'text-orange-600' },
+    { key: 'minor', label: 'Minor', value: props.summary.minor, class: 'text-amber-600' },
+    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-600' },
 ]);
 
 const form = reactive({
@@ -105,15 +105,15 @@ const setSeverity = (severity) => {
 };
 
 const severityClass = (severity) => ({
-    critical: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25',
-    major: 'bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/25',
-    minor: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/25',
-    warning: 'bg-yellow-500/15 text-yellow-300 ring-1 ring-yellow-500/25',
-}[severity] ?? 'bg-slate-500/15 text-slate-400 ring-1 ring-slate-500/25');
+    critical: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+    major: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+    minor: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+    warning: 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-200',
+}[severity] ?? 'bg-slate-100 text-slate-600 ring-1 ring-slate-200');
 
 const statusClass = (status) => status === 'active'
-    ? 'bg-red-500/15 text-red-300 ring-1 ring-red-500/25'
-    : 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/25';
+    ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
+    : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
 
 const scopeLabel = (alarm) => {
     if (alarm.scope === 'onu') {
@@ -146,29 +146,29 @@ const formatDate = (value) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">Alarms</h2>
-                <div class="inline-flex overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-sm">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">Alarms</h2>
+                <div class="grid grid-cols-3 overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60 sm:inline-flex sm:w-auto">
                     <button
                         type="button"
-                        class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'active' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
+                        class="min-h-11 px-4 py-2 text-sm font-medium"
+                        :class="form.status === 'active' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-700'"
                         @click="setStatus('active')"
                     >
                         Aktif
                     </button>
                     <button
                         type="button"
-                        class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'cleared' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
+                        class="min-h-11 px-4 py-2 text-sm font-medium"
+                        :class="form.status === 'cleared' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-700'"
                         @click="setStatus('cleared')"
                     >
                         Selesai
                     </button>
                     <button
                         type="button"
-                        class="px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'"
+                        class="min-h-11 px-4 py-2 text-sm font-medium"
+                        :class="form.status === 'all' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-700'"
                         @click="setStatus('all')"
                     >
                         Semua
@@ -177,47 +177,47 @@ const formatDate = (value) => {
             </div>
         </template>
 
-        <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 py-8 pb-16 min-h-[60vh]">
-            <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                <div class="grid gap-4 sm:grid-cols-4">
+        <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
+            <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     <button
                         v-for="card in cards"
                         :key="card.key"
                         type="button"
-                        class="rounded-xl border border-white/10 bg-white/[0.06] p-5 text-left backdrop-blur-xl transition hover:-translate-y-0.5"
-                        :class="form.severity === card.key ? 'ring-2 ring-indigo-500/50' : ''"
+                        class="rounded-lg border border-sky-200 bg-white p-5 text-left shadow-sm shadow-sky-100/60 transition hover:-translate-y-0.5"
+                        :class="form.severity === card.key ? 'ring-2 ring-sky-500' : ''"
                         @click="setSeverity(card.key)"
                     >
-                        <div class="text-sm font-medium text-slate-400">{{ card.label }}</div>
+                        <div class="text-sm font-medium text-slate-500">{{ card.label }}</div>
                         <div class="mt-2 text-3xl font-semibold" :class="card.class">{{ card.value }}</div>
                     </button>
                 </div>
 
-                <form class="rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-xl" @submit.prevent="applyFilters">
-                    <div class="flex items-center gap-2 text-sm font-semibold text-white">
+                <form class="overflow-hidden rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60" @submit.prevent="applyFilters">
+                    <div class="flex items-center gap-2 text-sm font-semibold text-slate-900">
                         <Filter class="h-4 w-4 text-slate-400" />
                         Filter
                     </div>
 
                     <div class="mt-4 grid gap-4 md:grid-cols-6">
                         <label class="block md:col-span-2">
-                            <span class="text-xs font-medium uppercase text-slate-400">Cari</span>
-                            <div class="mt-1 flex rounded-md border border-white/20 bg-white/[0.08] focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-500">Cari</span>
+                            <div class="mt-1 flex rounded-md border border-slate-300 bg-white focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500">
                                 <span class="flex items-center px-3 text-slate-400">
                                     <Search class="h-4 w-4" />
                                 </span>
                                 <input
                                     v-model="form.q"
                                     type="search"
-                                    class="block w-full border-0 bg-transparent py-2 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:ring-0"
+                                    class="block min-h-11 w-full border-0 bg-transparent py-2.5 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-0"
                                     placeholder="Serial, pesan, tipe, OLT"
                                 >
                             </div>
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-400">Severity</span>
-                            <select v-model="form.severity" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-500">Severity</span>
+                            <select v-model="form.severity" class="mt-1 block min-h-11 w-full rounded-md border border-slate-300 bg-white py-2.5 px-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                 <option value="all">Semua</option>
                                 <option v-for="severity in filterOptions.severities" :key="severity" :value="severity">
                                     {{ severity }}
@@ -226,8 +226,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-400">OLT</span>
-                            <select v-model="form.olt_id" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-500">OLT</span>
+                            <select v-model="form.olt_id" class="mt-1 block min-h-11 w-full rounded-md border border-slate-300 bg-white py-2.5 px-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                 <option value="">Semua</option>
                                 <option v-for="olt in filterOptions.olts" :key="olt.id" :value="olt.id">
                                     {{ olt.name }}
@@ -236,8 +236,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-400">Scope</span>
-                            <select v-model="form.scope" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-500">Scope</span>
+                            <select v-model="form.scope" class="mt-1 block min-h-11 w-full rounded-md border border-slate-300 bg-white py-2.5 px-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                 <option value="all">Semua</option>
                                 <option v-for="scope in filterOptions.scopes" :key="scope" :value="scope">
                                     {{ scopeOptionLabel(scope) }}
@@ -246,8 +246,8 @@ const formatDate = (value) => {
                         </label>
 
                         <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-400">Tipe</span>
-                            <select v-model="form.type" class="mt-1 block w-full rounded-md border border-white/20 bg-slate-800 py-2 px-3 text-sm text-slate-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <span class="text-xs font-medium uppercase text-slate-500">Tipe</span>
+                            <select v-model="form.type" class="mt-1 block min-h-11 w-full rounded-md border border-slate-300 bg-white py-2.5 px-3 text-sm text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                 <option value="all">Semua</option>
                                 <option v-for="type in filterOptions.types" :key="type" :value="type">
                                     {{ type }}
@@ -256,82 +256,82 @@ const formatDate = (value) => {
                         </label>
                     </div>
 
-                    <div class="mt-4 flex flex-wrap items-center justify-end gap-2">
+                    <div class="mt-4 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
                         <button
                             type="button"
-                            class="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-sm font-medium text-slate-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                             :disabled="!hasFilters"
                             @click="resetFilters"
                         >
                             <RotateCcw class="h-4 w-4" />
                             Reset
                         </button>
-                        <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                        <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-sky-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-sky-700">
                             <Search class="h-4 w-4" />
                             Terapkan
                         </button>
                     </div>
                 </form>
 
-                <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur-xl">
-                    <div class="flex items-center gap-3 border-b border-white/10 px-6 py-5">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-red-500/20 ring-1 ring-red-500/30">
-                            <BellRing class="h-5 w-5 text-red-400" />
+                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                    <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-red-100 ring-1 ring-red-200">
+                            <BellRing class="h-5 w-5 text-red-600" />
                         </div>
                         <div>
-                            <h3 class="text-base font-semibold text-white">
+                            <h3 class="text-base font-semibold text-slate-900">
                                 {{ statusTitle }}
                             </h3>
-                            <p class="text-xs text-slate-400">Hasil evaluasi otomatis dari background poll.</p>
+                            <p class="mt-0.5 text-xs text-slate-500">Hasil evaluasi otomatis dari background poll.</p>
                         </div>
                     </div>
 
                     <div v-if="rows.length === 0" class="px-6 py-12 text-center">
-                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.06] ring-1 ring-white/10">
-                            <ShieldCheck class="h-7 w-7 text-slate-500" />
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200">
+                            <ShieldCheck class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-200">Tidak ada alarm</h3>
-                        <p class="mt-1 text-sm text-slate-400">
+                        <h3 class="text-sm font-semibold text-slate-900">Tidak ada alarm</h3>
+                        <p class="mt-1 text-sm text-slate-500">
                             {{ hasFilters ? 'Tidak ada alarm yang cocok dengan filter.' : 'Semua kondisi normal pada poll terakhir.' }}
                         </p>
                     </div>
 
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-full">
+                        <table class="min-w-[720px] w-full">
                             <thead>
-                                <tr class="border-b border-white/[0.06] bg-white/[0.03]">
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Severity</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Tipe</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">OLT / Target</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Pesan</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Terakhir</th>
+                                <tr class="border-b border-slate-100 bg-slate-50">
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Severity</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipe</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">OLT / Target</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Pesan</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terakhir</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-white/[0.05]">
-                                <tr v-for="alarm in rows" :key="alarm.id" class="transition-colors duration-150 hover:bg-white/[0.04]">
-                                    <td class="px-6 py-4">
-                                        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="alarm in rows" :key="alarm.id" class="transition-colors duration-150 hover:bg-slate-50">
+                                    <td class="px-4 py-4">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
                                             {{ alarm.severity }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm font-medium text-slate-200">{{ alarm.type }}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-300">
-                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-indigo-400 hover:text-indigo-300">
+                                    <td class="px-4 py-4 text-sm font-medium text-slate-900">{{ alarm.type }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-700">
+                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-sky-600 hover:text-sky-500">
                                             {{ alarm.olt.name }}
                                         </Link>
-                                        <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-slate-200">
+                                        <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-slate-900">
                                             {{ alarm.customer_name }}
                                         </div>
                                         <div class="text-xs text-slate-500">{{ scopeLabel(alarm) }}</div>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-300">{{ alarm.message }}</td>
-                                    <td class="px-6 py-4">
-                                        <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="statusClass(alarm.status)">
+                                    <td class="px-4 py-4 text-sm text-slate-700">{{ alarm.message }}</td>
+                                    <td class="px-4 py-4">
+                                        <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
                                             {{ alarm.status }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-300">
+                                    <td class="px-4 py-4 text-sm text-slate-700">
                                         <div>{{ formatDate(alarm.last_seen_at) }}</div>
                                         <div class="text-xs text-slate-500">sejak {{ formatDate(alarm.first_seen_at) }}</div>
                                     </td>
@@ -340,8 +340,8 @@ const formatDate = (value) => {
                         </table>
                     </div>
 
-                    <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 sm:flex-row">
-                        <p class="text-sm text-slate-400">
+                    <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-6 py-4 sm:flex-row">
+                        <p class="text-sm text-slate-500">
                             Menampilkan {{ alarms.from }}–{{ alarms.to }} dari {{ alarms.total }} alarm
                         </p>
                         <Pagination :links="alarms.links" />

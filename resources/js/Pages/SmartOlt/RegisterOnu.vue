@@ -53,23 +53,23 @@ const submit = () => {
     <AuthenticatedLayout>
         <template #header>
             <div>
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">Register ONU</h2>
-                <p class="mt-1 text-sm text-gray-500">{{ olt.name }} · generate provisioning script</p>
+                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">Register ONU</h2>
+                <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · generate provisioning script</p>
             </div>
         </template>
 
-        <div class="bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-100/60 py-8 pb-16 min-h-[60vh]">
+        <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
                 <form class="space-y-5" @submit.prevent="submit">
 
                     <!-- Section 1: Identitas ONU -->
-                    <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
-                        <div class="flex items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-4">
-                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-50 ring-1 ring-indigo-200">
-                                <User class="h-4 w-4 text-indigo-600" />
+                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                        <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
+                                <User class="h-4 w-4 text-sky-600" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-slate-800">Identitas ONU</h3>
+                                <h3 class="text-sm font-semibold text-slate-900">Identitas ONU</h3>
                                 <p class="text-xs text-slate-500">Serial number, posisi port, dan data pelanggan</p>
                             </div>
                         </div>
@@ -103,13 +103,13 @@ const submit = () => {
                     </div>
 
                     <!-- Section 2: Konfigurasi GPON -->
-                    <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
-                        <div class="flex items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-4">
-                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-50 ring-1 ring-sky-200">
+                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                        <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
                                 <Cpu class="h-4 w-4 text-sky-600" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-slate-800">Konfigurasi GPON</h3>
+                                <h3 class="text-sm font-semibold text-slate-900">Konfigurasi GPON</h3>
                                 <p class="text-xs text-slate-500">ONU type, TCONT, VLAN, dan service name</p>
                             </div>
                         </div>
@@ -119,7 +119,7 @@ const submit = () => {
                                 <select
                                     id="onu_type"
                                     v-model="form.onu_type"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
                                     required
                                 >
                                     <option v-for="profile in onuTypeProfiles" :key="profile.id" :value="profile.name">
@@ -133,7 +133,7 @@ const submit = () => {
                                 <select
                                     id="tcont_profile"
                                     v-model="form.tcont_profile"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
                                     required
                                 >
                                     <option v-for="profile in tcontProfiles" :key="profile.id" :value="profile.name">
@@ -152,7 +152,7 @@ const submit = () => {
                                 <select
                                     id="vlan_profile"
                                     v-model="form.vlan_profile"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
                                 >
                                     <option value="">Tanpa profile</option>
                                     <option v-for="profile in vlanProfiles" :key="profile.id" :value="profile.name">
@@ -170,13 +170,13 @@ const submit = () => {
                     </div>
 
                     <!-- Section 3: WAN Mode -->
-                    <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
-                        <div class="flex items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-4">
-                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-50 ring-1 ring-emerald-200">
-                                <Globe class="h-4 w-4 text-emerald-600" />
+                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                        <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
+                                <Globe class="h-4 w-4 text-sky-600" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-slate-800">WAN Mode</h3>
+                                <h3 class="text-sm font-semibold text-slate-900">WAN Mode</h3>
                                 <p class="text-xs text-slate-500">Metode koneksi internet pelanggan</p>
                             </div>
                         </div>
@@ -189,10 +189,10 @@ const submit = () => {
                                         v-for="mode in ['pppoe', 'dhcp', 'static']"
                                         :key="mode"
                                         type="button"
-                                        class="rounded-lg border px-5 py-2 text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1"
+                                        class="rounded-lg border px-5 py-2 text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-1"
                                         :class="form.wan_mode === mode
-                                            ? 'border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                            : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'"
+                                            ? 'bg-sky-600 text-white border-sky-600'
+                                            : 'bg-white border border-slate-200 text-slate-700 hover:border-sky-300'"
                                         @click="form.wan_mode = mode"
                                     >
                                         {{ mode.toUpperCase() }}
@@ -216,7 +216,7 @@ const submit = () => {
                             </div>
 
                             <!-- DHCP: no extra fields -->
-                            <div v-if="form.wan_mode === 'dhcp'" class="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                            <div v-if="form.wan_mode === 'dhcp'" class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
                                 DHCP mode — IP otomatis dari server, tidak ada field tambahan.
                             </div>
 
@@ -227,7 +227,7 @@ const submit = () => {
                                     <select
                                         id="ip_profile"
                                         v-model="form.ip_profile"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
                                         required
                                     >
                                         <option v-for="profile in ipProfiles" :key="profile.id" :value="profile.name">
@@ -251,21 +251,21 @@ const submit = () => {
                     </div>
 
                     <!-- Section 4: Fitur Tambahan -->
-                    <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
-                        <div class="flex items-center gap-3 border-b border-slate-100 bg-white/80 px-6 py-4">
-                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-violet-50 ring-1 ring-violet-200">
-                                <Settings class="h-4 w-4 text-violet-600" />
+                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                        <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+                            <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
+                                <Settings class="h-4 w-4 text-sky-600" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-slate-800">Fitur Tambahan</h3>
+                                <h3 class="text-sm font-semibold text-slate-900">Fitur Tambahan</h3>
                                 <p class="text-xs text-slate-500">TR069 remote management dan Remote ONT (opsional)</p>
                             </div>
                         </div>
                         <div class="grid gap-5 p-6 md:grid-cols-2">
                             <!-- TR069 -->
-                            <div class="rounded-xl border border-slate-100 bg-white/60 p-4">
+                            <div class="rounded-lg border border-sky-100 bg-white p-4">
                                 <label class="inline-flex cursor-pointer items-center gap-2.5">
-                                    <input v-model="form.tr069_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                    <input v-model="form.tr069_enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500" />
                                     <span class="text-sm font-semibold text-slate-700">TR069</span>
                                 </label>
                                 <div v-if="form.tr069_enabled" class="mt-4 space-y-4">
@@ -290,9 +290,9 @@ const submit = () => {
                             </div>
 
                             <!-- Remote ONT -->
-                            <div class="rounded-xl border border-slate-100 bg-white/60 p-4">
+                            <div class="rounded-lg border border-sky-100 bg-white p-4">
                                 <label class="inline-flex cursor-pointer items-center gap-2.5">
-                                    <input v-model="form.remote_ont_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
+                                    <input v-model="form.remote_ont_enabled" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500" />
                                     <span class="text-sm font-semibold text-slate-700">Remote ONT</span>
                                 </label>
                                 <div v-if="form.remote_ont_enabled" class="mt-4 grid gap-4 sm:grid-cols-3">
@@ -303,7 +303,7 @@ const submit = () => {
                                     </div>
                                     <div>
                                         <InputLabel for="remote_ont_mode" value="Mode" />
-                                        <select id="remote_ont_mode" v-model="form.remote_ont_mode" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <select id="remote_ont_mode" v-model="form.remote_ont_mode" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                             <option value="forward">Forward</option>
                                             <option value="discard">Discard</option>
                                         </select>
@@ -311,7 +311,7 @@ const submit = () => {
                                     </div>
                                     <div>
                                         <InputLabel for="remote_ont_protocol" value="Protocol" />
-                                        <select id="remote_ont_protocol" v-model="form.remote_ont_protocol" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <select id="remote_ont_protocol" v-model="form.remote_ont_protocol" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500">
                                             <option value="web">Web</option>
                                             <option value="telnet">Telnet</option>
                                             <option value="ssh">SSH</option>
@@ -329,7 +329,7 @@ const submit = () => {
                     <input v-model="form.oid_index" type="hidden" />
 
                     <!-- Submit bar -->
-                    <div class="flex items-center justify-end gap-3 rounded-2xl border border-white/70 bg-white/70 px-6 py-4 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
+                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60 px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
                         <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
                             <SecondaryButton type="button">Batal</SecondaryButton>
                         </Link>

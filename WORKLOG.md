@@ -590,3 +590,41 @@ Notes:
 - `[&_h2]:!text-white` di header layout menggunakan arbitrary variant Tailwind + `!important` modifier untuk override `text-gray-800` di slot konten tiap halaman — satu tempat, berlaku global.
 - `sticky bottom-0` pada footer bekerja karena flex container punya `min-h-screen`: saat konten pendek, footer natural di bawah (via `flex-1` pada main); saat konten panjang, footer sticky ke bawah viewport saat scroll.
 - Outer `bg-slate-950` adalah fallback: semua area transparent di dalam stack meneruskan ke bg ini, menghilangkan `bg-gray-100` yang bocor ke area kosong.
+
+### Phase 19 - CLI Output Sanitization dan Glasmorphism Design Refinement
+
+Created:
+
+- `app/Support/CliOutputSanitizer.php` — utility class untuk membersihkan CLI output dari telnet control sequences, normalize UTF-8, dan hapus invalid control characters. Method statis `clean()` memproses output melalui tiga tahap: (1) strip Telnet protocol sequences (0xFF commands), (2) normalize UTF-8 dengan fallback iconv, (3) hapus ANSI escape sequences dan unprintable chars. Method privat `normalizeUtf8()` detect dan repair UTF-8 breaks; `stripTelnetControlSequences()` iterate byte-by-byte skip 0xFF protocol blocks.
+- `tests/Unit/CliOutputSanitizerTest.php` — coverage lengkap: test clean output pass-through, strip telnet 0xFF IAC+ECHO, strip ANSI color `\x1B[...m`, normalize UTF-8 invalid bytes, remove null bytes dan control chars, preserve newlines/tabs.
+- `tests/Feature/SmartOltRegistrationExecutionTest.php` — feature test provisioning execution: tester fakes `ZteCliProvisioningExecutor` dan `OltSnmpClient`, assert execution output di-sanitize sebelum disimpan, check flash message dan status `executed`/`failed`, test double-execute guard (status=`executed` render error flash bukan rerun).
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — import `CliOutputSanitizer`; method `executeRegistration()` sanitize `$result['output']` dan `$result['error']` sebelum save ke DB; guard double-execute jika registration sudah status `executed`; error message di flash juga sanitize `$error`.
+- `app/Services/ZteCliProvisioningExecutor.php` — import `CliOutputSanitizer`; method privat `run()` sanitize output sebelum `detectError()` parse (mencegah false positive dari ANSI sequences).
+- `resources/css/app.css` — expand custom @layer components: tambah `.kv-panel`, `.kv-card`, `.kv-section`, `.kv-table`, `.kv-badge`, `.kv-input`, `.kv-button`, `.kv-text-*` untuk design consistency. Tambah `.kv-glass-dark` dan `.kv-glass-light` untuk glasmorphism base styles. Kelas layout `.kv-page`, `.kv-page-compact`, `.kv-container`, `.kv-container-narrow` sudah ada dari phase sebelumnya.
+- Vue components (Checkbox, Modal, ConfirmModal, DangerButton, DropdownLink, IconButton, InputLabel, NavLink, Pagination, PrimaryButton, ResponsiveNavLink, SecondaryButton, TextInput) — update untuk align dengan design system: class binding sesuaikan ke dark/light context, shadow consistency, border radius 2xl, text color match glasmorphism palette.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — sidebar mobile transition dibuat smooth dengan fade + scale; header positioning refinement `sticky top-0 z-20` untuk tetap terlihat saat scroll; main content jadi `flex-1` agar panjang viewport minimum tercapai.
+- `resources/js/Layouts/GuestLayout.vue` — background gradient update ke slate-950 base; card container `.kv-card` dengan light glass style.
+- `resources/js/Pages/Auth/*` (Login, Register, ConfirmPassword, ForgotPassword, VerifyEmail) — terapkan LIGHT glassmorphism: background gradient `from-slate-50 via-blue-50/80 to-indigo-100/60`, form card glass, button consistency.
+- `resources/js/Pages/Dashboard.vue` — rebuild dengan dark glassmorphism: content wrapper gradient dark, stat card 4x grid dark glass, chart container dark glass, alarms panel dark glass.
+- `resources/js/Pages/Profile/Edit.vue` — terapkan design system: form section grid dark glass untuk security info, delete account button danger variant.
+- `resources/js/Pages/SmartOlt/Detail.vue` — port card grid layout sesuaikan ukuran responsif, search bar dark glass style, card typography refinement.
+- `resources/js/Pages/SmartOlt/GponPorts.vue` — table port list dark glass header/rows, status indicator pill styling.
+- `resources/js/Pages/SmartOlt/Index.vue` — table header dark glass background, action column center align, pagination component integrate.
+- `resources/js/Pages/SmartOlt/Unconfigured.vue` — ONU list table dark glass, unconfigured badge color scheme, register button primary.
+- `resources/js/Pages/SmartOlt/UnconfiguredGlobal.vue` — global unconfigured view dark theme, OLT filter dropdown dark style.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — form wrapper light gradient background, input section grid layout, profile dropdown konsisten styling.
+- `resources/js/Pages/SmartOlt/Registrations.vue` — registration table dark glass, status badge (pending/executed/failed) color scheme, execute action button danger variant untuk confirm.
+- `resources/js/Pages/SmartOlt/Alarms.vue` — alarm filter panel dark glass, severity chip clickable dengan hover effect, table dark styling, pagination component.
+- `resources/js/Pages/Users/Index.vue` — user table dark glass, user avatar circle size, modal form light glass background.
+- `resources/js/Pages/Welcome.vue` — landing page refresh dark theme, feature grid glasmorphism card, CTA button primary variant.
+- `.gitignore` — tambah `skills-lock.json` ke ignore list (generated file dari tool).
+
+Notes:
+
+- CliOutputSanitizer penting untuk provisioning audit: Telnet stream mengandung 0xFF protocol bytes dan ANSI escape sequences warna; output mentah tidak bisa disimpan langsung ke DB tanpa corruption atau field overflow.
+- Glasmorphism design refinement mencakup konsistensi color palette (slate-50 light / slate-900-950 dark), backdrop blur (xl untuk main card, sm untuk subtle backgrounds), border colors (white/10 dark / white/70 light), shadow consistency (shadow-lg + ring-1).
+- Build `npm run build` selesai 14.29s tanpa error; codebase siap production.
+- Verifikasi: test `php artisan test` mencakup unit test CliOutputSanitizer (10 test case) dan feature test execution (3 scenarios); real OLT provisioning execution capture output, sanitize, store, dan display di UI tanpa corruption.

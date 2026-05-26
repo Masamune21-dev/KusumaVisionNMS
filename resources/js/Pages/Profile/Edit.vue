@@ -21,15 +21,15 @@ defineProps({
     <AuthenticatedLayout>
         <template #header>
             <h2
-                class="text-xl font-semibold leading-tight text-gray-800"
+                class="text-lg font-semibold leading-tight sm:text-xl text-slate-800"
             >
                 Profile
             </h2>
         </template>
 
-        <div class="bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-100/60 py-8 pb-16 min-h-[60vh]">
-            <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
+        <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
+            <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
+                <div class="rounded-lg border border-sky-200 bg-white p-6 shadow-sm shadow-sky-100/60">
                     <UpdateProfileInformationForm
                         :must-verify-email="mustVerifyEmail"
                         :status="status"
@@ -37,11 +37,11 @@ defineProps({
                     />
                 </div>
 
-                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
+                <div class="rounded-lg border border-sky-200 bg-white p-6 shadow-sm shadow-sky-100/60">
                     <UpdatePasswordForm class="max-w-xl" />
                 </div>
 
-                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
+                <div class="rounded-lg border border-sky-200 bg-white p-6 shadow-sm shadow-sky-100/60">
                     <DeleteUserForm class="max-w-xl" />
                 </div>
             </div>

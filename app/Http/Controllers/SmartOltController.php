@@ -10,6 +10,7 @@ use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
+use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -540,13 +541,21 @@ class SmartOltController extends Controller
     ): RedirectResponse {
         abort_unless($registration->snmp_olt_id === $olt->id, 404);
 
+        if ($registration->status === 'executed') {
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('success', 'Provisioning script ini sudah teregister di OLT.');
+        }
+
         try {
             $result = $executor->execute($olt, $registration->cli_script);
+            $output = CliOutputSanitizer::clean($result['output']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
 
             $registration->update([
                 'status' => $result['ok'] ? 'executed' : 'failed',
-                'execution_output' => $result['output'],
-                'execution_error' => $result['error'],
+                'execution_output' => $output,
+                'execution_error' => $error,
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
@@ -557,19 +566,21 @@ class SmartOltController extends Controller
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
                         ? 'Provisioning script berhasil dieksekusi ke OLT.'
-                        : 'Provisioning script selesai dengan indikasi error: '.$result['error'],
+                        : 'Provisioning script selesai dengan indikasi error: '.$error,
                 );
         } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+
             $registration->update([
                 'status' => 'failed',
-                'execution_error' => $exception->getMessage(),
+                'execution_error' => $error,
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', 'Eksekusi provisioning gagal: '.$exception->getMessage());
+                ->with('error', 'Eksekusi provisioning gagal: '.$error);
         }
     }
 
