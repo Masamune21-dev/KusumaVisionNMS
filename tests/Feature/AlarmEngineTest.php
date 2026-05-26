@@ -119,6 +119,8 @@ class AlarmEngineTest extends TestCase
     {
         $olt = $this->makeOlt($this->snapshotWithOnu([
             'slot' => 1, 'port' => 1, 'onu_id' => 7, 'interface' => 'gpon-onu_1/1/1:7',
+            'name' => 'Customer RX',
+            'description' => '7$$Customer RX$$',
             'serial_number' => 'ZTEGAAAA0004', 'admin_state' => 'active',
             'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
             'rx_power_dbm' => -29.5,
@@ -132,6 +134,7 @@ class AlarmEngineTest extends TestCase
             'severity' => 'warning',
             'status' => 'active',
         ]);
+        $this->assertSame('Customer RX', data_get(AlarmEvent::first()?->meta, 'customer_name'));
     }
 
     public function test_alarms_page_can_be_rendered(): void
@@ -141,6 +144,110 @@ class AlarmEngineTest extends TestCase
         $response = $this->actingAs($user)->get(route('alarms.index'));
 
         $response->assertOk();
+    }
+
+    public function test_alarms_page_filters_results(): void
+    {
+        $user = User::factory()->create();
+        $oltA = $this->makeOlt(['ok' => true]);
+        $oltB = $this->makeOlt(['ok' => true]);
+        $oltA->update(['name' => 'OLT-A']);
+        $oltB->update(['name' => 'OLT-B']);
+
+        AlarmEvent::create([
+            'snmp_olt_id' => $oltA->id,
+            'signature' => 'olt:unreachable',
+            'type' => 'olt_unreachable',
+            'severity' => 'critical',
+            'status' => 'active',
+            'scope' => 'olt',
+            'message' => 'SNMP timeout on OLT-A.',
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+        AlarmEvent::create([
+            'snmp_olt_id' => $oltA->id,
+            'signature' => 'onu:ZTEGSEARCH:offline',
+            'type' => 'onu_offline',
+            'severity' => 'minor',
+            'status' => 'active',
+            'scope' => 'onu',
+            'serial_number' => 'ZTEGSEARCH',
+            'message' => 'ONU ZTEGSEARCH offline.',
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+        AlarmEvent::create([
+            'snmp_olt_id' => $oltB->id,
+            'signature' => 'onu:OTHER:los',
+            'type' => 'los',
+            'severity' => 'major',
+            'status' => 'cleared',
+            'scope' => 'onu',
+            'serial_number' => 'OTHER',
+            'message' => 'ONU OTHER LOS.',
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+            'cleared_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('alarms.index', [
+            'severity' => 'critical',
+            'olt_id' => $oltA->id,
+            'scope' => 'olt',
+            'q' => 'timeout',
+        ]));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('SmartOlt/Alarms')
+            ->where('alarms.total', 1)
+            ->where('alarms.data.0.type', 'olt_unreachable')
+            ->where('filter.severity', 'critical')
+            ->where('filter.olt_id', $oltA->id)
+            ->where('filter.scope', 'olt')
+            ->where('filter.q', 'timeout')
+            ->has('filterOptions.olts', 2)
+            ->has('filterOptions.types', 3)
+        );
+    }
+
+    public function test_alarms_page_includes_customer_name_from_poll_snapshot(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt($this->snapshotWithOnu([
+            'slot' => 2, 'port' => 2, 'onu_id' => 5, 'interface' => 'gpon-onu_1/2/2:5',
+            'name' => 'Jefri Alugoro',
+            'description' => '5$$Jefri Alugoro$$',
+            'serial_number' => 'ELWGC09C61E1',
+            'admin_state' => 'active',
+            'phase_state' => 'Working',
+            'online' => true,
+            'last_down_cause' => 'LOFi',
+            'rx_power_dbm' => -28.54,
+        ]));
+
+        AlarmEvent::create([
+            'snmp_olt_id' => $olt->id,
+            'signature' => 'onu:ELWGC09C61E1:high_rx_attenuation',
+            'type' => 'high_rx_attenuation',
+            'severity' => 'warning',
+            'status' => 'active',
+            'scope' => 'onu',
+            'slot' => 2,
+            'port' => 2,
+            'onu_id' => 5,
+            'serial_number' => 'ELWGC09C61E1',
+            'message' => 'ONU gpon-onu_1/2/2:5 RX -28.54 dBm di luar rentang sehat.',
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('alarms.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('SmartOlt/Alarms')
+            ->where('alarms.data.0.customer_name', 'Jefri Alugoro')
+        );
     }
 
     public function test_alarms_are_paginated(): void

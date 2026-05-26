@@ -13,7 +13,7 @@ const page = usePage();
 
 <template>
     <div>
-        <div class="min-h-screen bg-gray-100">
+        <div class="min-h-screen bg-gray-100 pb-10">
             <nav
                 class="border-b border-gray-100 bg-white"
             >
@@ -248,6 +248,15 @@ const page = usePage();
                     </div>
                 </Transition>
             </main>
+
+            <!-- Global Footer -->
+            <footer class="fixed bottom-0 left-0 right-0 z-10 border-t border-gray-200 bg-white">
+                <div class="mx-auto max-w-7xl px-4 py-2 sm:px-6 lg:px-8">
+                    <p class="text-center text-xs text-gray-400">
+                        &copy; 2026 KusumaVisionNMS &bull; Dibuat Oleh Masamune
+                    </p>
+                </div>
+            </footer>
         </div>
     </div>
 </template>

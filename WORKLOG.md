@@ -455,3 +455,54 @@ Notes:
 
 - Chart `area` lebih informatif secara visual dibanding `line` karena area terisi menunjukkan volume trafik secara intuitif.
 - `fetch` diganti `axios` karena axios sudah di-import global via Inertia dan menangani CSRF token secara otomatis; error response juga lebih mudah di-parse melalui `e.response?.data`.
+
+### SmartOLT — Hardware dan Detail Interface Persisten
+
+Created:
+
+- `smartolt_card_statuses` dan `smartolt_interface_statuses` migrations — tabel cache persisten untuk `show card`, port-status, VLAN tagged, dan data optical-module-info bila nanti direfresh per interface.
+- `2026_05_26_102000_add_gpon_metrics_to_smartolt_interface_statuses_table.php` — tambah kolom GPON metrics: ONU capacity/registered, rate Bps/pps, throughput %, peak rate, dan counters JSON.
+- `App\Models\SmartOltCardStatus` dan `App\Models\SmartOltInterfaceStatus` — model Eloquent untuk data hardware dan detail interface.
+- `tests/Feature/SmartOltHardwareInterfaceTest.php` — coverage agar halaman detail membaca hardware dari DB tanpa CLI, refresh hardware menyimpan `show card`, dan refresh Port Manager menyimpan detail interface.
+
+Changed:
+
+- `app/Services/ZteCardUplinkService.php` — source-of-truth card/VLAN/interface dipindah dari Laravel cache ke database; refresh CLI default sekarang parse `show card`, `show interface port-status`, dan `show vlan port` lalu persist ke tabel baru.
+- `app/Http/Controllers/SmartOltController.php` — halaman Detail OLT dan Port Manager tidak lagi fallback ke CLI saat GET; tambah `refreshHardware()` dan perluas `refreshDashboard()` untuk update hardware + detail interface.
+- `resources/js/Pages/SmartOlt/Detail.vue` — panel Status Card / Hardware selalu tampil dari DB dan punya tombol **Refresh Hardware**.
+- `resources/js/Pages/SmartOlt/PortManager.vue` — tambah tabel **Detail Interface** dari DB; tombol **Refresh Data** memuat ulang isi tabel; live traffic tidak auto-start saat halaman dibuka.
+- `resources/js/Pages/SmartOlt/PortManager.vue` — tabel interface dipisah menjadi **Port Uplink** dan **GPON Port**. GPON port punya tombol refresh per row.
+- `routes/web.php` — tambah route `smartolt.hardware.refresh`.
+- `routes/web.php` — tambah route `smartolt.dashboard.interface.refresh` untuk refresh satu GPON port.
+
+Notes:
+
+- Output C300 live menunjukkan `show interface port-status` wajib memakai interface leaf seperti `xgei_1/20/1`; command sampai slot saja (`xgei_1/20`) invalid.
+- Parser optical mendukung format dua kolom ZTE seperti `Vendor-Name`/`Vendor-Pn`, `RxPower`/`TxPower`, dan `Temperature`/`Supply-Vol`.
+- Refresh optical massal sengaja tidak dimasukkan ke tombol **Refresh Data** karena C300 dengan banyak PON/uplink bisa melewati timeout HTTP; optical sebaiknya dibuat per-interface atau background job.
+- Refresh GPON per row menjalankan dua command: `show interface gpon-olt_1/{slot}/{port}` dan `show interface optical-module-info gpon-olt_1/{slot}/{port}`.
+- Verifikasi: `php artisan test --filter=SmartOltHardwareInterfaceTest`, partial `SmartOltInventoryTest` render detail/index, `npm run build -- --mode=development`; real OLT id=2 refresh read-only turun dari 33.28s menjadi 17.66s; refresh per-port `gpon-olt_1/2/1` berhasil membaca status `activate/up`, ONU `25/128`, traffic, vendor optic, Tx power, dan temperature dalam 10.39s.
+
+### Alarm — Multi-Filter, Customer Name, dan Footer Global
+
+Changed:
+
+- `app/Http/Controllers/AlarmController.php` — tambah filter multi-dimensi: severity, scope, type, OLT (`olt_id`), dan full-text search (`q`); setiap alarm kini menyertakan field `customer_name` yang di-lookup dari `smartolt_onu_registrations` dan fallback ke data `last_test_result` snapshot.
+- `app/Services/AlarmEvaluator.php` — method baru `onuMeta()` mengekstrak `customer_name`, `onu_name`, `onu_description` dari data ONU dan menyertakannya ke field `meta` alarm (dipakai di `onuScopeFields()` dan `onuRxAlarm()`).
+- `app/Support/SmartOltSupport.php` — tambah static helper `customerNameFromOnu()` dan `cleanCustomerName()`; handle format `$$...$$` ZTE, strip nilai junk (`-`, `n/a`, `gpon-onu_*`), dan skip jika nama sama dengan serial.
+- `resources/js/Pages/SmartOlt/Alarms.vue` — panel filter baru (Cari, Severity, OLT, Scope, Tipe); severity summary card kini clickable untuk filter langsung; tombol status tambah opsi "Selesai" (`cleared`); reset filter satu klik.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — tambah global footer fixed-bottom dengan teks copyright; body diberi `pb-10` agar konten tidak tertutup footer.
+- `app/Jobs/PollOltJob.php` — tambah `tries=1`, `timeout=600`, `failOnTimeout=true`; `WithoutOverlapping` middleware kini memakai `expireAfter(timeout+300)` agar lock tidak tersangkut selamanya bila job timeout.
+- `config/queue.php` dan `.env.example` — tambah `REDIS_QUEUE_RETRY_AFTER=900` agar Redis queue tidak retry job panjang sebelum timeout.
+- `app/Services/Snmp/OltSnmpClient.php` — normalisasi prefix port `gpon_` → `gpon-olt_` pada SNMP label agar nama port dari SNMP selalu cocok dengan nama CLI (C300 melaporkan `gpon_1/2/1` via SNMP tapi CLI-nya pakai `gpon-olt_1/2/1`).
+- `app/Http/Controllers/SmartOltController.php` — `refresh()` kini merge snapshot baru ke `last_test_result` yang ada (bukan overwrite), sehingga data `port_onus` dan `unconfigured_onus` yang di-cache tidak terhapus saat SNMP refresh biasa.
+- `app/Models/SnmpOlt.php` — tambah relasi `cardStatuses()` dan `interfaceStatuses()` ke model baru.
+- `routes/web.php` — rename route grup dari `smartolt.dashboard.*` ke `smartolt.port-manager.*`; URL `/smartolt/{olt}/dashboard` → `/smartolt/{olt}/port-manager`.
+- `tests/Feature/AlarmEngineTest.php` — tambah test filter multi-param, test customer_name dari snapshot, dan assert meta `customer_name` pada alarm RX attenuation.
+- `tests/Feature/OltPollingTest.php` — tambah test bahwa `PollOltJob` skip jika OLT belum waktunya di-poll.
+
+Notes:
+
+- Customer name di-lookup dua lapis: pertama dari `smartolt_onu_registrations` (data provisioning), fallback ke snapshot `last_test_result.port_onus.*.onus` (data SNMP live). Ini memastikan nama pelanggan tampil meski ONU belum pernah diregistrasi lewat sistem.
+- Route rename dari `dashboard` ke `port-manager` lebih deskriptif dan menghindari konflik bila ke depan ada halaman dashboard terpisah.
+- `expireAfter(900)` pada `WithoutOverlapping` penting: tanpa ini, lock Redis tidak pernah expire bila job mati mendadak (OOM, kill), dan OLT berikutnya tidak akan di-poll.

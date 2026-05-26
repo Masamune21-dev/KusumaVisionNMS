@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 
 class AlarmEvaluator
@@ -125,7 +126,10 @@ class AlarmEvaluator
             'type' => 'high_rx_attenuation',
             'severity' => AlarmEvent::SEVERITY_WARNING,
             'message' => "ONU {$iface} RX {$rx} dBm di luar rentang sehat.",
-            'meta' => ['rx_power_dbm' => $rx],
+            'meta' => [
+                ...$this->onuMeta($onu),
+                'rx_power_dbm' => $rx,
+            ],
         ]];
     }
 
@@ -145,13 +149,34 @@ class AlarmEvaluator
      */
     private function onuScopeFields(array $onu): array
     {
-        return [
+        $fields = [
             'scope' => 'onu',
             'slot' => (int) ($onu['slot'] ?? 0),
             'port' => (int) ($onu['port'] ?? 0),
             'onu_id' => (int) ($onu['onu_id'] ?? 0),
             'serial_number' => $onu['serial_number'] ?? null,
         ];
+
+        $meta = $this->onuMeta($onu);
+
+        if ($meta !== []) {
+            $fields['meta'] = $meta;
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @param  array<string, mixed>  $onu
+     * @return array<string, mixed>
+     */
+    private function onuMeta(array $onu): array
+    {
+        return array_filter([
+            'customer_name' => SmartOltSupport::customerNameFromOnu($onu),
+            'onu_name' => $onu['name'] ?? null,
+            'onu_description' => $onu['description'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     /**

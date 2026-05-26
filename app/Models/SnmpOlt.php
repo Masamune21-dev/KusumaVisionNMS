@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SnmpOlt extends Model
 {
@@ -59,6 +60,16 @@ class SnmpOlt extends Model
         return $this->snmp_port === 161
             ? $this->ip
             : "{$this->ip}:{$this->snmp_port}";
+    }
+
+    public function cardStatuses(): HasMany
+    {
+        return $this->hasMany(SmartOltCardStatus::class, 'snmp_olt_id');
+    }
+
+    public function interfaceStatuses(): HasMany
+    {
+        return $this->hasMany(SmartOltInterfaceStatus::class, 'snmp_olt_id');
     }
 
     public function defaultCliPort(): int

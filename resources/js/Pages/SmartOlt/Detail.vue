@@ -4,7 +4,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Layers, LayoutDashboard, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -26,10 +26,20 @@ const flash = computed(() => page.props.flash ?? {});
 
 const onuTotal  = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.onu_count ?? 0), 0));
 const onuOnline = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.online_onu_count ?? 0), 0));
+const hardwareRefreshing = ref(false);
+const hardwareLastRefresh = computed(() => props.cards[0]?.refreshed_at ?? null);
 
 const refresh = () => {
     router.post(route('smartolt.refresh', props.olt.id), {}, {
         preserveScroll: true,
+    });
+};
+
+const refreshHardware = () => {
+    hardwareRefreshing.value = true;
+    router.post(route('smartolt.hardware.refresh', props.olt.id), {}, {
+        preserveScroll: true,
+        onFinish: () => { hardwareRefreshing.value = false; },
     });
 };
 
@@ -96,7 +106,7 @@ const oltImage = computed(() => {
                             Kembali
                         </SecondaryButton>
                     </Link>
-                    <Link :href="route('smartolt.dashboard', olt.id)">
+                    <Link :href="route('smartolt.port-manager', olt.id)">
                         <SecondaryButton type="button">
                             <LayoutDashboard class="mr-2 h-4 w-4" />
                             Port Manager
@@ -219,12 +229,24 @@ const oltImage = computed(() => {
                 </div>
 
                 <!-- Status Card / Hardware -->
-                <div v-if="cards.length > 0" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div class="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
-                        <Layers class="h-5 w-5 text-gray-500" />
-                        <h3 class="text-base font-semibold text-gray-900">Status Card / Hardware</h3>
+                <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                    <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-2">
+                            <Layers class="h-5 w-5 text-gray-500" />
+                            <div>
+                                <h3 class="text-base font-semibold text-gray-900">Status Card / Hardware</h3>
+                                <p class="mt-0.5 text-xs text-gray-500">Refresh terakhir: {{ formatDate(hardwareLastRefresh) }}</p>
+                            </div>
+                        </div>
+                        <SecondaryButton type="button" :disabled="hardwareRefreshing" @click="refreshHardware">
+                            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': hardwareRefreshing }" />
+                            Refresh Hardware
+                        </SecondaryButton>
                     </div>
-                    <div class="overflow-x-auto">
+                    <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                        Belum ada data hardware tersimpan.
+                    </div>
+                    <div v-else class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">

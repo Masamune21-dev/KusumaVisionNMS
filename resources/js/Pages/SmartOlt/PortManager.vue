@@ -3,32 +3,99 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, Network, RefreshCw, Signal, Wifi, XCircle } from '@lucide/vue';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { ArrowLeft, CheckCircle2, Eye, Network, Plus, RefreshCw, Signal, Tag, Wifi, XCircle } from '@lucide/vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 
 const props = defineProps({
     olt: { type: Object, required: true },
     uplink_interfaces: { type: Array, default: () => [] },
     vlans_by_interface: { type: Object, default: () => ({}) },
+    interface_details: { type: Array, default: () => [] },
 });
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const toast = reactive({ show: false, ok: true, message: '' });
 
-// ── Interface selector ──────────────────────────────────────────────────
+// Auto-dismiss flash messages after 4 seconds
+const flashVisible = reactive({ success: !!flash.value.success, error: !!flash.value.error });
+let flashSuccessTimer = null;
+let flashErrorTimer = null;
+
+watch(() => flash.value.success, (val) => {
+    if (val) {
+        flashVisible.success = true;
+        clearTimeout(flashSuccessTimer);
+        flashSuccessTimer = setTimeout(() => { flashVisible.success = false; }, 4000);
+    }
+}, { immediate: true });
+
+watch(() => flash.value.error, (val) => {
+    if (val) {
+        flashVisible.error = true;
+        clearTimeout(flashErrorTimer);
+        flashErrorTimer = setTimeout(() => { flashVisible.error = false; }, 4000);
+    }
+}, { immediate: true });
+
+// ── Interface selector (traffic chart) ─────────────────────────────────
 const selectedInterface = ref(props.uplink_interfaces[0]?.interface ?? '');
 
 // ── Traffic chart ───────────────────────────────────────────────────────
 const MAX_POINTS = 30;
+const AXIS_TICKS = 5;
 const trafficHistory = reactive({ labels: [], input: [], output: [] });
 const uplinkInfo = reactive({ line_status: null, input_bps: 0, output_bps: 0, input_pps: 0, output_pps: 0 });
 const trafficError = ref(null);
+const liveTrafficEnabled = ref(false);
 let pollTimer = null;
 
-// Convert Bps → Mbps: ×8 ÷ 1,000,000
-const toMbps = (bps) => (bps * 8) / 1_000_000;
+const RX_COLOR = '#2563eb';
+const TX_COLOR = '#10b981';
+
+const toMbps = (bytesPerSecond) => (Number(bytesPerSecond || 0) * 8) / 1_000_000;
+
+const formatMbps = (mbps, compact = false) => {
+    const value = Number(mbps || 0);
+
+    if (value >= 1000) {
+        const gbps = value / 1000;
+        return compact ? `${gbps.toFixed(gbps >= 10 ? 0 : 1)}G` : `${gbps.toFixed(2)} Gbps`;
+    }
+
+    if (compact) {
+        if (value >= 10) return `${value.toFixed(0)}M`;
+        if (value >= 1) return `${value.toFixed(1)}M`;
+        return `${value.toFixed(2)}M`;
+    }
+
+    if (value >= 100) return `${value.toFixed(0)} Mbps`;
+    if (value >= 10) return `${value.toFixed(1)} Mbps`;
+    return `${value.toFixed(2)} Mbps`;
+};
+
+const niceAxisMax = (value) => {
+    if (!Number.isFinite(value) || value <= 0) return 10;
+
+    const rawStep = (value * 1.1) / AXIS_TICKS;
+    const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+    const normalized = rawStep / magnitude;
+    const multiplier = [1, 1.25, 2, 2.5, 5, 10].find((item) => normalized <= item) ?? 10;
+
+    return multiplier * magnitude * AXIS_TICKS;
+};
+
+const chartMaxMbps = computed(() => {
+    const values = [
+        ...trafficHistory.input,
+        ...trafficHistory.output,
+        toMbps(uplinkInfo.input_bps),
+        toMbps(uplinkInfo.output_bps),
+    ].filter((value) => Number.isFinite(value));
+
+    return niceAxisMax(Math.max(0, ...values));
+});
 
 const chartOptions = computed(() => ({
     chart: {
@@ -38,7 +105,7 @@ const chartOptions = computed(() => ({
         zoom: { enabled: false },
     },
     stroke: { curve: 'smooth', width: 2 },
-    colors: ['#10b981', '#3b82f6'],
+    colors: [RX_COLOR, TX_COLOR],
     fill: {
         type: 'gradient',
         gradient: {
@@ -49,34 +116,35 @@ const chartOptions = computed(() => ({
         },
     },
     dataLabels: { enabled: false },
+    markers: { size: 0, hover: { size: 4 } },
     xaxis: { categories: trafficHistory.labels, labels: { show: false }, axisTicks: { show: false }, axisBorder: { show: false } },
     yaxis: {
         labels: {
-            formatter: (v) => {
-                if (v >= 1000) return (v / 1000).toFixed(1) + ' G';
-                if (v >= 1)    return v.toFixed(0) + ' M';
-                return v.toFixed(1) + ' M';
-            },
+            minWidth: 76,
+            formatter: (v) => formatMbps(v),
         },
         min: 0,
+        max: chartMaxMbps.value,
+        tickAmount: AXIS_TICKS,
+        forceNiceScale: true,
     },
     tooltip: {
-        y: { formatter: (v) => v.toFixed(2) + ' Mbps' },
+        y: { formatter: (v) => formatMbps(v) },
     },
     legend: { position: 'top', horizontalAlign: 'left' },
     grid: { strokeDashArray: 3, borderColor: '#e5e7eb' },
 }));
 
 const chartSeries = computed(() => [
-    { name: 'In (Mbps)',  data: [...trafficHistory.input] },
-    { name: 'Out (Mbps)', data: [...trafficHistory.output] },
+    { name: 'RX / In', data: [...trafficHistory.input] },
+    { name: 'TX / Out', data: [...trafficHistory.output] },
 ]);
 
 const fetchTraffic = async () => {
     if (!selectedInterface.value) return;
 
     try {
-        const res = await fetch(route('smartolt.dashboard.traffic', props.olt.id) + '?interface=' + encodeURIComponent(selectedInterface.value), {
+        const res = await fetch(route('smartolt.port-manager.traffic', props.olt.id) + '?interface=' + encodeURIComponent(selectedInterface.value), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
         });
 
@@ -107,33 +175,111 @@ const fetchTraffic = async () => {
     }
 };
 
-const startPolling = () => {
-    clearInterval(pollTimer);
+const resetTrafficState = () => {
     trafficHistory.labels = [];
     trafficHistory.input = [];
     trafficHistory.output = [];
     uplinkInfo.line_status = null;
+    uplinkInfo.input_bps = 0;
+    uplinkInfo.output_bps = 0;
+    uplinkInfo.input_pps = 0;
+    uplinkInfo.output_pps = 0;
+    trafficError.value = null;
+};
+
+const startPolling = () => {
+    if (!selectedInterface.value) return;
+
+    clearInterval(pollTimer);
+    liveTrafficEnabled.value = true;
+    resetTrafficState();
     fetchTraffic();
     pollTimer = setInterval(fetchTraffic, 10000);
 };
 
-watch(selectedInterface, () => startPolling());
+const stopPolling = () => {
+    clearInterval(pollTimer);
+    pollTimer = null;
+    liveTrafficEnabled.value = false;
+};
 
-onMounted(() => {
-    if (selectedInterface.value) startPolling();
+const toggleLiveTraffic = () => {
+    if (liveTrafficEnabled.value) {
+        stopPolling();
+        return;
+    }
+
+    startPolling();
+};
+
+watch(selectedInterface, () => {
+    if (liveTrafficEnabled.value) {
+        startPolling();
+    } else {
+        resetTrafficState();
+    }
 });
 
 onBeforeUnmount(() => clearInterval(pollTimer));
 
+// ── Stored interface detail table ──────────────────────────────────────
+const interfaceDetails = computed(() => props.interface_details ?? []);
+const uplinkDetails = computed(() => interfaceDetails.value.filter((row) => row.interface_type === 'uplink'));
+const gponDetails = computed(() => interfaceDetails.value.filter((row) => row.interface_type === 'gpon'));
+
+// ── GPON card/slot filter ───────────────────────────────────────────────
+const gponSlots = computed(() => {
+    return [...new Set(gponDetails.value.map((r) => r.slot))].sort((a, b) => a - b);
+});
+
+const selectedGponSlot = ref(null);
+
+watch(gponSlots, (slots) => {
+    if (selectedGponSlot.value === null && slots.length > 0) {
+        selectedGponSlot.value = slots[0];
+    }
+}, { immediate: true });
+
+const filteredGponDetails = computed(() => {
+    if (selectedGponSlot.value === null) return gponDetails.value;
+    return gponDetails.value.filter((r) => r.slot === selectedGponSlot.value);
+});
+
+const gponCardLabel = (slot) => {
+    // Derive prefix from actual interface name (supports gpon_1/2/x and gpon-olt_1/2/x)
+    const sample = gponDetails.value.find((r) => r.slot === slot);
+    if (sample) {
+        return sample.interface.replace(/\/\d+$/, '');
+    }
+    return `gpon_1/${slot}`;
+};
+
 // ── VLAN state (reactive, updated after add) ────────────────────────────
 const vlansByInterface = reactive({ ...props.vlans_by_interface });
 
-const currentVlans = computed(() => vlansByInterface[selectedInterface.value] ?? []);
+// ── VLAN inline panel per uplink row ───────────────────────────────────
+const vlanPanelInterface = ref(null);
+const vlanPanelMode = ref('view'); // 'view' | 'add'
+
+const panelVlans = computed(() => vlansByInterface[vlanPanelInterface.value] ?? []);
+
+const openVlanPanel = (iface, mode) => {
+    if (vlanPanelInterface.value === iface && vlanPanelMode.value === mode) {
+        vlanPanelInterface.value = null;
+        return;
+    }
+
+    vlanPanelInterface.value = iface;
+    vlanPanelMode.value = mode;
+    vlanForm.interface = iface;
+    vlanForm.vlan_id = '';
+    toast.show = false;
+};
 
 // ── Add VLAN form ───────────────────────────────────────────────────────
-const vlanForm = reactive({ interface: selectedInterface.value, vlan_id: '', submitting: false });
+const vlanForm = reactive({ interface: '', vlan_id: '', submitting: false });
 
-watch(selectedInterface, (val) => { vlanForm.interface = val; });
+watch(vlanPanelInterface, (val) => { vlanForm.interface = val ?? ''; });
 
 const submitVlan = async () => {
     const vlanId = parseInt(vlanForm.vlan_id);
@@ -144,7 +290,7 @@ const submitVlan = async () => {
 
     try {
         const { data } = await axios.post(
-            route('smartolt.dashboard.vlan', props.olt.id),
+            route('smartolt.port-manager.vlan', props.olt.id),
             { interface: vlanForm.interface, vlan_id: vlanId },
         );
 
@@ -154,7 +300,7 @@ const submitVlan = async () => {
 
         if (data.ok) {
             vlanForm.vlan_id = '';
-            router.reload({ only: ['vlans_by_interface'], onSuccess: (page) => {
+            router.reload({ only: ['vlans_by_interface', 'interface_details'], onSuccess: (page) => {
                 Object.assign(vlansByInterface, page.props.vlans_by_interface ?? {});
             }});
         }
@@ -171,15 +317,30 @@ const submitVlan = async () => {
 
 // ── Refresh page ────────────────────────────────────────────────────────
 const refreshing = ref(false);
+const refreshingInterface = ref(null);
 const doRefresh = () => {
     refreshing.value = true;
-    router.post(route('smartolt.dashboard.refresh', props.olt.id), {}, {
+    router.post(route('smartolt.port-manager.refresh', props.olt.id), {}, {
         onFinish: () => { refreshing.value = false; },
     });
 };
 
+const refreshInterface = (row) => {
+    if (row.interface_type !== 'gpon') return;
+
+    refreshingInterface.value = row.interface;
+    router.post(route('smartolt.port-manager.interface.refresh', props.olt.id), { interface: row.interface }, {
+        preserveScroll: true,
+        onFinish: () => { refreshingInterface.value = null; },
+    });
+};
+
 // ── Helpers ─────────────────────────────────────────────────────────────
-const formatBps = (bps) => toMbps(bps).toFixed(2) + ' Mbps';
+const formatBps = (bps) => {
+    if (bps === null || bps === undefined || bps === '') return '-';
+
+    return formatMbps(toMbps(bps));
+};
 
 const vlanBadgeColor = (range) => {
     const n = parseInt(range);
@@ -196,9 +357,47 @@ const vlanBadgeColor = (range) => {
     return colors[n % colors.length];
 };
 
-const uplinkCardType = (iface) => {
-    const found = props.uplink_interfaces.find((u) => u.interface === iface);
-    return found ? found.card_type : '';
+const formatDate = (value) => {
+    if (!value) return '-';
+
+    return new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(new Date(value));
+};
+
+const formatNumber = (value, suffix = '') => {
+    if (value === null || value === undefined || value === '') return '-';
+
+    return `${Number(value).toLocaleString('id-ID')}${suffix}`;
+};
+
+const formatPercent = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+
+    return `${Number(value).toLocaleString('id-ID')}%`;
+};
+
+const typeLabel = (type) => type === 'uplink' ? 'Uplink' : (type === 'gpon' ? 'GPON' : 'Interface');
+
+const linkBadgeColor = (status) => {
+    const s = String(status ?? '').toLowerCase();
+    if (s === 'up') return 'bg-green-50 text-green-700';
+    if (s === 'down') return 'bg-red-50 text-red-700';
+    return 'bg-gray-100 text-gray-600';
+};
+
+const compactVlans = (vlans) => {
+    if (!Array.isArray(vlans) || vlans.length === 0) return '-';
+
+    return vlans.slice(0, 5).join(', ') + (vlans.length > 5 ? ` +${vlans.length - 5}` : '');
+};
+
+const onuSummary = (row) => {
+    if (row.registered_onu_count === null || row.registered_onu_count === undefined) return '-';
+    if (row.onu_capacity === null || row.onu_capacity === undefined) return `${row.registered_onu_count} ONU`;
+
+    return `${row.registered_onu_count}/${row.onu_capacity} ONU`;
 };
 </script>
 
@@ -235,13 +434,21 @@ const uplinkCardType = (iface) => {
         <div class="py-6">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
 
-                <!-- Flash messages -->
-                <div v-if="flash.success" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-                    {{ flash.success }}
-                </div>
-                <div v-if="flash.error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    {{ flash.error }}
-                </div>
+                <!-- Flash messages (auto-dismiss after 4s) -->
+                <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
+                            leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
+                    <div v-if="flash.success && flashVisible.success"
+                         class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                        {{ flash.success }}
+                    </div>
+                </Transition>
+                <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
+                            leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
+                    <div v-if="flash.error && flashVisible.error"
+                         class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        {{ flash.error }}
+                    </div>
+                </Transition>
 
                 <!-- ══════════════════════════════════════
                      SECTION 1: Uplink Interface & Trafik
@@ -253,14 +460,18 @@ const uplinkCardType = (iface) => {
                             <h3 class="font-semibold text-gray-800">Trafik Interface Uplink</h3>
                         </div>
 
-                        <div v-if="uplink_interfaces.length > 0" class="flex items-center gap-2">
+                        <div v-if="uplink_interfaces.length > 0" class="flex flex-wrap items-center gap-2">
                             <label class="text-xs font-medium text-gray-500">Interface:</label>
                             <select v-model="selectedInterface"
-                                    class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                                    class="rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-1.5 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200">
                                 <option v-for="iface in uplink_interfaces" :key="iface.interface" :value="iface.interface">
                                     {{ iface.interface }} ({{ iface.card_type }})
                                 </option>
                             </select>
+                            <SecondaryButton type="button" :disabled="!selectedInterface" @click="toggleLiveTraffic">
+                                <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': liveTrafficEnabled }" />
+                                {{ liveTrafficEnabled ? 'Stop Live' : 'Live Traffic' }}
+                            </SecondaryButton>
                         </div>
                     </div>
 
@@ -271,7 +482,13 @@ const uplinkCardType = (iface) => {
                     <div v-else class="p-5">
                         <!-- Status indicator -->
                         <div class="mb-5 flex flex-wrap items-center gap-4">
-                            <div v-if="uplinkInfo.line_status === null"
+                            <div v-if="!liveTrafficEnabled && uplinkInfo.line_status === null"
+                                 class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+                                <div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div>
+                                <span class="text-sm text-gray-500">Live traffic standby</span>
+                            </div>
+
+                            <div v-else-if="uplinkInfo.line_status === null"
                                  class="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
                                 <div class="h-2.5 w-2.5 animate-pulse rounded-full bg-gray-400"></div>
                                 <span class="text-sm text-gray-500">Memuat status…</span>
@@ -318,115 +535,295 @@ const uplinkCardType = (iface) => {
 
                         <!-- Chart -->
                         <VueApexCharts
-                            type="line"
+                            type="area"
                             height="220"
                             :options="chartOptions"
                             :series="chartSeries"
                         />
-                        <p class="mt-1 text-right text-xs text-gray-400">Auto-refresh setiap 10 detik · 20-second average</p>
+                        <p v-if="liveTrafficEnabled" class="mt-1 text-right text-xs text-gray-400">Auto-refresh setiap 10 detik · 20-second average</p>
                     </div>
                 </div>
 
                 <!-- ══════════════════════════════════════
-                     SECTION 3: VLAN Mapping
+                     SECTION 2: Port Uplink
                      ══════════════════════════════════════ -->
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
-                        <Network class="h-5 w-5 text-gray-500" />
-                        <h3 class="font-semibold text-gray-800">VLAN Tagged — {{ selectedInterface || '—' }}</h3>
+                    <div class="flex flex-col gap-1 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-2">
+                            <Network class="h-5 w-5 text-gray-500" />
+                            <h3 class="font-semibold text-gray-800">Port Uplink</h3>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ uplinkDetails.length }} port tersimpan</span>
                     </div>
 
-                    <div class="px-5 py-4">
-                        <div v-if="!selectedInterface" class="text-sm text-gray-400">
-                            Pilih interface uplink terlebih dahulu.
+                    <!-- Toast for VLAN actions -->
+                    <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-y-1"
+                                leave-active-class="transition duration-150 ease-in" leave-to-class="opacity-0 -translate-y-1">
+                        <div v-if="toast.show"
+                             class="mx-5 mt-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
+                             :class="toast.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'">
+                            <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                            <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                            {{ toast.message }}
                         </div>
-                        <div v-else-if="currentVlans.length === 0" class="text-sm text-gray-400">
-                            Tidak ada VLAN tagged pada interface ini, atau klik <strong>Refresh Data</strong> untuk memuat ulang.
-                        </div>
-                        <div v-else class="flex flex-wrap gap-2">
-                            <span
-                                v-for="vlan in currentVlans"
-                                :key="vlan"
-                                class="inline-flex cursor-default items-center rounded-md px-2.5 py-1 text-xs font-semibold"
-                                :class="vlanBadgeColor(vlan)"
-                            >
-                                VLAN {{ vlan }}
-                            </span>
-                        </div>
+                    </Transition>
+
+                    <div v-if="uplinkDetails.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                        Belum ada data port uplink tersimpan.
+                    </div>
+
+                    <div v-else class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    <th class="px-4 py-3">Interface</th>
+                                    <th class="px-4 py-3">Card</th>
+                                    <th class="px-4 py-3">Admin</th>
+                                    <th class="px-4 py-3">Link</th>
+                                    <th class="px-4 py-3">Speed</th>
+                                    <th class="px-4 py-3">VLAN</th>
+                                    <th class="px-4 py-3">Optical</th>
+                                    <th class="px-4 py-3">Module</th>
+                                    <th class="px-4 py-3">Refresh</th>
+                                    <th class="px-4 py-3">Aksi VLAN</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <template v-for="row in uplinkDetails" :key="row.interface">
+                                    <tr class="transition-colors hover:bg-gray-50">
+                                        <td class="px-4 py-3 font-mono text-gray-800">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ row.admin_status || '-' }}</td>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="linkBadgeColor(row.link_status)">
+                                                {{ row.link_status || '-' }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            {{ row.speed_mbps ? `${row.speed_mbps} Mbps` : '-' }}
+                                            <span v-if="row.duplex" class="block text-xs text-gray-400">{{ row.duplex }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">Native {{ row.native_vlan ?? '-' }}</span>
+                                            <span class="block max-w-48 truncate text-xs text-gray-400">Tagged {{ compactVlans(row.tagged_vlans) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
+                                            <span class="block text-xs text-gray-400">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
+                                            <span class="block max-w-44 truncate text-xs text-gray-400">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
+                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-gray-400">
+                                                {{ formatNumber(row.temperature_c, '°C') }} · {{ formatNumber(row.supply_voltage_v, 'V') }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(row.refreshed_at) }}</td>
+                                        <td class="px-4 py-3">
+                                            <div class="flex items-center gap-1.5">
+                                                <!-- Lihat VLAN -->
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
+                                                    :class="vlanPanelInterface === row.interface && vlanPanelMode === 'view'
+                                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                                                    :title="`Lihat VLAN ${row.interface}`"
+                                                    @click="openVlanPanel(row.interface, 'view')"
+                                                >
+                                                    <Eye class="h-3.5 w-3.5" />
+                                                    VLAN
+                                                </button>
+                                                <!-- Tambah VLAN -->
+                                                <button
+                                                    type="button"
+                                                    class="inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
+                                                    :class="vlanPanelInterface === row.interface && vlanPanelMode === 'add'
+                                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                                                    :title="`Tag VLAN ke ${row.interface}`"
+                                                    @click="openVlanPanel(row.interface, 'add')"
+                                                >
+                                                    <Tag class="h-3.5 w-3.5" />
+                                                    Tag
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    <!-- VLAN inline panel -->
+                                    <Transition
+                                        enter-active-class="transition duration-150 ease-out"
+                                        enter-from-class="opacity-0"
+                                        leave-active-class="transition duration-100 ease-in"
+                                        leave-to-class="opacity-0"
+                                    >
+                                        <tr v-if="vlanPanelInterface === row.interface">
+                                            <td colspan="10" class="border-t border-indigo-100 bg-indigo-50/40 px-5 py-4">
+                                                <!-- View mode -->
+                                                <div v-if="vlanPanelMode === 'view'">
+                                                    <p class="mb-2 text-xs font-semibold text-indigo-700">VLAN Tagged — {{ row.interface }}</p>
+                                                    <div v-if="panelVlans.length === 0" class="text-sm text-gray-400">
+                                                        Tidak ada VLAN tagged. Klik <strong>Refresh Data</strong> atau tag VLAN baru.
+                                                    </div>
+                                                    <div v-else class="flex flex-wrap gap-1.5">
+                                                        <span
+                                                            v-for="vlan in panelVlans"
+                                                            :key="vlan"
+                                                            class="inline-flex cursor-default items-center rounded-md px-2.5 py-1 text-xs font-semibold"
+                                                            :class="vlanBadgeColor(vlan)"
+                                                        >
+                                                            VLAN {{ vlan }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Add mode -->
+                                                <div v-else>
+                                                    <p class="mb-3 text-xs font-semibold text-emerald-700">Tag VLAN ke {{ row.interface }}</p>
+                                                    <div class="flex flex-wrap items-end gap-3">
+                                                        <div>
+                                                            <label class="mb-1.5 block text-xs font-medium text-gray-600">Nomor VLAN (1–4094)</label>
+                                                            <input
+                                                                v-model.number="vlanForm.vlan_id"
+                                                                type="number"
+                                                                min="1"
+                                                                max="4094"
+                                                                placeholder="contoh: 500"
+                                                                class="w-36 rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                                                @keydown.enter="submitVlan"
+                                                            />
+                                                        </div>
+                                                        <PrimaryButton
+                                                            type="button"
+                                                            :disabled="vlanForm.submitting || !vlanForm.vlan_id"
+                                                            @click="submitVlan"
+                                                        >
+                                                            <RefreshCw v-if="vlanForm.submitting" class="mr-2 h-4 w-4 animate-spin" />
+                                                            <Plus v-else class="mr-2 h-4 w-4" />
+                                                            {{ vlanForm.submitting ? 'Menerapkan…' : 'Terapkan' }}
+                                                        </PrimaryButton>
+                                                    </div>
+                                                    <p class="mt-2 text-xs text-gray-400">
+                                                        Script: <code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600">configure terminal → vlan {id} → exit → interface {{ row.interface }} → switchport vlan {id} tag → end → write</code>
+                                                    </p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </Transition>
+                                </template>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
                 <!-- ══════════════════════════════════════
-                     SECTION 4: Form Tambah & Tag VLAN
+                     SECTION 3: GPON Port
                      ══════════════════════════════════════ -->
                 <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                    <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
-                        <Wifi class="h-5 w-5 text-gray-500" />
-                        <h3 class="font-semibold text-gray-800">Tambah & Tag VLAN</h3>
+                    <div class="flex flex-col gap-1 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="flex items-center gap-2">
+                            <Wifi class="h-5 w-5 text-gray-500" />
+                            <h3 class="font-semibold text-gray-800">GPON Port</h3>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ gponDetails.length }} port terdeteksi</span>
                     </div>
 
-                    <div class="p-5">
-                        <!-- Toast notification -->
-                        <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="opacity-0 -translate-y-1"
-                                    leave-active-class="transition duration-150 ease-in" leave-to-class="opacity-0 -translate-y-1">
-                            <div v-if="toast.show"
-                                 class="mb-5 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
-                                 :class="toast.ok
-                                     ? 'border-green-200 bg-green-50 text-green-800'
-                                     : 'border-red-200 bg-red-50 text-red-800'">
-                                <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                                <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
-                                {{ toast.message }}
-                            </div>
-                        </Transition>
+                    <div v-if="gponDetails.length === 0" class="px-5 py-10 text-center text-sm text-gray-400">
+                        Belum ada GPON port terdeteksi dari snapshot.
+                    </div>
 
-                        <div v-if="uplink_interfaces.length === 0" class="text-sm text-gray-400">
-                            Tidak ada interface uplink terdeteksi.
-                        </div>
-
-                        <div v-else class="flex flex-col gap-4 sm:flex-row sm:items-end">
-                            <!-- Interface dropdown -->
-                            <div class="flex-1">
-                                <label class="mb-1.5 block text-xs font-medium text-gray-600">Port Uplink</label>
-                                <select v-model="vlanForm.interface"
-                                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200">
-                                    <option v-for="iface in uplink_interfaces" :key="iface.interface" :value="iface.interface">
-                                        {{ iface.interface }} ({{ iface.card_type }})
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- VLAN ID input -->
-                            <div class="w-full sm:w-40">
-                                <label class="mb-1.5 block text-xs font-medium text-gray-600">Nomor VLAN (1–4094)</label>
-                                <input
-                                    v-model.number="vlanForm.vlan_id"
-                                    type="number"
-                                    min="1"
-                                    max="4094"
-                                    placeholder="contoh: 500"
-                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                    @keydown.enter="submitVlan"
-                                />
-                            </div>
-
-                            <!-- Submit -->
-                            <div class="shrink-0">
-                                <PrimaryButton
+                    <template v-else>
+                        <!-- Card/slot selector tabs -->
+                        <div class="border-b border-gray-100 px-5">
+                            <div class="flex gap-0 overflow-x-auto">
+                                <button
+                                    v-for="slot in gponSlots"
+                                    :key="slot"
                                     type="button"
-                                    :disabled="vlanForm.submitting || !vlanForm.interface || !vlanForm.vlan_id"
-                                    @click="submitVlan"
+                                    class="flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+                                    :class="selectedGponSlot === slot
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                                    @click="selectedGponSlot = slot"
                                 >
-                                    <RefreshCw v-if="vlanForm.submitting" class="mr-2 h-4 w-4 animate-spin" />
-                                    {{ vlanForm.submitting ? 'Menerapkan…' : 'Terapkan' }}
-                                </PrimaryButton>
+                                    <span class="font-mono">{{ gponCardLabel(slot) }}</span>
+                                    <span class="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+                                        {{ gponDetails.filter(r => r.slot === slot).length }}
+                                    </span>
+                                </button>
                             </div>
                         </div>
 
-                        <p class="mt-3 text-xs text-gray-400">
-                            Script yang dijalankan: <code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600">configure terminal → vlan {id} → exit → interface {port} → switchport vlan {id} tag → end → write</code>
-                        </p>
-                    </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b border-gray-100 bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                                        <th class="px-4 py-3">Interface</th>
+                                        <th class="px-4 py-3">Card</th>
+                                        <th class="px-4 py-3">Admin</th>
+                                        <th class="px-4 py-3">Link</th>
+                                        <th class="px-4 py-3">ONU</th>
+                                        <th class="px-4 py-3">Traffic</th>
+                                        <th class="px-4 py-3">Throughput</th>
+                                        <th class="px-4 py-3">Optical</th>
+                                        <th class="px-4 py-3">Module</th>
+                                        <th class="px-4 py-3">Peak</th>
+                                        <th class="px-4 py-3">Aksi</th>
+                                        <th class="px-4 py-3">Refresh</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    <tr v-for="row in filteredGponDetails" :key="row.interface" class="transition-colors hover:bg-gray-50">
+                                        <td class="px-4 py-3 font-mono text-gray-800">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-gray-600">{{ row.admin_status || '-' }}</td>
+                                        <td class="px-4 py-3">
+                                            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="linkBadgeColor(row.link_status)">
+                                                {{ row.link_status || '-' }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">{{ onuSummary(row) }}</td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">↓ {{ formatBps(row.input_bps) }}</span>
+                                            <span class="block text-xs text-gray-400">↑ {{ formatBps(row.output_bps) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">In {{ formatPercent(row.input_throughput_percent) }}</span>
+                                            <span class="block text-xs text-gray-400">Out {{ formatPercent(row.output_throughput_percent) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
+                                            <span class="block text-xs text-gray-400">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
+                                            <span class="block max-w-44 truncate text-xs text-gray-400">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
+                                            <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-gray-400">
+                                                {{ formatNumber(row.temperature_c, '°C') }} · {{ formatNumber(row.supply_voltage_v, 'V') }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">
+                                            <span class="block">↓ {{ formatBps(row.input_peak_bps) }}</span>
+                                            <span class="block text-xs text-gray-400">↑ {{ formatBps(row.output_peak_bps) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <button
+                                                type="button"
+                                                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                                :disabled="refreshingInterface === row.interface"
+                                                :title="`Refresh ${row.interface}`"
+                                                @click="refreshInterface(row)"
+                                            >
+                                                <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': refreshingInterface === row.interface }" />
+                                            </button>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs text-gray-500">{{ formatDate(row.refreshed_at) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
                 </div>
 
             </div>

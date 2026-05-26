@@ -126,6 +126,31 @@ class OltPollingTest extends TestCase
         $this->assertTrue((bool) data_get($olt->last_test_result, 'port_onus.1_1.onus.0.online'));
     }
 
+    public function test_poll_job_skips_queued_job_when_olt_is_no_longer_due(): void
+    {
+        $lastPolledAt = now()->subMinute();
+        $olt = $this->makeOlt([
+            'polling_enabled' => true,
+            'poll_interval_minutes' => 5,
+            'last_polled_at' => $lastPolledAt,
+        ]);
+
+        $client = new class extends OltSnmpClient
+        {
+            public function snapshot(SnmpOlt $olt): array
+            {
+                throw new RuntimeException('Poll should have been skipped.');
+            }
+        };
+
+        (new PollOltJob($olt->id))->handle($client, new AlarmEvaluator);
+
+        $olt->refresh();
+
+        $this->assertSame($lastPolledAt->timestamp, $olt->last_polled_at->timestamp);
+        $this->assertNull($olt->last_test_result);
+    }
+
     public function test_poll_job_preserves_existing_rx_power_when_snmp_rx_walk_fails(): void
     {
         $olt = $this->makeOlt([

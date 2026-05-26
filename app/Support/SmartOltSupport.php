@@ -68,4 +68,41 @@ class SmartOltSupport
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
+
+    /**
+     * @param  array<string, mixed>  $onu
+     */
+    public static function customerNameFromOnu(array $onu): ?string
+    {
+        $serial = (string) ($onu['serial_number'] ?? '');
+
+        return self::cleanCustomerName($onu['name'] ?? null, $serial)
+            ?? self::cleanCustomerName($onu['description'] ?? null, $serial);
+    }
+
+    public static function cleanCustomerName(mixed $value, string $serial = ''): ?string
+    {
+        $name = trim((string) $value);
+
+        if ($name === '') {
+            return null;
+        }
+
+        if (preg_match('/\$\$(.*?)\$\$/', $name, $matches)) {
+            $name = trim($matches[1]);
+        }
+
+        $lower = strtolower($name);
+
+        if (
+            $name === ''
+            || in_array($lower, ['-', 'n/a', 'na', 'null', 'none'], true)
+            || ($serial !== '' && strcasecmp($name, $serial) === 0)
+            || str_starts_with($lower, 'gpon-onu_')
+        ) {
+            return null;
+        }
+
+        return $name;
+    }
 }

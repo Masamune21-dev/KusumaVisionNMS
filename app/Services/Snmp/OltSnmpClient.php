@@ -717,7 +717,10 @@ class OltSnmpClient
             }
 
             if (preg_match('/^gpon(?:[-_]olt)?[-_]?\d+\/\d+\/\d+$/i', $candidate)) {
-                return $candidate;
+                // Normalise to canonical gpon-olt_ format so SNMP names always
+                // match CLI-persisted names (e.g. C300 reports gpon_1/2/1 via SNMP
+                // but its CLI uses gpon-olt_1/2/1).
+                return preg_replace('/^gpon_/i', 'gpon-olt_', $candidate) ?? $candidate;
             }
         }
 

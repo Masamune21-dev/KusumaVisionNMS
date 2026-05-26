@@ -8,7 +8,6 @@ use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
-use Illuminate\Support\Facades\Cache;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -49,20 +48,10 @@ class SmartOltController extends Controller
 
     public function detail(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
-        $cards = Cache::get("olt:{$olt->id}:cards", []);
-
-        if (empty($cards)) {
-            try {
-                $cards = $service->getCardStatus($olt);
-            } catch (\Throwable) {
-                $cards = [];
-            }
-        }
-
         return Inertia::render('SmartOlt/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
-            'cards' => $cards,
+            'cards' => $service->getCardStatus($olt),
         ]);
     }
 
@@ -101,55 +90,85 @@ class SmartOltController extends Controller
 
     public function dashboard(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
-        $cards = Cache::get("olt:{$olt->id}:cards", []);
-
-        if (empty($cards)) {
-            try {
-                $cards = $service->getCardStatus($olt);
-            } catch (\Throwable) {
-                $cards = [];
-            }
-        }
-
-        $uplinkInterfaces = $service->discoverUplinkInterfaces($cards);
-
-        $vlansByInterface = [];
-        foreach ($uplinkInterfaces as $iface) {
-            try {
-                $vlansByInterface[$iface['interface']] = $service->getVlanMapping($olt, $iface['interface'])['tagged_vlans'];
-            } catch (\Throwable) {
-                $vlansByInterface[$iface['interface']] = [];
-            }
-        }
+        $interfaceDetails = $service->getStoredInterfaceDetails($olt);
+        $uplinkInterfaces = $service->getStoredUplinkInterfaces($olt);
+        $vlansByInterface = collect($interfaceDetails)
+            ->where('interface_type', 'uplink')
+            ->mapWithKeys(fn (array $row) => [$row['interface'] => $row['tagged_vlans'] ?? []])
+            ->all();
 
         return Inertia::render('SmartOlt/PortManager', [
             'olt' => $this->serializeOlt($olt),
             'uplink_interfaces' => $uplinkInterfaces,
             'vlans_by_interface' => $vlansByInterface,
+            'interface_details' => $interfaceDetails,
         ]);
     }
 
-    public function refreshDashboard(SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    public function refreshDashboard(SnmpOlt $olt, ZteCardUplinkService $service, OltSnmpClient $snmpClient): RedirectResponse
     {
         try {
             $cards = $service->refreshCardStatus($olt);
-            $uplinkInterfaces = $service->discoverUplinkInterfaces($cards);
+            $interfaces = $service->refreshInterfaceDetails($olt, $cards);
 
-            foreach ($uplinkInterfaces as $iface) {
-                try {
-                    $service->refreshVlanMapping($olt, $iface['interface']);
-                } catch (\Throwable) {
-                    //
-                }
+            // Refresh GPON port list from SNMP so Port Manager shows up-to-date GPON ports.
+            // Non-fatal: CLI data is already saved; SNMP failure just leaves the old snapshot.
+            try {
+                $ports = $snmpClient->gponPorts($olt);
+                $snapshot = $olt->last_test_result ?? [];
+                data_set($snapshot, 'ports', $ports);
+                $olt->forceFill(['last_test_result' => $snapshot])->save();
+                $gponCount = count($ports);
+            } catch (\Throwable) {
+                $gponCount = null;
+            }
+
+            $msg = sprintf('Data berhasil diperbarui. %s card, %s interface uplink', count($cards), count($interfaces));
+            if ($gponCount !== null) {
+                $msg .= sprintf(', %s GPON port', $gponCount);
             }
 
             return redirect()
-                ->route('smartolt.dashboard', $olt)
-                ->with('success', 'Data VLAN berhasil diperbarui dari OLT.');
+                ->route('smartolt.port-manager', $olt)
+                ->with('success', $msg.'.');
         } catch (\Throwable $e) {
             return redirect()
-                ->route('smartolt.dashboard', $olt)
+                ->route('smartolt.port-manager', $olt)
                 ->with('error', 'Refresh gagal: '.$e->getMessage());
+        }
+    }
+
+    public function refreshDashboardInterface(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'interface' => ['required', 'string', 'regex:/^gpon(?:-olt)?_\d+\/\d+\/\d+$/'],
+        ]);
+
+        try {
+            $service->refreshGponInterface($olt, $data['interface']);
+
+            return redirect()
+                ->route('smartolt.port-manager', $olt)
+                ->with('success', "Detail {$data['interface']} berhasil diperbarui dari OLT.");
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('smartolt.port-manager', $olt)
+                ->with('error', "Refresh {$data['interface']} gagal: ".$e->getMessage());
+        }
+    }
+
+    public function refreshHardware(SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    {
+        try {
+            $cards = $service->refreshCardStatus($olt);
+
+            return redirect()
+                ->route('smartolt.detail', $olt)
+                ->with('success', sprintf('Status hardware berhasil diperbarui. %s card ditemukan.', count($cards)));
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('smartolt.detail', $olt)
+                ->with('error', 'Refresh hardware gagal: '.$e->getMessage());
         }
     }
 
@@ -302,8 +321,11 @@ class SmartOltController extends Controller
     {
         $result = $client->snapshot($olt);
 
+        // Merge ke existing snapshot agar port_onus & unconfigured_onus yang sudah di-cache tidak terhapus.
+        $merged = array_merge($olt->last_test_result ?? [], $result);
+
         $olt->forceFill([
-            'last_test_result' => $result,
+            'last_test_result' => $merged,
             'last_tested_at' => now(),
         ])->save();
 

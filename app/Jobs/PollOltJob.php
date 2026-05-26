@@ -16,6 +16,12 @@ class PollOltJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 1;
+
+    public int $timeout = 600;
+
+    public bool $failOnTimeout = true;
+
     public function __construct(public int $oltId) {}
 
     /**
@@ -23,14 +29,14 @@ class PollOltJob implements ShouldQueue
      */
     public function middleware(): array
     {
-        return [(new WithoutOverlapping($this->oltId))->dontRelease()];
+        return [(new WithoutOverlapping($this->oltId))->expireAfter($this->timeout + 300)->dontRelease()];
     }
 
     public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null): void
     {
         $olt = SnmpOlt::find($this->oltId);
 
-        if (! $olt || ! $olt->polling_enabled) {
+        if (! $olt || ! $olt->polling_enabled || ! $olt->isPollDue()) {
             return;
         }
 
