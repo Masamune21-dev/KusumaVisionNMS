@@ -9,7 +9,7 @@ const page = usePage();
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-100">
+    <div class="min-h-screen bg-slate-950">
         <!-- Mobile top bar -->
         <div class="sticky top-0 z-50 flex h-14 items-center gap-4 border-b border-white/10 bg-slate-900 px-4 lg:hidden">
             <button
@@ -170,7 +170,7 @@ const page = usePage();
             <!-- Page header slot -->
             <header
                 v-if="$slots.header"
-                class="sticky top-0 z-30 border-b border-gray-100 bg-white shadow-sm"
+                class="sticky top-0 z-30 border-b border-white/10 bg-slate-900/95 backdrop-blur-sm [&_h2]:!text-white [&_p]:!text-slate-400"
             >
                 <div class="mx-auto flex min-h-[64px] max-w-7xl items-center px-4 py-3 sm:px-6 lg:px-8">
                     <div class="w-full">
@@ -189,9 +189,9 @@ const page = usePage();
             </main>
 
             <!-- Footer -->
-            <footer class="border-t border-gray-200 bg-white">
+            <footer class="sticky bottom-0 z-10 border-t border-white/10 bg-slate-900/95 backdrop-blur-sm">
                 <div class="mx-auto max-w-7xl px-4 py-2 sm:px-6 lg:px-8">
-                    <p class="text-center text-xs text-gray-400">
+                    <p class="text-center text-xs text-slate-500">
                         &copy; 2026 KusumaVisionNMS &bull; Dibuat Oleh Masamune
                     </p>
                 </div>

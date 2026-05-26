@@ -27,9 +27,9 @@ defineProps({
             </h2>
         </template>
 
-        <div class="py-8">
+        <div class="bg-gradient-to-br from-slate-50 via-blue-50/80 to-indigo-100/60 py-8 pb-16 min-h-[60vh]">
             <div class="mx-auto max-w-7xl space-y-6 px-4 sm:px-6 lg:px-8">
-                <div class="rounded-lg bg-white p-6 shadow-sm">
+                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
                     <UpdateProfileInformationForm
                         :must-verify-email="mustVerifyEmail"
                         :status="status"
@@ -37,11 +37,11 @@ defineProps({
                     />
                 </div>
 
-                <div class="rounded-lg bg-white p-6 shadow-sm">
+                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
                     <UpdatePasswordForm class="max-w-xl" />
                 </div>
 
-                <div class="rounded-lg bg-white p-6 shadow-sm">
+                <div class="overflow-hidden rounded-2xl border border-white/70 bg-white/70 p-6 shadow-xl shadow-blue-100/40 backdrop-blur-xl">
                     <DeleteUserForm class="max-w-xl" />
                 </div>
             </div>

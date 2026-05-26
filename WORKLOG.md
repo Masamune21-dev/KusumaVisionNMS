@@ -577,3 +577,16 @@ Notes:
 - Halaman form (RegisterOnu, Create, Edit, OltForm) pakai LIGHT karena komponen `TextInput`/`InputLabel` hard-coded untuk background terang.
 - Sidebar mobile menggunakan Transition Vue bawaan untuk overlay fade — tidak butuh library animasi tambahan.
 - Build Vite `npm run build` berhasil 13.84s tanpa error setelah semua perubahan digabung.
+
+### Fix Layout: Header Putih, Footer Sticky, Background Gap
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — tiga perbaikan: (1) outer wrapper `bg-gray-100` → `bg-slate-950` menghilangkan celah putih di bawah konten halaman pendek; (2) header `bg-white shadow-sm` → `bg-slate-900/95 backdrop-blur-sm border-white/10` dengan `[&_h2]:!text-white [&_p]:!text-slate-400` agar judul/subtitle di semua slot header otomatis jadi warna gelap tanpa ubah tiap halaman; (3) footer `bg-white` → `bg-slate-900/95 backdrop-blur-sm` + `sticky bottom-0 z-10` agar footer selalu terlihat di bawah viewport.
+- `resources/js/Pages/Profile/Edit.vue` — content wrapper dari `py-8` polos ke LIGHT glassmorphism `from-slate-50 via-blue-50/80`; card `bg-white p-6 shadow-sm` → `bg-white/70 backdrop-blur-xl border-white/70 rounded-2xl shadow-xl`.
+
+Notes:
+
+- `[&_h2]:!text-white` di header layout menggunakan arbitrary variant Tailwind + `!important` modifier untuk override `text-gray-800` di slot konten tiap halaman — satu tempat, berlaku global.
+- `sticky bottom-0` pada footer bekerja karena flex container punya `min-h-screen`: saat konten pendek, footer natural di bawah (via `flex-1` pada main); saat konten panjang, footer sticky ke bawah viewport saat scroll.
+- Outer `bg-slate-950` adalah fallback: semua area transparent di dalam stack meneruskan ke bg ini, menghilangkan `bg-gray-100` yang bocor ke area kosong.
