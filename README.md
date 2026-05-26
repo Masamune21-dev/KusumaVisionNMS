@@ -2,7 +2,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320 (ZXA10)**: monitoring OLT/ONU, provisioning ONU, remote management, background polling, alarm engine, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320/C600 (ZXA10)**: monitoring OLT/ONU, provisioning ONU, remote management, background polling, alarm engine, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 > Riwayat pengembangan per fase: [`WORKLOG.md`](WORKLOG.md).
 
@@ -47,80 +47,38 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ---
 
-## Cek Requirement
+## Instalasi (Ubuntu 22.04)
 
-Jalankan perintah berikut satu per satu untuk memastikan semua requirement terpenuhi sebelum instalasi:
+### Langkah 1 — Clone repo
 
 ```bash
-# PHP versi 8.3+
-php -v
-
-# Ekstensi PHP yang wajib ada
-php -m | grep -E "bcmath|curl|dom|intl|mbstring|openssl|pcntl|pdo_pgsql|pdo_sqlite|redis|snmp|sockets|xml|zip"
-
-# Ekstensi SNMP khusus (wajib untuk komunikasi OLT)
-php -m | grep snmp
-
-# Composer
-composer --version
-
-# Node.js (butuh v22+)
-node -v
-
-# npm
-npm -v
-
-# PostgreSQL
-psql --version
-
-# Redis
-redis-cli ping
-# Harus jawab: PONG
-
-# Nginx
-nginx -v
-
-# Supervisor (untuk queue worker di production)
-supervisord --version
+cd /var/www
+git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+cd KusumaVisionNMS
 ```
 
-Semua ekstensi PHP yang dibutuhkan dapat diinstall sekaligus via:
+### Langkah 2 — Cek requirement
+
+Setelah clone, jalankan script cek requirement yang sudah tersedia:
 
 ```bash
-apt install -y php8.3 php8.3-fpm php8.3-cli \
-    php8.3-bcmath php8.3-curl php8.3-dom php8.3-intl \
-    php8.3-mbstring php8.3-pgsql php8.3-redis php8.3-snmp \
-    php8.3-xml php8.3-zip php8.3-sqlite3
+bash scripts/check-requirements.sh
 ```
 
----
+Script ini memeriksa PHP, Composer, Node.js, npm, PostgreSQL, Redis, dan semua ekstensi PHP yang dibutuhkan. Output `[OK]` berarti tersedia, `[MISS]` berarti perlu diinstall.
 
-## Setup Cepat (Development)
-
-Setelah clone dan konfigurasi `.env`, satu perintah menangani seluruh setup awal:
+**Jika ada yang `[MISS]`, install dulu:**
 
 ```bash
-composer setup
-```
+# Update package list
+apt update
 
-Perintah ini menjalankan secara berurutan: `composer install` → salin `.env.example` → generate app key → migrasi database → `npm install` → build aset.
-
----
-
-## Instalasi Lengkap (Ubuntu 22.04)
-
-### 1. Instalasi paket sistem
-
-```bash
-# Update & install dependensi
-apt update && apt upgrade -y
-
-# Nginx + PHP 8.3 + FPM + ekstensi
+# Nginx + PHP 8.3 + semua ekstensi
 apt install -y nginx php8.3 php8.3-fpm php8.3-cli \
     php8.3-bcmath php8.3-curl php8.3-dom php8.3-intl \
     php8.3-mbstring php8.3-pgsql php8.3-redis php8.3-snmp \
     php8.3-xml php8.3-zip php8.3-sqlite3 \
-    postgresql redis-server curl unzip git
+    postgresql redis-server curl unzip git supervisor
 
 # Composer
 curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -130,60 +88,23 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt install -y nodejs
 ```
 
-### 2. Instalasi Go & Build SNMP Poller (opsional)
-
-> Lewati langkah ini jika ingin tetap menggunakan PHP poller (default). Go poller lebih efisien di server dengan banyak OLT.
+Setelah install, jalankan ulang script untuk konfirmasi semua sudah `[OK]`:
 
 ```bash
-# Install Go 1.22 (atau versi terbaru)
-wget https://go.dev/dl/go1.22.5.linux-amd64.tar.gz
-tar -C /usr/local -xzf go1.22.5.linux-amd64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
-source /etc/profile.d/go.sh
-
-# Verifikasi
-go version
+bash scripts/check-requirements.sh
 ```
 
-Build binary poller:
-
-```bash
-cd /var/www/KusumaVisionNMS
-go mod download
-go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
-chmod +x bin/kv-snmp-poller
-```
-
-Aktifkan Go driver di `.env`:
-
-```dotenv
-SNMP_POLLER_DRIVER=go
-SNMP_POLLER_BINARY=bin/kv-snmp-poller
-```
-
-> Jika binary tidak ditemukan atau tidak executable, sistem otomatis fallback ke PHP poller.
-
-### 4. Siapkan database PostgreSQL
+### Langkah 3 — Siapkan database PostgreSQL
 
 ```bash
 su - postgres -c "psql -c \"CREATE USER kusumavision WITH PASSWORD 'ganti_password_ini';\""
 su - postgres -c "psql -c \"CREATE DATABASE kusumavision_nms OWNER kusumavision;\""
 ```
 
-### 5. Clone dan konfigurasi aplikasi
+### Langkah 4 — Konfigurasi environment
 
 ```bash
-cd /var/www
-git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
-cd KusumaVisionNMS
-
-# Dependensi PHP & JS
-composer install --no-dev --optimize-autoloader
-npm install
-
-# Environment
 cp .env.example .env
-php artisan key:generate
 ```
 
 Edit `.env` sesuai server:
@@ -206,26 +127,33 @@ SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-
-# Polling SNMP (opsional — default sudah cukup)
-SNMP_POLLER_DRIVER=php
 ```
 
-### 6. Migrasi database dan build aset
+### Langkah 5 — Setup aplikasi
+
+Satu perintah menangani seluruh setup: install dependensi PHP & JS, generate key, migrasi database, dan build aset:
 
 ```bash
-php artisan migrate --force
-npm run build
-php artisan storage:link
-
-# Permission storage untuk www-data
-chown -R www-data:www-data /var/www/KusumaVisionNMS/storage \
-    /var/www/KusumaVisionNMS/bootstrap/cache
-chmod -R 775 /var/www/KusumaVisionNMS/storage \
-    /var/www/KusumaVisionNMS/bootstrap/cache
+composer setup
 ```
 
-### 7. Konfigurasi Nginx
+Perintah ini menjalankan secara berurutan:
+1. `composer install`
+2. Salin `.env.example` → `.env` (jika belum ada)
+3. `php artisan key:generate`
+4. `php artisan migrate --force`
+5. `npm install`
+6. `npm run build`
+
+Setelah selesai, set permission storage:
+
+```bash
+chown -R www-data:www-data storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
+php artisan storage:link
+```
+
+### Langkah 6 — Konfigurasi Nginx
 
 Buat file konfigurasi site:
 
@@ -238,7 +166,7 @@ Isi dengan:
 ```nginx
 server {
     listen 80;
-    server_name ip-server-anda;   # atau nama domain
+    server_name ip-server-anda;
 
     root /var/www/KusumaVisionNMS/public;
     index index.php;
@@ -269,29 +197,16 @@ server {
 }
 ```
 
-Aktifkan site dan restart Nginx:
+Aktifkan site:
 
 ```bash
-# Nonaktifkan default site
 rm -f /etc/nginx/sites-enabled/default
-
-# Aktifkan site KusumaVision
 ln -s /etc/nginx/sites-available/kusumavision-nms /etc/nginx/sites-enabled/
-
-# Test konfigurasi & restart
 nginx -t && systemctl restart nginx
 systemctl enable nginx php8.3-fpm
 ```
 
-### 8. Konfigurasi Queue Worker (Supervisor)
-
-Install Supervisor untuk menjaga queue worker tetap berjalan:
-
-```bash
-apt install -y supervisor
-```
-
-Buat file konfigurasi:
+### Langkah 7 — Queue Worker (Supervisor)
 
 ```bash
 nano /etc/supervisor/conf.d/kusumavision-worker.conf
@@ -316,15 +231,13 @@ stopwaitsecs=120
 supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-worker:*
 ```
 
-### 9. Konfigurasi Laravel Scheduler (Cron)
-
-Tambahkan entri cron untuk menjalankan scheduler Laravel setiap menit:
+### Langkah 8 — Laravel Scheduler (Cron)
 
 ```bash
 crontab -e -u www-data
 ```
 
-Tambahkan baris:
+Tambahkan:
 
 ```cron
 * * * * * php /var/www/KusumaVisionNMS/artisan schedule:run >> /dev/null 2>&1
@@ -332,33 +245,51 @@ Tambahkan baris:
 
 > Scheduler menjalankan `olts:poll` setiap menit. Setiap OLT hanya benar-benar di-poll sesuai interval masing-masing (`poll_interval_minutes`).
 
-### 10. Buat akun pertama
+### Langkah 9 — Buat akun pertama
 
 Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
-
-```bash
-php artisan user:create
-```
-
-Atau langsung satu baris tanpa interaktif:
 
 ```bash
 php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password="P@ssw0rd123"
 ```
 
-Untuk user berikutnya, perintah yang sama bisa dijalankan kapan saja dari server.
+---
+
+## Instalasi Go SNMP Poller (opsional)
+
+> Lewati jika ingin tetap menggunakan PHP poller (default).
+
+```bash
+# Install Go 1.22
+wget https://go.dev/dl/go1.22.5.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.22.5.linux-amd64.tar.gz
+echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
+source /etc/profile.d/go.sh
+
+# Build binary
+go mod download
+go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
+chmod +x bin/kv-snmp-poller
+```
+
+Aktifkan di `.env`:
+
+```dotenv
+SNMP_POLLER_DRIVER=go
+SNMP_POLLER_BINARY=bin/kv-snmp-poller
+```
+
+> Jika binary tidak ditemukan atau tidak executable, sistem otomatis fallback ke PHP poller.
 
 ---
 
 ## Menjalankan di Development
 
-Satu perintah menjalankan server + queue + log + Vite secara paralel:
-
 ```bash
 composer dev
 ```
 
-Atau pisah per proses:
+Menjalankan server + queue + log + Vite secara paralel. Atau pisah per proses:
 
 ```bash
 php artisan serve --host=0.0.0.0 --port=8000
