@@ -9,7 +9,7 @@ const page = usePage();
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-950">
+    <div class="min-h-screen bg-slate-900">
         <!-- Mobile top bar -->
         <div class="sticky top-0 z-50 flex h-14 items-center gap-4 border-b border-white/10 bg-slate-900 px-4 lg:hidden">
             <button
@@ -166,7 +166,7 @@ const page = usePage();
         </aside>
 
         <!-- Main content (offset by sidebar on desktop) -->
-        <div class="flex min-h-screen flex-col lg:pl-64">
+        <div class="flex min-h-screen flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 lg:pl-64">
             <!-- Page header slot -->
             <header
                 v-if="$slots.header"
