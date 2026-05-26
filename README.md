@@ -47,6 +47,66 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ---
 
+## Cek Requirement
+
+Jalankan perintah berikut satu per satu untuk memastikan semua requirement terpenuhi sebelum instalasi:
+
+```bash
+# PHP versi 8.3+
+php -v
+
+# Ekstensi PHP yang wajib ada
+php -m | grep -E "bcmath|curl|dom|intl|mbstring|openssl|pcntl|pdo_pgsql|pdo_sqlite|redis|snmp|sockets|xml|zip"
+
+# Ekstensi SNMP khusus (wajib untuk komunikasi OLT)
+php -m | grep snmp
+
+# Composer
+composer --version
+
+# Node.js (butuh v22+)
+node -v
+
+# npm
+npm -v
+
+# PostgreSQL
+psql --version
+
+# Redis
+redis-cli ping
+# Harus jawab: PONG
+
+# Nginx
+nginx -v
+
+# Supervisor (untuk queue worker di production)
+supervisord --version
+```
+
+Semua ekstensi PHP yang dibutuhkan dapat diinstall sekaligus via:
+
+```bash
+apt install -y php8.3 php8.3-fpm php8.3-cli \
+    php8.3-bcmath php8.3-curl php8.3-dom php8.3-intl \
+    php8.3-mbstring php8.3-pgsql php8.3-redis php8.3-snmp \
+    php8.3-xml php8.3-zip php8.3-sqlite3
+```
+
+---
+
+## Setup Cepat (Development)
+
+Setelah clone dan konfigurasi `.env`, satu perintah menangani seluruh setup awal:
+
+```bash
+composer setup
+```
+
+Perintah ini menjalankan secara berurutan: `composer install` → salin `.env.example` → generate app key → migrasi database → `npm install` → build aset.
+
+---
+
 ## Instalasi Lengkap (Ubuntu 22.04)
 
 ### 1. Instalasi paket sistem
@@ -322,7 +382,7 @@ npm run build              # build aset produksi
 
 ## Catatan & Batasan
 
-- **Vendor:** hanya ZTE C300/C320. OLT non-ZTE terdeteksi sebagai `unknown` dengan kapabilitas dimatikan.
+- **Vendor:** ZTE C300/C320 dan C600 (ZXA10). OLT C600 terdeteksi otomatis dari nama/vendor mengandung `"c600"` dan menggunakan OID `.1082` serta interface 4-tier. OLT non-ZTE terdeteksi sebagai `unknown` dengan kapabilitas dimatikan.
 - **SNMP:** v1/v2c saja (v3 belum didukung). Fitur enable/disable & edit info ONU butuh **write community** terisi.
 - **CLI:** eksekusi provisioning/reboot hanya via **Telnet** (`cli_transport=telnet`).
 - **Poll interval:** per-OLT, dapat diubah di form Edit OLT. Default 5 menit untuk polling SNMP, 5 menit untuk RX power.
