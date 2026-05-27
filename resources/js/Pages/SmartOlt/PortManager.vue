@@ -351,7 +351,7 @@ const formatBps = (bps) => {
     return formatMbps(toMbps(bps));
 };
 
-const vlanBadgeColor = () => 'bg-sky-50 text-sky-700 ring-1 ring-sky-200';
+const vlanBadgeColor = () => 'bg-sky-500/15 text-cyan-300 ring-1 ring-cyan-500/30';
 
 const formatDate = (value) => {
     if (!value) return '-';
@@ -378,9 +378,9 @@ const typeLabel = (type) => type === 'uplink' ? 'Uplink' : (type === 'gpon' ? 'G
 
 const linkBadgeColor = (status) => {
     const s = String(status ?? '').toLowerCase();
-    if (s === 'up') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-    if (s === 'down') return 'bg-red-50 text-red-700 ring-1 ring-red-200';
-    return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
+    if (s === 'up') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
+    if (s === 'down') return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
+    return 'bg-slate-800/60 text-slate-300 ring-1 ring-slate-500/30';
 };
 
 const compactVlans = (vlans) => {
@@ -404,7 +404,7 @@ const onuSummary = (row) => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
                         Port Manager — {{ olt.name }}
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
@@ -434,14 +434,14 @@ const onuSummary = (row) => {
                 <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
                             leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
                     <div v-if="flash.success && flashVisible.success"
-                         class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                         class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
                         <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>{{ flash.success }}
                     </div>
                 </Transition>
                 <Transition enter-active-class="transition duration-300 ease-out" enter-from-class="opacity-0 -translate-y-1"
                             leave-active-class="transition duration-500 ease-in" leave-to-class="opacity-0 -translate-y-1">
                     <div v-if="flash.error && flashVisible.error"
-                         class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                         class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                         <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>{{ flash.error }}
                     </div>
                 </Transition>
@@ -449,19 +449,19 @@ const onuSummary = (row) => {
                 <!-- ══════════════════════════════════════
                      SECTION 1: Uplink Interface & Trafik
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                                <Signal class="h-5 w-5 text-sky-600" />
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                <Signal class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="font-semibold text-slate-900">Trafik Interface Uplink</h3>
+                            <h3 class="font-semibold text-white">Trafik Interface Uplink</h3>
                         </div>
 
                         <div v-if="uplink_interfaces.length > 0" class="flex flex-wrap items-center gap-2">
                             <label class="text-xs font-medium text-slate-500">Interface:</label>
                             <select v-model="selectedInterface"
-                                    class="min-h-11 rounded-lg border border-slate-300 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 sm:min-h-0 sm:py-1.5">
+                                    class="min-h-11 rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 pl-3 pr-8 text-sm text-slate-200 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 sm:min-h-0 sm:py-1.5">
                                 <option v-for="iface in uplink_interfaces" :key="iface.interface" :value="iface.interface">
                                     {{ iface.interface }} ({{ iface.card_type }})
                                 </option>
@@ -474,52 +474,52 @@ const onuSummary = (row) => {
                     </div>
 
                     <div v-if="uplink_interfaces.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
-                        Tidak ada interface uplink terdeteksi. Pastikan card HUVQ/SMXA terpasang dan klik <strong class="text-slate-700">Refresh Data</strong>.
+                        Tidak ada interface uplink terdeteksi. Pastikan card HUVQ/SMXA terpasang dan klik <strong class="text-slate-200">Refresh Data</strong>.
                     </div>
 
                     <div v-else class="p-5">
                         <!-- Status indicator -->
                         <div class="mb-5 flex flex-wrap items-center gap-4">
                             <div v-if="!liveTrafficEnabled && uplinkInfo.line_status === null"
-                                 class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
+                                 class="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-2">
                                 <div class="h-2.5 w-2.5 rounded-full bg-slate-400"></div>
                                 <span class="text-sm text-slate-500">Live traffic standby</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === null"
-                                 class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2">
+                                 class="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-2">
                                 <div class="h-2.5 w-2.5 animate-pulse rounded-full bg-slate-400"></div>
                                 <span class="text-sm text-slate-500">Memuat status…</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === 'up'"
-                                 class="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2">
-                                <CheckCircle2 class="h-5 w-5 text-emerald-600" />
-                                <span class="font-semibold text-emerald-700">UP</span>
+                                 class="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-2">
+                                <CheckCircle2 class="h-5 w-5 text-emerald-400" />
+                                <span class="font-semibold text-emerald-300">UP</span>
                             </div>
 
                             <div v-else-if="uplinkInfo.line_status === 'admin-down'"
-                                 class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2">
-                                <XCircle class="h-5 w-5 text-amber-600" />
-                                <span class="font-semibold text-amber-700">ADMIN DOWN</span>
+                                 class="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/15 px-4 py-2">
+                                <XCircle class="h-5 w-5 text-amber-400" />
+                                <span class="font-semibold text-amber-300">ADMIN DOWN</span>
                             </div>
 
                             <div v-else
-                                 class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
-                                <XCircle class="h-5 w-5 text-red-600" />
-                                <span class="font-semibold text-red-700">DOWN</span>
+                                 class="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-2">
+                                <XCircle class="h-5 w-5 text-red-400" />
+                                <span class="font-semibold text-red-300">DOWN</span>
                             </div>
 
                             <!-- Live stats pills -->
                             <div v-if="uplinkInfo.line_status !== null && uplinkInfo.line_status !== 'admin-down' && uplinkInfo.line_status !== 'down'"
                                  class="flex flex-wrap gap-2">
-                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-sky-50 text-sky-700 ring-sky-200">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-sky-500/15 text-cyan-300 ring-cyan-500/30">
                                     ↓ RX {{ formatBps(uplinkInfo.input_bps) }}
                                 </span>
-                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-emerald-50 text-emerald-700 ring-emerald-200">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium ring-1 bg-emerald-500/15 text-emerald-300 ring-emerald-500/30">
                                     ↑ TX {{ formatBps(uplinkInfo.output_bps) }}
                                 </span>
-                                <span class="inline-flex rounded-full px-3 py-1 text-xs ring-1 bg-slate-100 text-slate-600 ring-slate-200">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs ring-1 bg-slate-800/60 text-slate-300 ring-slate-500/30">
                                     {{ uplinkInfo.input_pps.toLocaleString('id-ID') }} pps in /
                                     {{ uplinkInfo.output_pps.toLocaleString('id-ID') }} pps out
                                 </span>
@@ -527,7 +527,7 @@ const onuSummary = (row) => {
                         </div>
 
                         <!-- Error banner -->
-                        <div v-if="trafficError" class="mb-4 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">
+                        <div v-if="trafficError" class="mb-4 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-2 text-xs text-red-300">
                             <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>Gagal ambil data trafik: {{ trafficError }}
                         </div>
 
@@ -545,13 +545,13 @@ const onuSummary = (row) => {
                 <!-- ══════════════════════════════════════
                      SECTION 2: Port Uplink
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex flex-col gap-1 border-b border-slate-100 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex flex-col gap-1 border-b border-white/10 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                                <Network class="h-5 w-5 text-sky-600" />
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                <Network class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="font-semibold text-slate-900">Port Uplink</h3>
+                            <h3 class="font-semibold text-white">Port Uplink</h3>
                         </div>
                         <span class="text-xs text-slate-400">{{ uplinkDetails.length }} port tersimpan</span>
                     </div>
@@ -562,10 +562,10 @@ const onuSummary = (row) => {
                         <div v-if="toast.show"
                              class="mx-5 mt-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm"
                              :class="toast.ok
-                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                 : 'border-red-200 bg-red-50 text-red-700'">
-                            <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                            <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                                 ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300'
+                                 : 'border-red-500/30 bg-red-500/15 text-red-300'">
+                            <CheckCircle2 v-if="toast.ok" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                            <XCircle v-else class="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
                             {{ toast.message }}
                         </div>
                     </Transition>
@@ -577,7 +577,7 @@ const onuSummary = (row) => {
                     <div v-else class="overflow-x-auto">
                         <table class="min-w-[980px] w-full text-sm">
                             <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                                     <th class="px-4 py-3.5">Interface</th>
                                     <th class="px-4 py-3.5">Card</th>
                                     <th class="px-4 py-3.5">Admin</th>
@@ -590,30 +590,30 @@ const onuSummary = (row) => {
                                     <th class="px-4 py-3.5">Aksi VLAN</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100">
+                            <tbody class="divide-y divide-white/5">
                                 <template v-for="row in uplinkDetails" :key="row.interface">
-                                    <tr class="transition-colors duration-150 hover:bg-slate-50">
-                                        <td class="px-4 py-3 font-mono text-slate-900">{{ row.interface }}</td>
-                                        <td class="px-4 py-3 text-slate-700">{{ row.card_type || '-' }}</td>
-                                        <td class="px-4 py-3 text-slate-700">{{ row.admin_status || '-' }}</td>
+                                    <tr class="transition-colors duration-150 hover:bg-white/[0.03]">
+                                        <td class="px-4 py-3 font-mono text-white">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-slate-200">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-slate-200">{{ row.admin_status || '-' }}</td>
                                         <td class="px-4 py-3">
                                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
                                                 {{ row.link_status || '-' }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             {{ row.speed_mbps ? `${row.speed_mbps} Mbps` : '-' }}
                                             <span v-if="row.duplex" class="block text-xs text-slate-500">{{ row.duplex }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">Native {{ row.native_vlan ?? '-' }}</span>
                                             <span class="block max-w-48 truncate text-xs text-slate-500">Tagged {{ compactVlans(row.tagged_vlans) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
                                             <span class="block text-xs text-slate-500">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
                                             <span class="block max-w-44 truncate text-xs text-slate-500">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
                                             <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-slate-500">
@@ -628,8 +628,8 @@ const onuSummary = (row) => {
                                                     type="button"
                                                     class="inline-flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
                                                     :class="vlanPanelInterface === row.interface && vlanPanelMode === 'view'
-                                                        ? 'border-sky-300 bg-sky-50 text-sky-700'
-                                                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+                                                        ? 'border-cyan-500/40 bg-sky-500/15 text-cyan-300'
+                                                        : 'border-white/10 bg-slate-900/40 backdrop-blur-xl text-slate-300 hover:bg-white/[0.03] hover:text-white'"
                                                     :title="`Lihat VLAN ${row.interface}`"
                                                     @click="openVlanPanel(row.interface, 'view')"
                                                 >
@@ -641,8 +641,8 @@ const onuSummary = (row) => {
                                                     type="button"
                                                     class="inline-flex min-h-10 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium shadow-sm transition"
                                                     :class="vlanPanelInterface === row.interface && vlanPanelMode === 'add'
-                                                        ? 'border-sky-300 bg-sky-50 text-sky-700'
-                                                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'"
+                                                        ? 'border-cyan-500/40 bg-sky-500/15 text-cyan-300'
+                                                        : 'border-white/10 bg-slate-900/40 backdrop-blur-xl text-slate-300 hover:bg-white/[0.03] hover:text-white'"
                                                     :title="`Tag VLAN ke ${row.interface}`"
                                                     @click="openVlanPanel(row.interface, 'add')"
                                                 >
@@ -661,12 +661,12 @@ const onuSummary = (row) => {
                                         leave-to-class="opacity-0"
                                     >
                                         <tr v-if="vlanPanelInterface === row.interface">
-                                            <td colspan="10" class="border-t border-slate-100 bg-slate-50 px-5 py-4">
+                                            <td colspan="10" class="border-t border-white/10 bg-slate-950/40 px-5 py-4">
                                                 <!-- View mode -->
                                                 <div v-if="vlanPanelMode === 'view'">
-                                                    <p class="mb-2 text-xs font-semibold text-sky-600">VLAN Tagged — {{ row.interface }}</p>
+                                                    <p class="mb-2 text-xs font-semibold text-cyan-400">VLAN Tagged — {{ row.interface }}</p>
                                                     <div v-if="panelVlans.length === 0" class="text-sm text-slate-500">
-                                                        Tidak ada VLAN tagged. Klik <strong class="text-slate-700">Refresh Data</strong> atau tag VLAN baru.
+                                                        Tidak ada VLAN tagged. Klik <strong class="text-slate-200">Refresh Data</strong> atau tag VLAN baru.
                                                     </div>
                                                     <div v-else class="flex flex-wrap gap-1.5">
                                                         <span
@@ -682,7 +682,7 @@ const onuSummary = (row) => {
 
                                                 <!-- Add mode -->
                                                 <div v-else>
-                                                    <p class="mb-3 text-xs font-semibold text-sky-700">Tag VLAN ke {{ row.interface }}</p>
+                                                    <p class="mb-3 text-xs font-semibold text-cyan-300">Tag VLAN ke {{ row.interface }}</p>
                                                     <div class="flex flex-wrap items-end gap-3">
                                                         <div>
                                                             <label class="mb-1.5 block text-xs font-medium text-slate-500">Nomor VLAN (1–4094)</label>
@@ -692,7 +692,7 @@ const onuSummary = (row) => {
                                                                 min="1"
                                                                 max="4094"
                                                                 placeholder="contoh: 500"
-                                                                class="w-36 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                                                                class="w-36 rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl px-3 py-2 text-sm text-white placeholder-slate-400 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
                                                                 @keydown.enter="submitVlan"
                                                             />
                                                         </div>
@@ -707,7 +707,7 @@ const onuSummary = (row) => {
                                                         </PrimaryButton>
                                                     </div>
                                                     <p class="mt-2 text-xs text-slate-500">
-                                                        Script: <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-700">configure terminal → vlan {id} → exit → interface {{ row.interface }} → switchport vlan {id} tag → end → write</code>
+                                                        Script: <code class="rounded bg-slate-800/60 px-1.5 py-0.5 font-mono text-slate-200">configure terminal → vlan {id} → exit → interface {{ row.interface }} → switchport vlan {id} tag → end → write</code>
                                                     </p>
                                                 </div>
                                             </td>
@@ -722,13 +722,13 @@ const onuSummary = (row) => {
                 <!-- ══════════════════════════════════════
                      SECTION 3: GPON Port
                      ══════════════════════════════════════ -->
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex flex-col gap-1 border-b border-slate-100 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex flex-col gap-1 border-b border-white/10 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                                <Wifi class="h-5 w-5 text-sky-600" />
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                <Wifi class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="font-semibold text-slate-900">GPON Port</h3>
+                            <h3 class="font-semibold text-white">GPON Port</h3>
                         </div>
                         <span class="text-xs text-slate-400">{{ gponDetails.length }} port terdeteksi</span>
                     </div>
@@ -739,7 +739,7 @@ const onuSummary = (row) => {
 
                     <template v-else>
                         <!-- Card/slot selector tabs -->
-                        <div class="border-b border-slate-100 px-5">
+                        <div class="border-b border-white/10 px-5">
                             <div class="flex gap-0 overflow-x-auto">
                                 <button
                                     v-for="slot in gponSlots"
@@ -747,12 +747,12 @@ const onuSummary = (row) => {
                                     type="button"
                                     class="flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
                                     :class="selectedGponSlot === slot
-                                        ? 'border-sky-500 text-sky-700'
-                                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'"
+                                        ? 'border-cyan-500 text-cyan-300'
+                                        : 'border-transparent text-slate-500 hover:border-white/10 hover:text-slate-200'"
                                     @click="selectedGponSlot = slot"
                                 >
                                     <span class="font-mono">{{ gponCardLabel(slot) }}</span>
-                                    <span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
+                                    <span class="rounded-full bg-slate-800/60 px-1.5 py-0.5 text-xs text-slate-400">
                                         {{ gponDetails.filter(r => r.slot === slot).length }}
                                     </span>
                                 </button>
@@ -762,7 +762,7 @@ const onuSummary = (row) => {
                         <div class="overflow-x-auto">
                             <table class="min-w-[980px] w-full text-sm">
                                 <thead>
-                                    <tr class="border-b border-slate-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
                                         <th class="px-4 py-3.5">Interface</th>
                                         <th class="px-4 py-3.5">Card</th>
                                         <th class="px-4 py-3.5">Admin</th>
@@ -777,44 +777,44 @@ const onuSummary = (row) => {
                                         <th class="px-4 py-3.5">Refresh</th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100">
-                                    <tr v-for="row in filteredGponDetails" :key="row.interface" class="transition-colors duration-150 hover:bg-slate-50">
-                                        <td class="px-4 py-3 font-mono text-slate-900">{{ row.interface }}</td>
-                                        <td class="px-4 py-3 text-slate-700">{{ row.card_type || '-' }}</td>
-                                        <td class="px-4 py-3 text-slate-700">{{ row.admin_status || '-' }}</td>
+                                <tbody class="divide-y divide-white/5">
+                                    <tr v-for="row in filteredGponDetails" :key="row.interface" class="transition-colors duration-150 hover:bg-white/[0.03]">
+                                        <td class="px-4 py-3 font-mono text-white">{{ row.interface }}</td>
+                                        <td class="px-4 py-3 text-slate-200">{{ row.card_type || '-' }}</td>
+                                        <td class="px-4 py-3 text-slate-200">{{ row.admin_status || '-' }}</td>
                                         <td class="px-4 py-3">
                                             <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
                                                 {{ row.link_status || '-' }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">{{ onuSummary(row) }}</td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">{{ onuSummary(row) }}</td>
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">↓ {{ formatBps(row.input_bps) }}</span>
                                             <span class="block text-xs text-slate-500">↑ {{ formatBps(row.output_bps) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">In {{ formatPercent(row.input_throughput_percent) }}</span>
                                             <span class="block text-xs text-slate-500">Out {{ formatPercent(row.output_throughput_percent) }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }}</span>
                                             <span class="block text-xs text-slate-500">Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block max-w-44 truncate">{{ row.optical_vendor_name || '-' }}</span>
                                             <span class="block max-w-44 truncate text-xs text-slate-500">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
                                             <span v-if="row.temperature_c !== null && row.temperature_c !== undefined" class="block text-xs text-slate-500">
                                                 {{ formatNumber(row.temperature_c, '°C') }} · {{ formatNumber(row.supply_voltage_v, 'V') }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-3 text-slate-700">
+                                        <td class="px-4 py-3 text-slate-200">
                                             <span class="block">↓ {{ formatBps(row.input_peak_bps) }}</span>
                                             <span class="block text-xs text-slate-500">↑ {{ formatBps(row.output_peak_bps) }}</span>
                                         </td>
                                         <td class="px-4 py-3">
                                             <button
                                                 type="button"
-                                                class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                                                class="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl text-slate-300 shadow-sm transition hover:bg-white/[0.03] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                                                 :disabled="refreshingInterface === row.interface"
                                                 :title="`Refresh ${row.interface}`"
                                                 @click="refreshInterface(row)"

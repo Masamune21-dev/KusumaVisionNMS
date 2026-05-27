@@ -3,28 +3,58 @@
 @tailwind utilities;
 
 @layer base {
+    html {
+        color-scheme: dark;
+    }
+
     body {
-        @apply bg-slate-50 text-slate-800 antialiased;
+        @apply bg-slate-950 text-slate-100 antialiased;
     }
 
     ::selection {
-        @apply bg-sky-600 text-white;
+        @apply bg-cyan-500 text-white;
+    }
+
+    /* Native select dropdown options — match dark theme. */
+    select option,
+    select optgroup {
+        @apply bg-slate-900 text-slate-100;
+    }
+
+    select option:checked,
+    select option:hover {
+        @apply bg-cyan-600 text-white;
+    }
+
+    /* Tailwind/forms applies its own select styling; align with dark theme. */
+    select:not([multiple]):not([size]) {
+        @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500;
+    }
+
+    select[multiple],
+    select[size] {
+        @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100;
+    }
+
+    /* Textarea — same dark treatment as inputs. */
+    textarea {
+        @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500;
+    }
+
+    /* Date/time inputs — date picker indicator on dark. */
+    input[type="date"]::-webkit-calendar-picker-indicator,
+    input[type="time"]::-webkit-calendar-picker-indicator,
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
+        cursor: pointer;
     }
 }
 
 @layer components {
+    /* === Page chrome === */
     .kv-page {
         @apply py-8 pb-16;
         min-height: 60vh;
-    }
-
-    .kv-grid-bg {
-        background-color: #f8fafc;
-        background-image:
-            linear-gradient(rgba(14, 165, 233, 0.08) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(14, 165, 233, 0.08) 1px, transparent 1px);
-        background-position: -1px -1px;
-        background-size: 32px 32px;
     }
 
     .kv-page-compact {
@@ -39,48 +69,111 @@
         @apply mx-auto max-w-5xl px-4 sm:px-6 lg:px-8;
     }
 
-    .kv-panel {
-        @apply overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60;
+    /* === Dark background grid (network theme) === */
+    .kv-grid-bg {
+        background-color: #060912;
+        background-image:
+            radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.10) 0%, transparent 50%),
+            radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.06) 0%, transparent 45%),
+            linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+        background-position: 0 0, 0 0, -1px -1px, -1px -1px;
+        background-size: auto, auto, 32px 32px, 32px 32px;
+        background-attachment: fixed, fixed, scroll, scroll;
     }
 
-    .kv-card {
-        @apply rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60;
+    /* === Dark glass surfaces === */
+    .kv-glass-panel {
+        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
-    .kv-panel-header {
-        @apply flex items-center gap-3 border-b border-slate-100 px-6 py-4;
+    .kv-glass-card {
+        @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
-    .kv-panel-header-compact {
-        @apply flex items-center gap-3 border-b border-slate-100 px-5 py-4;
+    .kv-glass-hover {
+        @apply transition-all duration-200 hover:border-white/20 hover:bg-slate-900/60 hover:shadow-cyan-500/10;
     }
 
-    .kv-icon-tile {
-        @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 ring-1 ring-sky-200;
+    .kv-glass-header {
+        @apply flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6;
     }
 
-    .kv-icon-tile-sm {
-        @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 ring-1 ring-sky-200;
+    /* === Colored circle icons (stat cards, action grid) === */
+    .kv-circle {
+        @apply flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full ring-1;
     }
 
+    .kv-circle-sky    { @apply kv-circle bg-sky-500/15 text-sky-400 ring-sky-500/30; }
+    .kv-circle-cyan   { @apply kv-circle bg-cyan-500/15 text-cyan-400 ring-cyan-500/30; }
+    .kv-circle-emerald{ @apply kv-circle bg-emerald-500/15 text-emerald-400 ring-emerald-500/30; }
+    .kv-circle-purple { @apply kv-circle bg-purple-500/15 text-purple-400 ring-purple-500/30; }
+    .kv-circle-red    { @apply kv-circle bg-red-500/15 text-red-400 ring-red-500/30; }
+    .kv-circle-amber  { @apply kv-circle bg-amber-500/15 text-amber-400 ring-amber-500/30; }
+    .kv-circle-slate  { @apply kv-circle bg-slate-500/15 text-slate-300 ring-slate-500/30; }
+
+    /* === Pills / badges === */
+    .kv-pill {
+        @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1;
+    }
+    .kv-pill-success { @apply kv-pill bg-emerald-500/15 text-emerald-300 ring-emerald-500/30; }
+    .kv-pill-danger  { @apply kv-pill bg-red-500/15 text-red-300 ring-red-500/30; }
+    .kv-pill-warning { @apply kv-pill bg-amber-500/15 text-amber-300 ring-amber-500/30; }
+    .kv-pill-info    { @apply kv-pill bg-sky-500/15 text-sky-300 ring-sky-500/30; }
+    .kv-pill-muted   { @apply kv-pill bg-slate-500/15 text-slate-300 ring-slate-500/30; }
+    .kv-pill-critical{ @apply kv-pill bg-red-600/20 text-red-200 ring-red-500/40; }
+    .kv-pill-major   { @apply kv-pill bg-orange-500/20 text-orange-200 ring-orange-500/40; }
+    .kv-pill-minor   { @apply kv-pill bg-amber-500/20 text-amber-200 ring-amber-500/40; }
+
+    /* === Inputs (dark) === */
     .kv-input {
-        @apply rounded-md border-slate-300 text-slate-900 shadow-sm focus:border-sky-500 focus:ring-sky-500;
+        @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500;
     }
 
     .kv-link {
-        @apply font-medium text-sky-700 transition-colors hover:text-sky-600;
+        @apply font-medium text-cyan-400 transition-colors hover:text-cyan-300;
     }
 
+    .kv-link-muted {
+        @apply font-medium text-slate-400 transition-colors hover:text-slate-200;
+    }
+
+    /* === Alerts === */
     .kv-alert-success {
-        @apply mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700;
+        @apply mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200;
     }
 
     .kv-alert-danger {
-        @apply mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700;
+        @apply mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200;
+    }
+
+    /* === Legacy aliases (kv-panel/kv-card now route to dark glass) === */
+    .kv-panel {
+        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
+    }
+
+    .kv-card {
+        @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
+    }
+
+    .kv-panel-header {
+        @apply flex items-center gap-3 border-b border-white/10 px-6 py-4;
+    }
+
+    .kv-panel-header-compact {
+        @apply flex items-center gap-3 border-b border-white/10 px-5 py-4;
+    }
+
+    .kv-icon-tile {
+        @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30;
+    }
+
+    .kv-icon-tile-sm {
+        @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30;
     }
 }
 
-/* Page transition */
+/* === Page transition === */
 .page-enter-active {
     transition: opacity 0.18s ease, transform 0.18s ease;
 }
@@ -94,4 +187,24 @@
 .page-leave-to {
     opacity: 0;
     transform: translateY(-4px);
+}
+
+/* === Custom scrollbar (dark) === */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.4);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.20);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(56, 189, 248, 0.35);
+    background-clip: padding-box;
+    border: 2px solid transparent;
 }

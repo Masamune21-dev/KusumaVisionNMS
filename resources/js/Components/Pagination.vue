@@ -14,7 +14,7 @@ defineProps({
         <template v-for="(link, index) in links" :key="index">
             <span
                 v-if="link.url === null"
-                class="rounded-md px-3 py-2 text-sm text-slate-400"
+                class="rounded-lg px-3 py-2 text-sm text-slate-500"
                 v-html="link.label"
             />
             <Link
@@ -22,10 +22,10 @@ defineProps({
                 :href="link.url"
                 preserve-scroll
                 preserve-state
-                class="inline-flex min-h-10 items-center justify-center rounded-md border px-3 py-2 text-sm"
+                class="inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm transition-colors"
                 :class="link.active
-                    ? 'border-sky-500 bg-sky-50 text-sky-700'
-                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'"
+                    ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300'
+                    : 'border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20 hover:bg-slate-800/80 hover:text-white'"
                 v-html="link.label"
             />
         </template>

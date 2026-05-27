@@ -59,7 +59,7 @@ const formatDate = (value) => {
     <AuthenticatedLayout>
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
+                <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
                     SmartOLT
                 </h2>
                 <Link :href="route('smartolt.create')" class="sm:w-auto">
@@ -74,40 +74,34 @@ const formatDate = (value) => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
                 <!-- Flash messages -->
-                <div
-                    v-if="flash.success"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
+                <div v-if="flash.success" class="kv-alert-success">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400"></span>
                     {{ flash.success }}
                 </div>
-                <div
-                    v-if="flash.error"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
+                <div v-if="flash.error" class="kv-alert-danger">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>
                     {{ flash.error }}
                 </div>
 
                 <!-- Main card -->
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                <div class="kv-glass-panel">
                     <!-- Card header -->
-                    <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                            <Cable class="h-5 w-5 text-sky-600" />
-                        </div>
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <span class="kv-circle-sky !h-10 !w-10">
+                            <Cable class="h-5 w-5" />
+                        </span>
                         <div>
-                            <h3 class="text-base font-semibold text-slate-900">OLT Inventory</h3>
-                            <p class="text-xs text-slate-500">SNMP inventory & test koneksi ZTE C300/C320</p>
+                            <h3 class="text-base font-semibold text-white">OLT Inventory</h3>
+                            <p class="text-xs text-slate-400">SNMP inventory & test koneksi ZTE C300/C320</p>
                         </div>
                     </div>
 
                     <!-- Empty state -->
                     <div v-if="olts.length === 0" class="px-6 py-16 text-center">
-                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200">
-                            <Cable class="h-7 w-7 text-slate-400" />
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-white/10">
+                            <Cable class="h-7 w-7 text-slate-500" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-700">Belum ada OLT</h3>
+                        <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan OLT pertama untuk mulai test SNMP.</p>
                         <div class="mt-5">
                             <Link :href="route('smartolt.create')">
@@ -121,47 +115,44 @@ const formatDate = (value) => {
 
                     <!-- Table -->
                     <div v-else class="overflow-x-auto">
-                        <table class="min-w-[720px] w-full">
+                        <table class="w-full min-w-[720px]">
                             <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">OLT</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">SNMP</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Driver</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Test Terakhir</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                                <tr class="border-b border-white/10 bg-slate-950/40">
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">OLT</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">SNMP</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Driver</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Test Terakhir</th>
+                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100">
+                            <tbody class="divide-y divide-white/5">
                                 <tr
                                     v-for="olt in olts"
                                     :key="olt.id"
-                                    class="transition-colors duration-150 hover:bg-slate-50"
+                                    class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
                                     <td class="px-4 py-4">
-                                        <div class="font-medium text-slate-900">{{ olt.name }}</div>
+                                        <div class="font-medium text-white">{{ olt.name }}</div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || 'Vendor belum diisi' }}</div>
                                     </td>
                                     <td class="px-4 py-4">
-                                        <div class="font-mono text-xs text-slate-600">{{ olt.ip }}:{{ olt.snmp_port }}</div>
+                                        <div class="font-mono text-xs text-slate-300">{{ olt.ip }}:{{ olt.snmp_port }}</div>
                                         <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="space-y-1.5">
                                             <span
-                                                class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1"
-                                                :class="olt.driver === 'zte'
-                                                    ? 'bg-sky-50 text-sky-700 ring-sky-200'
-                                                    : 'bg-slate-100 text-slate-600 ring-slate-200'"
+                                                :class="olt.driver === 'zte' ? 'kv-pill-info' : 'kv-pill-muted'"
                                             >
                                                 {{ olt.capabilities.vendor_family }}
                                             </span>
                                             <div
                                                 class="flex items-center gap-1.5 text-xs"
-                                                :class="olt.polling_enabled ? 'text-emerald-600' : 'text-slate-400'"
+                                                :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'"
                                             >
                                                 <span
                                                     class="h-1.5 w-1.5 rounded-full"
-                                                    :class="olt.polling_enabled ? 'bg-emerald-500' : 'bg-slate-300'"
+                                                    :class="olt.polling_enabled ? 'bg-emerald-400' : 'bg-slate-600'"
                                                 ></span>
                                                 Auto-poll: {{ olt.polling_enabled ? 'On' : 'Off' }}
                                             </div>
@@ -172,18 +163,18 @@ const formatDate = (value) => {
                                             <span
                                                 class="h-2 w-2 rounded-full"
                                                 :class="olt.last_test_result?.ok
-                                                    ? 'bg-emerald-500'
+                                                    ? 'bg-emerald-400'
                                                     : olt.last_test_result
-                                                        ? 'bg-red-500'
-                                                        : 'bg-slate-300'"
+                                                        ? 'bg-red-400'
+                                                        : 'bg-slate-600'"
                                             ></span>
                                             <span
                                                 class="text-sm font-semibold"
                                                 :class="olt.last_test_result?.ok
-                                                    ? 'text-emerald-700'
+                                                    ? 'text-emerald-300'
                                                     : olt.last_test_result
-                                                        ? 'text-red-700'
-                                                        : 'text-slate-400'"
+                                                        ? 'text-red-300'
+                                                        : 'text-slate-500'"
                                             >
                                                 {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
                                             </span>

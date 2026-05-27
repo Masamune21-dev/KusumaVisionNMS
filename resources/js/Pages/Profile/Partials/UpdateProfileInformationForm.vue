@@ -25,11 +25,11 @@ const form = useForm({
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-slate-900">
+            <h2 class="text-lg font-medium text-white">
                 Profile Information
             </h2>
 
-            <p class="mt-1 text-sm text-slate-600">
+            <p class="mt-1 text-sm text-slate-300">
                 Update your account's profile information and email address.
             </p>
         </header>
@@ -70,13 +70,13 @@ const form = useForm({
             </div>
 
             <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-slate-800">
+                <p class="mt-2 text-sm text-white">
                     Your email address is unverified.
                     <Link
                         :href="route('verification.send')"
                         method="post"
                         as="button"
-                        class="rounded-md text-sm text-slate-600 underline hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                        class="rounded-md text-sm text-slate-300 underline hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
                     >
                         Click here to re-send the verification email.
                     </Link>
@@ -84,7 +84,7 @@ const form = useForm({
 
                 <div
                     v-show="status === 'verification-link-sent'"
-                    class="mt-2 text-sm font-medium text-emerald-600"
+                    class="mt-2 text-sm font-medium text-emerald-400"
                 >
                     A new verification link has been sent to your email address.
                 </div>
@@ -101,7 +101,7 @@ const form = useForm({
                 >
                     <p
                         v-if="form.recentlySuccessful"
-                        class="text-sm text-slate-600"
+                        class="text-sm text-slate-300"
                     >
                         Saved.
                     </p>

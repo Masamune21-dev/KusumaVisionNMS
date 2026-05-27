@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\Snmp\GoSnmpPoller;
@@ -125,6 +126,33 @@ class PollOltJob implements ShouldQueue
         $olt->forceFill($updates)->save();
 
         $alarms->evaluate($olt);
+
+        PollingEvent::log(
+            $olt->id,
+            PollingEvent::KIND_OLT_POLL,
+            (bool) ($snapshot['ok'] ?? false),
+            $snapshot['error'] ?? $merged['onu_poll_error'] ?? $goPollerError,
+            isset($snapshot['latency_ms']) ? (int) $snapshot['latency_ms'] : null,
+        );
+
+        if ($rxPollDue) {
+            PollingEvent::log(
+                $olt->id,
+                PollingEvent::KIND_RX_POLL,
+                $rxPollSucceeded,
+                $rxPowerError,
+            );
+        }
+    }
+
+    public function failed(?Throwable $exception): void
+    {
+        PollingEvent::log(
+            $this->oltId,
+            PollingEvent::KIND_OLT_POLL,
+            false,
+            $exception?->getMessage(),
+        );
     }
 
     /**

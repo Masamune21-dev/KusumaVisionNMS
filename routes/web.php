@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AlarmController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardSearchController;
+use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SmartOltController;
 use App\Http\Controllers\SmartOltProfileController;
@@ -27,6 +29,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/dashboard/search', DashboardSearchController::class)->name('dashboard.search');
+    Route::post('/notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('notifications.read-all');
 
     Route::get('/alarms', [AlarmController::class, 'index'])->name('alarms.index');
 

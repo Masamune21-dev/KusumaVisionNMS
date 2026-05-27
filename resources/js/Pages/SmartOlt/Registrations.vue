@@ -26,20 +26,20 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 const statuses = {
     generated: {
         label: 'Belum dieksekusi',
-        pillClass: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-        textClass: 'text-amber-700',
+        pillClass: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30',
+        textClass: 'text-amber-300',
         icon: Clock3,
     },
     executed: {
         label: 'Teregister',
-        pillClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-        textClass: 'text-emerald-700',
+        pillClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
+        textClass: 'text-emerald-300',
         icon: CheckCircle2,
     },
     failed: {
         label: 'Gagal',
-        pillClass: 'bg-red-50 text-red-700 ring-1 ring-red-200',
-        textClass: 'text-red-700',
+        pillClass: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30',
+        textClass: 'text-red-300',
         icon: XCircle,
     },
 };
@@ -106,7 +106,7 @@ const executeRegistration = async (registration) => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">Registration History</h2>
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Registration History</h2>
                     <p class="mt-1 text-sm text-slate-500">{{ olt.name }}</p>
                 </div>
                 <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
@@ -120,32 +120,32 @@ const executeRegistration = async (registration) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
-                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
                     {{ flash.success }}
                 </div>
-                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
                     {{ flash.error }}
                 </div>
 
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                            <ClipboardList class="h-5 w-5 text-sky-600" />
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                            <ClipboardList class="h-5 w-5 text-cyan-400" />
                         </div>
-                        <h3 class="text-base font-semibold text-slate-900">Provisioning Scripts</h3>
+                        <h3 class="text-base font-semibold text-white">Provisioning Scripts</h3>
                     </div>
 
                     <div v-if="registrations.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
                         Belum ada provisioning script.
                     </div>
 
-                    <div v-else class="divide-y divide-slate-100">
+                    <div v-else class="divide-y divide-white/5">
                         <div v-for="registration in registrations" :key="registration.id" class="p-6">
                             <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
-                                    <div class="font-medium text-slate-900">
+                                    <div class="font-medium text-white">
                                         {{ registration.customer_name }} · {{ registration.pon_port }}
                                     </div>
                                     <div class="text-sm text-slate-500">
@@ -170,7 +170,7 @@ const executeRegistration = async (registration) => {
                                 <div class="text-xs font-medium uppercase tracking-wide text-slate-500">
                                     Execution · {{ formatDate(registration.executed_at) }}
                                 </div>
-                                <div v-if="registration.execution_error" class="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                <div v-if="registration.execution_error" class="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                                     {{ registration.execution_error }}
                                 </div>
                                 <pre v-if="registration.execution_output" class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.execution_output }}</pre>

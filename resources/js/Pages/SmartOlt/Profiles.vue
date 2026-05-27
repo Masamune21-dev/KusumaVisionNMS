@@ -141,7 +141,7 @@ const syncFromOlt = () => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">SmartOLT Profiles</h2>
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">SmartOLT Profiles</h2>
                     <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · {{ olt.ip }}</p>
                 </div>
                 <div class="flex gap-2">
@@ -162,25 +162,25 @@ const syncFromOlt = () => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
                 <!-- Flash messages -->
-                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>{{ flash.success }}
                 </div>
-                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>{{ flash.error }}
                 </div>
 
                 <section
                     v-for="type in types"
                     :key="type.key"
-                    class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60"
+                    class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl"
                 >
                     <!-- Card header -->
-                    <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                            <Database class="h-5 w-5 text-sky-600" />
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                            <Database class="h-5 w-5 text-cyan-400" />
                         </div>
                         <div>
-                            <h3 class="text-base font-semibold text-slate-900">{{ type.label }}</h3>
+                            <h3 class="text-base font-semibold text-white">{{ type.label }}</h3>
                             <p class="text-sm text-slate-500">
                                 {{ type.uses_vlan ? 'Profile service dan VLAN ID dari OLT.' : 'Profile CLI yang dipakai pada script provisioning.' }}
                             </p>
@@ -188,7 +188,7 @@ const syncFromOlt = () => {
                     </div>
 
                     <!-- Add form row -->
-                    <div class="border-b border-slate-100 bg-slate-50 px-6 py-4">
+                    <div class="border-b border-white/10 bg-slate-950/40 px-6 py-4">
                         <form class="grid gap-4 md:grid-cols-12 md:items-end" @submit.prevent="store(type)">
                             <div class="md:col-span-3">
                                 <InputLabel :for="`name-${type.key}`" value="Nama Profile" />
@@ -221,8 +221,8 @@ const syncFromOlt = () => {
                                 <InputError class="mt-2" :message="createForms[type.key].errors.notes" />
                             </div>
                             <div class="md:col-span-2">
-                                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                    <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500" />
+                                <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                                    <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
                                     Eksekusi CLI
                                 </label>
                             </div>
@@ -239,7 +239,7 @@ const syncFromOlt = () => {
                     <div class="overflow-x-auto">
                         <table class="min-w-[720px] w-full">
                             <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50">
+                                <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</th>
                                     <th v-if="type.key === 'vlan'" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">VLAN</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Params</th>
@@ -247,13 +247,13 @@ const syncFromOlt = () => {
                                     <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100">
+                            <tbody class="divide-y divide-white/5">
                                 <tr v-if="rowsFor(type).length === 0">
                                     <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-slate-500">
                                         Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
                                     </td>
                                 </tr>
-                                <tr v-for="profile in rowsFor(type)" :key="profile.id" class="transition-colors duration-150 hover:bg-slate-50">
+                                <tr v-for="profile in rowsFor(type)" :key="profile.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
                                     <template v-if="editing[profile.id]">
                                         <td class="px-6 py-4">
                                             <TextInput v-model="editing[profile.id].name" class="block w-48" required />
@@ -272,12 +272,12 @@ const syncFromOlt = () => {
                                             <TextInput v-else v-model="editing[profile.id].notes" class="block w-72" />
                                         </td>
                                         <td class="px-6 py-4">
-                                            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                                                <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500" />
+                                            <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                                                <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
                                                 Aktif
                                             </label>
-                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-700">
-                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500" />
+                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-200">
+                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
                                                 Eksekusi CLI
                                             </label>
                                         </td>
@@ -293,9 +293,9 @@ const syncFromOlt = () => {
                                         </td>
                                     </template>
                                     <template v-else>
-                                        <td class="px-6 py-4 text-sm font-medium text-slate-900">{{ profile.name }}</td>
-                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-slate-700">{{ profile.vlan }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-700">
+                                        <td class="px-6 py-4 text-sm font-medium text-white">{{ profile.name }}</td>
+                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-slate-200">{{ profile.vlan }}</td>
+                                        <td class="px-6 py-4 text-sm text-slate-200">
                                             <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
                                             <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
                                             <span v-else>{{ profile.notes || '-' }}</span>
@@ -305,8 +305,8 @@ const syncFromOlt = () => {
                                                 <span
                                                     class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1"
                                                     :class="profile.is_active
-                                                        ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                                                        : 'bg-slate-100 text-slate-500 ring-slate-200'"
+                                                        ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
+                                                        : 'bg-slate-800/60 text-slate-500 ring-slate-500/30'"
                                                 >
                                                     {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
                                                 </span>

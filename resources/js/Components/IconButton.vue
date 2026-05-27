@@ -25,14 +25,14 @@ const props = defineProps({
     },
 });
 
-const base = 'inline-flex h-11 w-11 items-center justify-center rounded-md border bg-white shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9';
+const base = 'inline-flex h-11 w-11 items-center justify-center rounded-lg border bg-slate-900/60 backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9';
 
 const variants = {
-    default: 'border-slate-300 text-slate-600 hover:bg-slate-50 focus:ring-slate-400',
-    primary: 'border-sky-300 text-sky-700 hover:bg-sky-50 focus:ring-sky-500',
-    danger: 'border-red-300 text-red-700 hover:bg-red-50 focus:ring-red-500',
-    success: 'border-emerald-300 text-emerald-700 hover:bg-emerald-50 focus:ring-emerald-500',
-    warning: 'border-amber-300 text-amber-700 hover:bg-amber-50 focus:ring-amber-500',
+    default: 'border-white/10 text-slate-300 hover:border-white/20 hover:bg-slate-800/80 hover:text-white focus:ring-slate-500',
+    primary: 'border-cyan-500/30 text-cyan-300 hover:border-cyan-400/50 hover:bg-cyan-500/10 hover:text-cyan-200 focus:ring-cyan-500',
+    danger:  'border-red-500/30 text-red-300 hover:border-red-400/50 hover:bg-red-500/10 hover:text-red-200 focus:ring-red-500',
+    success: 'border-emerald-500/30 text-emerald-300 hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-emerald-200 focus:ring-emerald-500',
+    warning: 'border-amber-500/30 text-amber-300 hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-200 focus:ring-amber-500',
 };
 
 const classes = computed(() => `${base} ${variants[props.variant] ?? variants.default}`);

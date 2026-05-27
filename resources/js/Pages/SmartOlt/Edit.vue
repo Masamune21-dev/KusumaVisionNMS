@@ -16,7 +16,7 @@ defineProps({
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
+            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
                 Edit OLT
             </h2>
         </template>

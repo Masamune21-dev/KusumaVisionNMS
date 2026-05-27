@@ -57,13 +57,13 @@ const submit = () => {
 <template>
     <form class="space-y-5" @submit.prevent="submit">
         <!-- Section: Identitas OLT -->
-        <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-            <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                    <Cpu class="h-4 w-4 text-sky-600" />
+        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                    <Cpu class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900">Identitas OLT</h3>
+                    <h3 class="text-sm font-semibold text-white">Identitas OLT</h3>
                     <p class="text-xs text-slate-500">Nama, vendor, dan alamat IP perangkat</p>
                 </div>
             </div>
@@ -107,13 +107,13 @@ const submit = () => {
         </div>
 
         <!-- Section: SNMP -->
-        <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-            <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                    <Network class="h-4 w-4 text-sky-600" />
+        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                    <Network class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900">Konfigurasi SNMP</h3>
+                    <h3 class="text-sm font-semibold text-white">Konfigurasi SNMP</h3>
                     <p class="text-xs text-slate-500">Port, versi, dan community string untuk polling SNMP</p>
                 </div>
             </div>
@@ -137,7 +137,7 @@ const submit = () => {
                     <select
                         id="snmp_version"
                         v-model="form.snmp_version"
-                        class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                        class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                         required
                     >
                         <option value="v1">v1</option>
@@ -178,13 +178,13 @@ const submit = () => {
         </div>
 
         <!-- Section: CLI -->
-        <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-            <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                    <KeyRound class="h-4 w-4 text-sky-600" />
+        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                    <KeyRound class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900">Konfigurasi CLI</h3>
+                    <h3 class="text-sm font-semibold text-white">Konfigurasi CLI</h3>
                     <p class="text-xs text-slate-500">Transport, port, dan kredensial untuk akses CLI OLT</p>
                 </div>
             </div>
@@ -194,7 +194,7 @@ const submit = () => {
                     <select
                         id="cli_transport"
                         v-model="form.cli_transport"
-                        class="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                        class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                     >
                         <option value="">Belum dipakai</option>
                         <option value="telnet">Telnet</option>
@@ -246,22 +246,22 @@ const submit = () => {
         </div>
 
         <!-- Section: Polling -->
-        <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-            <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                    <Activity class="h-4 w-4 text-sky-600" />
+        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                    <Activity class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900">Auto-Poll SNMP</h3>
+                    <h3 class="text-sm font-semibold text-white">Auto-Poll SNMP</h3>
                     <p class="text-xs text-slate-500">Interval polling otomatis untuk data SNMP dan RX ONU</p>
                 </div>
             </div>
             <div class="p-6">
-                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-200">
                     <input
                         v-model="form.polling_enabled"
                         type="checkbox"
-                        class="rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500"
+                        class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500"
                     />
                     Aktifkan auto-poll SNMP
                 </label>
@@ -297,7 +297,7 @@ const submit = () => {
         </div>
 
         <!-- Submit bar -->
-        <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60 px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
+        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
             <Link :href="route('smartolt.index')">
                 <SecondaryButton type="button">Batal</SecondaryButton>
             </Link>

@@ -25,12 +25,15 @@ class DashboardTest extends TestCase
             'snmp_version' => 'v2c',
             'last_test_result' => [
                 'ok' => true,
+                'system' => ['sysDescr' => 'OLT-C320-PATI'],
                 'ports' => [
                     ['name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status' => 'up'],
                     ['name' => 'gpon-olt_1/1/2', 'slot' => 1, 'port' => 2, 'oper_status' => 'down'],
                 ],
                 'port_onus' => [
                     '1_1' => [
+                        'slot' => 1,
+                        'port' => 1,
                         'count' => 2,
                         'onus' => [
                             ['onu_id' => 1, 'online' => true],
@@ -58,13 +61,23 @@ class DashboardTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('Dashboard')
-            ->where('stats.olts_total', 1)
-            ->where('stats.onu_total', 2)
-            ->where('stats.onu_online', 1)
-            ->where('stats.onu_offline', 1)
-            ->where('stats.ports_up', 1)
-            ->where('stats.ports_down', 1)
-            ->where('alarms.critical', 1)
+            ->where('cards.olt.total', 1)
+            ->where('cards.olt.online', 1)
+            ->where('cards.onu.total', 2)
+            ->where('cards.onu.online', 1)
+            ->where('cards.onu.offline', 1)
+            ->where('cards.alarms.critical', 1)
+            ->where('cards.alarms.total', 1)
+            ->has('polling_trend.labels')
+            ->has('olt_inventory', 1, fn ($row) => $row
+                ->where('model', 'ZTE C320')
+                ->where('unit', 1)
+                ->where('up', 1)
+                ->where('down', 0)
+            )
+            ->has('olts', 1)
+            ->has('provisioning', 4)
+            ->has('recent_alarms', 1)
         );
     }
 }

@@ -20,14 +20,14 @@ const emit = defineEmits(['confirm', 'cancel']);
         <div class="p-4 sm:p-6">
             <div class="flex items-start gap-4">
                 <div
-                    class="flex h-10 w-10 flex-none items-center justify-center rounded-full"
-                    :class="state.variant === 'danger' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'"
+                    class="flex h-10 w-10 flex-none items-center justify-center rounded-full ring-1"
+                    :class="state.variant === 'danger' ? 'bg-red-500/15 text-red-400 ring-red-500/30' : 'bg-amber-500/15 text-amber-400 ring-amber-500/30'"
                 >
                     <AlertTriangle class="h-5 w-5" />
                 </div>
                 <div class="flex-1">
-                    <h3 class="text-base font-semibold text-slate-900">{{ state.title }}</h3>
-                    <p class="mt-1 whitespace-pre-line text-sm text-slate-600">{{ state.message }}</p>
+                    <h3 class="text-base font-semibold text-white">{{ state.title }}</h3>
+                    <p class="mt-1 whitespace-pre-line text-sm text-slate-400">{{ state.message }}</p>
                 </div>
             </div>
 

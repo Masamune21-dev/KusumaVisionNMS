@@ -1,17 +1,52 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
+import NotificationBell from '@/Components/Shell/NotificationBell.vue';
+import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
+import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
+import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Activity, BellRing, Cable, LayoutDashboard, LogOut, Menu, User, Users, WifiOff, X } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, LayoutDashboard, Menu, Search, Users, WifiOff } from '@lucide/vue';
 
 const sidebarOpen = ref(false);
+const sidebarCollapsed = ref(false);
+const searchOpen = ref(false);
 const page = usePage();
+
+const navLinks = computed(() => [
+    { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
+    { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: 'smartolt.*', except: 'smartolt.unconfigured-all' },
+    { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
+    { name: 'Alarms', icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
+    { name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' },
+]);
+
+const isActive = (link) => {
+    if (!route().current(link.match)) return false;
+    if (link.except && route().current(link.except)) return false;
+    return true;
+};
+
+const onKey = (e) => {
+    const isModK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey);
+    if (isModK) {
+        e.preventDefault();
+        searchOpen.value = true;
+    }
+    if (e.key === 'Escape' && searchOpen.value) {
+        searchOpen.value = false;
+    }
+};
+
+onMounted(() => window.addEventListener('keydown', onKey));
+onUnmounted(() => window.removeEventListener('keydown', onKey));
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-100">
+    <div class="min-h-screen bg-slate-950">
         <!-- Mobile top bar -->
-        <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-900 px-4 lg:hidden">
+        <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-950/90 px-4 backdrop-blur-xl lg:hidden">
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -21,7 +56,7 @@ const page = usePage();
                 <Menu class="h-5 w-5" />
             </button>
             <Link :href="route('dashboard')" class="flex items-center gap-2">
-                <ApplicationLogo class="h-6 w-auto fill-current text-sky-400" />
+                <ApplicationLogo class="h-6 w-auto fill-current text-cyan-400" />
                 <span class="text-sm font-bold text-white">KusumaVision</span>
             </Link>
         </div>
@@ -37,141 +72,110 @@ const page = usePage();
         >
             <div
                 v-if="sidebarOpen"
-                class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                class="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
                 @click="sidebarOpen = false"
             />
         </Transition>
 
         <!-- Sidebar -->
         <aside
-            class="fixed inset-y-0 left-0 z-50 flex w-64 max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-900 transition-transform duration-200 ease-in-out lg:translate-x-0"
-            :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/95 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0"
+            :class="[
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+                sidebarCollapsed ? 'w-20' : 'w-64',
+            ]"
         >
+            <SidebarConstellation v-if="!sidebarCollapsed" />
+
             <!-- Logo -->
-            <div class="flex h-[72px] items-center justify-between border-b border-white/10 px-5">
-                <Link :href="route('dashboard')" class="flex items-center gap-3" @click="sidebarOpen = false">
-                    <ApplicationLogo class="h-8 w-auto fill-current text-sky-400" />
-                    <div>
-                        <div class="text-base font-bold leading-tight text-white">KusumaVision</div>
-                        <div class="text-[11px] text-slate-500">NMS v2 · GPON Management</div>
-                    </div>
-                </Link>
-                <button
-                    type="button"
-                    class="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
-                    aria-label="Tutup menu"
+            <div class="relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-slate-950/45 px-5 backdrop-blur-[2px]">
+                <Link
+                    :href="route('dashboard')"
+                    class="flex items-center gap-3 overflow-hidden"
                     @click="sidebarOpen = false"
                 >
-                    <X class="h-4 w-4" />
+                    <div class="relative flex-shrink-0">
+                        <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                    </div>
+                    <div v-if="!sidebarCollapsed" class="min-w-0">
+                        <div class="truncate text-base font-bold leading-tight text-white">KusumaVision</div>
+                        <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
+                    </div>
+                </Link>
+                <!-- Desktop collapse toggle — always centered on right border -->
+                <button
+                    type="button"
+                    class="absolute right-0 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-400 shadow-md shadow-black/40 transition-colors hover:border-cyan-500/40 hover:text-white lg:flex"
+                    :aria-label="sidebarCollapsed ? 'Buka sidebar' : 'Tutup sidebar'"
+                    @click="sidebarCollapsed = !sidebarCollapsed"
+                >
+                    <ChevronLeft class="h-4 w-4 transition-transform" :class="{ 'rotate-180': sidebarCollapsed }" />
                 </button>
             </div>
 
-            <!-- Navigation links -->
-            <nav class="flex-1 overflow-y-auto px-3 py-5">
+            <!-- Navigation -->
+            <nav class="relative z-10 flex-1 overflow-y-auto px-3 py-5">
                 <div class="space-y-1">
                     <Link
-                        :href="route('dashboard')"
-                        class="flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-[15px] font-semibold transition-colors"
-                        :class="route().current('dashboard')
-                            ? 'bg-white/10 text-white'
+                        v-for="link in navLinks"
+                        :key="link.name"
+                        :href="link.href"
+                        class="group relative flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all"
+                        :class="isActive(link)
+                            ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
                             : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
+                        :title="sidebarCollapsed ? link.name : null"
                         @click="sidebarOpen = false"
                     >
-                        <LayoutDashboard class="h-5 w-5 flex-shrink-0" />
-                        Dashboard
-                    </Link>
-
-                    <Link
-                        :href="route('smartolt.index')"
-                        class="flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-[15px] font-semibold transition-colors"
-                        :class="route().current('smartolt.*') && !route().current('smartolt.unconfigured-all')
-                            ? 'bg-white/10 text-white'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                        @click="sidebarOpen = false"
-                    >
-                        <Cable class="h-5 w-5 flex-shrink-0" />
-                        SmartOLT
-                    </Link>
-
-                    <Link
-                        :href="route('smartolt.unconfigured-all')"
-                        class="flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-[15px] font-semibold transition-colors"
-                        :class="route().current('smartolt.unconfigured-all')
-                            ? 'bg-white/10 text-white'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                        @click="sidebarOpen = false"
-                    >
-                        <WifiOff class="h-5 w-5 flex-shrink-0" />
-                        Unconfigured
-                    </Link>
-
-                    <Link
-                        :href="route('alarms.index')"
-                        class="flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-[15px] font-semibold transition-colors"
-                        :class="route().current('alarms.*')
-                            ? 'bg-white/10 text-white'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                        @click="sidebarOpen = false"
-                    >
-                        <BellRing class="h-5 w-5 flex-shrink-0" />
-                        Alarms
-                    </Link>
-
-                    <Link
-                        :href="route('users.index')"
-                        class="flex items-center gap-3.5 rounded-lg px-3.5 py-3 text-[15px] font-semibold transition-colors"
-                        :class="route().current('users.*')
-                            ? 'bg-white/10 text-white'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                        @click="sidebarOpen = false"
-                    >
-                        <Users class="h-5 w-5 flex-shrink-0" />
-                        Users
+                        <component :is="link.icon" class="h-5 w-5 flex-shrink-0" />
+                        <span v-if="!sidebarCollapsed" class="truncate">{{ link.name }}</span>
                     </Link>
                 </div>
             </nav>
 
-            <!-- User section -->
-            <div class="border-t border-white/10 px-4 py-4">
-                <div class="mb-3.5 flex items-center gap-3">
-                    <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
-                        {{ $page.props.auth.user.name.charAt(0).toUpperCase() }}
-                    </div>
-                    <div class="min-w-0">
-                        <div class="truncate text-[15px] font-semibold text-white">{{ $page.props.auth.user.name }}</div>
-                        <div class="truncate text-xs text-slate-500">{{ $page.props.auth.user.email }}</div>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <Link
-                        :href="route('profile.edit')"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2.5 py-2 text-sm text-slate-400 transition-colors hover:bg-white/5 hover:text-white"
-                    >
-                        <User class="h-4 w-4" />
-                        Profile
-                    </Link>
-                    <Link
-                        :href="route('logout')"
-                        method="post"
-                        as="button"
-                        class="flex flex-1 items-center justify-center gap-2 rounded-md px-2.5 py-2 text-sm text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        Keluar
-                    </Link>
-                </div>
+            <!-- System info panel (bottom) -->
+            <div v-if="!sidebarCollapsed" class="relative z-10">
+                <SystemInfoPanel />
             </div>
         </aside>
 
-        <!-- Main content (offset by sidebar on desktop) -->
-        <div class="flex min-h-screen flex-col bg-slate-50 lg:pl-64">
-            <!-- Page header slot -->
+        <!-- Main column (offset by sidebar on desktop) -->
+        <div
+            class="flex min-h-screen flex-col transition-[padding] duration-200"
+            :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'"
+        >
+            <!-- Top header (desktop) — search + notif + user -->
+            <header
+                class="sticky top-0 z-30 hidden border-b border-white/10 bg-slate-950/80 backdrop-blur-xl lg:block"
+            >
+                <div class="flex h-[72px] w-full items-center gap-4 px-6 lg:px-8">
+                    <!-- Search trigger -->
+                    <button
+                        type="button"
+                        class="group flex h-11 max-w-2xl flex-1 items-center gap-3 rounded-xl border border-white/10 bg-slate-900/60 px-4 text-left text-sm text-slate-500 transition-colors hover:border-cyan-500/30 hover:bg-slate-900/80 hover:text-slate-300"
+                        @click="searchOpen = true"
+                    >
+                        <Search class="h-4 w-4 flex-shrink-0 text-slate-500 group-hover:text-cyan-400" />
+                        <span class="flex-1 truncate">Cari perangkat, OLT, ONU, atau lokasi&hellip;</span>
+                        <kbd class="hidden items-center gap-1 rounded-md border border-white/10 bg-slate-800/80 px-2 py-0.5 text-[11px] font-medium text-slate-400 sm:inline-flex">
+                            <span class="text-xs">&#8984;</span>K
+                        </kbd>
+                    </button>
+
+                    <div class="ml-auto flex items-center gap-3">
+                        <NotificationBell />
+                        <UserMenu />
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page header slot (optional, used by inner pages) -->
             <header
                 v-if="$slots.header"
-                class="sticky top-14 z-30 border-b border-slate-200 bg-white shadow-sm lg:top-0"
+                class="sticky top-14 z-20 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl lg:top-[72px]"
             >
-                <div class="flex min-h-16 w-full items-center px-4 py-3 sm:min-h-[72px] sm:px-6 sm:py-0 lg:px-8">
-                    <div class="w-full">
+                <div class="flex min-h-14 w-full items-center px-4 py-3 sm:px-6 lg:px-8">
+                    <div class="w-full text-slate-100">
                         <slot name="header" />
                     </div>
                 </div>
@@ -187,13 +191,15 @@ const page = usePage();
             </main>
 
             <!-- Footer -->
-            <footer class="border-t border-slate-200 bg-white lg:sticky lg:bottom-0 lg:z-10">
-                <div class="w-full px-4 py-2 sm:px-6 lg:px-8">
-                    <p class="text-center text-xs text-slate-400">
-                        &copy; 2026 KusumaVisionNMS &bull; Dibuat Oleh Masamune
-                    </p>
+            <footer class="border-t border-white/10 bg-slate-950/80 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
+                <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
+                    <p>&copy; 2026 KusumaVision NMS &middot; Dibuat Oleh Masamune</p>
+                    <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>
                 </div>
             </footer>
         </div>
+
+        <!-- Global search palette -->
+        <GlobalSearch v-model:open="searchOpen" />
     </div>
 </template>

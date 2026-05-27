@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
@@ -309,6 +310,14 @@ class SmartOltController extends Controller
             'last_tested_at' => now(),
         ])->save();
 
+        PollingEvent::log(
+            $olt->id,
+            PollingEvent::KIND_OLT_TEST,
+            (bool) ($result['ok'] ?? false),
+            $result['error'] ?? null,
+            isset($result['latency_ms']) ? (int) $result['latency_ms'] : null,
+        );
+
         $message = $result['ok']
             ? sprintf('SNMP OK. Driver: %s. Latency: %sms.', $result['driver'], $result['latency_ms'])
             : sprintf('SNMP gagal: %s', $result['error'] ?? 'unknown error');
@@ -329,6 +338,13 @@ class SmartOltController extends Controller
             'last_test_result' => $merged,
             'last_tested_at' => now(),
         ])->save();
+
+        PollingEvent::log(
+            $olt->id,
+            PollingEvent::KIND_OLT_POLL,
+            (bool) ($result['ok'] ?? false),
+            $result['error'] ?? null,
+        );
 
         $message = $result['ok']
             ? sprintf('Refresh SNMP OK. %s GPON port ditemukan.', count($result['ports'] ?? []))

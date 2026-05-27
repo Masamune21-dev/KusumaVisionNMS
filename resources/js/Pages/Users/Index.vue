@@ -97,7 +97,7 @@ const formatDate = (value) => {
     <AuthenticatedLayout>
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
+                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
                     Manajemen User
                 </h2>
                 <PrimaryButton class="w-full sm:w-auto" @click="openCreate">
@@ -109,22 +109,22 @@ const formatDate = (value) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
-                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
                     {{ flash.success }}
                 </div>
-                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
                     {{ flash.error }}
                 </div>
 
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                            <Users class="h-5 w-5 text-sky-600" />
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                            <Users class="h-5 w-5 text-cyan-400" />
                         </div>
                         <div>
-                            <h3 class="text-base font-semibold text-slate-900">
+                            <h3 class="text-base font-semibold text-white">
                                 Daftar User
                             </h3>
                             <p class="mt-0.5 text-xs text-slate-500">
@@ -134,10 +134,10 @@ const formatDate = (value) => {
                     </div>
 
                     <div v-if="users.length === 0" class="px-6 py-12 text-center">
-                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <Users class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-900">Belum ada user</h3>
+                        <h3 class="text-sm font-semibold text-white">Belum ada user</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan user pertama untuk memulai.</p>
                         <div class="mt-5">
                             <PrimaryButton @click="openCreate">
@@ -150,7 +150,7 @@ const formatDate = (value) => {
                     <div v-else class="overflow-x-auto">
                         <table class="min-w-[720px] w-full">
                             <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50">
+                                <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Nama
                                     </th>
@@ -165,22 +165,22 @@ const formatDate = (value) => {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100">
-                                <tr v-for="user in users" :key="user.id" class="transition-colors duration-150 hover:bg-slate-50">
+                            <tbody class="divide-y divide-white/5">
+                                <tr v-for="user in users" :key="user.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
                                     <td class="px-4 py-4">
                                         <div class="flex items-center gap-3">
-                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sm font-semibold text-sky-700 ring-1 ring-sky-200">
+                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-sm font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
                                                 {{ user.name.charAt(0).toUpperCase() }}
                                             </div>
                                             <div>
-                                                <div class="font-medium text-slate-900">{{ user.name }}</div>
-                                                <div v-if="user.id === $page.props.auth.user.id" class="text-xs text-sky-600">
+                                                <div class="font-medium text-white">{{ user.name }}</div>
+                                                <div v-if="user.id === $page.props.auth.user.id" class="text-xs text-cyan-400">
                                                     (Anda)
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-700">
+                                    <td class="px-4 py-4 text-sm text-slate-200">
                                         {{ user.email }}
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-500">
@@ -212,7 +212,7 @@ const formatDate = (value) => {
         <!-- Modal Tambah / Edit User -->
         <Modal :show="showModal" max-width="md" @close="closeModal">
             <form @submit.prevent="submit" class="p-6">
-                <h3 class="text-base font-semibold text-slate-900">
+                <h3 class="text-base font-semibold text-white">
                     {{ editingUser ? 'Edit User' : 'Tambah User' }}
                 </h3>
                 <p class="mt-1 text-sm text-slate-500">

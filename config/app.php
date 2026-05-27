@@ -68,6 +68,12 @@ return [
     'timezone' => 'UTC',
 
     /*
+    | Display timezone for human-facing time labels (charts, headers, etc.).
+    | Storage stays in UTC; this only affects formatting at the presentation layer.
+    */
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Jakarta'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

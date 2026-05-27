@@ -71,15 +71,15 @@ const formatUptime = (timeticks) => {
 
 const cardStatusColor = (status) => {
     const s = String(status ?? '').toUpperCase();
-    if (s === 'INSERVICE') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
-    if (s === 'STANDBY') return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
-    return 'bg-red-50 text-red-700 ring-1 ring-red-200';
+    if (s === 'INSERVICE') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
+    if (s === 'STANDBY') return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
+    return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
 };
 
 const oltImage = computed(() => {
     const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
-    if (hay.includes('c320')) return '/img/c320.jpg';
-    if (hay.includes('c300')) return '/img/c300.jpg';
+    if (hay.includes('c320')) return '/img/c320.png';
+    if (hay.includes('c300')) return '/img/c300.png';
     return null;
 });
 </script>
@@ -91,7 +91,7 @@ const oltImage = computed(() => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-slate-800">
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
                         {{ olt.name }}
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
@@ -142,75 +142,75 @@ const oltImage = computed(() => {
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
                 <div
                     v-if="flash.success"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+                    class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300"
                 >
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
                     {{ flash.success }}
                 </div>
                 <div
                     v-if="flash.error"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                    class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300"
                 >
                     <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
                     {{ flash.error }}
                 </div>
 
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
                         <p class="mt-3 text-2xl font-bold"
-                            :class="snapshot.ok ? 'text-emerald-600' : 'text-slate-400'">
+                            :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
                             {{ snapshot.ok ? 'Online' : 'Unknown' }}
                         </p>
                     </div>
-                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">GPON Port</p>
-                        <p class="mt-3 text-2xl font-bold text-slate-900">{{ snapshot.ports.length }}</p>
+                        <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
                     </div>
-                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
-                        <p class="mt-3 text-2xl font-bold text-slate-900">
+                        <p class="mt-3 text-2xl font-bold text-white">
                             {{ onuOnline }}<span class="text-sm font-normal text-slate-500"> / {{ onuTotal }} online</span>
                         </p>
                     </div>
-                    <div class="rounded-lg border border-sky-200 bg-white p-5 shadow-sm shadow-sky-100/60">
+                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
-                        <p class="mt-3 text-sm font-semibold text-slate-900">{{ formatDate(snapshot.last_tested_at) }}</p>
-                        <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-600' : 'text-slate-400'">
+                        <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.last_tested_at) }}</p>
+                        <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-400'">
                             Auto-poll {{ olt.polling_enabled ? 'On' : 'Off' }}
                         </p>
                     </div>
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
-                    <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                        <div class="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                                <Server class="h-5 w-5 text-sky-600" />
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                <Server class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="text-base font-semibold text-slate-900">System Info</h3>
+                            <h3 class="text-base font-semibold text-white">System Info</h3>
                         </div>
-                        <dl class="divide-y divide-slate-100">
+                        <dl class="divide-y divide-white/5">
                             <div class="px-6 py-4">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysName</dt>
-                                <dd class="mt-1 break-words text-sm text-slate-800">{{ snapshot.system.sys_name || '-' }}</dd>
+                                <dd class="mt-1 break-words text-sm text-white">{{ snapshot.system.sys_name || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysDescr</dt>
-                                <dd class="mt-1 break-words text-sm text-slate-800">{{ snapshot.system.sys_descr || '-' }}</dd>
+                                <dd class="mt-1 break-words text-sm text-white">{{ snapshot.system.sys_descr || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysObjectID</dt>
-                                <dd class="mt-1 break-words text-sm text-slate-800">{{ snapshot.system.sys_object_id || '-' }}</dd>
+                                <dd class="mt-1 break-words text-sm text-white">{{ snapshot.system.sys_object_id || '-' }}</dd>
                             </div>
                             <div class="px-6 py-4">
                                 <dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">sysUptime</dt>
-                                <dd class="mt-1 break-words text-sm text-slate-800">{{ formatUptime(snapshot.system.sys_uptime) }}</dd>
+                                <dd class="mt-1 break-words text-sm text-white">{{ formatUptime(snapshot.system.sys_uptime) }}</dd>
                             </div>
                         </dl>
                     </div>
 
-                    <div class="flex items-center justify-center overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
+                    <div class="flex items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <img v-if="oltImage" :src="oltImage" :alt="olt.name" class="max-h-96 w-full object-contain p-8" />
                         <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-slate-300">
                             <Router class="h-16 w-16" />
@@ -220,14 +220,14 @@ const oltImage = computed(() => {
                 </div>
 
                 <!-- Status Card / Hardware -->
-                <div class="overflow-hidden rounded-lg border border-sky-200 bg-white shadow-sm shadow-sky-100/60">
-                    <div class="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-100 ring-1 ring-sky-200">
-                                <Layers class="h-5 w-5 text-sky-600" />
+                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                <Layers class="h-5 w-5 text-cyan-400" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-slate-900">Status Card / Hardware</h3>
+                                <h3 class="text-base font-semibold text-white">Status Card / Hardware</h3>
                                 <p class="mt-0.5 text-xs text-slate-500">Refresh terakhir: {{ formatDate(hardwareLastRefresh) }}</p>
                             </div>
                         </div>
@@ -242,7 +242,7 @@ const oltImage = computed(() => {
                     <div v-else class="overflow-x-auto">
                         <table class="min-w-[980px] w-full text-sm">
                             <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50">
+                                <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Rack/Shelf/Slot</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipe</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Real</th>
@@ -252,15 +252,15 @@ const oltImage = computed(() => {
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100">
+                            <tbody class="divide-y divide-white/5">
                                 <tr v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`"
-                                    class="transition-colors duration-150 hover:bg-slate-50">
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-600">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
-                                    <td class="px-4 py-4 font-medium text-slate-900">{{ card.cfg_type }}</td>
-                                    <td class="px-4 py-4 text-sm text-slate-700">{{ card.real_type || '—' }}</td>
-                                    <td class="px-4 py-4 text-sm text-slate-700">{{ card.port_count }}</td>
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-600">{{ card.hard_ver || '—' }}</td>
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-600">{{ card.soft_ver || '—' }}</td>
+                                    class="transition-colors duration-150 hover:bg-white/[0.03]">
+                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
+                                    <td class="px-4 py-4 font-medium text-white">{{ card.cfg_type }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-200">{{ card.real_type || '—' }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-200">{{ card.port_count }}</td>
+                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.hard_ver || '—' }}</td>
+                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.soft_ver || '—' }}</td>
                                     <td class="px-4 py-4">
                                         <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
                                               :class="cardStatusColor(card.status)">
