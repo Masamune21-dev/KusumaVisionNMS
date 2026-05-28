@@ -136,7 +136,36 @@ const formatDate = (value) => {
                             Belum ada data. Jalankan <strong class="text-slate-200">Refresh Discovery</strong>.
                         </div>
 
-                        <div v-else class="overflow-x-auto">
+                        <template v-else>
+                            <div class="kv-mobile-list">
+                                <article v-for="onu in snapshot.onus" :key="onu.serial_number" class="kv-mobile-card">
+                                    <div class="kv-mobile-card-header">
+                                        <div class="min-w-0">
+                                            <h4 class="kv-mobile-card-title font-mono">{{ onu.serial_number }}</h4>
+                                            <p class="kv-mobile-card-subtitle">
+                                                <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
+                                                <span v-else>-</span>
+                                            </p>
+                                        </div>
+                                        <IconButton
+                                            variant="primary"
+                                            title="Register ONU"
+                                            :href="route('smartolt.register', {
+                                                olt: selected_olt.id,
+                                                sn: onu.serial_number,
+                                                slot: onu.slot,
+                                                port: onu.port,
+                                                oid_index: onu.oid_index,
+                                                suggested_onu_id: onu.suggested_onu_id,
+                                            })"
+                                        >
+                                            <Plus class="h-4 w-4" />
+                                        </IconButton>
+                                    </div>
+                                </article>
+                            </div>
+
+                            <div class="kv-table-desktop">
                             <table class="min-w-[720px] w-full">
                                 <thead>
                                     <tr class="border-b border-white/10 bg-slate-950/40">
@@ -174,7 +203,8 @@ const formatDate = (value) => {
                                     </tr>
                                 </tbody>
                             </table>
-                        </div>
+                            </div>
+                        </template>
                     </div>
                 </template>
 

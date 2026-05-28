@@ -235,7 +235,7 @@ OUT);
         $response->assertOk();
     }
 
-    public function test_register_onu_form_suggests_next_free_onu_id_from_cli_state_output(): void
+    public function test_register_onu_form_suggests_next_free_onu_id_from_cached_port_snapshot(): void
     {
         $user = User::factory()->create();
         $olt = SnmpOlt::create([
@@ -249,26 +249,23 @@ OUT);
             'cli_port' => 23,
             'cli_username' => 'admin',
             'cli_password' => 'secret',
+            'last_test_result' => [
+                'port_onus' => [
+                    '2_1' => [
+                        'onus' => [
+                            ['onu_id' => 1],
+                            ['onu_id' => 2],
+                            ['onu_id' => 4],
+                        ],
+                    ],
+                    '2_2' => [
+                        'onus' => [
+                            ['onu_id' => 1],
+                        ],
+                    ],
+                ],
+            ],
         ]);
-
-        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
-        {
-            public function execute(SnmpOlt $olt, string $script): array
-            {
-                return [
-                    'ok' => true,
-                    'error' => null,
-                    'output' => <<<'OUT'
-ZXAN# show gpon onu state gpon-olt_1/2/1
-ONU Interface    Admin State    OMCC State    Phase State
-gpon-onu_1/2/1:1  enable         active        online
-gpon-onu_1/2/1:2  enable         active        online
-gpon-onu_1/2/1:4  enable         active        online
-gpon-onu_1/2/2:1  enable         active        online
-OUT,
-                ];
-            }
-        });
 
         $response = $this->actingAs($user)->get(route('smartolt.register', [
             'olt' => $olt,

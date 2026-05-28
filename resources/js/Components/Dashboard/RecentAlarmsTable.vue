@@ -41,7 +41,33 @@ const alarmType = (type) => {
             </Link>
         </div>
 
-        <div v-if="alarms.length > 0" class="overflow-x-auto">
+        <div v-if="alarms.length > 0" class="kv-mobile-list">
+            <article v-for="alarm in alarms" :key="alarm.id" class="kv-mobile-card">
+                <div class="kv-mobile-card-header">
+                    <div class="min-w-0">
+                        <h4 class="kv-mobile-card-title">{{ alarmType(alarm.type) }}</h4>
+                        <p class="kv-mobile-card-subtitle">{{ alarm.olt_name ?? 'Perangkat tidak diketahui' }}</p>
+                    </div>
+                    <span :class="severityClass(alarm.severity)">{{ alarm.severity }}</span>
+                </div>
+                <div class="kv-mobile-fields">
+                    <div class="kv-mobile-field">
+                        <span class="kv-mobile-label">Waktu</span>
+                        <span class="kv-mobile-value">{{ formatTime(alarm.last_seen_at) }}</span>
+                    </div>
+                    <div class="kv-mobile-field">
+                        <span class="kv-mobile-label">Lokasi</span>
+                        <span class="kv-mobile-value">{{ alarm.location ?? '—' }}</span>
+                    </div>
+                    <div class="kv-mobile-field">
+                        <span class="kv-mobile-label">Status</span>
+                        <span class="kv-pill-danger">{{ alarm.status_label }}</span>
+                    </div>
+                </div>
+            </article>
+        </div>
+
+        <div v-if="alarms.length > 0" class="kv-table-desktop">
             <table class="w-full min-w-[640px] text-sm">
                 <thead>
                     <tr class="border-b border-white/5 text-left text-[11px] uppercase tracking-wider text-slate-500">

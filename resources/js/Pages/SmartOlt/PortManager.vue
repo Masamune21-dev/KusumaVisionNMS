@@ -574,7 +574,125 @@ const onuSummary = (row) => {
                         Belum ada data port uplink tersimpan.
                     </div>
 
-                    <div v-else class="overflow-x-auto">
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="row in uplinkDetails" :key="row.interface" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title font-mono">{{ row.interface }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ row.card_type || 'Card tidak diketahui' }}</p>
+                                    </div>
+                                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
+                                        {{ row.link_status || '-' }}
+                                    </span>
+                                </div>
+
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Admin</span>
+                                        <span class="kv-mobile-value">{{ row.admin_status || '-' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Speed</span>
+                                        <span class="kv-mobile-value">
+                                            {{ row.speed_mbps ? `${row.speed_mbps} Mbps` : '-' }}
+                                            <span v-if="row.duplex" class="block text-xs text-slate-500">{{ row.duplex }}</span>
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">VLAN</span>
+                                        <span class="kv-mobile-value">Native {{ row.native_vlan ?? '-' }} · Tagged {{ compactVlans(row.tagged_vlans) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Optical</span>
+                                        <span class="kv-mobile-value">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }} · Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Module</span>
+                                        <span class="kv-mobile-value">{{ row.optical_vendor_name || '-' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Refresh</span>
+                                        <span class="kv-mobile-value">{{ formatDate(row.refreshed_at) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium shadow-sm transition"
+                                        :class="vlanPanelInterface === row.interface && vlanPanelMode === 'view'
+                                            ? 'border-cyan-500/40 bg-sky-500/15 text-cyan-300'
+                                            : 'border-white/10 bg-slate-900/40 text-slate-300 hover:bg-white/[0.03] hover:text-white'"
+                                        :title="`Lihat VLAN ${row.interface}`"
+                                        @click="openVlanPanel(row.interface, 'view')"
+                                    >
+                                        <Eye class="h-3.5 w-3.5" />
+                                        VLAN
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="inline-flex min-h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium shadow-sm transition"
+                                        :class="vlanPanelInterface === row.interface && vlanPanelMode === 'add'
+                                            ? 'border-cyan-500/40 bg-sky-500/15 text-cyan-300'
+                                            : 'border-white/10 bg-slate-900/40 text-slate-300 hover:bg-white/[0.03] hover:text-white'"
+                                        :title="`Tag VLAN ke ${row.interface}`"
+                                        @click="openVlanPanel(row.interface, 'add')"
+                                    >
+                                        <Tag class="h-3.5 w-3.5" />
+                                        Tag
+                                    </button>
+                                </div>
+
+                                <div v-if="vlanPanelInterface === row.interface" class="mt-4 rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                                    <div v-if="vlanPanelMode === 'view'">
+                                        <p class="mb-2 text-xs font-semibold text-cyan-400">VLAN Tagged - {{ row.interface }}</p>
+                                        <div v-if="panelVlans.length === 0" class="text-sm text-slate-500">
+                                            Tidak ada VLAN tagged. Klik Refresh Data atau tag VLAN baru.
+                                        </div>
+                                        <div v-else class="flex flex-wrap gap-1.5">
+                                            <span
+                                                v-for="vlan in panelVlans"
+                                                :key="vlan"
+                                                class="inline-flex cursor-default items-center rounded-md px-2.5 py-1 text-xs font-semibold"
+                                                :class="vlanBadgeColor(vlan)"
+                                            >
+                                                VLAN {{ vlan }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div v-else>
+                                        <p class="mb-3 text-xs font-semibold text-cyan-300">Tag VLAN ke {{ row.interface }}</p>
+                                        <div class="grid gap-3">
+                                            <label>
+                                                <span class="mb-1.5 block text-xs font-medium text-slate-500">Nomor VLAN (1-4094)</span>
+                                                <input
+                                                    v-model.number="vlanForm.vlan_id"
+                                                    type="number"
+                                                    min="1"
+                                                    max="4094"
+                                                    placeholder="contoh: 500"
+                                                    class="min-h-11 w-full rounded-lg border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder-slate-400 shadow-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                                                    @keydown.enter="submitVlan"
+                                                />
+                                            </label>
+                                            <PrimaryButton
+                                                type="button"
+                                                class="justify-center"
+                                                :disabled="vlanForm.submitting || !vlanForm.vlan_id"
+                                                @click="submitVlan"
+                                            >
+                                                <RefreshCw v-if="vlanForm.submitting" class="mr-2 h-4 w-4 animate-spin" />
+                                                <Plus v-else class="mr-2 h-4 w-4" />
+                                                {{ vlanForm.submitting ? 'Menerapkan...' : 'Terapkan' }}
+                                            </PrimaryButton>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="min-w-[980px] w-full text-sm">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -716,7 +834,8 @@ const onuSummary = (row) => {
                                 </template>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
                 </div>
 
                 <!-- ══════════════════════════════════════
@@ -759,7 +878,71 @@ const onuSummary = (row) => {
                             </div>
                         </div>
 
-                        <div class="overflow-x-auto">
+                        <div class="kv-mobile-list">
+                            <article v-for="row in filteredGponDetails" :key="row.interface" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title font-mono">{{ row.interface }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ row.card_type || 'Card tidak diketahui' }}</p>
+                                    </div>
+                                    <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium" :class="linkBadgeColor(row.link_status)">
+                                        {{ row.link_status || '-' }}
+                                    </span>
+                                </div>
+
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Admin</span>
+                                        <span class="kv-mobile-value">{{ row.admin_status || '-' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">ONU</span>
+                                        <span class="kv-mobile-value">{{ onuSummary(row) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Traffic</span>
+                                        <span class="kv-mobile-value">RX {{ formatBps(row.input_bps) }} · TX {{ formatBps(row.output_bps) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Throughput</span>
+                                        <span class="kv-mobile-value">In {{ formatPercent(row.input_throughput_percent) }} · Out {{ formatPercent(row.output_throughput_percent) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Optical</span>
+                                        <span class="kv-mobile-value">Tx {{ formatNumber(row.tx_power_dbm, ' dBm') }} · Rx {{ formatNumber(row.rx_power_dbm, ' dBm') }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Module</span>
+                                        <span class="kv-mobile-value">
+                                            {{ row.optical_vendor_name || '-' }}
+                                            <span class="block text-xs text-slate-500">{{ row.optical_vendor_pn || row.optical_vendor_sn || '-' }}</span>
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Peak</span>
+                                        <span class="kv-mobile-value">RX {{ formatBps(row.input_peak_bps) }} · TX {{ formatBps(row.output_peak_bps) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Refresh</span>
+                                        <span class="kv-mobile-value">{{ formatDate(row.refreshed_at) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4">
+                                    <button
+                                        type="button"
+                                        class="inline-flex h-11 w-11 items-center justify-center rounded-md border border-white/10 bg-slate-900/40 text-slate-300 shadow-sm transition hover:bg-white/[0.03] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                                        :disabled="refreshingInterface === row.interface"
+                                        :title="`Refresh ${row.interface}`"
+                                        @click="refreshInterface(row)"
+                                    >
+                                        <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': refreshingInterface === row.interface }" />
+                                    </button>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                             <table class="min-w-[980px] w-full text-sm">
                                 <thead>
                                     <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">

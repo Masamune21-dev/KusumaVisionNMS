@@ -33,8 +33,6 @@ import { ref } from 'vue';
 defineProps({
     canLogin: { type: Boolean },
     canRegister: { type: Boolean },
-    laravelVersion: { type: String, required: true },
-    phpVersion: { type: String, required: true },
 });
 
 const mobileOpen = ref(false);
@@ -521,7 +519,7 @@ const supportLinks = [
 
                 <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row">
                     <p>&copy; 2026 KusumaVision NMS &middot; Dibuat oleh Masamune</p>
-                    <p>Laravel {{ laravelVersion }} &middot; PHP {{ phpVersion }}</p>
+                    <p>FTTH Network Management Platform</p>
                 </div>
             </div>
         </footer>

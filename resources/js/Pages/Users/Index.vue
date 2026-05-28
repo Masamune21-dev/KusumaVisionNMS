@@ -147,7 +147,46 @@ const formatDate = (value) => {
                         </div>
                     </div>
 
-                    <div v-else class="overflow-x-auto">
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="user in users" :key="user.id" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-sky-500/15 text-sm font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
+                                            {{ user.name.charAt(0).toUpperCase() }}
+                                        </div>
+                                        <div class="min-w-0">
+                                            <h4 class="kv-mobile-card-title">
+                                                {{ user.name }}
+                                                <span v-if="user.id === $page.props.auth.user.id" class="text-cyan-400">(Anda)</span>
+                                            </h4>
+                                            <p class="kv-mobile-card-subtitle">{{ user.email }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-shrink-0 gap-2">
+                                        <IconButton title="Edit User" @click="openEdit(user)">
+                                            <Pencil class="h-4 w-4" />
+                                        </IconButton>
+                                        <IconButton
+                                            variant="danger"
+                                            title="Hapus User"
+                                            :disabled="user.id === $page.props.auth.user.id"
+                                            @click="deleteUser(user)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </IconButton>
+                                    </div>
+                                </div>
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Terdaftar</span>
+                                        <span class="kv-mobile-value">{{ formatDate(user.created_at) }}</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
@@ -204,7 +243,8 @@ const formatDate = (value) => {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

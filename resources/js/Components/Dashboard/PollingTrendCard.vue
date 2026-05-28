@@ -86,17 +86,17 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
 
 <template>
     <div class="kv-glass-panel flex h-full flex-col">
-        <div class="flex items-center justify-between border-b border-white/5 px-5 py-4 sm:px-6">
+        <div class="flex flex-col gap-3 border-b border-white/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div class="flex items-center gap-3">
                 <span class="kv-circle-cyan">
                     <TrendingUp class="h-5 w-5" />
                 </span>
                 <h3 class="text-base font-semibold text-white">Tren Aktivitas Jaringan (Polling)</h3>
             </div>
-            <div class="relative">
+            <div class="relative w-full sm:w-auto">
                 <button
                     type="button"
-                    class="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/30 hover:text-white"
+                    class="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/30 hover:text-white sm:w-auto"
                     @click="rangeOpen = !rangeOpen"
                 >
                     {{ currentLabel }}
@@ -112,7 +112,7 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
                 >
                     <ul
                         v-if="rangeOpen"
-                        class="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-white/10 bg-slate-900/95 py-1 shadow-xl shadow-black/40 backdrop-blur-xl"
+                        class="absolute right-0 z-20 mt-1 w-full overflow-hidden rounded-lg border border-white/10 bg-slate-900/95 py-1 shadow-xl shadow-black/40 backdrop-blur-xl sm:w-44"
                     >
                         <li v-for="r in ranges" :key="r.value">
                             <button

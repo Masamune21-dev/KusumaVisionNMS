@@ -266,8 +266,87 @@ const rxBadgeClass = (value) => {
                         </p>
                     </div>
 
-                    <!-- Table -->
-                    <div v-else class="overflow-x-auto">
+                    <!-- Table / mobile cards -->
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="onu in snapshot.onus" :key="`${onu.if_index}-${onu.onu_id}`" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title">{{ onu.interface }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ onu.name || onu.description || '—' }}</p>
+                                    </div>
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                                        :class="rxBadgeClass(onu.rx_power_dbm)"
+                                    >
+                                        {{ onu.rx_power_label || '—' }}
+                                    </span>
+                                </div>
+
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Serial</span>
+                                        <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || '—' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Type</span>
+                                        <span class="kv-mobile-value">{{ onu.type_name || '—' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Phase</span>
+                                        <span class="kv-mobile-value" :class="onu.online ? 'text-emerald-400' : 'text-slate-500'">
+                                            {{ onu.phase_state }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Admin</span>
+                                        <span
+                                            class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
+                                            :class="onu.admin_state === 'active'
+                                                ? 'bg-sky-500/15 text-cyan-300 ring-cyan-500/30'
+                                                : 'bg-slate-800/60 text-slate-500 ring-slate-500/30'"
+                                        >
+                                            {{ onu.admin_state }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Last Down</span>
+                                        <span class="kv-mobile-value">{{ onu.last_down_cause || '—' }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton
+                                        v-if="caps.supports_onu_info_write"
+                                        title="Edit info ONU"
+                                        @click="openEdit(onu)"
+                                    >
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="caps.supports_onu_toggle"
+                                        :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
+                                        :disabled="busy[actionKey(onu)]"
+                                        :title="onu.admin_state === 'active' ? 'Disable ONU' : 'Enable ONU'"
+                                        @click="toggleOnu(onu)"
+                                    >
+                                        <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
+                                        <ToggleLeft v-else class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="caps.supports_reboot"
+                                        variant="danger"
+                                        :disabled="busy[actionKey(onu)]"
+                                        title="Reboot ONU"
+                                        @click="rebootOnu(onu)"
+                                    >
+                                        <Power class="h-4 w-4" />
+                                    </IconButton>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
@@ -365,7 +444,8 @@ const rxBadgeClass = (value) => {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

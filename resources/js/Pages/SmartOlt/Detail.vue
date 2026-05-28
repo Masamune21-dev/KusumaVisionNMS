@@ -239,7 +239,43 @@ const oltImage = computed(() => {
                     <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
                         Belum ada data hardware tersimpan.
                     </div>
-                    <div v-else class="overflow-x-auto">
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title">{{ card.cfg_type }}</h4>
+                                        <p class="kv-mobile-card-subtitle font-mono">Rack/Shelf/Slot {{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</p>
+                                    </div>
+                                    <span
+                                        class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                                        :class="cardStatusColor(card.status)"
+                                    >
+                                        {{ card.status }}
+                                    </span>
+                                </div>
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Real</span>
+                                        <span class="kv-mobile-value">{{ card.real_type || '—' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Port</span>
+                                        <span class="kv-mobile-value">{{ card.port_count }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">HW Ver</span>
+                                        <span class="kv-mobile-value font-mono text-xs">{{ card.hard_ver || '—' }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">SW Ver</span>
+                                        <span class="kv-mobile-value font-mono text-xs">{{ card.soft_ver || '—' }}</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="min-w-[980px] w-full text-sm">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
@@ -270,7 +306,8 @@ const oltImage = computed(() => {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
                 </div>
 
             </div>

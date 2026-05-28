@@ -296,7 +296,51 @@ const formatDate = (value) => {
                         </p>
                     </div>
 
-                    <div v-else class="overflow-x-auto">
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="alarm in rows" :key="alarm.id" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
+                                                {{ alarm.severity }}
+                                            </span>
+                                            <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
+                                                {{ alarm.status }}
+                                            </span>
+                                        </div>
+                                        <h4 class="mt-3 kv-mobile-card-title">{{ alarm.type }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ alarm.message }}</p>
+                                    </div>
+                                </div>
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">OLT</span>
+                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="kv-mobile-value font-medium text-cyan-400 hover:text-cyan-300">
+                                            {{ alarm.olt.name }}
+                                        </Link>
+                                    </div>
+                                    <div v-if="alarm.customer_name" class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Customer</span>
+                                        <span class="kv-mobile-value">{{ alarm.customer_name }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Target</span>
+                                        <span class="kv-mobile-value">{{ scopeLabel(alarm) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Terakhir</span>
+                                        <span class="kv-mobile-value">{{ formatDate(alarm.last_seen_at) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Sejak</span>
+                                        <span class="kv-mobile-value">{{ formatDate(alarm.first_seen_at) }}</span>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
@@ -338,7 +382,8 @@ const formatDate = (value) => {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
 
                     <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 sm:flex-row">
                         <p class="text-sm text-slate-500">

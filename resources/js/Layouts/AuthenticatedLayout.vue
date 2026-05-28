@@ -12,7 +12,10 @@ import { BellRing, Cable, ChevronLeft, LayoutDashboard, Menu, Search, Users, Wif
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(false);
 const searchOpen = ref(false);
+const isDesktop = ref(false);
 const page = usePage();
+const showSidebarContent = computed(() => !sidebarCollapsed.value || (!isDesktop.value && sidebarOpen.value));
+let sidebarMediaQuery = null;
 
 const navLinks = computed(() => [
     { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
@@ -39,12 +42,28 @@ const onKey = (e) => {
     }
 };
 
-onMounted(() => window.addEventListener('keydown', onKey));
-onUnmounted(() => window.removeEventListener('keydown', onKey));
+const syncSidebarViewport = () => {
+    isDesktop.value = sidebarMediaQuery?.matches ?? false;
+    if (isDesktop.value) {
+        sidebarOpen.value = false;
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', onKey);
+    sidebarMediaQuery = window.matchMedia('(min-width: 1024px)');
+    syncSidebarViewport();
+    sidebarMediaQuery.addEventListener('change', syncSidebarViewport);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', onKey);
+    sidebarMediaQuery?.removeEventListener('change', syncSidebarViewport);
+});
 </script>
 
 <template>
-    <div class="min-h-screen bg-slate-950">
+    <div class="min-h-screen overflow-x-hidden bg-slate-950">
         <!-- Mobile top bar -->
         <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-950/90 px-4 backdrop-blur-xl lg:hidden">
             <button
@@ -55,10 +74,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
             >
                 <Menu class="h-5 w-5" />
             </button>
-            <Link :href="route('dashboard')" class="flex items-center gap-2">
+            <Link :href="route('dashboard')" class="flex min-w-0 items-center gap-2">
                 <ApplicationLogo class="h-6 w-auto fill-current text-cyan-400" />
-                <span class="text-sm font-bold text-white">KusumaVision</span>
+                <span class="hidden text-sm font-bold text-white sm:inline">KusumaVision</span>
             </Link>
+            <div class="ml-auto flex items-center gap-2">
+                <button
+                    type="button"
+                    class="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-slate-900/60 text-slate-300 transition-colors hover:border-cyan-500/30 hover:bg-slate-900/80 hover:text-white"
+                    aria-label="Buka pencarian"
+                    @click="searchOpen = true"
+                >
+                    <Search class="h-4 w-4" />
+                </button>
+                <NotificationBell />
+            </div>
         </div>
 
         <!-- Mobile sidebar overlay -->
@@ -82,10 +112,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
             class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/95 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0"
             :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-                sidebarCollapsed ? 'w-20' : 'w-64',
+                sidebarCollapsed ? 'w-64 lg:w-20' : 'w-64',
             ]"
         >
-            <SidebarConstellation v-if="!sidebarCollapsed" />
+            <SidebarConstellation v-if="showSidebarContent" />
 
             <!-- Logo -->
             <div class="relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-slate-950/45 px-5 backdrop-blur-[2px]">
@@ -97,7 +127,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
                     <div class="relative flex-shrink-0">
                         <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
                     </div>
-                    <div v-if="!sidebarCollapsed" class="min-w-0">
+                    <div v-if="showSidebarContent" class="min-w-0">
                         <div class="truncate text-base font-bold leading-tight text-white">KusumaVision</div>
                         <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
                     </div>
@@ -124,24 +154,24 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
                         :class="isActive(link)
                             ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
                             : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                        :title="sidebarCollapsed ? link.name : null"
+                        :title="!showSidebarContent ? link.name : null"
                         @click="sidebarOpen = false"
                     >
                         <component :is="link.icon" class="h-5 w-5 flex-shrink-0" />
-                        <span v-if="!sidebarCollapsed" class="truncate">{{ link.name }}</span>
+                        <span v-if="showSidebarContent" class="truncate">{{ link.name }}</span>
                     </Link>
                 </div>
             </nav>
 
             <!-- System info panel (bottom) -->
-            <div v-if="!sidebarCollapsed" class="relative z-10">
+            <div v-if="showSidebarContent" class="relative z-10">
                 <SystemInfoPanel />
             </div>
         </aside>
 
         <!-- Main column (offset by sidebar on desktop) -->
         <div
-            class="flex min-h-screen flex-col transition-[padding] duration-200"
+            class="flex min-h-screen min-w-0 flex-col transition-[padding] duration-200"
             :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'"
         >
             <!-- Top header (desktop) — search + notif + user -->
@@ -184,7 +214,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey));
             <!-- Page content -->
             <main class="kv-grid-bg flex-1">
                 <Transition name="page" mode="out-in">
-                    <div :key="page.component">
+                    <div :key="page.component" class="min-w-0">
                         <slot />
                     </div>
                 </Transition>

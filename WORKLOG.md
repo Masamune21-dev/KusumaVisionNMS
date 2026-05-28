@@ -1,5 +1,39 @@
 # Worklog
 
+## 2026-05-28
+
+### Local Production Hardening
+
+Changed:
+
+- `composer.lock` - patched Symfony security advisories affecting `symfony/http-foundation`, `symfony/polyfill-intl-idn`, and `symfony/routing`.
+- `routes/web.php` and `resources/js/Pages/Welcome.vue` - removed public Laravel/PHP version exposure from the landing page payload/UI.
+- `tests/Feature/Auth/RegistrationTest.php` - aligned coverage with the intended security posture: public self-registration is not available.
+- `tests/Feature/SmartOltInventoryTest.php` - aligned ONU ID suggestion coverage with cached port snapshot behavior.
+- `README.md` - documented production local setup, Nginx hardening, Supervisor scheduler, audit commands, and firewall/SSH baseline.
+- `docs/INSTALLATION_STATUS.md` - updated runtime, hardening, verification, and production-local status.
+- `docs/LOCAL_PRODUCTION_HARDENING.md` - added operational hardening guide for Laravel, Nginx, PHP-FPM, SSH, UFW, Supervisor, dependency audits, and smoke tests.
+
+Notes:
+
+- Server is configured for local production at `http://192.168.99.61`.
+- UFW default incoming policy is deny; SSH/HTTP are allowed from private LAN ranges plus `103.189.248.0/24` and `103.189.249.0/24`.
+- SSH password authentication is disabled; access is key-only.
+- Verified with `npm run build`, `php artisan test`, `composer audit`, `npm audit --omit=dev`, and HTTP smoke tests.
+
+### Mobile UI Pass
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` - added mobile search/notification actions, safer sidebar behavior after desktop collapse, and overflow guards for the app shell.
+- `resources/css/app.css` - added reusable mobile data-card utilities and mobile-friendly background handling.
+- `resources/js/Pages/SmartOlt/*.vue`, `resources/js/Pages/Users/Index.vue`, and dashboard table components - added mobile card views for wide operational tables while keeping desktop tables intact.
+
+Notes:
+
+- Mobile views now avoid forcing horizontal table scrolling for OLT inventory, alarms, users, profiles, hardware cards, ONU lists, unconfigured ONU lists, and Port Manager summaries.
+- Verified with `npm run build`.
+
 ## 2026-05-25
 
 ### Baseline

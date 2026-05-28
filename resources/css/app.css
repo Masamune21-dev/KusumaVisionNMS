@@ -9,6 +9,11 @@
 
     body {
         @apply bg-slate-950 text-slate-100 antialiased;
+        overflow-x: hidden;
+    }
+
+    #app {
+        min-width: 0;
     }
 
     ::selection {
@@ -71,15 +76,24 @@
 
     /* === Dark background grid (network theme) === */
     .kv-grid-bg {
-        background-color: #060912;
+        background-color: #08111f;
         background-image:
-            radial-gradient(circle at 0% 0%, rgba(14, 165, 233, 0.10) 0%, transparent 50%),
-            radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.06) 0%, transparent 45%),
-            linear-gradient(rgba(56, 189, 248, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
-        background-position: 0 0, 0 0, -1px -1px, -1px -1px;
-        background-size: auto, auto, 32px 32px, 32px 32px;
-        background-attachment: fixed, fixed, scroll, scroll;
+            radial-gradient(ellipse 90% 52% at 50% -8%, rgba(14, 165, 233, 0.24) 0%, rgba(14, 165, 233, 0.11) 36%, transparent 72%),
+            radial-gradient(ellipse 58% 42% at 8% 18%, rgba(56, 189, 248, 0.18) 0%, transparent 68%),
+            radial-gradient(ellipse 64% 46% at 92% 20%, rgba(37, 99, 235, 0.16) 0%, transparent 70%),
+            linear-gradient(180deg, rgba(15, 23, 42, 0.16) 0%, rgba(8, 17, 31, 0.72) 46%, rgba(2, 6, 23, 0.78) 100%),
+            linear-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(56, 189, 248, 0.07) 1px, transparent 1px);
+        background-position: center top, left top, right top, center top, -1px -1px, -1px -1px;
+        background-size: auto, auto, auto, auto, 32px 32px, 32px 32px;
+        background-attachment: fixed, fixed, fixed, fixed, scroll, scroll;
+    }
+
+    @media (max-width: 767px) {
+        .kv-grid-bg {
+            background-attachment: scroll, scroll, scroll, scroll, scroll, scroll;
+            background-size: auto, auto, auto, auto, 28px 28px, 28px 28px;
+        }
     }
 
     /* === Dark glass surfaces === */
@@ -154,6 +168,64 @@
 
     .kv-card {
         @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
+    }
+
+    /* === Mobile data cards === */
+    .kv-mobile-list {
+        @apply divide-y divide-white/5 md:hidden;
+    }
+
+    .kv-mobile-card {
+        @apply p-4;
+    }
+
+    .kv-mobile-card-header {
+        @apply flex items-start justify-between gap-3;
+    }
+
+    .kv-mobile-card-title {
+        @apply min-w-0 text-sm font-semibold text-white;
+    }
+
+    .kv-mobile-card-subtitle {
+        @apply mt-1 break-words text-xs text-slate-500;
+    }
+
+    .kv-mobile-fields {
+        @apply mt-4 space-y-2;
+    }
+
+    .kv-mobile-field {
+        @apply flex items-start justify-between gap-4 text-sm;
+    }
+
+    .kv-mobile-label {
+        @apply shrink-0 text-xs font-medium uppercase tracking-wide text-slate-500;
+    }
+
+    .kv-mobile-value {
+        @apply min-w-0 break-words text-right text-slate-200;
+    }
+
+    .kv-table-desktop {
+        @apply hidden overflow-x-auto md:block;
+    }
+
+    .kv-glass-panel,
+    .kv-glass-card,
+    .kv-panel,
+    .kv-card {
+        box-shadow:
+            0 18px 48px rgba(2, 6, 23, 0.44),
+            0 0 0 1px rgba(56, 189, 248, 0.035),
+            0 0 34px rgba(14, 165, 233, 0.10);
+    }
+
+    .kv-glass-hover:hover {
+        box-shadow:
+            0 24px 62px rgba(2, 6, 23, 0.50),
+            0 0 0 1px rgba(56, 189, 248, 0.08),
+            0 0 46px rgba(14, 165, 233, 0.18);
     }
 
     .kv-panel-header {

@@ -42,6 +42,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - Composer, Node.js **22**, npm
 - PostgreSQL, Redis
 - Nginx
+- UFW / firewall host
 - Ekstensi PHP: `bcmath curl dom intl mbstring openssl pcntl pdo_pgsql pdo_sqlite redis snmp sockets xml zip`
 - Go **1.18+** (opsional — diperlukan hanya jika ingin build binary Go SNMP poller)
 
@@ -78,7 +79,7 @@ apt install -y nginx php8.3 php8.3-fpm php8.3-cli \
     php8.3-bcmath php8.3-curl php8.3-dom php8.3-intl \
     php8.3-mbstring php8.3-pgsql php8.3-redis php8.3-snmp \
     php8.3-xml php8.3-zip php8.3-sqlite3 \
-    postgresql redis-server curl unzip git supervisor
+    postgresql redis-server curl unzip git supervisor ufw
 
 # Composer
 curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -114,6 +115,7 @@ APP_NAME="KusumaVision NMS"
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=http://ip-server-anda
+LOG_LEVEL=warning
 
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
@@ -124,6 +126,7 @@ DB_PASSWORD=ganti_password_ini
 
 CACHE_STORE=redis
 SESSION_DRIVER=redis
+SESSION_ENCRYPT=true
 QUEUE_CONNECTION=redis
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -151,6 +154,7 @@ Setelah selesai, set permission storage:
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 php artisan storage:link
+php artisan optimize
 ```
 
 ### Langkah 6 — Konfigurasi Nginx
@@ -167,12 +171,28 @@ Isi dengan:
 server {
     listen 80;
     server_name ip-server-anda;
+    server_tokens off;
+
+    # Sesuaikan allow-list dengan jaringan operasional.
+    allow 127.0.0.1;
+    allow ::1;
+    allow 10.0.0.0/8;
+    allow 172.16.0.0/12;
+    allow 192.168.0.0/16;
+    allow 103.189.248.0/24;
+    allow 103.189.249.0/24;
+    deny all;
 
     root /var/www/KusumaVisionNMS/public;
     index index.php;
 
     charset utf-8;
     client_max_body_size 64M;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
     location / {
         try_files $uri $uri/ /index.php?$query_string;
@@ -189,6 +209,10 @@ server {
     }
 
     location ~ /\.(?!well-known).* {
+        deny all;
+    }
+
+    location ~* \.(?:env|ini|log|sql|bak|conf|yml|yaml)$ {
         deny all;
     }
 
@@ -231,19 +255,32 @@ stopwaitsecs=120
 supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-worker:*
 ```
 
-### Langkah 8 — Laravel Scheduler (Cron)
+### Langkah 8 — Laravel Scheduler (Supervisor)
 
-```bash
-crontab -e -u www-data
+Rekomendasi production lokal adalah menjalankan scheduler via Supervisor agar mudah dipantau:
+
+```ini
+[program:kusumavision-scheduler]
+command=php /var/www/KusumaVisionNMS/artisan schedule:work
+directory=/var/www/KusumaVisionNMS
+autostart=true
+autorestart=true
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/KusumaVisionNMS/storage/logs/scheduler.log
 ```
 
-Tambahkan:
+```bash
+supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-scheduler
+```
+
+> Scheduler menjalankan `olts:poll` setiap menit. Setiap OLT hanya benar-benar di-poll sesuai interval masing-masing (`poll_interval_minutes`).
+
+Alternatif cron tetap bisa dipakai:
 
 ```cron
 * * * * * php /var/www/KusumaVisionNMS/artisan schedule:run >> /dev/null 2>&1
 ```
-
-> Scheduler menjalankan `olts:poll` setiap menit. Setiap OLT hanya benar-benar di-poll sesuai interval masing-masing (`poll_interval_minutes`).
 
 ### Langkah 9 — Buat akun pertama
 
@@ -258,6 +295,7 @@ php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password=
 ## Instalasi Go SNMP Poller (opsional)
 
 > Lewati jika ingin tetap menggunakan PHP poller (default).
+> Karena repo Laravel memiliki folder `vendor/`, jalankan command Go dengan `-mod=mod`.
 
 ```bash
 # Install Go 1.22
@@ -268,7 +306,7 @@ source /etc/profile.d/go.sh
 
 # Build binary
 go mod download
-go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
+go build -mod=mod -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
 chmod +x bin/kv-snmp-poller
 ```
 
@@ -303,11 +341,28 @@ php artisan schedule:work
 ## Perintah Berguna
 
 ```bash
-php artisan olts:poll      # dispatch poll semua OLT yang sudah due sekarang
-php artisan test           # jalankan test suite (SQLite in-memory)
-./vendor/bin/pint          # format kode PHP
-npm run build              # build aset produksi
+php artisan olts:poll             # dispatch poll semua OLT yang sudah due sekarang
+php artisan config:clear --ansi   # clear config sebelum test
+php artisan test                  # jalankan test suite (SQLite in-memory)
+php artisan optimize              # cache config/routes/views untuk production
+./vendor/bin/pint                 # format kode PHP
+npm run build                     # build aset produksi
+composer audit                    # audit advisory Composer
+npm audit --omit=dev              # audit dependency runtime frontend
 ```
+
+## Production Lokal & Hardening
+
+Panduan hardening OS/aplikasi tersedia di [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md).
+
+Ringkasan konfigurasi production lokal yang direkomendasikan:
+
+- Laravel: `APP_ENV=production`, `APP_DEBUG=false`, `SESSION_ENCRYPT=true`, `php artisan optimize`.
+- File secret: `.env` tidak masuk Git dan permission `640 root:www-data`.
+- Nginx: root harus ke `public/`, deny dotfiles/file sensitif, security headers aktif, allow-list IP dibatasi.
+- SSH: key-only (`PasswordAuthentication no`), root hanya via key (`PermitRootLogin prohibit-password`), X11 forwarding off.
+- UFW: default deny incoming, allow outgoing, buka hanya port yang diperlukan dari subnet tepercaya.
+- Queue/scheduler: jalankan via Supervisor dan pastikan `queue:work` serta `schedule:work` aktif.
 
 ---
 

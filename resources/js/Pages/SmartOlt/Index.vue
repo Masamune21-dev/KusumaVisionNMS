@@ -113,8 +113,75 @@ const formatDate = (value) => {
                         </div>
                     </div>
 
-                    <!-- Table -->
-                    <div v-else class="overflow-x-auto">
+                    <!-- Table / mobile cards -->
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="olt in olts" :key="olt.id" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title">{{ olt.name }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ olt.vendor || 'Vendor belum diisi' }}</p>
+                                    </div>
+                                    <span :class="olt.driver === 'zte' ? 'kv-pill-info' : 'kv-pill-muted'">
+                                        {{ olt.capabilities.vendor_family }}
+                                    </span>
+                                </div>
+
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">SNMP</span>
+                                        <span class="kv-mobile-value font-mono text-xs">{{ olt.ip }}:{{ olt.snmp_port }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Versi</span>
+                                        <span class="kv-mobile-value uppercase tracking-widest">{{ olt.snmp_version }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Auto-poll</span>
+                                        <span class="kv-mobile-value" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                                            {{ olt.polling_enabled ? 'On' : 'Off' }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Test</span>
+                                        <span
+                                            class="kv-mobile-value font-semibold"
+                                            :class="olt.last_test_result?.ok
+                                                ? 'text-emerald-300'
+                                                : olt.last_test_result
+                                                    ? 'text-red-300'
+                                                    : 'text-slate-500'"
+                                        >
+                                            {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Terakhir</span>
+                                        <span class="kv-mobile-value">{{ formatDate(olt.last_tested_at) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton :href="route('smartolt.detail', olt.id)" title="Detail">
+                                        <Eye class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton title="Test SNMP" @click="testOlt(olt)">
+                                        <RefreshCw class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton :href="route('smartolt.edit', olt.id)" title="Edit">
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton :href="route('smartolt.profiles.index', olt.id)" title="Profile">
+                                        <Database class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
                         <table class="w-full min-w-[720px]">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
@@ -203,7 +270,8 @@ const formatDate = (value) => {
                                 </tr>
                             </tbody>
                         </table>
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </div>

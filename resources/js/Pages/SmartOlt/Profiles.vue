@@ -235,8 +235,100 @@ const syncFromOlt = () => {
                         </form>
                     </div>
 
-                    <!-- Table -->
-                    <div class="overflow-x-auto">
+                    <!-- Table / mobile cards -->
+                    <div class="kv-mobile-list">
+                        <div v-if="rowsFor(type).length === 0" class="px-4 py-8 text-center text-sm text-slate-500">
+                            Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
+                        </div>
+
+                        <article v-for="profile in rowsFor(type)" :key="profile.id" class="kv-mobile-card">
+                            <template v-if="editing[profile.id]">
+                                <div class="space-y-3">
+                                    <div>
+                                        <InputLabel value="Nama" />
+                                        <TextInput v-model="editing[profile.id].name" class="mt-1 block w-full" required />
+                                        <InputError class="mt-2" :message="editing[profile.id].errors.name" />
+                                    </div>
+                                    <div v-if="type.key === 'vlan'">
+                                        <InputLabel value="VLAN" />
+                                        <TextInput v-model="editing[profile.id].vlan" type="number" class="mt-1 block w-full" required />
+                                        <InputError class="mt-2" :message="editing[profile.id].errors.vlan" />
+                                    </div>
+                                    <div v-if="type.key === 'tcont'" class="grid gap-2 sm:grid-cols-2">
+                                        <TextInput v-model="editing[profile.id].params.type" type="number" class="block w-full" />
+                                        <TextInput v-model="editing[profile.id].params.maximum" type="number" class="block w-full" />
+                                    </div>
+                                    <TextInput v-else-if="type.key === 'ip'" v-model="editing[profile.id].params.gateway" class="block w-full" />
+                                    <TextInput v-else v-model="editing[profile.id].notes" class="block w-full" />
+                                    <div class="space-y-2">
+                                        <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                                            <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
+                                            Aktif
+                                        </label>
+                                        <label class="block">
+                                            <span class="inline-flex items-center gap-2 text-sm text-slate-200">
+                                                <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
+                                                Eksekusi CLI
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <IconButton variant="success" title="Simpan" :disabled="editing[profile.id].processing" @click="update(profile)">
+                                            <Check class="h-4 w-4" />
+                                        </IconButton>
+                                        <IconButton title="Batal" @click="cancelEdit(profile)">
+                                            <X class="h-4 w-4" />
+                                        </IconButton>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title">{{ profile.name }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ profile.source || 'manual' }}</p>
+                                    </div>
+                                    <span
+                                        class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1"
+                                        :class="profile.is_active
+                                            ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
+                                            : 'bg-slate-800/60 text-slate-500 ring-slate-500/30'"
+                                    >
+                                        {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
+                                    </span>
+                                </div>
+                                <div class="kv-mobile-fields">
+                                    <div v-if="type.key === 'vlan'" class="kv-mobile-field">
+                                        <span class="kv-mobile-label">VLAN</span>
+                                        <span class="kv-mobile-value">{{ profile.vlan }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Params</span>
+                                        <span class="kv-mobile-value">
+                                            <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
+                                            <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
+                                            <span v-else>{{ profile.notes || '-' }}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" title="Edit profile" @click="startEdit(profile)">
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari cache lokal" @click="destroyProfile(profile, false)">
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari OLT + cache" @click="destroyProfile(profile, true)">
+                                        <ServerOff class="h-4 w-4" />
+                                    </IconButton>
+                                    <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-400">Fallback global</span>
+                                </div>
+                            </template>
+                        </article>
+                    </div>
+
+                    <div class="kv-table-desktop">
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
