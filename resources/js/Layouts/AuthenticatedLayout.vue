@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
+import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
@@ -76,7 +77,7 @@ onUnmounted(() => {
 <template>
     <div class="min-h-screen overflow-x-hidden bg-slate-950">
         <!-- Mobile top bar -->
-        <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-950/90 px-4 backdrop-blur-xl lg:hidden">
+        <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -120,7 +121,7 @@ onUnmounted(() => {
 
         <!-- Sidebar -->
         <aside
-            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/95 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0"
+            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0"
             :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
                 sidebarCollapsed ? 'w-64 lg:w-20' : 'w-64',
@@ -129,7 +130,7 @@ onUnmounted(() => {
             <SidebarConstellation v-if="showSidebarContent" />
 
             <!-- Logo -->
-            <div class="relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-slate-950/45 px-5 backdrop-blur-[2px]">
+            <div class="relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-slate-950/20 px-5 backdrop-blur-sm">
                 <Link
                     :href="route('dashboard')"
                     class="flex items-center gap-3 overflow-hidden"
@@ -187,7 +188,7 @@ onUnmounted(() => {
         >
             <!-- Top header (desktop) — search + notif + user -->
             <header
-                class="sticky top-0 z-30 hidden border-b border-white/10 bg-slate-950/80 backdrop-blur-xl lg:block"
+                class="sticky top-0 z-30 hidden border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
             >
                 <div class="flex h-[72px] w-full items-center gap-4 px-6 lg:px-8">
                     <!-- Search trigger -->
@@ -213,7 +214,7 @@ onUnmounted(() => {
             <!-- Page header slot (optional, used by inner pages) -->
             <header
                 v-if="$slots.header"
-                class="sticky top-14 z-20 border-b border-white/10 bg-slate-950/70 backdrop-blur-xl lg:top-[72px]"
+                class="sticky top-14 z-20 border-b border-white/10 bg-slate-950/30 backdrop-blur-xl lg:top-[72px]"
             >
                 <div class="flex min-h-14 w-full items-center px-4 py-3 sm:px-6 lg:px-8">
                     <div class="w-full text-slate-100">
@@ -233,6 +234,7 @@ onUnmounted(() => {
 
             <!-- Page content -->
             <main class="kv-grid-bg flex-1">
+                <AuroraBackground />
                 <Transition name="page" mode="out-in">
                     <div :key="page.component" class="min-w-0">
                         <slot />
@@ -241,7 +243,7 @@ onUnmounted(() => {
             </main>
 
             <!-- Footer -->
-            <footer class="border-t border-white/10 bg-slate-950/80 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
+            <footer class="border-t border-white/10 bg-slate-950/40 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
                     <p>&copy; 2026 KusumaVision NMS &middot; Dibuat Oleh Masamune</p>
                     <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>

@@ -1,11 +1,13 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import { Link } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
 </script>
 
 <template>
     <div class="kv-grid-bg relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
+        <AuroraBackground />
         <!-- Ambient glows -->
         <div class="pointer-events-none absolute -left-40 top-10 h-96 w-96 rounded-full bg-cyan-500/15 blur-[120px]" />
         <div class="pointer-events-none absolute -right-40 bottom-10 h-96 w-96 rounded-full bg-purple-500/10 blur-[120px]" />

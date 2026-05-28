@@ -7,16 +7,6 @@ defineProps({
 
 <template>
     <div class="hero-header">
-        <img
-            class="hero-image"
-            src="/img/hero.png"
-            width="1916"
-            height="821"
-            alt=""
-            decoding="async"
-            fetchpriority="high"
-            aria-hidden="true"
-        />
         <div class="hero-scrim" aria-hidden="true"></div>
 
         <div class="hero-content">
@@ -32,7 +22,9 @@ defineProps({
     justify-content: space-between;
     align-items: center;
     min-height: 132px;
-    background: #020617;
+    background: rgba(15, 23, 42, 0.32);
+    -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
     border-radius: 16px;
     padding: clamp(1.35rem, 2vw, 2rem);
     color: white;
@@ -40,18 +32,6 @@ defineProps({
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.16);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.hero-image {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: 68% 72%;
-    opacity: 0.88;
-    transform: scale(1.01);
 }
 
 .hero-scrim {
@@ -104,11 +84,6 @@ defineProps({
     .hero-content {
         max-width: 100%;
         padding-right: 1rem;
-    }
-
-    .hero-image {
-        object-position: 76% 70%;
-        opacity: 0.72;
     }
 
     .hero-scrim {

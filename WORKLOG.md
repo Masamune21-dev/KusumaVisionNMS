@@ -780,3 +780,25 @@ Notes:
 
 - `npm run build` bersih (aos ter-bundle). Animasi belum diuji visual di browser dari sesi ini — perlu cek manual: hero penuh 1 layar desktop, reveal scroll halus, dan elemen tetap tampil saat reduce-motion aktif.
 - Alias build `@` berasal dari `laravel-vite-plugin` (`"@": "/resources/js"`), `jsconfig.json` murni untuk intellisense editor.
+
+### Background aurora + chrome glassmorphism, hapus grid statis & gambar
+
+Created:
+
+- `resources/js/Components/Shell/AuroraBackground.vue` — backdrop aurora: 4 gumpalan cahaya (cyan/sky/teal/blue) blur 90px, `mix-blend: screen`, mengambang via animasi `transform` (GPU), + vignette halus. `position: fixed` di belakang konten (`z-index: -1`), hormati `prefers-reduced-motion`.
+
+Changed:
+
+- `resources/css/app.css` — `.kv-grid-bg` disederhanakan jadi base gelap saja (hapus radial-gradient glow/efek light + grid garis statis); peran grid digantikan AuroraBackground.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — sisipkan `<AuroraBackground/>` di `<main>`; semua chrome jadi glass (opacity turun, tetap backdrop-blur): sidebar `/95→/35`, strip logo `/45→/20`, header desktop `/80→/35`, header slot `/70→/30`, top bar mobile `/90→/40`, footer `/80→/40`.
+- `resources/js/Layouts/GuestLayout.vue` — sisipkan `<AuroraBackground/>` di container login.
+- `resources/js/Pages/Welcome.vue` — sisipkan `<AuroraBackground/>` di hero; ganti gambar dashboard `dashboard.png → dashboard1.png`.
+- `resources/js/Components/Dashboard/HeroBanner.vue` — hapus `<img>` hero + CSS-nya; background solid → kaca `rgba(15,23,42,0.32)` + `backdrop-blur(14px)` agar aurora tembus.
+- `resources/js/Components/Shell/SidebarConstellation.vue` — hapus `<img>` starfield + CSS-nya; base solid `#020617` → transparan, tint shade diringankan agar aurora terlihat di sidebar.
+- `public/img/*` — hapus gambar lama tak terpakai (c300/c320.jpg, dashboard/hero/landingpage/sidebar/template.png), tambah `dashboard1.png`.
+
+Notes:
+
+- Iterasi gaya: grid perspektif synthwave → grid ombak SVG `feTurbulence` (ditolak: berat & noisy) → final **aurora** (CSS transform, ringan & mulus), dipilih dari riset background dashboard dark-theme 2026.
+- Stacking: AuroraBackground `fixed z-index:-1` di dalam `<main>` (isolation) tampil di belakang konten; chrome glass + backdrop-blur memburamkan aurora di belakangnya.
+- `npm run build` bersih. Belum diuji visual di browser dari sesi ini — perlu cek manual: aurora bergerak halus, teks chrome tetap terbaca, dan performa lancar (tanpa lag).

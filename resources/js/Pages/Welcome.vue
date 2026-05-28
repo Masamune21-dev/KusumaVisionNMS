@@ -1,5 +1,6 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Activity,
@@ -234,6 +235,7 @@ const supportLinks = [
         <main>
             <!-- ===== Hero ===== -->
             <section id="beranda" class="kv-grid-bg relative flex items-center overflow-hidden lg:min-h-[calc(100vh-57px)]">
+                <AuroraBackground />
                 <!-- Ambient glows -->
                 <div class="pointer-events-none absolute -left-32 top-20 h-96 w-96 animate-pulse rounded-full bg-cyan-500/15 blur-[120px]" />
                 <div class="pointer-events-none absolute -right-32 top-40 h-96 w-96 animate-pulse rounded-full bg-purple-500/10 blur-[120px]" style="animation-delay: 1.5s" />
@@ -326,7 +328,7 @@ const supportLinks = [
                                 <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">http://localhost/dashboard</span>
                             </div>
                             <img
-                                src="/img/dashboard.png"
+                                src="/img/dashboard1.png"
                                 alt="KusumaVision NMS Dashboard"
                                 class="block w-full"
                                 loading="eager"
