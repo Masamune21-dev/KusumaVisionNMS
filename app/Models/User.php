@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -22,6 +23,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
         'last_notifications_read_at',
     ];
 
@@ -46,6 +48,32 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'last_notifications_read_at' => 'datetime',
             'password' => 'hashed',
+            'role' => UserRole::class,
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === UserRole::Admin;
+    }
+
+    public function isOperator(): bool
+    {
+        return $this->role === UserRole::Operator;
+    }
+
+    public function isDemo(): bool
+    {
+        return $this->role === UserRole::Demo;
+    }
+
+    public function canManageOlt(): bool
+    {
+        return in_array($this->role, [UserRole::Admin, UserRole::Operator], true);
+    }
+
+    public function canManageUsers(): bool
+    {
+        return $this->role === UserRole::Admin;
     }
 }

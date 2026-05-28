@@ -2,14 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PollingEvent extends Model
 {
     public const KIND_OLT_TEST = 'olt_test';
+
     public const KIND_OLT_POLL = 'olt_poll';
+
     public const KIND_RX_POLL = 'rx_poll';
+
     public const KIND_PROVISIONING = 'provisioning';
 
     protected $fillable = [
@@ -18,13 +22,20 @@ class PollingEvent extends Model
         'success',
         'message',
         'duration_ms',
+        'is_demo',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new DemoScope);
+    }
 
     protected function casts(): array
     {
         return [
             'success' => 'boolean',
             'duration_ms' => 'integer',
+            'is_demo' => 'boolean',
         ];
     }
 

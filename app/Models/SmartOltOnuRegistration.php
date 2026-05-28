@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -44,12 +45,19 @@ class SmartOltOnuRegistration extends Model
         'executed_by',
         'status',
         'created_by',
+        'is_demo',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new DemoScope);
+    }
 
     protected function casts(): array
     {
         return [
             'slot' => 'integer',
+            'is_demo' => 'boolean',
             'port' => 'integer',
             'onu_id' => 'integer',
             'vlan' => 'integer',

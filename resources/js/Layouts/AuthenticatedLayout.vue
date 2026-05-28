@@ -7,7 +7,7 @@ import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellRing, Cable, ChevronLeft, LayoutDashboard, Menu, Search, Users, WifiOff } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Search, Users, WifiOff } from '@lucide/vue';
 
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(false);
@@ -17,13 +17,24 @@ const page = usePage();
 const showSidebarContent = computed(() => !sidebarCollapsed.value || (!isDesktop.value && sidebarOpen.value));
 let sidebarMediaQuery = null;
 
-const navLinks = computed(() => [
-    { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
-    { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: 'smartolt.*', except: 'smartolt.unconfigured-all' },
-    { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
-    { name: 'Alarms', icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
-    { name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' },
-]);
+const can = computed(() => page.props.auth?.can ?? {});
+const isDemo = computed(() => Boolean(can.value.is_demo));
+
+const navLinks = computed(() => {
+    const links = [
+        { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
+        { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: 'smartolt.*', except: 'smartolt.unconfigured-all' },
+        { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
+        { name: 'Alarms', icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
+        { name: 'Report', icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
+    ];
+
+    if (can.value.manage_users) {
+        links.push({ name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' });
+    }
+
+    return links;
+});
 
 const isActive = (link) => {
     if (!route().current(link.match)) return false;
@@ -210,6 +221,15 @@ onUnmounted(() => {
                     </div>
                 </div>
             </header>
+
+            <!-- Demo mode banner -->
+            <div
+                v-if="isDemo"
+                class="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-300 sm:px-6 lg:px-8"
+            >
+                <Eye class="h-4 w-4 flex-shrink-0" />
+                <span>Mode Demo &mdash; tampilan read-only dengan data contoh. Perubahan data dinonaktifkan.</span>
+            </div>
 
             <!-- Page content -->
             <main class="kv-grid-bg flex-1">

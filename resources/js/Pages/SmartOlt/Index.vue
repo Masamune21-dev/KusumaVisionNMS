@@ -62,7 +62,7 @@ const formatDate = (value) => {
                 <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
                     SmartOLT
                 </h2>
-                <Link :href="route('smartolt.create')" class="sm:w-auto">
+                <Link v-if="$page.props.auth.can.manage_olt" :href="route('smartolt.create')" class="sm:w-auto">
                     <PrimaryButton class="w-full sm:w-auto">
                         <Plus class="mr-2 h-4 w-4" />
                         Tambah OLT
@@ -103,7 +103,7 @@ const formatDate = (value) => {
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan OLT pertama untuk mulai test SNMP.</p>
-                        <div class="mt-5">
+                        <div v-if="$page.props.auth.can.manage_olt" class="mt-5">
                             <Link :href="route('smartolt.create')">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />

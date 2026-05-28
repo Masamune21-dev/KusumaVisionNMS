@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,7 +30,13 @@ class SnmpOlt extends Model
         'last_tested_at',
         'last_polled_at',
         'last_rx_polled_at',
+        'is_demo',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new DemoScope);
+    }
 
     protected $hidden = [
         'snmp_read_community',
@@ -46,6 +53,7 @@ class SnmpOlt extends Model
             'snmp_write_community' => 'encrypted',
             'cli_password' => 'encrypted',
             'polling_enabled' => 'boolean',
+            'is_demo' => 'boolean',
             'poll_interval_minutes' => 'integer',
             'rx_poll_interval_minutes' => 'integer',
             'last_test_result' => 'array',

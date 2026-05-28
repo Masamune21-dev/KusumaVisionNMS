@@ -14,10 +14,14 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
-defineProps({
+const props = defineProps({
     users: {
         type: Array,
         required: true,
+    },
+    roleOptions: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -28,15 +32,35 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 const showModal = ref(false);
 const editingUser = ref(null);
 
+const defaultRole = computed(() => props.roleOptions[0]?.value ?? 'operator');
+
 const form = useForm({
     name: '',
     email: '',
+    role: defaultRole.value,
     password: '',
 });
+
+const roleLabel = (value) =>
+    props.roleOptions.find((option) => option.value === value)?.label ?? value;
+
+const roleBadgeClass = (value) => {
+    switch (value) {
+        case 'admin':
+            return 'border-cyan-500/30 bg-cyan-500/15 text-cyan-300';
+        case 'operator':
+            return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300';
+        case 'demo':
+            return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
+        default:
+            return 'border-slate-500/30 bg-slate-500/15 text-slate-300';
+    }
+};
 
 const openCreate = () => {
     editingUser.value = null;
     form.reset();
+    form.role = defaultRole.value;
     form.clearErrors();
     showModal.value = true;
 };
@@ -45,6 +69,7 @@ const openEdit = (user) => {
     editingUser.value = user;
     form.name = user.name;
     form.email = user.email;
+    form.role = user.role ?? defaultRole.value;
     form.password = '';
     form.clearErrors();
     showModal.value = true;
@@ -179,6 +204,14 @@ const formatDate = (value) => {
                                 </div>
                                 <div class="kv-mobile-fields">
                                     <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Role</span>
+                                        <span class="kv-mobile-value">
+                                            <span :class="['inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
+                                                {{ roleLabel(user.role) }}
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">Terdaftar</span>
                                         <span class="kv-mobile-value">{{ formatDate(user.created_at) }}</span>
                                     </div>
@@ -195,6 +228,9 @@ const formatDate = (value) => {
                                     </th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Email
+                                    </th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                        Role
                                     </th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Terdaftar
@@ -221,6 +257,11 @@ const formatDate = (value) => {
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
                                         {{ user.email }}
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <span :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
+                                            {{ roleLabel(user.role) }}
+                                        </span>
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-500">
                                         {{ formatDate(user.created_at) }}
@@ -285,6 +326,20 @@ const formatDate = (value) => {
                             autocomplete="email"
                         />
                         <InputError :message="form.errors.email" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="role" value="Role" />
+                        <select
+                            id="role"
+                            v-model="form.role"
+                            class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500"
+                        >
+                            <option v-for="option in roleOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.role" class="mt-1" />
                     </div>
 
                     <div>

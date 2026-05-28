@@ -21,10 +21,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'can' => [
+                    'manage_users' => (bool) $user?->canManageUsers(),
+                    'manage_olt' => (bool) $user?->canManageOlt(),
+                    'is_demo' => (bool) $user?->isDemo(),
+                ],
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
@@ -103,6 +110,7 @@ class HandleInertiaRequests extends Middleware
 
         if ($days === 0 && $hours === 0) {
             $minutes = intdiv($seconds % 3600, 60);
+
             return "{$minutes} menit";
         }
 

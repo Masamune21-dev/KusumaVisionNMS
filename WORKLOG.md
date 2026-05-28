@@ -705,3 +705,64 @@ Notes:
 - Tujuan: hasil global search (⌘K) untuk ONU mendarat di halaman port dengan ONU spesifik langsung ter-scroll + ter-highlight, bukan sekadar membuka daftar port.
 - Filter/search murni client-side atas snapshot ONU yang sudah ada (tanpa request tambahan ke OLT). Stat card (Total/Online) tetap menampilkan total, bukan hasil filter.
 - `npm run build` & `pint` bersih; interaksi scroll/highlight belum dites di browser (perlu data ONU live).
+
+### Phase 22 - Role User (RBAC), Halaman Report & Mode Demo
+
+Created:
+
+- `docs/PLANNING_NEXT_PHASE.md` — dokumen perencanaan fase ini (keputusan desain, matriks hak akses, urutan eksekusi).
+- `app/Enums/UserRole.php` — enum `admin`/`operator`/`demo` + `label()`, `values()`, `options()`.
+- `database/migrations/2026_05_28_145148_add_role_to_users_table.php` — kolom `role` string (default `operator`); user lama di-set `admin` agar tak terkunci. String (bukan enum native) demi kompatibilitas SQLite test.
+- `app/Http/Middleware/EnsureUserRole.php` — middleware berparameter (`role:admin`, `role:admin,operator`).
+- `app/Http/Middleware/BlockDemoWrites.php` — tolak semua request non-GET untuk role demo (kecuali logout).
+- `app/Services/Report/ReportService.php` — builder laporan generik (columns/rows/summary) 5 jenis: inventaris ONU, status OLT, riwayat alarm, provisioning, RX power; filter range + per-OLT. Baca skema `last_test_result` (`port_onus.{slot}_{port}.onus`, `rx_power_dbm`).
+- `app/Http/Controllers/ReportController.php` — `index` (Inertia), `exportCsv` (StreamedResponse + BOM UTF-8), `exportPdf` (dompdf landscape).
+- `resources/views/reports/pdf.blade.php` — template PDF berbranding BMKV/KusumaVision.
+- `resources/js/Pages/Reports/Index.vue` — halaman Report: filter jenis/range/OLT (auto-reload), kartu ringkasan, tabel desktop + kartu mobile, badge status berwarna, tombol export CSV/PDF.
+- `database/seeders/DemoSeeder.php` — isi DB demo: user `admin@`/`demo@kusumavision.test`, 2 OLT (`OLT-DEMO-PATI` C320, `OLT-DEMO-JUWANA` C300) dengan `last_test_result` realistis (port up/down, ONU online/offline, RX bervariasi), ~200 polling event/OLT, alarm campuran severity, registrasi provisioning.
+- `docs/DEMO_DEPLOYMENT.md` — panduan deploy instance/DB demo terpisah + peringatan jangan seed ke produksi.
+- `tests/Feature/RoleAccessTest.php`, `tests/Feature/ReportTest.php`, `tests/Feature/DemoSeederTest.php` — 10 test (akses per-role, blokir tulis demo, guard admin terakhir, render report, export CSV/PDF, isi DemoSeeder).
+
+Changed:
+
+- `app/Models/User.php` — `role` di `$fillable` + cast `UserRole`; helper `isAdmin`/`isOperator`/`isDemo`/`canManageOlt`/`canManageUsers`.
+- `bootstrap/app.php` — alias `role` + append `BlockDemoWrites` di grup web.
+- `routes/web.php` — route users dibungkus `role:admin`; tambah 3 route `reports.*`.
+- `app/Http/Middleware/HandleInertiaRequests.php` — share `auth.can` (`manage_users`, `manage_olt`, `is_demo`).
+- `app/Http/Controllers/UserController.php` — validasi `role` (enum), sertakan role + `roleOptions` di index, guard admin terakhir (tak bisa dihapus/diturunkan).
+- `resources/js/Pages/Users/Index.vue` — dropdown role di modal, badge role berwarna (admin=cyan, operator=emerald, demo=amber) di tabel & kartu mobile.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — nav `Report` (semua role) & `Users` (hanya admin via `auth.can`); banner "Mode Demo" read-only.
+- `resources/js/Pages/SmartOlt/Index.vue` — tombol "Tambah OLT" digate `auth.can.manage_olt`.
+- `database/factories/UserFactory.php` — default role operator + state `admin()` & `demo()`.
+- `database/seeders/DatabaseSeeder.php` — user test default jadi admin.
+- `composer.json` — tambah `barryvdh/laravel-dompdf` untuk export PDF.
+
+Notes:
+
+- Keputusan disepakati user: RBAC kolom enum sederhana (bukan paket), 3 role (admin/operator/demo), data demo via DB/deploy terpisah (bukan flag `is_demo`), report on-screen + CSV + PDF.
+- Demo read-only diberlakukan 2 lapis: `BlockDemoWrites` (server, semua non-GET) + gating tombol/UI. Operator = semua operasi OLT/ONU kecuali kelola user.
+- Keamanan SmartOLT write tak perlu `role:` tambahan: admin+operator boleh, demo sudah diblokir `BlockDemoWrites`.
+- 91 test hijau (10 baru), `npm run build` & `pint` bersih.
+- Migrasi `role` sudah dijalankan di DB produksi via `php artisan migrate --force`; 2 user existing otomatis jadi admin (terverifikasi). Demo: `php artisan db:seed --class=DemoSeeder` di instance demo terpisah.
+
+Lanjutan — filter PON port di Report:
+
+- `app/Services/Report/ReportService.php` — filter `pon_port` (format `{slot}_{port}`): laporan ONU & RX hanya iterasi key port yang dipilih; alarm & provisioning di-where `slot`+`port`.
+- `app/Http/Controllers/ReportController.php` — baca/validasi `pon_port` (regex `\d+_\d+`, hanya berlaku bila ada `olt_id`); sediakan `ponPortOptions` dari `last_test_result.ports` OLT terpilih.
+- `resources/js/Pages/Reports/Index.vue` — dropdown PON Port (disabled bila belum pilih OLT), grid filter jadi 4 kolom, auto-reset port saat OLT berganti; export CSV/PDF ikut membawa `pon_port`.
+- `tests/Feature/ReportTest.php` — test filter PON port (port ada → 2 baris, port tak ada → 0 baris). Total 92 test hijau.
+
+Revisi isolasi demo — flag `is_demo` (bukan DB terpisah):
+
+- Alasan: user menjalankan satu instance, jadi role demo malah melihat data OLT produksi asli. Pendekatan diubah ke flag `is_demo` + global scope di DB yang sama.
+- `database/migrations/2026_05_28_160000_add_is_demo_flags.php` — kolom `is_demo` (boolean, default false, indexed) di `snmp_olts`, `alarm_events`, `polling_events`, `smartolt_onu_registrations`.
+- `app/Models/Scopes/DemoScope.php` — global scope: user role demo → hanya `is_demo=true`; selain itu (termasuk console/queue tanpa auth) → hanya `is_demo=false`. Diterapkan di 4 model tsb (+ `is_demo` di fillable/cast).
+- `database/seeders/DemoSeeder.php` — semua data demo di-set `is_demo=true`; `SnmpOlt::withoutGlobalScopes()->updateOrCreate(...)` agar idempotent.
+- `tests/Feature/DemoSeederTest.php` — tambah test isolasi: admin lihat 1 OLT nyata, user demo lihat 2 OLT demo. `tests/Feature/RoleAccessTest.php` — OLT uji blokir-tulis di-flag demo agar resolvable lalu 403.
+- Dampak: scope otomatis berlaku di Dashboard, SmartOLT, Report, notifikasi alarm (semua query model tsb). Polling scheduler (console) hanya menyentuh OLT nyata; OLT demo statis.
+- Dijalankan di prod: `migrate --force` (kolom is_demo) + `db:seed --class=DemoSeeder --force`. Terverifikasi: OLT nyata=2, OLT demo=2, polling demo=400, alarm demo=8. 93 test hijau, `pint` bersih.
+
+Audit keamanan isolasi demo:
+
+- Hasil audit: tidak ada `DB::table` langsung ke tabel sensitif, tidak ada `withoutGlobalScope` di kode app, semua baca lewat Eloquent yang ter-scope. Tabel `SmartOltCardStatus`/`SmartOltInterfaceStatus` (tanpa is_demo) hanya diakses lewat OLT yang sudah ter-scope via route-binding → user demo akses OLT nyata = 404, dan sebaliknya. `AlarmController::customerNamesFor` pakai `SmartOltOnuRegistration` (scoped). Scheduler `PollOltsCommand`/`PollOltJob` jalan tanpa auth → hanya OLT nyata.
+- `tests/Feature/DemoIsolationTest.php` — kunci regresi: user nyata hanya lihat data nyata (dashboard/index/report/alarm) + 404 saat akses OLT demo; user demo hanya lihat data demo + 404 saat akses OLT nyata. 95 test hijau total.

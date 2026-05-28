@@ -47,7 +47,7 @@ class AlarmEngineTest extends TestCase
             'phase_state' => 'Offline', 'online' => false, 'last_down_cause' => 'LOSi',
         ]));
 
-        $evaluator = new AlarmEvaluator();
+        $evaluator = new AlarmEvaluator;
         $result = $evaluator->evaluate($olt);
 
         $this->assertSame(1, $result['raised']);
@@ -81,7 +81,7 @@ class AlarmEngineTest extends TestCase
             'phase_state' => 'DyingGasp', 'online' => false, 'last_down_cause' => 'DyingGasp',
         ]));
 
-        $evaluator = new AlarmEvaluator();
+        $evaluator = new AlarmEvaluator;
         $evaluator->evaluate($olt);
         $evaluator->evaluate($olt);
 
@@ -96,7 +96,7 @@ class AlarmEngineTest extends TestCase
             'phase_state' => 'Offline', 'online' => false, 'last_down_cause' => 'Manual',
         ]));
 
-        (new AlarmEvaluator())->evaluate($olt);
+        (new AlarmEvaluator)->evaluate($olt);
 
         $this->assertSame(0, AlarmEvent::count());
     }
@@ -105,7 +105,7 @@ class AlarmEngineTest extends TestCase
     {
         $olt = $this->makeOlt(['ok' => false, 'error' => 'SNMP timeout']);
 
-        (new AlarmEvaluator())->evaluate($olt);
+        (new AlarmEvaluator)->evaluate($olt);
 
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,
@@ -126,7 +126,7 @@ class AlarmEngineTest extends TestCase
             'rx_power_dbm' => -29.5,
         ]));
 
-        (new AlarmEvaluator())->evaluate($olt);
+        (new AlarmEvaluator)->evaluate($olt);
 
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,

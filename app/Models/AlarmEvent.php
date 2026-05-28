@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -35,7 +36,13 @@ class AlarmEvent extends Model
         'first_seen_at',
         'last_seen_at',
         'cleared_at',
+        'is_demo',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new DemoScope);
+    }
 
     protected function casts(): array
     {
@@ -47,6 +54,7 @@ class AlarmEvent extends Model
             'first_seen_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'cleared_at' => 'datetime',
+            'is_demo' => 'boolean',
         ];
     }
 
