@@ -290,7 +290,7 @@ const supportLinks = [
                                 <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                 <span class="h-3 w-3 rounded-full bg-amber-500/70" />
                                 <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
-                                <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">app.kusumavision.id/dashboard</span>
+                                <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">nms.kusumavision.net/dashboard</span>
                             </div>
                             <img
                                 src="/img/dashboard.png"
