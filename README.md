@@ -159,80 +159,7 @@ php artisan storage:link
 php artisan optimize
 ```
 
-### Langkah 6 — Konfigurasi Nginx
-
-Buat file konfigurasi site:
-
-```bash
-nano /etc/nginx/sites-available/kusumavision-nms
-```
-
-Isi dengan:
-
-```nginx
-server {
-    listen 80;
-    server_name ip-server-anda;
-    server_tokens off;
-
-    # Sesuaikan allow-list dengan jaringan operasional.
-    allow 127.0.0.1;
-    allow ::1;
-    allow 10.0.0.0/8;
-    allow 172.16.0.0/12;
-    allow 192.168.0.0/16;
-    allow 103.189.248.0/24;
-    allow 103.189.249.0/24;
-    deny all;
-
-    root /var/www/KusumaVisionNMS/public;
-    index index.php;
-
-    charset utf-8;
-    client_max_body_size 64M;
-
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { log_not_found off; access_log off; }
-    location = /robots.txt  { log_not_found off; access_log off; }
-
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-
-    location ~* \.(?:env|ini|log|sql|bak|conf|yml|yaml)$ {
-        deny all;
-    }
-
-    error_log  /var/log/nginx/kusumavision-nms.error.log;
-    access_log /var/log/nginx/kusumavision-nms.access.log;
-}
-```
-
-Aktifkan site:
-
-```bash
-rm -f /etc/nginx/sites-enabled/default
-ln -s /etc/nginx/sites-available/kusumavision-nms /etc/nginx/sites-enabled/
-nginx -t && systemctl restart nginx
-systemctl enable nginx php8.3-fpm
-```
-
-### Langkah 7 — Queue Worker (Supervisor)
+### Langkah 6 — Queue Worker (Supervisor)
 
 ```bash
 nano /etc/supervisor/conf.d/kusumavision-worker.conf
@@ -257,7 +184,7 @@ stopwaitsecs=120
 supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-worker:*
 ```
 
-### Langkah 8 — Laravel Scheduler (Supervisor)
+### Langkah 7 — Laravel Scheduler (Supervisor)
 
 Rekomendasi production lokal adalah menjalankan scheduler via Supervisor agar mudah dipantau:
 
@@ -284,7 +211,7 @@ Alternatif cron tetap bisa dipakai:
 * * * * * php /var/www/KusumaVisionNMS/artisan schedule:run >> /dev/null 2>&1
 ```
 
-### Langkah 9 — Buat akun pertama
+### Langkah 8 — Buat akun pertama
 
 Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
 

@@ -766,3 +766,17 @@ Audit keamanan isolasi demo:
 
 - Hasil audit: tidak ada `DB::table` langsung ke tabel sensitif, tidak ada `withoutGlobalScope` di kode app, semua baca lewat Eloquent yang ter-scope. Tabel `SmartOltCardStatus`/`SmartOltInterfaceStatus` (tanpa is_demo) hanya diakses lewat OLT yang sudah ter-scope via route-binding → user demo akses OLT nyata = 404, dan sebaliknya. `AlarmController::customerNamesFor` pakai `SmartOltOnuRegistration` (scoped). Scheduler `PollOltsCommand`/`PollOltJob` jalan tanpa auth → hanya OLT nyata.
 - `tests/Feature/DemoIsolationTest.php` — kunci regresi: user nyata hanya lihat data nyata (dashboard/index/report/alarm) + 404 saat akses OLT demo; user demo hanya lihat data demo + 404 saat akses OLT nyata. 95 test hijau total.
+
+### Landing page: hero full-desktop + animasi AOS, hapus config Nginx README, fix jsconfig
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — hero jadi full-height desktop (`lg:min-h-[calc(100vh-57px)]` + `flex items-center`, konten ter-center vertikal; mobile tetap mengalir), ambient glow `animate-pulse`. Integrasi AOS (animate-on-scroll): init di `onMounted` (durasi 650ms, `ease-out-cubic`, `once`, `disable` saat `prefers-reduced-motion`) + atribut `data-aos` bertahap di hero, hardware strip, kartu fitur/modul (stagger per kolom), benefit pills & tech stack (`zoom-in` stagger), dan CTA akhir (`zoom-in-up`).
+- `README.md` — hapus seluruh "Langkah 6 — Konfigurasi Nginx" (contoh server block + perintah aktivasi) karena tidak dijadikan acuan; penomoran langkah 7→6, 8→7, 9→8 disesuaikan.
+- `jsconfig.json` — hapus `baseUrl` (deprecated di TS, akan dihapus TS 7.0) dan ubah `@/*` jadi relatif `["./resources/js/*"]`; warning editor hilang, alias build dari `laravel-vite-plugin` tak terpengaruh.
+- `package.json` / `package-lock.json` — tambah dependency `aos`.
+
+Notes:
+
+- `npm run build` bersih (aos ter-bundle). Animasi belum diuji visual di browser dari sesi ini — perlu cek manual: hero penuh 1 layar desktop, reveal scroll halus, dan elemen tetap tampil saat reduce-motion aktif.
+- Alias build `@` berasal dari `laravel-vite-plugin` (`"@": "/resources/js"`), `jsconfig.json` murni untuk intellisense editor.

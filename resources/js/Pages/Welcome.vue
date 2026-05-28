@@ -28,7 +28,9 @@ import {
     Wifi,
     Workflow,
 } from '@lucide/vue';
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
 
 defineProps({
     canLogin: { type: Boolean },
@@ -36,6 +38,18 @@ defineProps({
 });
 
 const mobileOpen = ref(false);
+
+onMounted(() => {
+    AOS.init({
+        duration: 650,
+        easing: 'ease-out-cubic',
+        once: true,
+        offset: 80,
+        // Hormati preferensi pengguna yang mengurangi animasi (aksesibilitas).
+        disable: () =>
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    });
+});
 
 const navLinks = [
     { label: 'Beranda', href: '#beranda' },
@@ -219,27 +233,42 @@ const supportLinks = [
 
         <main>
             <!-- ===== Hero ===== -->
-            <section id="beranda" class="kv-grid-bg relative overflow-hidden">
+            <section id="beranda" class="kv-grid-bg relative flex items-center overflow-hidden lg:min-h-[calc(100vh-57px)]">
                 <!-- Ambient glows -->
-                <div class="pointer-events-none absolute -left-32 top-20 h-96 w-96 rounded-full bg-cyan-500/15 blur-[120px]" />
-                <div class="pointer-events-none absolute -right-32 top-40 h-96 w-96 rounded-full bg-purple-500/10 blur-[120px]" />
+                <div class="pointer-events-none absolute -left-32 top-20 h-96 w-96 animate-pulse rounded-full bg-cyan-500/15 blur-[120px]" />
+                <div class="pointer-events-none absolute -right-32 top-40 h-96 w-96 animate-pulse rounded-full bg-purple-500/10 blur-[120px]" style="animation-delay: 1.5s" />
 
-                <div class="relative mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-24">
+                <div class="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-24">
                     <div>
-                        <div class="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+                        <div
+                            class="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300"
+                            data-aos="fade-down"
+                        >
                             <Sparkles class="h-3.5 w-3.5" />
                             GPON Operations Console &middot; v2
                         </div>
 
-                        <h1 class="mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-[3.5rem]">
+                        <h1
+                            class="mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-[3.5rem]"
+                            data-aos="fade-up"
+                            data-aos-delay="80"
+                        >
                             Unified <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">FTTH Network</span> Management Platform
                         </h1>
-                        <p class="mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg">
+                        <p
+                            class="mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg"
+                            data-aos="fade-up"
+                            data-aos-delay="160"
+                        >
                             Monitor, provisioning, dan manajemen OLT ZTE C300/C320/C600 secara terpusat. Dibangun untuk operasional ISP Indonesia yang menuntut kecepatan dan akurasi.
                         </p>
 
                         <!-- Hero CTAs -->
-                        <div class="mt-8 flex flex-wrap items-center gap-3">
+                        <div
+                            class="mt-8 flex flex-wrap items-center gap-3"
+                            data-aos="fade-up"
+                            data-aos-delay="240"
+                        >
                             <Link
                                 v-if="$page.props.auth.user"
                                 :href="route('dashboard')"
@@ -269,7 +298,11 @@ const supportLinks = [
                         </div>
 
                         <!-- Hero pills -->
-                        <div class="mt-8 flex flex-wrap gap-2">
+                        <div
+                            class="mt-8 flex flex-wrap gap-2"
+                            data-aos="fade-up"
+                            data-aos-delay="320"
+                        >
                             <span
                                 v-for="pill in heroPills"
                                 :key="pill.label"
@@ -282,7 +315,7 @@ const supportLinks = [
                     </div>
 
                     <!-- Dashboard preview -->
-                    <div class="relative">
+                    <div class="relative" data-aos="fade-left" data-aos-delay="200">
                         <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
                         <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
                             <!-- Browser chrome -->
@@ -290,7 +323,7 @@ const supportLinks = [
                                 <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                 <span class="h-3 w-3 rounded-full bg-amber-500/70" />
                                 <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
-                                <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">nms.kusumavision.net/dashboard</span>
+                                <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">http://localhost/dashboard</span>
                             </div>
                             <img
                                 src="/img/dashboard.png"
@@ -306,9 +339,9 @@ const supportLinks = [
             <!-- ===== Hardware showcase strip ===== -->
             <section class="border-y border-white/10 bg-slate-950">
                 <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                    <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl">
+                    <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl" data-aos="fade-up">
                         <div class="grid items-center gap-8 p-6 md:grid-cols-[1fr_auto] md:gap-12 md:p-10">
-                            <div>
+                            <div data-aos="fade-right" data-aos-delay="100">
                                 <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Hardware Compatible</p>
                                 <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Mendukung lini OLT ZTE C-series</h2>
                                 <p class="mt-3 max-w-xl text-sm text-slate-400">
@@ -325,6 +358,8 @@ const supportLinks = [
                                 alt="ZTE OLT hardware"
                                 class="h-32 w-auto object-contain opacity-90 md:h-40"
                                 loading="lazy"
+                                data-aos="zoom-in"
+                                data-aos-delay="200"
                             />
                         </div>
                     </div>
@@ -333,7 +368,7 @@ const supportLinks = [
 
             <!-- ===== Feature grid ===== -->
             <section id="fitur" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                <div class="mx-auto max-w-2xl text-center">
+                <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Fitur Utama</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Semua yang Anda Butuhkan dalam Satu Platform</h2>
                     <p class="mt-4 text-base text-slate-400">Dirancang khusus untuk operasional FTTH/GPON ISP Indonesia — dari monitoring hingga remote management.</p>
@@ -341,9 +376,11 @@ const supportLinks = [
 
                 <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     <div
-                        v-for="f in features"
+                        v-for="(f, i) in features"
                         :key="f.title"
                         class="kv-glass-card kv-glass-hover group"
+                        data-aos="fade-up"
+                        :data-aos-delay="(i % 3) * 100"
                     >
                         <span :class="f.accent" class="!h-12 !w-12 transition-transform group-hover:scale-105">
                             <component :is="f.icon" class="h-5 w-5" />
@@ -356,9 +393,11 @@ const supportLinks = [
                 <!-- Benefit pills strip -->
                 <div class="mt-14 flex flex-wrap items-center justify-center gap-3 border-y border-white/10 py-6">
                     <span
-                        v-for="b in benefits"
+                        v-for="(b, i) in benefits"
                         :key="b.label"
                         class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-4 py-2 text-xs font-medium text-slate-300 backdrop-blur"
+                        data-aos="zoom-in"
+                        :data-aos-delay="i * 80"
                     >
                         <component :is="b.icon" class="h-3.5 w-3.5 text-cyan-400" />
                         {{ b.label }}
@@ -369,17 +408,19 @@ const supportLinks = [
             <!-- ===== Tech stack ===== -->
             <section id="tech" class="border-y border-white/10 bg-slate-950/50">
                 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="mx-auto max-w-2xl text-center">
+                    <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tech Stack</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dibangun dengan Teknologi Modern & Andal</h2>
                     </div>
 
                     <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                         <div
-                            v-for="t in techStack"
+                            v-for="(t, i) in techStack"
                             :key="t.name"
                             class="group relative flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-8 text-center backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-slate-900/60"
                             :style="{ '--glow-color': t.glow }"
+                            data-aos="zoom-in"
+                            :data-aos-delay="i * 70"
                         >
                             <!-- Ambient glow on hover -->
                             <div
@@ -404,7 +445,7 @@ const supportLinks = [
 
             <!-- ===== Modul lengkap ===== -->
             <section id="modul" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                <div class="mx-auto max-w-2xl text-center">
+                <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Modul</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Modul Lengkap untuk Operasional FTTH</h2>
                     <p class="mt-4 text-base text-slate-400">Setiap modul dirancang ringkas, dengan alur kerja yang terasa natural buat tim NOC.</p>
@@ -412,9 +453,11 @@ const supportLinks = [
 
                 <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div
-                        v-for="m in modules"
+                        v-for="(m, i) in modules"
                         :key="m.title"
                         class="kv-glass-card kv-glass-hover group flex items-start gap-4"
+                        data-aos="fade-up"
+                        :data-aos-delay="(i % 3) * 100"
                     >
                         <span class="kv-circle-cyan !h-11 !w-11">
                             <component :is="m.icon" class="h-5 w-5" />
@@ -432,7 +475,7 @@ const supportLinks = [
 
             <!-- ===== Final CTA ===== -->
             <section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-                <div class="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12">
+                <div class="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12" data-aos="zoom-in-up">
                     <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
                     <div class="pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
 

@@ -22,6 +22,7 @@
     },
     "dependencies": {
         "@lucide/vue": "^1.16.0",
+        "aos": "^2.3.4",
         "apexcharts": "^5.13.0",
         "vue3-apexcharts": "^1.11.1"
     }
