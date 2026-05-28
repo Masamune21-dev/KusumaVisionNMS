@@ -691,3 +691,17 @@ Notes:
 - Delta-live preview murni diff baseline↔target di backend (tanpa akses OLT), jadi aman dipanggil debounced tiap edit; hanya Apply yang membuka sesi Telnet.
 - Guide Section 6/7 ternyata blueprint dari proyek lain (kelas `ZteCliSessionService` tidak pernah ada di repo ini); fitur dibangun ulang dengan pemecahan kelas `ZteOnu*`.
 - 8 unit test baru hijau; `npm run build` & `./vendor/bin/pint` bersih. Belum diverifikasi ke OLT live (id=1 `OLT-C320-PATI`) — parsing real-firmware & delta perlu dicek langsung di OLT.
+
+### Phase 21 - Search & Filter ONU + Deep-link dari Global Search
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tambah search lokal (cocokkan interface/serial/nama/deskripsi/type) + filter Phase (semua/online/offline) & Admin (semua/active/disabled) + tombol Reset; penghitung hasil `(X/Y)` di judul; empty-state "tidak ada ONU cocok"; daftar (tabel desktop & kartu mobile) kini iterasi `filteredOnus`. Baca prop `initial_search`/`focus_onu_id` untuk pre-fill search dan scroll + highlight ONU target; `scrollToFocus()` pilih elemen yang terlihat via `data-onu-id` + cek `offsetParent` agar tidak salah target di layout responsif.
+- `app/Http/Controllers/SmartOltController.php` — `portOnus()` terima `Request`, teruskan query `q` → prop `initial_search` dan `focus` → prop `focus_onu_id`.
+- `app/Http/Controllers/DashboardSearchController.php` — URL hasil ONU pada global search kini menyertakan `q=<serial/nama>` & `focus=<onu_id>` agar halaman port langsung terfilter dan menyorot ONU yang dicari.
+
+Notes:
+
+- Tujuan: hasil global search (⌘K) untuk ONU mendarat di halaman port dengan ONU spesifik langsung ter-scroll + ter-highlight, bukan sekadar membuka daftar port.
+- Filter/search murni client-side atas snapshot ONU yang sudah ada (tanpa request tambahan ke OLT). Stat card (Total/Online) tetap menampilkan total, bukan hasil filter.
+- `npm run build` & `pint` bersih; interaksi scroll/highlight belum dites di browser (perlu data ONU live).

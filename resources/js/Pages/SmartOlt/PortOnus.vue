@@ -10,8 +10,8 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Info, Pencil, Power, RefreshCw, Router, Settings, ToggleLeft, ToggleRight, Wifi } from '@lucide/vue';
-import { computed, reactive } from 'vue';
+import { ArrowLeft, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Wifi, X } from '@lucide/vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -30,12 +30,58 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    initial_search: {
+        type: String,
+        default: '',
+    },
+    focus_onu_id: {
+        type: Number,
+        default: null,
+    },
 });
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const caps = computed(() => props.olt.capabilities ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+// --- search & filter ---
+const search = ref(props.initial_search ?? '');
+const phaseFilter = ref('all');
+const adminFilter = ref('all');
+const focusId = ref(props.focus_onu_id);
+
+const filteredOnus = computed(() => {
+    const term = search.value.trim().toLowerCase();
+    return props.snapshot.onus.filter((onu) => {
+        if (phaseFilter.value === 'online' && !onu.online) return false;
+        if (phaseFilter.value === 'offline' && onu.online) return false;
+        if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
+        if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
+        if (!term) return true;
+        const hay = [onu.interface, onu.serial_number, onu.name, onu.description, onu.type_name]
+            .filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(term);
+    });
+});
+
+const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || adminFilter.value !== 'all');
+const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; adminFilter.value = 'all'; };
+
+const scrollToFocus = () => {
+    if (!focusId.value) return;
+    const els = document.querySelectorAll(`[data-onu-id="${focusId.value}"]`);
+    for (const el of els) {
+        if (el.offsetParent !== null) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+    }
+};
+
+watch(() => props.initial_search, (v) => { search.value = v ?? ''; });
+watch(() => props.focus_onu_id, (v) => { focusId.value = v; nextTick(scrollToFocus); });
+onMounted(() => nextTick(scrollToFocus));
 
 const refresh = () => {
     router.post(route('smartolt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, {
@@ -247,11 +293,43 @@ const rxBadgeClass = (value) => {
                                 <Router class="h-5 w-5 text-cyan-400" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Registered ONU</h3>
+                                <h3 class="text-base font-semibold text-white">
+                                    Registered ONU
+                                    <span v-if="snapshot.onus.length" class="ml-1 text-sm font-normal text-slate-500">({{ filteredOnus.length }}/{{ snapshot.onus.length }})</span>
+                                </h3>
                                 <p v-if="snapshot.rx_power?.error" class="mt-0.5 text-xs text-red-400">
                                     RX gagal dibaca: {{ snapshot.rx_power.error }}
                                 </p>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Search & filter toolbar -->
+                    <div v-if="snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-6">
+                        <div class="relative flex-1">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                v-model="search"
+                                type="text"
+                                placeholder="Cari interface, serial, nama, atau type..."
+                                class="w-full rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-9 pr-9 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
+                            />
+                            <button v-if="search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" title="Hapus" @click="search = ''">
+                                <X class="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select v-model="phaseFilter" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500">
+                                <option value="all">Semua Phase</option>
+                                <option value="online">Online</option>
+                                <option value="offline">Offline</option>
+                            </select>
+                            <select v-model="adminFilter" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500">
+                                <option value="all">Semua Admin</option>
+                                <option value="active">Active</option>
+                                <option value="disabled">Disabled</option>
+                            </select>
+                            <button v-if="hasFilter" type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset</button>
                         </div>
                     </div>
 
@@ -268,8 +346,25 @@ const rxBadgeClass = (value) => {
 
                     <!-- Table / mobile cards -->
                     <template v-else>
+                        <!-- No match state -->
+                        <div v-if="filteredOnus.length === 0" class="px-6 py-14 text-center">
+                            <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
+                                <Search class="h-7 w-7 text-slate-400" />
+                            </div>
+                            <h3 class="text-sm font-semibold text-slate-200">Tidak ada ONU yang cocok</h3>
+                            <p class="mt-1 text-sm text-slate-500">Coba ubah kata kunci atau reset filter.</p>
+                            <button type="button" class="mt-4 rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset filter</button>
+                        </div>
+
+                        <template v-else>
                         <div class="kv-mobile-list">
-                            <article v-for="onu in snapshot.onus" :key="`${onu.if_index}-${onu.onu_id}`" class="kv-mobile-card">
+                            <article
+                                v-for="onu in filteredOnus"
+                                :key="`${onu.if_index}-${onu.onu_id}`"
+                                :data-onu-id="onu.onu_id"
+                                class="kv-mobile-card transition-shadow"
+                                :class="onu.onu_id === focusId ? 'ring-2 ring-cyan-500/60' : ''"
+                            >
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <h4 class="kv-mobile-card-title">{{ onu.interface }}</h4>
@@ -377,9 +472,11 @@ const rxBadgeClass = (value) => {
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr
-                                    v-for="onu in snapshot.onus"
+                                    v-for="onu in filteredOnus"
                                     :key="`${onu.if_index}-${onu.onu_id}`"
+                                    :data-onu-id="onu.onu_id"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
+                                    :class="onu.onu_id === focusId ? 'bg-cyan-500/10' : ''"
                                 >
                                     <td class="px-6 py-4">
                                         <div class="font-semibold text-white">{{ onu.interface }}</div>
@@ -475,6 +572,7 @@ const rxBadgeClass = (value) => {
                             </tbody>
                         </table>
                         </div>
+                        </template>
                     </template>
                 </div>
             </div>

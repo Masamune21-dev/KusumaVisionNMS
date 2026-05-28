@@ -76,7 +76,13 @@ class DashboardSearchController extends Controller
                         'label' => $onu['sn'] ?? $onu['serial'] ?? $onu['name'] ?? 'ONU',
                         'sublabel' => $olt->name.($slot && $portNo ? " · {$slot}/{$portNo}" : ''),
                         'url' => $slot && $portNo
-                            ? route('smartolt.port-onus', ['olt' => $olt->id, 'slot' => $slot, 'port' => $portNo])
+                            ? route('smartolt.port-onus', [
+                                'olt' => $olt->id,
+                                'slot' => $slot,
+                                'port' => $portNo,
+                                'q' => $onu['sn'] ?? $onu['serial'] ?? $onu['name'] ?? '',
+                                'focus' => $onu['onu_id'] ?? $onu['id'] ?? null,
+                            ])
                             : route('smartolt.detail', $olt->id),
                     ];
 

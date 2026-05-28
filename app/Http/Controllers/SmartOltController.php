@@ -213,13 +213,15 @@ class SmartOltController extends Controller
         }
     }
 
-    public function portOnus(SnmpOlt $olt, int $slot, int $port): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port): Response
     {
         return Inertia::render('SmartOlt/PortOnus', [
             'olt' => $this->serializeOlt($olt),
             'slot' => $slot,
             'port' => $port,
             'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
+            'initial_search' => (string) $request->query('q', ''),
+            'focus_onu_id' => $request->query('focus') !== null ? (int) $request->query('focus') : null,
         ]);
     }
 
