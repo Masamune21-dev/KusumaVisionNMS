@@ -662,3 +662,32 @@ Notes:
 - Glasmorphism design refinement mencakup konsistensi color palette (slate-50 light / slate-900-950 dark), backdrop blur (xl untuk main card, sm untuk subtle backgrounds), border colors (white/10 dark / white/70 light), shadow consistency (shadow-lg + ring-1).
 - Build `npm run build` selesai 14.29s tanpa error; codebase siap production.
 - Verifikasi: test `php artisan test` mencakup unit test CliOutputSanitizer (10 test case) dan feature test execution (3 scenarios); real OLT provisioning execution capture output, sanitize, store, dan display di UI tanpa corruption.
+
+## 2026-05-28
+
+### Phase 20 - Detail ONU & Configure ONU (CLI)
+
+Created:
+
+- `app/Services/ZteOnuRunningConfigService.php` — baca live running-config (`show running-config interface …` + `show onu running config …`) lalu parse ke struktur form Configure (guide Section 7). `normalizeLines()` repair line-wrap khas ZTE (`vlan-profi le` → `vlan-profile`, dst.) + gabung continuation token; `parse()` kenali pattern name/description, tcont, gemport, service-port, service (pon-onu-mng, `type` opsional), vlan port (UNI), wan binding, wan-ip (pppoe/dhcp/static + vlan-profile), tr069-mgmt, security-mgmt; konversi mask dotted→length.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `build(baseline, target, context)` hasilkan **delta script** (guide Section 5.4): hanya emit baris CLI yang berubah, dibungkus blok `interface`/`pon-onu-mng`, plus daftar `changes` (label, from, to) untuk panel "What Will Change". Tanpa perubahan → script kosong. Diff per-section by id/name, `no …` untuk row yang dihapus, re-emit penuh `wan-ip 1 …` bila mode/credential/profile berubah, toggle tr069 (unlock/lock) & security-mgmt (enable/disable).
+- `app/Services/ZteOnuDetailService.php` — baca `show gpon onu detail-info` + `show pon power attenuation` (guide Section 6). `parse()` dual-pass: build all-map (normalize key snake_case, skip echo/prompt/attenuation/session rows) → bucket ke grup identity/state/optical/last_event via `pick()` (exact dulu, lalu substring). `applyAttenuation()` isi onu_rx/tx + att up/down (dan optical Rx/Tx bila kosong); `applySessionHistory()` isi last_event dari tabel session (row OfflineTime `0000-` = sesi current).
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — halaman Configure sesuai desain: panel kiri CURRENT CONFIG + Raw terminal; kanan form semua section multi-row (T-CONT, GEM Port, Service-port, PON-ONU-MNG/Service, UNI VLAN, WAN binding) dengan header kolom + scroll horizontal, WAN mode selector, TR069 & Remote-ONT toggle; bawah GENERATED SCRIPT (delta-live, debounce 400ms ke endpoint preview) + WHAT WILL CHANGE + Apply/Batal + banner peringatan putus koneksi.
+- `resources/js/Pages/SmartOlt/OnuDetail.vue` — halaman Detail tervisualisasi: 4 hero stat card (Status, RX Power, Jarak, Online Duration), section Optical dengan gauge RX berzona warna + bar atenuasi up/down + chip metrik (temp/voltage/bias), kartu grup Identitas/Status/Last Event, accordion Semua Field & Raw output.
+- `tests/Unit/ZteOnuConfigureTest.php` — 6 test: parse running-config, konversi mask, delta kosong saat tanpa perubahan, delta minimal saat name berubah, add/remove service-port, perubahan WAN/tr069/remote-ont.
+- `tests/Unit/ZteOnuDetailTest.php` — 2 test: parse detail-info ke grup + suplemen atenuasi, dan pengisian last_event dari session history.
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — import 3 service baru; method `onuDetail` (render `OnuDetail.vue`), `configureOnuForm` (render `ConfigureOnu.vue` + baseline + profileOptions), `configureOnuPreview` (JSON delta murni tanpa OLT), `configureOnuApply` (eksekusi delta via Telnet + audit row `reconfigured`/`reconfig_failed`); helper `validatedReconfigure`, `findCachedOnu`, `resolvePrimaryVlan`; `wan_mode` di-coerce ke pppoe/dhcp/static agar tak melanggar enum tabel audit.
+- `routes/web.php` — 4 route baru: `smartolt.onu.detail`, `smartolt.onu.configure`, `smartolt.onu.configure.preview`, `smartolt.onu.configure.apply`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tombol aksi Detail (ikon Info) & Configure (ikon Settings) di desktop + mobile, gated capability `supports_cli_onu_detail` / `supports_cli_onu_configure`.
+- `docs/SMARTOLT_ZTE_C300_C320_GUIDE.md` — referensi parser/builder Section 5.4/6/7 diarahkan ke kelas nyata di repo ini (`ZteOnuDetailService`, `ZteOnuRunningConfigService`, `ZteOnuReconfigureScriptBuilder`) menggantikan `ZteCliSessionService` blueprint; tambah callout status implementasi + catatan nama/path route web yang sebenarnya.
+- `README.md` — tambah fitur Detail ONU (CLI) & Configure ONU (CLI delta) ke daftar Fitur.
+
+Notes:
+
+- Capability `supports_cli_onu_detail` & `supports_cli_onu_configure` sudah tersedia (true untuk ZTE) di `SmartOltSupport`, jadi tinggal di-wire.
+- Delta-live preview murni diff baseline↔target di backend (tanpa akses OLT), jadi aman dipanggil debounced tiap edit; hanya Apply yang membuka sesi Telnet.
+- Guide Section 6/7 ternyata blueprint dari proyek lain (kelas `ZteCliSessionService` tidak pernah ada di repo ini); fitur dibangun ulang dengan pemecahan kelas `ZteOnu*`.
+- 8 unit test baru hijau; `npm run build` & `./vendor/bin/pint` bersih. Belum diverifikasi ke OLT live (id=1 `OLT-C320-PATI`) — parsing real-firmware & delta perlu dicek langsung di OLT.

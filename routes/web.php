@@ -70,6 +70,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [SmartOltController::class, 'rebootOnu'])->name('smartolt.onu.reboot');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [SmartOltController::class, 'setOnuState'])->name('smartolt.onu.state');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [SmartOltController::class, 'updateOnuInfo'])->name('smartolt.onu.info');
+    Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/detail', [SmartOltController::class, 'onuDetail'])->name('smartolt.onu.detail');
+    Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure', [SmartOltController::class, 'configureOnuForm'])->name('smartolt.onu.configure');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure/preview', [SmartOltController::class, 'configureOnuPreview'])->name('smartolt.onu.configure.preview');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure', [SmartOltController::class, 'configureOnuApply'])->name('smartolt.onu.configure.apply');
 });
 
 require __DIR__.'/auth.php';

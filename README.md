@@ -14,6 +14,8 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - **Monitoring** — GPON port (up/down), ONU per port (online/offline, phase state, RX power via SNMP), search ONU langsung dari halaman Detail.
 - **Discovery ONU unconfigured** — temukan ONU baru via OID ZTE, langsung ke form provisioning.
 - **Provisioning ONU** — VLAN, T-CONT, PPPoE/DHCP/Static, TR069, Remote ONT; tersimpan sebagai audit log lalu dieksekusi via Telnet.
+- **Detail ONU (CLI)** — baca `show gpon onu detail-info` + `show pon power attenuation`, divisualisasikan: gauge RX power berzona warna, bar atenuasi up/down, chip metrik optik (temperature/voltage/bias), status & last-event.
+- **Configure ONU (CLI)** — reconfigure ONU existing dari live running-config dengan **delta script** (hanya baris yang berubah), preview live + panel *what will change*, lalu apply via Telnet (audit `reconfigured`/`reconfig_failed`).
 - **Manajemen Profile** — ONU Type / T-CONT / VLAN / IP per-OLT, sinkronisasi langsung dari OLT.
 - **Remote ONU Management** — reboot (CLI), enable/disable & edit nama/deskripsi (SNMP SET).
 - **Background polling** — interval poll per-OLT yang dapat dikonfigurasi (default 5 menit), RX power di-poll pada interval terpisah.

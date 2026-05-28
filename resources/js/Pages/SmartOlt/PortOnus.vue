@@ -10,7 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Pencil, Power, RefreshCw, Router, ToggleLeft, ToggleRight, Wifi } from '@lucide/vue';
+import { ArrowLeft, Info, Pencil, Power, RefreshCw, Router, Settings, ToggleLeft, ToggleRight, Wifi } from '@lucide/vue';
 import { computed, reactive } from 'vue';
 
 const props = defineProps({
@@ -324,6 +324,21 @@ const rxBadgeClass = (value) => {
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
+                                        v-if="caps.supports_cli_onu_detail"
+                                        :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
+                                        title="Detail ONU (CLI)"
+                                    >
+                                        <Info class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="caps.supports_cli_onu_configure"
+                                        variant="primary"
+                                        :href="route('smartolt.onu.configure', [olt.id, slot, port, onu.onu_id])"
+                                        title="Configure ONU (CLI)"
+                                    >
+                                        <Settings class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
                                         v-if="caps.supports_onu_toggle"
                                         :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
                                         :disabled="busy[actionKey(onu)]"
@@ -419,6 +434,21 @@ const rxBadgeClass = (value) => {
                                                 @click="openEdit(onu)"
                                             >
                                                 <Pencil class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="caps.supports_cli_onu_detail"
+                                                :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
+                                                title="Detail ONU (CLI)"
+                                            >
+                                                <Info class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="caps.supports_cli_onu_configure"
+                                                variant="primary"
+                                                :href="route('smartolt.onu.configure', [olt.id, slot, port, onu.onu_id])"
+                                                title="Configure ONU (CLI)"
+                                            >
+                                                <Settings class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 v-if="caps.supports_onu_toggle"

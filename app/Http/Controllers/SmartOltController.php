@@ -9,6 +9,9 @@ use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
+use App\Services\ZteOnuDetailService;
+use App\Services\ZteOnuReconfigureScriptBuilder;
+use App\Services\ZteOnuRunningConfigService;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Support\CliOutputSanitizer;
@@ -494,6 +497,152 @@ class SmartOltController extends Controller
         }
     }
 
+    public function onuDetail(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_detail');
+
+        $live = $service->fetch($olt, $slot, $port, $onuId);
+        $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
+
+        return Inertia::render('SmartOlt/OnuDetail', [
+            'olt' => $this->serializeOlt($olt),
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'interface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)),
+            'meta' => [
+                'sn' => $cached['serial_number'] ?? null,
+                'name' => $cached['name'] ?? null,
+            ],
+            'groups' => $live['groups'],
+            'raw' => $live['raw'],
+            'fetch_ok' => $live['ok'],
+            'fetch_error' => $live['error'],
+        ]);
+    }
+
+    public function configureOnuForm(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuRunningConfigService $service): Response
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        $live = $service->fetch($olt, $slot, $port, $onuId);
+        $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
+
+        return Inertia::render('SmartOlt/ConfigureOnu', [
+            'olt' => $this->serializeOlt($olt),
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'interface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)),
+            'profiles' => SmartOltProfileController::profileOptions($olt),
+            'meta' => [
+                'sn' => $cached['serial_number'] ?? null,
+                'name' => $cached['name'] ?? null,
+            ],
+            'config' => $live['config'],
+            'raw' => $live['raw'],
+            'fetch_ok' => $live['ok'],
+            'fetch_error' => $live['error'],
+        ]);
+    }
+
+    public function configureOnuPreview(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        $baseline = $request->input('baseline', []);
+        $target = $request->input('config', []);
+
+        $delta = $builder->build(
+            is_array($baseline) ? $baseline : [],
+            is_array($target) ? $target : [],
+            ['onu_iface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt))],
+        );
+
+        return response()->json([
+            'script' => $delta['script'],
+            'changes' => $delta['changes'],
+        ]);
+    }
+
+    public function configureOnuApply(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        $target = $this->validatedReconfigure($request);
+        $baseline = $request->input('baseline', []);
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+
+        $delta = $builder->build(is_array($baseline) ? $baseline : [], $target, ['onu_iface' => $iface]);
+
+        $back = redirect()->route('smartolt.onu.configure', [$olt, $slot, $port, $onuId]);
+
+        if ($delta['script'] === '') {
+            return $back->with('error', 'Tidak ada perubahan config untuk di-apply.');
+        }
+
+        $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
+        $base = [
+            'snmp_olt_id' => $olt->id,
+            'serial_number' => (string) ($cached['serial_number'] ?? ''),
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'pon_port' => $iface,
+            'customer_name' => (string) ($target['name'] ?? ($cached['name'] ?? '')),
+            'vlan' => $this->resolvePrimaryVlan($target),
+            'vlan_profile' => $target['vlan_profile'] ?? null,
+            'wan_mode' => in_array($target['wan_mode'] ?? '', ['pppoe', 'dhcp', 'static'], true) ? $target['wan_mode'] : 'pppoe',
+            'pppoe_username' => $target['pppoe_username'] ?? null,
+            'ip_profile' => $target['ip_profile'] ?? null,
+            'static_ip' => $target['static_ip'] ?? null,
+            'static_netmask' => isset($target['static_mask_length']) ? (string) $target['static_mask_length'] : null,
+            'tr069_enabled' => (bool) ($target['tr069'] ?? false),
+            'acs_url' => $target['acs_url'] ?? null,
+            'acs_username' => $target['acs_username'] ?? null,
+            'remote_ont_enabled' => (bool) ($target['remote_ont'] ?? false),
+            'remote_ont_id' => $target['remote_ont_id'] ?? null,
+            'remote_ont_mode' => $target['remote_ont_mode'] ?? null,
+            'remote_ont_protocol' => $target['remote_ont_protocol'] ?? null,
+            'cli_script' => $delta['script'],
+            'created_by' => $request->user()?->id,
+        ];
+
+        try {
+            $result = $executor->execute($olt, $delta['script']);
+            $output = CliOutputSanitizer::clean($result['output']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'execution_output' => $output,
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+                'status' => $result['ok'] ? 'reconfigured' : 'reconfig_failed',
+            ]);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? 'Konfigurasi ONU berhasil di-apply ke OLT.'
+                    : 'Apply konfigurasi selesai dengan indikasi error: '.$error,
+            );
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+                'status' => 'reconfig_failed',
+            ]);
+
+            return $back->with('error', 'Apply konfigurasi gagal: '.$error);
+        }
+    }
+
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
     {
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
@@ -659,6 +808,106 @@ class SmartOltController extends Controller
             'remote_ont_mode' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['forward', 'discard'])],
             'remote_ont_protocol' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['web', 'telnet', 'ssh', 'ftp', 'tftp', 'snmp'])],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedReconfigure(Request $request): array
+    {
+        $validated = $request->validate([
+            'config' => ['required', 'array'],
+            'config.name' => ['required', 'string', 'max:191'],
+            'config.tconts' => ['array'],
+            'config.tconts.*.id' => ['required', 'integer', 'between:1,8'],
+            'config.tconts.*.name' => ['nullable', 'string', 'max:64'],
+            'config.tconts.*.profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'config.tconts.*.gap' => ['nullable', 'string', 'max:32'],
+            'config.gemports' => ['array'],
+            'config.gemports.*.id' => ['required', 'integer', 'between:1,128'],
+            'config.gemports.*.name' => ['nullable', 'string', 'max:64'],
+            'config.gemports.*.tcont' => ['nullable', 'integer', 'between:1,8'],
+            'config.gemports.*.traffic_up' => ['nullable', 'string', 'max:32'],
+            'config.gemports.*.traffic_down' => ['nullable', 'string', 'max:32'],
+            'config.service_ports' => ['array'],
+            'config.service_ports.*.id' => ['required', 'integer', 'between:1,128'],
+            'config.service_ports.*.vport' => ['nullable', 'integer', 'between:1,128'],
+            'config.service_ports.*.user_vlan' => ['nullable', 'integer', 'between:1,4094'],
+            'config.service_ports.*.vlan' => ['nullable', 'integer', 'between:1,4094'],
+            'config.services' => ['array'],
+            'config.services.*.name' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'config.services.*.type' => ['nullable', 'string', 'max:32'],
+            'config.services.*.gem' => ['nullable', 'integer', 'between:1,128'],
+            'config.services.*.cos' => ['nullable', 'integer', 'between:0,7'],
+            'config.services.*.vlan' => ['nullable', 'integer', 'between:1,4094'],
+            'config.vlan_ports' => ['array'],
+            'config.vlan_ports.*.port_type' => ['nullable', Rule::in(['eth', 'wifi'])],
+            'config.vlan_ports.*.port' => ['nullable', 'integer', 'between:1,8'],
+            'config.vlan_ports.*.mode' => ['nullable', 'string', 'max:32'],
+            'config.vlan_ports.*.vlan' => ['nullable', 'integer', 'between:1,4094'],
+            'config.vlan_ports.*.def_vlan' => ['nullable', 'integer', 'between:1,4094'],
+            'config.vlan_ports.*.priority' => ['nullable', 'integer', 'between:0,7'],
+            'config.wan_services' => ['array'],
+            'config.wan_services.*.id' => ['required', 'integer', 'between:1,128'],
+            'config.wan_services.*.ethuni' => ['nullable', 'string', 'max:32'],
+            'config.wan_services.*.ssid' => ['nullable', 'string', 'max:64'],
+            'config.wan_services.*.service' => ['nullable', 'string', 'max:64'],
+            'config.wan_services.*.mvlan' => ['nullable', 'string', 'max:32'],
+            'config.wan_services.*.host' => ['nullable', 'string', 'max:32'],
+            'config.wan_mode' => ['required', Rule::in(['none', 'pppoe', 'dhcp', 'static'])],
+            'config.vlan_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'config.pppoe_username' => ['nullable', 'string', 'max:120'],
+            'config.pppoe_password' => ['nullable', 'string', 'max:120'],
+            'config.ip_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'config.static_ip' => ['nullable', 'ip'],
+            'config.static_mask_length' => ['nullable', 'integer', 'between:1,32'],
+            'config.tr069' => ['boolean'],
+            'config.acs_url' => ['nullable', 'url', 'max:255'],
+            'config.acs_username' => ['nullable', 'string', 'max:120'],
+            'config.acs_password' => ['nullable', 'string', 'max:120'],
+            'config.remote_ont' => ['boolean'],
+            'config.remote_ont_id' => ['nullable', 'integer', 'between:1,4095'],
+            'config.remote_ont_mode' => ['nullable', Rule::in(['forward', 'discard'])],
+            'config.remote_ont_protocol' => ['nullable', Rule::in(['web', 'telnet', 'ssh', 'ftp', 'tftp', 'snmp'])],
+        ]);
+
+        return $validated['config'];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function findCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): array
+    {
+        $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+
+        foreach ($onus as $onu) {
+            if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
+                return $onu;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function resolvePrimaryVlan(array $config): int
+    {
+        foreach (($config['service_ports'] ?? []) as $row) {
+            if ((int) ($row['vlan'] ?? 0) > 0) {
+                return (int) $row['vlan'];
+            }
+        }
+
+        foreach (($config['services'] ?? []) as $row) {
+            if ((int) ($row['vlan'] ?? 0) > 0) {
+                return (int) $row['vlan'];
+            }
+        }
+
+        return 0;
     }
 
     /**

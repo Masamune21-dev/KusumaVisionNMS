@@ -395,7 +395,7 @@ Detail varian `wan-ip 1`:
 
 ### 5.4 Write Commands — Reconfigure ONU Existing
 
-Untuk ONU yang sudah terdaftar dan butuh ubah config, BMKV pakai **delta script** ([`buildReconfigureDeltaScript`](../app/Services/ZteCliProvisionService.php#L453-L578)):
+Untuk ONU yang sudah terdaftar dan butuh ubah config, dipakai **delta script** ([`ZteOnuReconfigureScriptBuilder::build`](../app/Services/ZteOnuReconfigureScriptBuilder.php)):
 
 1. Baca live config dengan `getOnuRunningConfig` (CLI: 2 command show)
 2. Bandingkan dengan form payload baru
@@ -590,7 +590,14 @@ Pengecualian: line yang berakhir `(config-…)#` di-skip (itu prompt, bukan erro
 
 ## 6. Parsing Output `show gpon onu detail-info`
 
-Output bervariasi antar firmware C300/C320. Driver [`parseOnuDetailInfo`](../app/Services/ZteCliSessionService.php#L1014-L1269) pakai pendekatan dual-pass:
+> **Status implementasi di repo ini:** Detail & Configure ONU sudah dibangun di KusumaVision NMS dengan pembagian kelas berikut (bukan satu `ZteCliSessionService` seperti blueprint asli):
+> - Detail-info → [`ZteOnuDetailService`](../app/Services/ZteOnuDetailService.php) (`parse()`, `applyAttenuation()`, `applySessionHistory()`)
+> - Running-config pre-fill → [`ZteOnuRunningConfigService`](../app/Services/ZteOnuRunningConfigService.php) (`parse()`, `normalizeLines()`)
+> - Delta reconfigure → [`ZteOnuReconfigureScriptBuilder`](../app/Services/ZteOnuReconfigureScriptBuilder.php) (`build()`)
+> - Halaman Inertia: `resources/js/Pages/SmartOlt/OnuDetail.vue` & `ConfigureOnu.vue`; tombol aksi di `PortOnus.vue` (gated capability `supports_cli_onu_detail` / `supports_cli_onu_configure`).
+> - Route web (auth): `GET …/onus/{onuId}/detail`, `GET …/onus/{onuId}/configure`, `POST …/configure/preview`, `POST …/configure`.
+
+Output bervariasi antar firmware C300/C320. Parser [`ZteOnuDetailService::parse`](../app/Services/ZteOnuDetailService.php) pakai pendekatan dual-pass:
 
 ### 6.1 Pass 1 — Build "all" map
 
@@ -633,7 +640,7 @@ idx  Authpass Time          OfflineTime           Cause
 2    2026-05-22 04:15:30    0000-00-00 00:00:00   -
 ```
 
-Parser [`parseSessionHistoryRows`](../app/Services/ZteCliSessionService.php#L1707-L1725) detect:
+Parser [`ZteOnuDetailService::applySessionHistory`](../app/Services/ZteOnuDetailService.php) detect:
 - Row dengan `OfflineTime` mulai `0000-` = sesi current (ONU masih up)
 - Row sebelumnya = last down event
 
@@ -658,7 +665,7 @@ Suplemen ini dipakai untuk **mengisi optical Rx/Tx kalau `detail-info` tidak men
 
 ## 7. Parsing Running Config Pre-fill Form Configure
 
-Halaman Configure ONU pre-fill form dengan baca live running-config ([`parseRunningConfig`](../app/Services/ZteCliSessionService.php#L1324-L1605)):
+Halaman Configure ONU pre-fill form dengan baca live running-config ([`ZteOnuRunningConfigService::parse`](../app/Services/ZteOnuRunningConfigService.php)):
 
 ### 7.1 Command yang dijalankan
 
@@ -671,7 +678,7 @@ Bila firmware tidak punya command kedua, output `%Error` di-skip silent.
 
 ### 7.2 Pre-processing line
 
-[`normalizeRunningConfigLines`](../app/Services/ZteCliSessionService.php#L1610-L1636) handle line-wrap ZTE:
+[`ZteOnuRunningConfigService::normalizeLines`](../app/Services/ZteOnuRunningConfigService.php) handle line-wrap ZTE:
 
 - Buang line noise (`!`, `end`, `Building configuration`, header `interface gpon-onu_…`)
 - Bila line bukan command awal (mis. continuation token dari line sebelumnya), append ke line terakhir
@@ -828,6 +835,12 @@ Dari `routes/web.php` — semua di middleware `role.permission` + `viewer.worksp
 | GET | `/smartolt/{id}/onu/{slot}/{port}/{onuId}/configure` | `configureOnuForm` | form reconfigure ONU |
 | POST | `/smartolt/{id}/onu/{slot}/{port}/{onuId}/configure/preview` | `configureOnuPreview` | preview delta script |
 | POST | `/smartolt/{id}/onu/{slot}/{port}/{onuId}/configure` | `configureOnuApply` | apply (butuh `confirm_onu_id`) |
+
+> **Catatan repo ini:** Detail & Configure ONU di KusumaVision NMS dipasang sebagai halaman web (Inertia), bukan endpoint JSON terpisah, dengan path & nama route berikut:
+> - `GET  …/ports/{slot}/{port}/onus/{onuId}/detail` → `onuDetail` → `smartolt.onu.detail` (render `OnuDetail.vue`)
+> - `GET  …/ports/{slot}/{port}/onus/{onuId}/configure` → `configureOnuForm` → `smartolt.onu.configure` (render `ConfigureOnu.vue`)
+> - `POST …/ports/{slot}/{port}/onus/{onuId}/configure/preview` → `configureOnuPreview` → `smartolt.onu.configure.preview` (JSON delta-live)
+> - `POST …/ports/{slot}/{port}/onus/{onuId}/configure` → `configureOnuApply` → `smartolt.onu.configure.apply` (eksekusi delta + audit `reconfigured`)
 
 #### Remote console (role `administrator,admin,noc`)
 
