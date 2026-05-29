@@ -24,7 +24,9 @@ import {
     Play,
     Radar,
     RadioTower,
+    ScrollText,
     Search,
+    Send,
     Server,
     ShieldCheck,
     Sparkles,
@@ -122,6 +124,30 @@ const features = [
         title: 'Global Search',
         body: 'Cari OLT atau ONU instan berdasarkan serial number, nama pelanggan, atau interface — langsung lompat ke port terkait.',
     },
+    {
+        icon: FileBarChart,
+        accent: 'kv-circle-sky',
+        title: 'Reports & Analytics',
+        body: 'Laporan statistik jaringan — utilisasi port, RX optical power (warning/critical), dan status OLT — siap diunduh per OLT maupun rentang waktu.',
+    },
+    {
+        icon: Send,
+        accent: 'kv-circle-cyan',
+        title: 'Notifikasi Telegram',
+        body: 'Alarm penting dikirim langsung ke grup/chat Telegram, plus bot read-only untuk cek status OLT & ONU dari mana saja.',
+    },
+    {
+        icon: ScrollText,
+        accent: 'kv-circle-emerald',
+        title: 'Audit Logs',
+        body: 'Jejak audit tak terhapus untuk setiap perubahan konfigurasi, login, dan akses telnet — lengkap dengan aktor, waktu, dan diff lama→baru.',
+    },
+    {
+        icon: ShieldCheck,
+        accent: 'kv-circle-amber',
+        title: 'Role-based Access',
+        body: 'Pemisahan hak akses admin dan operator NOC — fitur sensitif seperti audit log & pengaturan sistem hanya untuk admin.',
+    },
 ];
 
 const benefits = [
@@ -159,6 +185,7 @@ const screenshots = [
         label: 'Dashboard',
         desc: 'Ringkasan jaringan FTTH real-time',
         src: '/img/dashboard1.png',
+        ratio: '1920 / 1282',
         url: 'app.kusumavision.net/dashboard',
         alt: 'Dashboard KusumaVision NMS — ringkasan OLT, ONU, dan alarm',
     },
@@ -168,6 +195,7 @@ const screenshots = [
         label: 'OLT Inventory',
         desc: 'Perangkat, line card & port GPON',
         src: '/img/oltinventory.png',
+        ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt',
         alt: 'Inventaris OLT — daftar perangkat ZTE dan kapabilitasnya',
     },
@@ -177,6 +205,7 @@ const screenshots = [
         label: 'ONU Belum Terdaftar',
         desc: 'Temukan & provisioning ONU baru',
         src: '/img/unconfigured.png',
+        ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/unconfigured',
         alt: 'Daftar ONU belum terkonfigurasi siap di-provisioning',
     },
@@ -186,6 +215,7 @@ const screenshots = [
         label: 'Detail ONU',
         desc: 'Status, RX power & konfigurasi WAN',
         src: '/img/detail.png',
+        ratio: '1920 / 1112',
         url: 'app.kusumavision.net/smartolt/onu',
         alt: 'Halaman detail ONU — status optik, RX power, dan konfigurasi',
     },
@@ -195,6 +225,7 @@ const screenshots = [
         label: 'Login',
         desc: 'Akses aman untuk operator NOC',
         src: '/img/login.png',
+        ratio: '1920 / 911',
         url: 'app.kusumavision.net/login',
         alt: 'Halaman login KusumaVision NMS',
     },
@@ -536,18 +567,19 @@ const supportLinks = [
                                         <span class="truncate">{{ currentShot.url }}</span>
                                     </span>
                                 </div>
-                                <!-- Screenshot dengan crossfade -->
-                                <div class="relative aspect-[16/10] bg-slate-950">
+                                <!-- Screenshot dengan crossfade — tinggi frame mengikuti rasio asli tiap gambar agar tidak terpotong -->
+                                <div
+                                    class="relative bg-slate-950 transition-[aspect-ratio] duration-300"
+                                    :style="{ aspectRatio: currentShot.ratio }"
+                                >
                                     <Transition name="kv-fade">
                                         <img
                                             :key="activeShot"
                                             :src="currentShot.src"
                                             :alt="currentShot.alt"
-                                            width="1920"
-                                            height="1200"
                                             loading="lazy"
                                             decoding="async"
-                                            class="absolute inset-0 h-full w-full object-cover object-top"
+                                            class="absolute inset-0 h-full w-full object-contain"
                                         />
                                     </Transition>
                                 </div>

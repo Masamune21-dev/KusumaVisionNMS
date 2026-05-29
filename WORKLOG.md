@@ -1163,3 +1163,14 @@ Notes:
 - Diverifikasi terhadap cache produksi nyata (2 OLT): total=2251, online=2143 (cocok dashboard); logika lama warning=0, logika baru warning=500 (472 RX ≤ -25 dBm + 28 RX ≥ -10 dBm). Distribusi online: 1599 zona aman, 388 di -25…-28, 84 kritis (< -28), 28 terlalu kuat.
 - Threshold -25/-10 dBm konsisten dengan konvensi app (OnuDetail "Zona aman -25…-10", ReportService "Warning < -25").
 - Test Dashboard lulus (49 assertions), Pint bersih. Perubahan donut perlu `npm run build` saat deploy.
+
+### Update fitur landing page + perbaikan galeri screenshot tidak terpotong
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — (1) Tambah 4 kartu fitur baru yang sudah dibangun tapi belum tampil di landing: **Reports & Analytics** (FileBarChart), **Notifikasi Telegram** (Send), **Audit Logs** (ScrollText), **Role-based Access** (ShieldCheck) — grid Fitur jadi 12 kartu (rapi 4×3 di `lg:grid-cols-3`). Import ikon `ScrollText` & `Send` ditambahkan. (2) Perbaiki galeri "Tampilan Aplikasi": frame sebelumnya dipaksa `aspect-[16/10]` + `object-cover object-top` sehingga screenshot ter-crop (rasio gambar beda-beda). Sekarang tiap screenshot diberi field `ratio` sesuai dimensi asli (dashboard 1920×1282, OLT/login/unconfigured 1920×911, detail 1920×1112), frame pakai `:style="{ aspectRatio: currentShot.ratio }"` + `object-contain` jadi gambar tampil utuh ke ukuran aslinya. Ditambah `transition-[aspect-ratio] duration-300` agar frame resize halus saat ganti tab; crossfade antar gambar tetap dipertahankan.
+
+Notes:
+
+- Dimensi asli gambar dicek via `getimagesize` di `public/img`; container dengan aspect-ratio == rasio asli + `object-contain` membuat gambar mengisi penuh tanpa crop maupun letterbox.
+- `npm run build` sukses, assets di-rebuild. Build artifacts (`public/build`) di-gitignore, hanya source `Welcome.vue` yang ter-commit — perlu `npm run build` ulang saat deploy.
