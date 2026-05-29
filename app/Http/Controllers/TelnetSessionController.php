@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\SnmpOlt;
+use App\Support\AuditLogger;
 use App\Support\Telnet\TelnetTicket;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +24,13 @@ class TelnetSessionController extends Controller
         }
 
         $token = TelnetTicket::issue($request->user()->id, $olt->id);
+
+        AuditLogger::log(
+            AuditLog::EVENT_TELNET_OPENED,
+            $olt,
+            [],
+            "Membuka sesi telnet ke OLT {$olt->name}",
+        );
 
         return response()->json([
             'token' => $token,

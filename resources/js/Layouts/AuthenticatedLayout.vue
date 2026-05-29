@@ -8,7 +8,7 @@ import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Radar, Search, Settings, Users, WifiOff } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Radar, ScrollText, Search, Settings, Users, WifiOff } from '@lucide/vue';
 
 const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
@@ -42,6 +42,7 @@ const navLinks = computed(() => {
 
     if (can.value.manage_users) {
         links.push({ name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' });
+        links.push({ name: 'Audit Logs', icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
         links.push({ name: 'Pengaturan', icon: Settings, href: route('settings.edit'), match: 'settings.*' });
     }
 

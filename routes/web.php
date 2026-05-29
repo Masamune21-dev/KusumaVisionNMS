@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AlarmController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\NotificationsController;
@@ -44,6 +45,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+        Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::put('/settings/telegram', [SettingsController::class, 'updateTelegram'])->name('settings.telegram.update');

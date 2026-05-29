@@ -2,10 +2,28 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class TelegramSetting extends Model
 {
+    use Auditable;
+
+    /**
+     * @var list<string>
+     */
+    protected $auditExclude = ['last_sent_at', 'last_error'];
+
+    public function auditLabel(): string
+    {
+        return 'Pengaturan Telegram';
+    }
+
+    public function auditTitle(): string
+    {
+        return '';
+    }
+
     /**
      * Severity ordering (low → high) used for the minimum-severity filter.
      */

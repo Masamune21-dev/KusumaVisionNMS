@@ -2,13 +2,31 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class SmartOltProfile extends Model
 {
+    use Auditable;
+
     public const TYPES = ['onu_type', 'tcont', 'vlan', 'ip'];
 
     protected $table = 'smartolt_profiles';
+
+    /**
+     * @var list<string>
+     */
+    protected $auditExclude = ['last_synced_at'];
+
+    public function auditLabel(): string
+    {
+        return 'Profil';
+    }
+
+    public function auditTitle(): string
+    {
+        return trim(($this->profile_type ? $this->profile_type.' ' : '').(string) $this->name);
+    }
 
     protected $fillable = [
         'snmp_olt_id',

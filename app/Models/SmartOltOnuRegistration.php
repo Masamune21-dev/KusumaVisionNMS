@@ -2,13 +2,40 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SmartOltOnuRegistration extends Model
 {
+    use Auditable;
+
     protected $table = 'smartolt_onu_registrations';
+
+    /**
+     * Script & output CLI berukuran besar / sensitif — disimpan di baris
+     * registrasi sendiri, tidak perlu diduplikasi ke audit.
+     *
+     * @var list<string>
+     */
+    protected $auditExclude = [
+        'cli_script',
+        'execution_output',
+        'execution_error',
+        'pppoe_password',
+        'acs_password',
+    ];
+
+    public function auditLabel(): string
+    {
+        return 'Registrasi ONU';
+    }
+
+    public function auditTitle(): string
+    {
+        return (string) ($this->serial_number ?: $this->customer_name ?: '#'.$this->getKey());
+    }
 
     protected $fillable = [
         'snmp_olt_id',

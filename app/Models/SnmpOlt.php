@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use App\Models\Scopes\DemoScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +10,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SnmpOlt extends Model
 {
-    use HasFactory;
+    use Auditable, HasFactory;
+
+    /**
+     * Field volatil hasil polling — bukan aksi pengguna, jadi tidak diaudit.
+     *
+     * @var list<string>
+     */
+    protected $auditExclude = [
+        'last_test_result',
+        'last_tested_at',
+        'last_polled_at',
+        'last_rx_polled_at',
+    ];
 
     protected $fillable = [
         'name',
@@ -61,6 +74,16 @@ class SnmpOlt extends Model
             'last_polled_at' => 'datetime',
             'last_rx_polled_at' => 'datetime',
         ];
+    }
+
+    public function auditLabel(): string
+    {
+        return 'OLT';
+    }
+
+    public function auditTitle(): string
+    {
+        return (string) $this->name;
     }
 
     public function getHostAddress(): string

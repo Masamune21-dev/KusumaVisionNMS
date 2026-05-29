@@ -1060,3 +1060,29 @@ Changed:
 Changed:
 
 - `resources/js/Pages/Settings/Index.vue` — body form Telegram dari `space-y-6` single-column jadi `grid lg:grid-cols-2` agar field tidak melebar setelah card full-width: toggle aktif (full), Bot Token | Chat ID, Severity minimum | Pemicu notifikasi (2 checkbox dibungkus panel berlabel), status & tombol aksi span penuh. Frontend di-rebuild.
+
+### Fitur & halaman Audit Logs
+
+Created:
+
+- `database/migrations/2026_05_29_130000_create_audit_logs_table.php` — tabel `audit_logs` (immutable, hanya `created_at`): `user_id` (nullOnDelete) + `user_name` snapshot, `event`, `auditable_type`/`auditable_id` (morph), `description`, `properties` (json), `ip_address`, `user_agent`. Index pada user_id, event, created_at, (auditable_type, auditable_id). Sqlite-compatible.
+- `app/Models/AuditLog.php` — model audit; konstanta event (created/updated/deleted/login/logout/login_failed/telnet_opened), `UPDATED_AT = null`, cast `properties` array, relasi `user()`.
+- `app/Support/AuditLogger.php` — titik tunggal penulisan audit; `log()` menangkap aktor (auth), IP & user-agent dari request, `model()` membangun deskripsi Indonesia ("Menambahkan/Memperbarui/Menghapus <label> <judul>").
+- `app/Models/Concerns/Auditable.php` — trait yang hook event created/updated/deleted model → audit otomatis. Atribut `$hidden` + password + `$auditExclude` per-model tidak pernah ikut tercatat; update kosong (setelah exclude) di-skip.
+- `app/Http/Controllers/AuditLogController.php` — halaman index (admin only) dengan filter event/user/pencarian/rentang tanggal + paginasi 25.
+- `resources/js/Pages/AuditLogs/Index.vue` — halaman glass-style (selaras Alarms): kartu filter, tabel desktop + kartu mobile, baris bisa di-expand untuk lihat diff lama→baru / atribut.
+- `tests/Feature/AuditLogTest.php` — 4 test: akses admin vs operator (403), audit perubahan model tanpa secret, filter by event.
+
+Changed:
+
+- `app/Models/{SnmpOlt,User,SmartOltProfile,SmartOltOnuRegistration,TelegramSetting}.php` — pasang trait `Auditable` + `auditLabel()`/`auditTitle()` + `$auditExclude` (field volatil/sensitif: hasil polling OLT, last_notifications_read_at, cli_script/output, password PPPoE/ACS, bot_token).
+- `app/Providers/AppServiceProvider.php` — listener event auth: `Login`/`Logout`/`Failed` → audit login/logout/login_failed (email percobaan dicatat di properties).
+- `app/Http/Controllers/TelnetSessionController.php` — catat event `telnet_opened` saat tiket telnet diterbitkan.
+- `routes/web.php` — route `audit-logs.index` di dalam grup `role:admin`.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — link sidebar "Audit Logs" (ikon ScrollText), hanya untuk admin.
+
+Notes:
+
+- Verifikasi: secret terenkripsi (mis. `snmp_read_community`) terbukti TIDAK ikut tercatat karena masuk `$hidden` → otomatis dikecualikan oleh trait. Diuji via tinker (rollback) + test feature.
+- Semua 112 test lulus (`php artisan config:clear` dulu — config cache bikin test nyasar & error 419, sesuai catatan deploy). Frontend di-rebuild (`npm run build`).
+- Audit log hanya bisa dilihat admin; baris bersifat append-only (tak ada UI edit/hapus).

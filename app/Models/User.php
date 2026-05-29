@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\UserRole;
+use App\Models\Concerns\Auditable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,7 +13,17 @@ use Illuminate\Notifications\Notifiable;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use Auditable, HasFactory, Notifiable;
+
+    /**
+     * Field non-aksi (diperbarui sistem) yang tidak perlu diaudit.
+     *
+     * @var list<string>
+     */
+    protected $auditExclude = [
+        'last_notifications_read_at',
+        'email_verified_at',
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -50,6 +61,16 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
         ];
+    }
+
+    public function auditLabel(): string
+    {
+        return 'Pengguna';
+    }
+
+    public function auditTitle(): string
+    {
+        return (string) $this->name;
     }
 
     public function isAdmin(): bool
