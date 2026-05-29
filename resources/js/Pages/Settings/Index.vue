@@ -62,7 +62,7 @@ const lastSent = computed(() =>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
-            <div class="mx-auto w-full max-w-3xl space-y-6 px-4 sm:px-6 lg:px-8">
+            <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
                 <div v-if="flash.success" class="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
                     <CheckCircle2 class="h-5 w-5 flex-shrink-0" />
                     {{ flash.success }}

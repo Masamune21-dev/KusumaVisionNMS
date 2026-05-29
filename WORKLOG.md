@@ -1048,3 +1048,9 @@ Notes:
 - Pakai 5 screenshot user di `public/img/` (dashboard1, oltinventory, unconfigured, detail, login). Frame `aspect-[16/10]` + `object-cover object-top` agar konsisten & tanpa layout shift antar-tab; `loading="lazy"` + hanya gambar aktif yang dirender (sisanya dimuat saat tab diklik).
 - A11y: `role="tablist"`/`tab` + `aria-selected`, `alt` deskriptif per gambar. Semua ikon sudah ada di import Lucide.
 - Catatan optimasi: screenshot masih PNG (~0.9–1.4 MB/file); bisa dikonversi WebP untuk hemat bandwidth bila perlu. Frontend di-rebuild.
+
+### Halaman Pengaturan: card full-width
+
+Changed:
+
+- `resources/js/Pages/Settings/Index.vue` — container konten dari `mx-auto w-full max-w-3xl` jadi `w-full` agar card membentang penuh kiri-kanan, konsisten dengan halaman lain (SmartOlt/Users/Reports). Frontend di-rebuild.
