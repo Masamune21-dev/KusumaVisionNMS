@@ -1,5 +1,6 @@
 <script setup>
 import Pagination from '@/Components/Pagination.vue';
+import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { BellRing, Filter, RotateCcw, Search, ShieldCheck } from '@lucide/vue';
@@ -134,10 +135,7 @@ const scopeOptionLabel = (scope) => ({
 const formatDate = (value) => {
     if (!value) return '-';
 
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
+    return formatDateTime(value);
 };
 </script>
 

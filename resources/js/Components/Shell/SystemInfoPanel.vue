@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { formatClock } from '@/lib/datetime';
 
 const page = usePage();
 const now = ref(new Date());
@@ -16,14 +17,7 @@ onUnmounted(() => {
 
 const sysInfo = computed(() => page.props.systemInfo ?? {});
 
-const formattedTime = computed(() =>
-    new Intl.DateTimeFormat('id-ID', {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-    }).format(now.value),
-);
+const formattedTime = computed(() => formatClock(now.value));
 
 const items = computed(() => [
     { label: 'Versi', value: sysInfo.value.version ?? '1.0.0' },

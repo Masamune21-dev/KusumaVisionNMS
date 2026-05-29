@@ -6,6 +6,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CheckCircle2, Eye, Network, Plus, RefreshCw, Signal, Tag, Wifi, XCircle } from '@lucide/vue';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { formatDateTime, formatTimeOfDay } from '@/lib/datetime';
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -169,7 +170,7 @@ const fetchTraffic = async () => {
         uplinkInfo.output_pps = data.output_pps;
         trafficError.value = null;
 
-        const time = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const time = formatTimeOfDay(new Date());
         trafficHistory.labels.push(time);
         trafficHistory.input.push(parseFloat(toMbps(data.input_bps).toFixed(3)));
         trafficHistory.output.push(parseFloat(toMbps(data.output_bps).toFixed(3)));
@@ -353,14 +354,7 @@ const formatBps = (bps) => {
 
 const vlanBadgeColor = () => 'bg-sky-500/15 text-cyan-300 ring-1 ring-cyan-500/30';
 
-const formatDate = (value) => {
-    if (!value) return '-';
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
+const formatDate = (value) => formatDateTime(value);
 
 const formatNumber = (value, suffix = '') => {
     if (value === null || value === undefined || value === '') return '-';

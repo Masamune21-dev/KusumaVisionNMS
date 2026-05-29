@@ -216,7 +216,7 @@ class ReportService
                 'onu_total' => $onuTotal,
                 'onu_online' => $onuOnline,
                 'onu_offline' => max($onuTotal - $onuOnline, 0),
-                'last_polled_at' => $olt->last_polled_at?->format('d/m/Y H:i') ?? '-',
+                'last_polled_at' => $olt->last_polled_at?->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i') ?? '-',
             ];
         }
 
@@ -274,7 +274,7 @@ class ReportService
                 'type' => $a->type,
                 'message' => $a->message,
                 'status' => $a->status === AlarmEvent::STATUS_ACTIVE ? 'Aktif' : 'Selesai',
-                'last_seen_at' => $a->last_seen_at?->format('d/m/Y H:i') ?? '-',
+                'last_seen_at' => $a->last_seen_at?->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i') ?? '-',
             ];
         })->all();
 
@@ -330,7 +330,7 @@ class ReportService
             }
 
             return [
-                'created_at' => $r->created_at?->format('d/m/Y H:i') ?? '-',
+                'created_at' => $r->created_at?->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i') ?? '-',
                 'olt' => $r->olt?->name ?? '-',
                 'serial_number' => $r->serial_number,
                 'customer_name' => $r->customer_name ?: '-',

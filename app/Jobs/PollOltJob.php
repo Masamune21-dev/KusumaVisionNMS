@@ -41,6 +41,7 @@ class PollOltJob implements ShouldQueue
             return;
         }
 
+        $previousSnapshot = $olt->last_test_result ?? [];
         $now = now();
         $rxPollDue = $olt->isRxPollDue();
         $rxPollSucceeded = false;
@@ -125,7 +126,7 @@ class PollOltJob implements ShouldQueue
 
         $olt->forceFill($updates)->save();
 
-        $alarms->evaluate($olt);
+        $alarms->evaluate($olt, $previousSnapshot);
 
         PollingEvent::log(
             $olt->id,

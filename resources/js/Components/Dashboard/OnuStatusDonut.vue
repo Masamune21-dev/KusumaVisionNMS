@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import { CircleDot } from '@lucide/vue';
+import { formatDateTime } from '@/lib/datetime';
 
 const props = defineProps({
     onu: { type: Object, required: true },
@@ -54,10 +55,9 @@ const legend = computed(() => [
     { label: 'Offline', value: offline.value, pct: offlinePct.value, color: '#ef4444', dot: 'bg-red-400' },
 ]);
 
-const formattedUpdated = computed(() => {
-    if (! props.lastUpdated) return null;
-    return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(props.lastUpdated));
-});
+const formattedUpdated = computed(() =>
+    props.lastUpdated ? formatDateTime(props.lastUpdated) : null,
+);
 </script>
 
 <template>

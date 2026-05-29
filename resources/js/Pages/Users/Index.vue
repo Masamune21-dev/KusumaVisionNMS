@@ -10,6 +10,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { formatDate } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { computed, ref } from 'vue';
@@ -108,12 +109,6 @@ const deleteUser = async (user) => {
     router.delete(route('users.destroy', user.id), { preserveScroll: true });
 };
 
-const formatDate = (value) => {
-    if (!value) return '-';
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-    }).format(new Date(value));
-};
 </script>
 
 <template>

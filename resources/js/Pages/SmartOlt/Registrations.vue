@@ -4,6 +4,7 @@ import IconButton from '@/Components/IconButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, XCircle } from '@lucide/vue';
 import { computed, ref } from 'vue';
@@ -62,14 +63,7 @@ const statuses = {
     },
 };
 
-const formatDate = (value) => {
-    if (!value) return '-';
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
+const formatDate = (value) => formatDateTime(value);
 
 const statusMeta = (status) => statuses[status] ?? statuses.generated;
 

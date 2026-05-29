@@ -85,7 +85,7 @@ class HandleInertiaRequests extends Middleware
     private function systemInfoPayload(): array
     {
         return [
-            'version' => config('app.version', '1.0.0'),
+            'version' => config('app.version', '2.0.0'),
             'uptime' => $this->formatUptime(),
             'users_online' => $this->estimateActiveUsers(),
         ];

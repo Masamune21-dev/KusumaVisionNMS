@@ -39,16 +39,27 @@ class AlarmEngineTest extends TestCase
         ];
     }
 
-    public function test_offline_onu_raises_then_clears_alarm(): void
+    private function onuSnapshot(bool $online, array $over = []): array
     {
-        $olt = $this->makeOlt($this->snapshotWithOnu([
+        return $this->snapshotWithOnu(array_merge([
             'slot' => 1, 'port' => 1, 'onu_id' => 5, 'interface' => 'gpon-onu_1/1/1:5',
             'serial_number' => 'ZTEGAAAA0001', 'admin_state' => 'active',
-            'phase_state' => 'Offline', 'online' => false, 'last_down_cause' => 'LOSi',
-        ]));
+            'phase_state' => $online ? 'Working' : 'Offline',
+            'online' => $online,
+            'last_down_cause' => $online ? 'Normal' : 'LOSi',
+            'rx_power_dbm' => $online ? -22.0 : null,
+        ], $over));
+    }
 
+    public function test_offline_onu_raises_then_clears_alarm(): void
+    {
+        $onlineSnap = $this->onuSnapshot(true);
+        $offlineSnap = $this->onuSnapshot(false);
+
+        // ONU was online last poll, now offline -> transition raises an alarm.
+        $olt = $this->makeOlt($offlineSnap);
         $evaluator = new AlarmEvaluator;
-        $result = $evaluator->evaluate($olt);
+        $result = $evaluator->evaluate($olt, $onlineSnap);
 
         $this->assertSame(1, $result['raised']);
         $this->assertDatabaseHas('alarm_events', [
@@ -60,30 +71,49 @@ class AlarmEngineTest extends TestCase
         ]);
 
         // ONU back online -> alarm should clear, not duplicate.
-        $olt->forceFill(['last_test_result' => $this->snapshotWithOnu([
-            'slot' => 1, 'port' => 1, 'onu_id' => 5, 'interface' => 'gpon-onu_1/1/1:5',
-            'serial_number' => 'ZTEGAAAA0001', 'admin_state' => 'active',
-            'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
-        ])])->save();
-
-        $result = $evaluator->evaluate($olt);
+        $olt->forceFill(['last_test_result' => $onlineSnap])->save();
+        $result = $evaluator->evaluate($olt, $offlineSnap);
 
         $this->assertSame(1, $result['cleared']);
         $this->assertSame(0, AlarmEvent::where('status', 'active')->count());
         $this->assertSame(1, AlarmEvent::where('status', 'cleared')->count());
+
+        // Cleared alarm reports the recovered state (online + latest RX), not the fault text.
+        $cleared = AlarmEvent::where('status', 'cleared')->first();
+        $recovery = data_get($cleared->meta, 'recovery.message');
+        $this->assertStringContainsString('kembali online', $recovery);
+        $this->assertStringContainsString('-22', $recovery);
+    }
+
+    public function test_already_offline_onu_is_not_alarmed(): void
+    {
+        // ONU was already offline last poll (never seen online) -> no transition, no alarm.
+        $offlineSnap = $this->onuSnapshot(false);
+        $olt = $this->makeOlt($offlineSnap);
+
+        $result = (new AlarmEvaluator)->evaluate($olt, $offlineSnap);
+
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(0, AlarmEvent::count());
     }
 
     public function test_repeated_evaluation_does_not_duplicate_active_alarm(): void
     {
-        $olt = $this->makeOlt($this->snapshotWithOnu([
+        $onlineSnap = $this->snapshotWithOnu([
+            'slot' => 1, 'port' => 1, 'onu_id' => 5, 'interface' => 'gpon-onu_1/1/1:5',
+            'serial_number' => 'ZTEGAAAA0002', 'admin_state' => 'active',
+            'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
+        ]);
+        $dyingSnap = $this->snapshotWithOnu([
             'slot' => 1, 'port' => 1, 'onu_id' => 5, 'interface' => 'gpon-onu_1/1/1:5',
             'serial_number' => 'ZTEGAAAA0002', 'admin_state' => 'active',
             'phase_state' => 'DyingGasp', 'online' => false, 'last_down_cause' => 'DyingGasp',
-        ]));
+        ]);
 
+        $olt = $this->makeOlt($dyingSnap);
         $evaluator = new AlarmEvaluator;
-        $evaluator->evaluate($olt);
-        $evaluator->evaluate($olt);
+        $evaluator->evaluate($olt, $onlineSnap); // online -> dying: raise
+        $evaluator->evaluate($olt, $dyingSnap);  // still dying: keep, no duplicate
 
         $this->assertSame(1, AlarmEvent::where('snmp_olt_id', $olt->id)->where('type', 'dying_gasp')->count());
     }
@@ -105,7 +135,8 @@ class AlarmEngineTest extends TestCase
     {
         $olt = $this->makeOlt(['ok' => false, 'error' => 'SNMP timeout']);
 
-        (new AlarmEvaluator)->evaluate($olt);
+        // OLT was reachable last poll, now unreachable -> transition raises.
+        (new AlarmEvaluator)->evaluate($olt, ['ok' => true]);
 
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,
@@ -117,16 +148,18 @@ class AlarmEngineTest extends TestCase
 
     public function test_high_rx_attenuation_raises_warning(): void
     {
-        $olt = $this->makeOlt($this->snapshotWithOnu([
+        $rxOnu = fn (float $rx) => $this->snapshotWithOnu([
             'slot' => 1, 'port' => 1, 'onu_id' => 7, 'interface' => 'gpon-onu_1/1/1:7',
             'name' => 'Customer RX',
             'description' => '7$$Customer RX$$',
             'serial_number' => 'ZTEGAAAA0004', 'admin_state' => 'active',
             'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
-            'rx_power_dbm' => -29.5,
-        ]));
+            'rx_power_dbm' => $rx,
+        ]);
 
-        (new AlarmEvaluator)->evaluate($olt);
+        // RX was healthy last poll, now crosses below -28 -> raise.
+        $olt = $this->makeOlt($rxOnu(-29.5));
+        (new AlarmEvaluator)->evaluate($olt, $rxOnu(-22.0));
 
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,
@@ -135,6 +168,86 @@ class AlarmEngineTest extends TestCase
             'status' => 'active',
         ]);
         $this->assertSame('Customer RX', data_get(AlarmEvent::first()?->meta, 'customer_name'));
+    }
+
+    public function test_rx_already_out_of_range_is_not_alarmed(): void
+    {
+        // RX was already below -28 last poll -> no "touch" transition, no alarm.
+        $rxOnu = fn (float $rx) => $this->snapshotWithOnu([
+            'slot' => 1, 'port' => 1, 'onu_id' => 7, 'interface' => 'gpon-onu_1/1/1:7',
+            'serial_number' => 'ZTEGAAAA0004', 'admin_state' => 'active',
+            'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
+            'rx_power_dbm' => $rx,
+        ]);
+
+        $olt = $this->makeOlt($rxOnu(-29.0));
+        $result = (new AlarmEvaluator)->evaluate($olt, $rxOnu(-29.0));
+
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(0, AlarmEvent::count());
+    }
+
+    public function test_online_onu_does_not_raise_alarm_from_historical_down_cause(): void
+    {
+        // ONU is back online (phase Working) but its last_down_cause is still DyingGasp.
+        // That historical cause must not raise an alarm.
+        $olt = $this->makeOlt($this->snapshotWithOnu([
+            'slot' => 1, 'port' => 1, 'onu_id' => 9, 'interface' => 'gpon-onu_1/1/1:9',
+            'serial_number' => 'ZTEGAAAA0009', 'admin_state' => 'active',
+            'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'DyingGasp',
+        ]));
+
+        $result = (new AlarmEvaluator)->evaluate($olt);
+
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(0, AlarmEvent::where('status', 'active')->count());
+    }
+
+    public function test_rx_alarm_uses_hysteresis_to_avoid_flapping(): void
+    {
+        $onu = fn (float $rx) => $this->snapshotWithOnu([
+            'slot' => 1, 'port' => 1, 'onu_id' => 10, 'interface' => 'gpon-onu_1/1/1:10',
+            'serial_number' => 'ZTEGAAAA0010', 'admin_state' => 'active',
+            'phase_state' => 'Working', 'online' => true, 'last_down_cause' => 'Normal',
+            'rx_power_dbm' => $rx,
+        ]);
+        $evaluator = new AlarmEvaluator;
+
+        // Healthy (-22) then below -28 dBm -> raise.
+        $olt = $this->makeOlt($onu(-28.4));
+        $this->assertSame(1, $evaluator->evaluate($olt, $onu(-22.0))['raised']);
+
+        // Recovers into the deadband (-27.5, still worse than -26) -> stays active, no flap.
+        $olt->forceFill(['last_test_result' => $onu(-27.5)])->save();
+        $this->assertSame(0, $evaluator->evaluate($olt, $onu(-28.4))['cleared']);
+        $this->assertSame(1, AlarmEvent::where('type', 'high_rx_attenuation')->where('status', 'active')->count());
+
+        // Recovers to -26 dBm -> cleared.
+        $olt->forceFill(['last_test_result' => $onu(-26.0)])->save();
+        $this->assertSame(1, $evaluator->evaluate($olt, $onu(-27.5))['cleared']);
+        $this->assertSame(0, AlarmEvent::where('type', 'high_rx_attenuation')->where('status', 'active')->count());
+    }
+
+    public function test_port_down_raises_only_on_transition(): void
+    {
+        $portSnap = fn (string $status) => [
+            'ok' => true,
+            'ports' => [
+                ['if_index' => 1, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status' => $status],
+            ],
+            'port_onus' => [],
+        ];
+
+        // Port up -> down: raise.
+        $olt = $this->makeOlt($portSnap('down'));
+        $this->assertSame(1, (new AlarmEvaluator)->evaluate($olt, $portSnap('up'))['raised']);
+        $this->assertDatabaseHas('alarm_events', ['snmp_olt_id' => $olt->id, 'type' => 'port_down', 'status' => 'active']);
+
+        // A different port that was already down at baseline: no transition, no alarm.
+        $olt2 = $this->makeOlt($portSnap('down'));
+        $result = (new AlarmEvaluator)->evaluate($olt2, $portSnap('down'));
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(0, AlarmEvent::where('snmp_olt_id', $olt2->id)->count());
     }
 
     public function test_alarms_page_can_be_rendered(): void

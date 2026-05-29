@@ -819,3 +819,125 @@ Notes:
 
 - `npm run build` bersih untuk semua perubahan frontend.
 - Investigasi "halaman detail OLT C300 tidak bisa dibuka": ternyata bukan bug kode, melainkan sesi user kebawa state demo. `SnmpOlt` punya global scope `DemoScope` (user demo hanya lihat `is_demo=true`, non-demo hanya `is_demo=false`); OLT C300 (id=2) adalah data nyata sehingga route-model-binding gagal saat sesi demo. Teratasi setelah user login ulang — tidak ada perubahan kode.
+
+### Halaman Pengaturan + Notifikasi Telegram untuk alarm
+
+Created:
+
+- `database/migrations/2026_05_29_120000_create_telegram_settings_table.php` — tabel `telegram_settings` (single-row): `enabled`, `bot_token` (text, dienkripsi via cast), `chat_id` (text, bisa banyak ID dipisah koma/spasi), `min_severity` (default `warning`), `notify_on_raise`/`notify_on_clear`, `last_sent_at`, `last_error`. Tipe kolom SQLite-compatible untuk test.
+- `app/Models/TelegramSetting.php` — model singleton: `instance()` (firstOrNew), `chatIds()` (parse multi-ID), `isConfigured()`/`isReady()`, `minSeverityRank()` + const `SEVERITY_RANK`. `bot_token` cast `encrypted` & `$hidden`.
+- `app/Services/Telegram/TelegramNotifier.php` — kirim pesan ke Telegram Bot API (`/sendMessage`, parse_mode HTML, timeout 10s, loop semua chat ID). `notify(olt, raised, cleared)` dipanggil dari evaluator (filter severity ≥ min, gate `notify_on_raise`/`notify_on_clear`, skip OLT demo, dibungkus try/catch agar tak memecah rekonsiliasi alarm, rekam `last_sent_at`/`last_error`); `sendTest()` untuk tombol uji. Pesan disusun ringkas berisi nama OLT, daftar alarm (emoji severity + tipe + pesan + nama pelanggan bila ada) + timestamp.
+- `app/Http/Controllers/SettingsController.php` — `edit` (Inertia, token dikirim sebagai `bot_token_set` boolean, bukan nilai asli), `updateTelegram` (validasi; token kosong = pertahankan token lama, pola `withoutEmptySecrets`), `testTelegram` (kirim tes via notifier → flash success/error).
+- `resources/js/Pages/Settings/Index.vue` — kartu glass "Notifikasi Telegram": toggle aktif, input bot token (password, placeholder menandai token tersimpan), chat ID (textarea multi), select severity minimum, checkbox kirim-saat-muncul / kirim-saat-pulih, tombol Simpan + Kirim Tes (disabled sampai token & chat ID tersimpan), panel status (terakhir terkirim / galat terakhir), teks bantuan @BotFather & @userinfobot.
+- `tests/Feature/TelegramSettingsTest.php` — 7 test: akses admin vs operator (403), simpan setting + parse chatIds, token kosong dipertahankan, endpoint tes mengirim (Http::fake), alarm baru memicu kirim Telegram saat aktif, tidak mengirim saat nonaktif.
+
+Changed:
+
+- `app/Services/AlarmEvaluator.php` — `reconcile()` kini mengumpulkan model `AlarmEvent` yang baru raised & yang cleared lalu memanggil `TelegramNotifier::notify()`. Dependensi notifier opsional di konstruktor (`?TelegramNotifier`, di-resolve lazy via `app()`) agar `new AlarmEvaluator` di test lama tetap jalan.
+- `routes/web.php` — 3 route di grup `role:admin`: `settings.edit`, `settings.telegram.update`, `settings.telegram.test`.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — nav "Pengaturan" (ikon Settings) hanya untuk admin (gate `can.manage_users`).
+
+Notes:
+
+- Hook notifikasi di titik raise/clear alarm (`AlarmEvaluator`), bukan di controller, sehingga semua sumber polling (scheduler `olts:poll` → `PollOltJob`, dan evaluasi manual) ikut memicu notifikasi.
+- Demo aman: OLT demo statis (scheduler hanya menyentuh OLT nyata) + guard `is_demo` di notifier. Setting Telegram admin-only, demo sudah diblokir `BlockDemoWrites`.
+- 102 test hijau (7 baru), `pint` & `npm run build` bersih.
+- Saat menjalankan test ditemukan `bootstrap/cache/config.php` & `routes-v7.php` ter-cache (dari `config:cache`/`route:cache` produksi), membuat phpunit memakai koneksi pgsql + route lama. Test dijalankan dengan menyisihkan kedua file cache sementara (sqlite in-memory, terisolasi; data pgsql terverifikasi utuh), lalu cache dikembalikan persis. Data produksi tidak tersentuh (transaksi RefreshDatabase rollback).
+- **Belum di-deploy ke instance produksi.** Agar live perlu: `php artisan migrate --force` (buat tabel `telegram_settings`) + rebuild cache `php artisan config:cache && php artisan route:cache` agar 3 route `settings.*` dikenali. Build frontend sudah ter-update.
+
+Deploy + perbaikan akurasi alarm (lanjutan):
+
+- Dideploy ke produksi: `migrate --force` (tabel `telegram_settings` dibuat), `config:cache` + `route:cache` (route `settings.*` dikenali), `queue:restart` (worker memuat kode notifikasi). Catatan penting: worker `queue:work` adalah daemon yang memuat kode sekali saat start — wajib `queue:restart` setiap deploy kode yang jalan di job/service, kalau tidak notifikasi/perbaikan tak berefek meski file sudah berubah.
+- Bug akurasi ditemukan saat user uji coba: notifikasi "tidak sesuai" karena `AlarmEvaluator::onuStateAlarms()` menaikkan alarm `dying_gasp`/`los` berdasarkan `last_down_cause` — padahal itu riwayat penyebab turun terakhir yang tetap menempel walau ONU sudah online lagi. Akibatnya 1774 ONU yang sebenarnya Working/online ikut ber-alarm dying_gasp (total 1848 aktif). Fix: gerbang `if ($onu['online'] ?? false) return [];` di awal — ONU yang up tidak ber-alarm apa pun, `last_down_cause` hanya dipakai untuk mengklasifikasikan ONU yang memang offline.
+- Bug kedua: alarm RX (`high_rx_attenuation`) flapping di sekitar ambang -28 dBm (mis. -28.2 → -27.9 tiap poll) → raise/clear bergantian, mengirim "CLEARED" walau RX masih marginal. Fix: hysteresis — raise saat rx ≤ -28 / ≥ -8, tapi baru clear setelah rx pulih melewati -27 / -9 (deadband 1 dB). `onuRxAlarm()` kini menerima koleksi alarm aktif untuk menentukan apakah tetap dipertahankan; `evaluate()` memuat alarm aktif sekali dan meneruskannya ke `onuRxAlarm()` + `reconcile()` (reconcile tak lagi query sendiri).
+- `tests/Feature/AlarmEngineTest.php` — 2 test regresi: ONU online dengan `last_down_cause=DyingGasp` tidak ber-alarm; RX hysteresis (raise di -28.4, tetap aktif di deadband -27.5, baru clear di -26.0).
+- Pembersihan data: setelah fix + `queue:restart`, dijalankan `evaluate()` pada 2 OLT nyata (Telegram dimatikan sementara agar tak spam ~1781 notifikasi clear) → alarm aktif **1984 → 203** (C320: clear 91 sisa 24; C300: clear 1690 sisa 173). dying_gasp 1848 → 72. Sisa 203 semuanya alarm asli (offline/los/port_down/high_rx). Telegram diaktifkan kembali.
+- 27 test alarm/telegram/polling hijau, `pint` bersih.
+
+### Seragamkan tampilan waktu ke WIB
+
+Konteks: penyimpanan sudah UTC (`app.timezone=UTC`), tapi tampilan tidak konsisten — frontend ikut zona browser, pesan Telegram pakai UTC (mis. tampil 07:49 padahal 14:49 WIB), chart dashboard sudah `display_timezone=Asia/Jakarta`. User minta semua jam tampil WIB.
+
+Created:
+
+- `resources/js/lib/datetime.js` — helper terpusat tampilan waktu, semua pakai `timeZone: 'Asia/Jakarta'` + label `WIB`. Fungsi: `formatDateTime` ("29 Mei 2026, 16.42 WIB"), `formatDate` (tanggal saja), `formatClock` (jam header kompak), `formatTimeOfDay` (label sumbu chart live, tanpa suffix). Null-safe (`'—'`).
+
+Changed (frontend — semua formatter `Intl.DateTimeFormat` lokal diarahkan ke helper):
+
+- `resources/js/Pages/SmartOlt/{Alarms,Detail,PortOnus,Unconfigured,UnconfiguredGlobal,Registrations,Index,PortManager}.vue`, `Pages/Settings/Index.vue`, `Pages/Users/Index.vue`, `Components/Dashboard/{RecentAlarmsTable,OnuStatusDonut}.vue`, `Components/Shell/SystemInfoPanel.vue`. PortManager juga: label sumbu chart traffic live pakai `formatTimeOfDay`. Settings/OnuStatusDonut tetap mengembalikan `null` (bukan '—') agar `v-if` tetap benar.
+
+Changed (backend):
+
+- `app/Services/Telegram/TelegramNotifier.php` — timestamp pesan (alarm & tes) kini `Carbon::now()->timezone(config('app.display_timezone','Asia/Jakarta'))->translatedFormat('d M Y H:i').' WIB'` (sebelumnya UTC tanpa label — ini akar pesan tampil 07:49).
+- `app/Services/Report/ReportService.php` — 3 timestamp report (last_polled_at, last_seen_at, created_at) dikonversi ke display_timezone sebelum `format('d/m/Y H:i')`.
+- `app/Http/Controllers/ReportController.php` — `generatedAt` PDF jadi WIB + label.
+- `DashboardStatsService` sudah konversi ke `display_timezone` (chart) — tak diubah.
+
+Notes:
+
+- Sumber kebenaran zona tampilan: backend `config('app.display_timezone')` (default `Asia/Jakarta`, bisa di-override env `APP_DISPLAY_TIMEZONE`); frontend konstanta `DISPLAY_TZ='Asia/Jakarta'` di helper. Storage tetap UTC.
+- Awalnya user sempat minta "GMT", lalu mengoreksi ke WIB — dikonfirmasi WIB sebelum eksekusi.
+- Deploy: `npm run build` (live), `queue:restart` (TelegramNotifier jalan di worker). Tak ada migrasi; tak perlu rebuild config/route cache (tak ubah .env/route). Report jalan di php-fpm (auto-reload opcache).
+- 104 test hijau, `pint` & `npm run build` bersih.
+
+### Alarm berbasis transisi (hanya online→fault), clean slate
+
+Permintaan user: alarm hanya saat **pergantian status** dari sehat ke fault (ONU online→LOS/dying-gasp/offline, port up→down, RX sehat→menyentuh -28), sekali saja. Perangkat yang **sudah** dalam keadaan fault sejak awal (mis. ONU offline lama di OLT) **tidak** boleh masuk alarm. RX cleared baru pada -26 (kalau masih -27 jangan).
+
+Changed:
+
+- `app/Services/AlarmEvaluator.php`:
+  - `evaluate(SnmpOlt $olt, array $previous = [])` — kini menerima snapshot poll sebelumnya untuk mendeteksi transisi.
+  - `indexPrevious()` — bangun lookup status sebelumnya: online per-ONU, rx per-ONU, oper_status per-port.
+  - Aturan raise: hanya jika kondisi fault adalah **transisi dari sehat** (`prevOnline===true` untuk ONU, `prevStatus==='up'` untuk port, `prev ok` untuk OLT, RX `prevHealthy` untuk high_rx) ATAU alarm tipe itu sudah aktif (persist). Fault yang sudah ada sejak awal (tak pernah terlihat sehat) → di-skip.
+  - `onuHasStateAlarm()` — agar episode fault yang sudah beralarm tetap dipertahankan walau subtipe berganti (offline↔los↔dying_gasp).
+  - RX: ambang clear dinaikkan ke **-26** (`RX_CLEAR_LOW_DBM`) / -10 (`RX_CLEAR_HIGH_DBM`); raise hanya saat melintas dari sehat (`prevHealthy`), persist sampai pulih ≥ -26.
+  - `reconcile()` tetap: clear alarm aktif yang tak lagi terdeteksi (fault pulih), raise yang baru, keep yang persist.
+- `app/Jobs/PollOltJob.php` — tangkap `$previousSnapshot = $olt->last_test_result` sebelum overwrite, teruskan ke `evaluate($olt, $previousSnapshot)`.
+
+Tests:
+
+- `tests/Feature/AlarmEngineTest.php` — diubah ke model transisi + test baru: `already_offline_onu_is_not_alarmed`, `rx_already_out_of_range_is_not_alarmed`, `port_down_raises_only_on_transition`; RX hysteresis clear di -26.
+- `tests/Feature/TelegramSettingsTest.php` — evaluate dipanggil dengan snapshot sebelumnya (online/port-up) agar transisi memicu raise.
+
+Deploy & clean slate:
+
+- `queue:restart` (worker memuat evaluator baru), lalu **hapus semua alarm nyata** (`AlarmEvent::withoutGlobalScopes()->where('is_demo',false)->delete()` → 4133 baris terhapus, demo 8 utuh). Setelah ini hanya transisi baru yang memunculkan alarm. Tak ada migrasi/build frontend.
+- 107 test hijau, `pint` bersih.
+
+### Pesan CLEARED menampilkan status pulih (online + RX terbaru)
+
+Masalah: notifikasi CLEARED menyalin pesan fault lama (mis. "RX 98.064 dBm di luar rentang sehat", "loss of signal (LOS)") — bukan kondisi saat pulih. User minta CLEARED menampilkan status online & redaman terbaru.
+
+Changed:
+
+- `app/Services/AlarmEvaluator.php`:
+  - `indexCurrent()` — index snapshot saat ini (ONU per key + port) untuk dipakai saat clear.
+  - `buildRecovery()` — bangun pesan pulih per scope/type dari snapshot terkini: ONU state→"ONU {iface} kembali online, RX {rx} dBm."; high_rx→"ONU {iface} RX {rx} dBm kembali normal."; port→"GPON port {name} kembali up."; OLT→"OLT kembali terhubung." (null bila ONU tak ada di snapshot → fallback ke pesan asli).
+  - `reconcile()` — saat clear, simpan `meta.recovery` (message + rx_power_dbm + online); `message` asli (fault) tetap utuh untuk histori. Menerima param `$current`.
+- `app/Services/Telegram/TelegramNotifier.php` — `formatAlarm()` untuk alarm cleared memakai `meta.recovery.message` (fallback ke message asli), jadi Telegram CLEARED menampilkan kondisi pulih.
+
+Tests:
+
+- `tests/Feature/AlarmEngineTest.php` — `onuSnapshot` online kini sertakan RX; test clear memverifikasi `meta.recovery.message` berisi "kembali online" + nilai RX terbaru.
+
+Deploy: `queue:restart`. Tanpa migrasi/build. 30 test alarm/telegram/polling hijau, `pint` bersih.
+
+Catatan: muncul nilai RX tidak wajar (+98.064 / -0.002 dBm) yang memicu high_rx (sisi terlalu kuat, rx ≥ -8). Itu kemungkinan pembacaan invalid; sisi "RX terlalu kuat" tak diminta user (hanya -28). Bisa jadi follow-up: batasi rentang RX valid atau matikan deteksi sisi tinggi.
+
+### Chunking notifikasi Telegram untuk batch besar
+
+Masalah: semua alarm dalam 1 siklus poll digabung jadi 1 pesan. Telegram membatasi 4096 karakter/pesan, jadi 20+ alarm bisa gagal kirim total.
+
+Changed:
+
+- `app/Services/Telegram/TelegramNotifier.php` — `notify()` memecah daftar section (raised + cleared) jadi beberapa pesan via `array_chunk`, maksimal `MAX_ITEMS_PER_MESSAGE = 10` alarm per pesan. Bila lebih dari satu pesan, header diberi penanda bagian "(i/n)". Tiap chunk dikirim terpisah ke semua chat ID.
+- `tests/Feature/TelegramSettingsTest.php` — test `large_alarm_batch_is_split_into_multiple_messages`: 12 ONU online→offline → 12 alarm → 2 pesan (10 + 2), `Http::assertSentCount(2)`.
+
+Deploy: `queue:restart`. 22 test telegram/alarm hijau, `pint` bersih.
+
+### Bump versi aplikasi ke 2.0.0
+
+Changed:
+
+- `app/Http/Middleware/HandleInertiaRequests.php` — default `config('app.version')` `1.0.0` → `2.0.0` (ditampilkan di panel System Info).

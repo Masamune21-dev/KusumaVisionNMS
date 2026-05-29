@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
@@ -163,16 +164,7 @@ const submitEdit = () => {
     });
 };
 
-const formatDate = (value) => {
-    if (!value) {
-        return '-';
-    }
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
+const formatDate = (value) => formatDateTime(value);
 
 const rxClass = (value) => {
     if (value === null || value === undefined) {

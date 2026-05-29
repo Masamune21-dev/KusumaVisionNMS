@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import { BellRing } from '@lucide/vue';
+import { formatDateTime } from '@/lib/datetime';
 
 defineProps({
     alarms: { type: Array, default: () => [] },
@@ -13,13 +14,7 @@ const severityClass = (s) => ({
     warning: 'kv-pill-warning',
 }[s] ?? 'kv-pill-muted');
 
-const formatTime = (iso) => {
-    if (!iso) return '—';
-    return new Intl.DateTimeFormat('id-ID', {
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    }).format(new Date(iso));
-};
+const formatTime = (iso) => formatDateTime(iso);
 
 const alarmType = (type) => {
     if (!type) return 'Alarm';

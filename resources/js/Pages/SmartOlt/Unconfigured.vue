@@ -6,6 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Plus, RefreshCw, Wifi } from '@lucide/vue';
 import { computed } from 'vue';
+import { formatDateTime } from '@/lib/datetime';
 
 const props = defineProps({
     olt: {
@@ -27,14 +28,7 @@ const refresh = () => {
     });
 };
 
-const formatDate = (value) => {
-    if (!value) return '-';
-
-    return new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    }).format(new Date(value));
-};
+const formatDate = (value) => formatDateTime(value);
 </script>
 
 <template>
