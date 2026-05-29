@@ -10,9 +10,12 @@ const props = defineProps({
 });
 
 const total = computed(() => Math.max(0, props.onu.total ?? 0));
-const online = computed(() => props.onu.online ?? 0);
+const onlineCount = computed(() => props.onu.online ?? 0);
 const warning = computed(() => props.onu.warning ?? 0);
-const offline = computed(() => Math.max(0, total.value - online.value - warning.value));
+// Slice mutually-exclusive: warning adalah subset dari ONU online (link terdegradasi),
+// jadi slice "Online" hanya yang sehat dan "Offline" pakai angka offline asli dari backend.
+const online = computed(() => Math.max(0, onlineCount.value - warning.value));
+const offline = computed(() => Math.max(0, props.onu.offline ?? total.value - onlineCount.value));
 
 const series = computed(() => [online.value, warning.value, offline.value]);
 

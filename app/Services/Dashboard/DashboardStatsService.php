@@ -39,8 +39,14 @@ class DashboardStatsService
             $onuOnline += $portOnus->flatMap(fn ($p) => $p['onus'] ?? [])->where('online', true)->count();
             $onuWarning += $portOnus->flatMap(fn ($p) => $p['onus'] ?? [])
                 ->filter(function (array $onu) {
-                    $rx = $onu['rx_power'] ?? $onu['rx'] ?? null;
-                    return is_numeric($rx) && (float) $rx < -25;
+                    // Warning = ONU online tapi RX power di luar zona aman (-25…-10 dBm).
+                    // Field cache bernama rx_power_dbm; fallback ke rx_power/rx demi data lama.
+                    if (! ($onu['online'] ?? false)) {
+                        return false;
+                    }
+                    $rx = $onu['rx_power_dbm'] ?? $onu['rx_power'] ?? $onu['rx'] ?? null;
+
+                    return is_numeric($rx) && ((float) $rx <= -25 || (float) $rx >= -10);
                 })
                 ->count();
         }
@@ -142,8 +148,10 @@ class DashboardStatsService
         }
         if ($bucketMinutes >= 60) {
             $hoursPerBucket = intdiv($bucketMinutes, 60);
+
             return $aligned->setTime($aligned->hour - ($aligned->hour % $hoursPerBucket), 0, 0);
         }
+
         return $aligned->setTime($aligned->hour, $aligned->minute - ($aligned->minute % $bucketMinutes), 0);
     }
 
@@ -275,6 +283,7 @@ class DashboardStatsService
     private function oltHistorySparkline(): array
     {
         $total = SnmpOlt::query()->count();
+
         return array_fill(0, 7, $total);
     }
 
@@ -293,6 +302,7 @@ class DashboardStatsService
             $points[] = max(0, $variance);
         }
         $points[6] = $current;
+
         return $points;
     }
 

@@ -1149,3 +1149,17 @@ Notes:
 - Verifikasi: secret terenkripsi (mis. `snmp_read_community`) terbukti TIDAK ikut tercatat karena masuk `$hidden` → otomatis dikecualikan oleh trait. Diuji via tinker (rollback) + test feature.
 - Semua 112 test lulus (`php artisan config:clear` dulu — config cache bikin test nyasar & error 419, sesuai catatan deploy). Frontend di-rebuild (`npm run build`).
 - Audit log hanya bisa dilihat admin; baris bersifat append-only (tak ada UI edit/hapus).
+
+### Fix penghitungan Status ONU "Warning" di Dashboard
+
+Changed:
+
+- `app/Services/Dashboard/DashboardStatsService.php` — penghitung warning sebelumnya membaca `$onu['rx_power']`/`$onu['rx']` yang tidak pernah ada di cache `port_onus`, sehingga warning **selalu 0**. Diperbaiki membaca `rx_power_dbm` (field RX power per-ONU yang sebenarnya tersimpan, lihat `PollOltJob`/`OltSnmpClient`), dengan fallback `rx_power`/`rx` untuk data lama. Warning kini hanya dihitung untuk ONU **online** dengan RX di luar zona aman `-25…-10 dBm` (guard `online` mencegah ONU offline dengan RX basi ikut terhitung).
+- `resources/js/Components/Dashboard/OnuStatusDonut.vue` — slice donut dibuat mutually-exclusive: warning adalah subset ONU online, jadi slice **Online = online − warning** dan **Offline = offline asli** dari backend (sebelumnya offline keliru dikurangi warning lagi sehingga undercount).
+- `tests/Feature/DashboardTest.php` — fixture diperluas (ONU sehat, RX rendah, RX terlalu kuat, offline-RX-basi) + assertion `cards.onu.warning` agar regresi tidak terulang.
+
+Notes:
+
+- Diverifikasi terhadap cache produksi nyata (2 OLT): total=2251, online=2143 (cocok dashboard); logika lama warning=0, logika baru warning=500 (472 RX ≤ -25 dBm + 28 RX ≥ -10 dBm). Distribusi online: 1599 zona aman, 388 di -25…-28, 84 kritis (< -28), 28 terlalu kuat.
+- Threshold -25/-10 dBm konsisten dengan konvensi app (OnuDetail "Zona aman -25…-10", ReportService "Warning < -25").
+- Test Dashboard lulus (49 assertions), Pint bersih. Perubahan donut perlu `npm run build` saat deploy.
