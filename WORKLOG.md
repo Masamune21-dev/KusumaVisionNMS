@@ -1,5 +1,68 @@
 # Worklog
 
+## 2026-05-29
+
+### Bot Telegram — webhook perintah (inbound, read-only)
+
+Sebelumnya bot Telegram hanya outbound (notifikasi alarm + tes). Sekarang bot bisa menerima perintah via webhook dan membalas data jaringan. Akses perintah data dibatasi hanya untuk `chat_id` terdaftar; chat lain hanya bisa `/start /help /id /ping`. Semua perintah **read-only** (tidak ada aksi tulis ke OLT).
+
+Created:
+
+- `database/migrations/2026_05_30_000000_add_webhook_to_telegram_settings_table.php` - tambah kolom `webhook_secret` (encrypted, nullable) & `commands_enabled` (boolean, default false) ke `telegram_settings`. Sqlite-compatible.
+- `app/Services/Telegram/TelegramCommandHandler.php` - builder jawaban semua perintah (`/status /olt [nama|id] /alarm /onu <serial|nama> /prov /id /ping /help`). Baca sumber data yang sama dengan UI (`DashboardStatsService`, `last_test_result.port_onus`, `alarm_events`, `smartolt_onu_registrations`) → jawaban konsisten dengan dashboard. Otorisasi via `TelegramSetting::isChatAuthorized()`. Output HTML (parse_mode), escaping konsisten dengan notifier.
+- `app/Services/Telegram/TelegramWebhookManager.php` - register/info/delete webhook ke Telegram (`setWebhook`/`getWebhookInfo`/`deleteWebhook`); generate `webhook_secret` (`Str::random(48)`) saat register. Dipakai bersama artisan command & SettingsController.
+- `app/Http/Controllers/TelegramWebhookController.php` - endpoint publik `POST /telegram/webhook`; validasi header `X-Telegram-Bot-Api-Secret-Token` (`hash_equals`) → 403 bila salah; abaikan update non-pesan; selalu balas 200 agar Telegram tidak retry.
+- `app/Console/Commands/TelegramWebhookCommand.php` - `php artisan telegram:webhook {set|info|delete}`.
+- `tests/Feature/TelegramWebhookTest.php` - 9 test (secret salah→403, commands off→tak balas, chat tak terdaftar→ditolak tanpa bocor data, /id & /ping publik, /status, /onu found/not-found, update non-pesan diabaikan, route register memanggil setWebhook).
+
+Changed:
+
+- `app/Models/TelegramSetting.php` - tambah `webhook_secret`/`commands_enabled` (fillable, hidden, cast); helper `commandsReady()` & `isChatAuthorized()`.
+- `app/Services/Telegram/TelegramNotifier.php` - method publik `sendTo($chatId, $text)` untuk balas ke satu chat (tanpa menyentuh `last_sent_at`); konstanta `SEVERITY_EMOJI` dijadikan public agar dipakai handler.
+- `app/Http/Controllers/SettingsController.php` - payload `telegram` tambah `commands_enabled`+`webhook_set`; validasi/fill `commands_enabled`; method `registerWebhook()`/`deleteWebhook()`.
+- `routes/web.php` - route publik `telegram.webhook`; route admin `settings.telegram.webhook.register`/`.delete`.
+- `bootstrap/app.php` - `validateCsrfTokens(except: ['telegram/webhook'])`.
+- `resources/js/Pages/Settings/Index.vue` - tab Telegram: toggle "Aktifkan perintah bot", badge status webhook, tombol Daftarkan/Hapus Webhook, daftar perintah.
+
+Notes:
+
+- Diverifikasi: `php artisan test` (121 passed), `./vendor/bin/pint` (file baru bersih; temuan `bootstrap/app.php` pre-existing, tidak disentuh), `npm run build`.
+- **Deploy:** jalankan `php artisan migrate --force`, lalu setup webhook — isi bot token + chat ID di Pengaturan, centang "Aktifkan perintah bot", klik **Daftarkan Webhook** (atau `php artisan telegram:webhook set`). Webhook butuh URL HTTPS publik valid (`APP_URL`); pastikan nginx meneruskan `POST /telegram/webhook`. Cek dengan `php artisan telegram:webhook info`.
+- Batasan: murni read-only; aksi (reboot/refresh) belum ada — bisa ditambah kemudian dengan konfirmasi ekstra.
+
+### Configure ONU — perbaikan tampilan mobile
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` - enam tabel baris-berulang (T-CONT, GEM Port, Service-port, Service, UNI VLAN, WAN Service Binding) sebelumnya memaksa scroll horizontal di mobile (`min-w-[600px]`–`820px`). Sekarang responsif: tetap grid tabel di ≥768px, dan menjadi kartu ber-label (label per-field) di layar kecil. Karena `grid-template-columns` dipasang via inline style, pemilihan layout dikendalikan reaktif lewat `isWide` (matchMedia 768px) + listener resize. Tombol hapus baris jadi tombol full-width "Hapus baris" di mobile; action bar bawah (Batal/Apply) full-width di mobile. Tambah CSS scoped `kv-rowcard`/`kv-cell`/`kv-action-cell`/`kv-flabel`/`kv-del-mobile`.
+
+Notes:
+
+- Tata letak desktop tidak berubah (jumlah kolom grid tetap cocok dengan `cols.*`).
+- Diverifikasi dengan `npm run build`.
+
+### Pengaturan: Tab Umum (branding aplikasi)
+
+Created:
+
+- `database/migrations/2026_05_29_140000_create_general_settings_table.php` - tabel singleton `general_settings` (`app_name`, `app_version`, `logo_path`).
+- `app/Models/GeneralSetting.php` - model singleton (pola `instance()` seperti `TelegramSetting`), `logoUrl()`, dan `brandingPayload()` yang ter-cache + defensif (fallback default bila tabel belum ada); cache di-bust pada event `saved`/`deleted`.
+
+Changed:
+
+- `app/Http/Controllers/SettingsController.php` - `edit()` kini mengirim payload `general` + `appInfo` (tech stack); tambah `updateGeneral()` (validasi nama/versi, unggah/hapus logo ke disk `public/branding`).
+- `routes/web.php` - route `POST /settings/general` (`settings.general.update`, admin-only).
+- `app/Http/Middleware/HandleInertiaRequests.php` - share `branding` (nama/versi/logo) global; `systemInfo.version` kini ambil dari `GeneralSetting`.
+- `resources/js/Components/ApplicationLogo.vue` - render logo unggahan bila ada, fallback ke SVG bawaan.
+- `resources/js/Layouts/AuthenticatedLayout.vue` - nama aplikasi (mobile bar, sidebar, footer) ikut `branding.name`.
+- `resources/js/Pages/Settings/Index.vue` - dibuat 2 tab: **Umum** (identitas aplikasi: nama, versi, logo + kartu Informasi Sistem/tech stack) dan **Bot Telegram** (form lama dipindah tanpa perubahan).
+
+Notes:
+
+- Diverifikasi dengan `php artisan migrate`, `npm run build`, `./vendor/bin/pint`, dan `php artisan test` (112 passed).
+- Symlink `public/storage` sudah ada; logo unggahan disajikan via `/storage/branding/...`.
+- Deploy prod: jalankan `php artisan migrate --force` (kolom sqlite-compatible untuk test).
+
 ## 2026-05-28
 
 ### Local Production Hardening

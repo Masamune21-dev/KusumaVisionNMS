@@ -29,6 +29,7 @@ let sidebarMediaQuery = null;
 
 const can = computed(() => page.props.auth?.can ?? {});
 const isDemo = computed(() => Boolean(can.value.is_demo));
+const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
 
 const navLinks = computed(() => {
     const links = [
@@ -100,7 +101,7 @@ onUnmounted(() => {
             </button>
             <Link :href="route('dashboard')" class="flex min-w-0 items-center gap-2">
                 <ApplicationLogo class="h-6 w-auto fill-current text-cyan-400" />
-                <span class="hidden text-sm font-bold text-white sm:inline">KusumaVision</span>
+                <span class="hidden text-sm font-bold text-white sm:inline">{{ appName }}</span>
             </Link>
             <div class="ml-auto flex items-center gap-2">
                 <button
@@ -152,7 +153,7 @@ onUnmounted(() => {
                         <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
                     </div>
                     <div v-if="showSidebarContent" class="min-w-0">
-                        <div class="truncate text-base font-bold leading-tight text-white">KusumaVision</div>
+                        <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>
                         <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
                     </div>
                 </Link>
@@ -257,7 +258,7 @@ onUnmounted(() => {
             <!-- Footer -->
             <footer class="border-t border-white/10 bg-slate-950/40 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
-                    <p>&copy; 2026 KusumaVision NMS &middot; Dibuat Oleh Masamune</p>
+                    <p>&copy; 2026 {{ appName }} NMS &middot; Dibuat Oleh Masamune</p>
                     <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>
                 </div>
             </footer>

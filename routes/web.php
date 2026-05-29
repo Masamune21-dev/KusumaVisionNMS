@@ -10,6 +10,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SmartOltController;
 use App\Http\Controllers\SmartOltProfileController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\TelnetSessionController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,10 @@ Route::get('/', function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+// Inbound Telegram bot commands. Public (no auth) — guarded by the secret token header;
+// CSRF-exempt (see bootstrap/app.php).
+Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -49,8 +54,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
         Route::put('/settings/telegram', [SettingsController::class, 'updateTelegram'])->name('settings.telegram.update');
         Route::post('/settings/telegram/test', [SettingsController::class, 'testTelegram'])->name('settings.telegram.test');
+        Route::post('/settings/telegram/webhook/register', [SettingsController::class, 'registerWebhook'])->name('settings.telegram.webhook.register');
+        Route::post('/settings/telegram/webhook/delete', [SettingsController::class, 'deleteWebhook'])->name('settings.telegram.webhook.delete');
     });
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');

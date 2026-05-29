@@ -38,6 +38,8 @@ class TelegramSetting extends Model
         'enabled',
         'bot_token',
         'chat_id',
+        'webhook_secret',
+        'commands_enabled',
         'min_severity',
         'notify_on_raise',
         'notify_on_clear',
@@ -47,6 +49,7 @@ class TelegramSetting extends Model
 
     protected $hidden = [
         'bot_token',
+        'webhook_secret',
     ];
 
     protected function casts(): array
@@ -54,6 +57,8 @@ class TelegramSetting extends Model
         return [
             'enabled' => 'boolean',
             'bot_token' => 'encrypted',
+            'webhook_secret' => 'encrypted',
+            'commands_enabled' => 'boolean',
             'notify_on_raise' => 'boolean',
             'notify_on_clear' => 'boolean',
             'last_sent_at' => 'datetime',
@@ -93,6 +98,24 @@ class TelegramSetting extends Model
     public function isReady(): bool
     {
         return $this->enabled && $this->isConfigured();
+    }
+
+    /**
+     * Whether inbound command handling is switched on and fully configured.
+     */
+    public function commandsReady(): bool
+    {
+        return $this->commands_enabled
+            && filled($this->bot_token)
+            && filled($this->webhook_secret);
+    }
+
+    /**
+     * Only chat ids present in the configured allow-list may run data commands.
+     */
+    public function isChatAuthorized(string $chatId): bool
+    {
+        return in_array(trim($chatId), $this->chatIds(), true);
     }
 
     public function minSeverityRank(): int

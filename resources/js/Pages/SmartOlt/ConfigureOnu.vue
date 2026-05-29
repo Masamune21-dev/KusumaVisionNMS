@@ -10,7 +10,7 @@ import {
     AlertTriangle, ArrowLeft, Check, Cloud, Copy, Cpu, Eye, EyeOff, Globe,
     ListChecks, Network, Plus, RefreshCw, Settings, ShieldCheck, Terminal, Trash2,
 } from '@lucide/vue';
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -112,7 +112,24 @@ const schedulePreview = () => {
 };
 
 watch(() => cfg, schedulePreview, { deep: true });
-onMounted(runPreview);
+
+// Tabel baris-berulang ditampilkan sebagai grid di ≥768px dan kartu ber-label di
+// layar kecil. Karena grid-template-columns dipasang via inline style (tak bisa
+// di-override media query), pemilihan layout dikendalikan reaktif lewat matchMedia.
+const isWide = ref(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);
+let wideMq = null;
+const syncWide = () => { isWide.value = wideMq?.matches ?? true; };
+
+onMounted(() => {
+    runPreview();
+    wideMq = window.matchMedia('(min-width: 768px)');
+    syncWide();
+    wideMq.addEventListener('change', syncWide);
+});
+
+onUnmounted(() => {
+    wideMq?.removeEventListener('change', syncWide);
+});
 
 const copyScript = async () => {
     try {
@@ -256,18 +273,22 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addTcont"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[600px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.tcont }">
+                                <div class="space-y-3 md:min-w-[600px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.tcont }">
                                         <span>ID</span><span>Name</span><span>Profile</span><span>Gap</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.tconts" :key="`tc-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.tcont }">
-                                        <TextInput v-model.number="row.id" type="number" :class="fieldClass" />
-                                        <TextInput v-model="row.name" :class="fieldClass" />
-                                        <select v-model="row.profile" :class="fieldClass">
-                                            <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
-                                        </select>
-                                        <TextInput v-model="row.gap" :class="fieldClass" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.tconts, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.tconts" :key="`tc-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.tcont } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Profile</span>
+                                            <select v-model="row.profile" :class="fieldClass">
+                                                <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Gap</span><TextInput v-model="row.gap" :class="fieldClass" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.tconts, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.tconts.length" class="py-1 text-xs text-slate-500">Belum ada T-CONT.</p>
                                 </div>
@@ -281,17 +302,19 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addGemport"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[700px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.gemport }">
+                                <div class="space-y-3 md:min-w-[700px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.gemport }">
                                         <span>ID</span><span>Name</span><span>T-CONT</span><span>Upstream Limit</span><span>Downstream Limit</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.gemports" :key="`gp-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.gemport }">
-                                        <TextInput v-model.number="row.id" type="number" :class="fieldClass" />
-                                        <TextInput v-model="row.name" :class="fieldClass" />
-                                        <TextInput v-model.number="row.tcont" type="number" :class="fieldClass" />
-                                        <TextInput v-model="row.traffic_up" :class="fieldClass" placeholder="profile" />
-                                        <TextInput v-model="row.traffic_down" :class="fieldClass" placeholder="profile" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.gemports, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.gemports" :key="`gp-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.gemport } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">T-CONT</span><TextInput v-model.number="row.tcont" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Upstream Limit</span><TextInput v-model="row.traffic_up" :class="fieldClass" placeholder="profile" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Downstream Limit</span><TextInput v-model="row.traffic_down" :class="fieldClass" placeholder="profile" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.gemports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.gemports.length" class="py-1 text-xs text-slate-500">Belum ada GEM Port.</p>
                                 </div>
@@ -305,16 +328,18 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addServicePort"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[560px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.servicePort }">
+                                <div class="space-y-3 md:min-w-[560px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.servicePort }">
                                         <span>ID</span><span>VPort</span><span>User VLAN</span><span>VLAN</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.service_ports" :key="`sp-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.servicePort }">
-                                        <TextInput v-model.number="row.id" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.vport" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.user_vlan" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.vlan" type="number" :class="fieldClass" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.service_ports, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.service_ports" :key="`sp-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.servicePort } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VPort</span><TextInput v-model.number="row.vport" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">User VLAN</span><TextInput v-model.number="row.user_vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.service_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.service_ports.length" class="py-1 text-xs text-slate-500">Belum ada service-port.</p>
                                 </div>
@@ -328,17 +353,19 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[720px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.service }">
+                                <div class="space-y-3 md:min-w-[720px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.service }">
                                         <span>Name</span><span>Type</span><span>GEM</span><span>COS</span><span>VLAN</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.services" :key="`sv-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.service }">
-                                        <TextInput v-model="row.name" :class="fieldClass" />
-                                        <TextInput v-model="row.type" :class="fieldClass" placeholder="internet/iptv" />
-                                        <TextInput v-model.number="row.gem" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.cos" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.vlan" type="number" :class="fieldClass" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.services, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.services" :key="`sv-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.service } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Type</span><TextInput v-model="row.type" :class="fieldClass" placeholder="internet/iptv" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">GEM</span><TextInput v-model.number="row.gem" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">COS</span><TextInput v-model.number="row.cos" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.services.length" class="py-1 text-xs text-slate-500">Belum ada service.</p>
                                 </div>
@@ -352,26 +379,32 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addVlanPort"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[760px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.uniVlan }">
+                                <div class="space-y-3 md:min-w-[760px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.uniVlan }">
                                         <span>Port Type</span><span>Port</span><span>Mode</span><span>VLAN</span><span>Def VLAN</span><span>Priority</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.vlan_ports" :key="`uv-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.uniVlan }">
-                                        <select v-model="row.port_type" :class="fieldClass">
-                                            <option value="eth">Ethernet</option>
-                                            <option value="wifi">WiFi</option>
-                                        </select>
-                                        <TextInput v-model.number="row.port" type="number" :class="fieldClass" />
-                                        <select v-model="row.mode" :class="fieldClass">
-                                            <option value="hybrid">hybrid</option>
-                                            <option value="trunk">trunk</option>
-                                            <option value="access">access</option>
-                                            <option value="transparent">transparent</option>
-                                        </select>
-                                        <TextInput v-model.number="row.vlan" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.def_vlan" type="number" :class="fieldClass" />
-                                        <TextInput v-model.number="row.priority" type="number" :class="fieldClass" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.vlan_ports, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.vlan_ports" :key="`uv-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.uniVlan } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Port Type</span>
+                                            <select v-model="row.port_type" :class="fieldClass">
+                                                <option value="eth">Ethernet</option>
+                                                <option value="wifi">WiFi</option>
+                                            </select>
+                                        </div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Port</span><TextInput v-model.number="row.port" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Mode</span>
+                                            <select v-model="row.mode" :class="fieldClass">
+                                                <option value="hybrid">hybrid</option>
+                                                <option value="trunk">trunk</option>
+                                                <option value="access">access</option>
+                                                <option value="transparent">transparent</option>
+                                            </select>
+                                        </div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Def VLAN</span><TextInput v-model.number="row.def_vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Priority</span><TextInput v-model.number="row.priority" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.vlan_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.vlan_ports.length" class="py-1 text-xs text-slate-500">Belum ada UNI VLAN.</p>
                                 </div>
@@ -385,18 +418,20 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addWanService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="min-w-[820px] space-y-1.5">
-                                    <div class="kv-thead" :style="{ gridTemplateColumns: cols.wanService }">
+                                <div class="space-y-3 md:min-w-[820px] md:space-y-1.5">
+                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.wanService }">
                                         <span>ID</span><span>ETHUNI</span><span>SSID</span><span>Service</span><span>MVLAN</span><span>Host</span><span></span>
                                     </div>
-                                    <div v-for="(row, i) in cfg.wan_services" :key="`ws-${i}`" class="kv-trow" :style="{ gridTemplateColumns: cols.wanService }">
-                                        <TextInput v-model.number="row.id" type="number" :class="fieldClass" />
-                                        <TextInput v-model="row.ethuni" :class="fieldClass" placeholder="1,2,3" />
-                                        <TextInput v-model="row.ssid" :class="fieldClass" />
-                                        <TextInput v-model="row.service" :class="fieldClass" />
-                                        <TextInput v-model="row.mvlan" :class="fieldClass" />
-                                        <TextInput v-model="row.host" :class="fieldClass" />
-                                        <button type="button" class="kv-del" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /></button>
+                                    <div v-for="(row, i) in cfg.wan_services" :key="`ws-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.wanService } : null">
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ETHUNI</span><TextInput v-model="row.ethuni" :class="fieldClass" placeholder="1,2,3" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">SSID</span><TextInput v-model="row.ssid" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Service</span><TextInput v-model="row.service" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">MVLAN</span><TextInput v-model="row.mvlan" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Host</span><TextInput v-model="row.host" :class="fieldClass" /></div>
+                                        <div class="kv-cell kv-action-cell">
+                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                                        </div>
                                     </div>
                                     <p v-if="!cfg.wan_services.length" class="py-1 text-xs text-slate-500">Belum ada WAN binding.</p>
                                 </div>
@@ -563,10 +598,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
 
                 <!-- Action bar -->
                 <div class="grid gap-2 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-4 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6">
-                    <Link :href="route('smartolt.port-onus', [olt.id, slot, port])">
-                        <SecondaryButton type="button">Batal</SecondaryButton>
+                    <Link :href="route('smartolt.port-onus', [olt.id, slot, port])" class="block w-full sm:w-auto">
+                        <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
                     </Link>
-                    <PrimaryButton :disabled="form.processing" @click="apply">
+                    <PrimaryButton class="w-full sm:w-auto" :disabled="form.processing" @click="apply">
                         <Check class="mr-2 h-4 w-4" />
                         Apply ke OLT (CLI)
                     </PrimaryButton>
@@ -624,4 +659,54 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     gap: 0.5rem;
     padding: 0.125rem 0.625rem;
 }
+
+/* Grid cells (desktop) must be allowed to shrink so inputs don't overflow. */
+.kv-cell {
+    min-width: 0;
+}
+.kv-action-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* === Mobile: each repeating row becomes a labeled card === */
+.kv-rowcard {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background: rgb(2 6 23 / 0.4);
+    padding: 0.75rem;
+}
+.kv-rowcard .kv-action-cell {
+    grid-column: 1 / -1;
+    margin-top: 0.125rem;
+}
+.kv-flabel {
+    display: block;
+    margin-bottom: 0;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(100 116 139);
+}
+.kv-del-mobile {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(239 68 68 / 0.3);
+    background: rgb(239 68 68 / 0.1);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(252 165 165);
+    transition: all 0.15s;
+}
+.kv-del-mobile:hover { background: rgb(239 68 68 / 0.2); }
 </style>

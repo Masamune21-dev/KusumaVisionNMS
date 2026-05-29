@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\AlarmEvent;
+use App\Models\GeneralSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -39,6 +40,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'notifications' => fn () => $this->notificationsPayload($request),
             'systemInfo' => fn () => $this->systemInfoPayload(),
+            'branding' => fn () => GeneralSetting::brandingPayload(),
         ];
     }
 
@@ -85,7 +87,7 @@ class HandleInertiaRequests extends Middleware
     private function systemInfoPayload(): array
     {
         return [
-            'version' => config('app.version', '2.0.0'),
+            'version' => GeneralSetting::brandingPayload()['version'],
             'uptime' => $this->formatUptime(),
             'users_online' => $this->estimateActiveUsers(),
         ];

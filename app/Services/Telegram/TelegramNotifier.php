@@ -16,7 +16,7 @@ class TelegramNotifier
 
     private const MAX_ITEMS_PER_MESSAGE = 10;
 
-    private const SEVERITY_EMOJI = [
+    public const SEVERITY_EMOJI = [
         AlarmEvent::SEVERITY_CRITICAL => '🔴',
         AlarmEvent::SEVERITY_MAJOR => '🟠',
         AlarmEvent::SEVERITY_MINOR => '🟡',
@@ -111,6 +111,46 @@ class TelegramNotifier
         } catch (Throwable $exception) {
             return ['ok' => false, 'error' => $exception->getMessage()];
         }
+    }
+
+    /**
+     * Reply to a single chat (used by the inbound command webhook).
+     *
+     * Unlike dispatch(), this does not touch last_sent_at/last_error — those track
+     * outbound alarm delivery health, not command replies.
+     *
+     * @return array{ok: bool, error: ?string}
+     */
+    public function sendTo(string $chatId, string $text): array
+    {
+        $setting = TelegramSetting::instance();
+        $token = (string) $setting->bot_token;
+
+        if ($token === '') {
+            return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
+        }
+
+        try {
+            $response = Http::asJson()
+                ->timeout(10)
+                ->post(self::API_BASE."/bot{$token}/sendMessage", [
+                    'chat_id' => $chatId,
+                    'text' => $text,
+                    'parse_mode' => 'HTML',
+                    'disable_web_page_preview' => true,
+                ]);
+        } catch (Throwable $exception) {
+            return ['ok' => false, 'error' => $exception->getMessage()];
+        }
+
+        if (! $response->successful() || $response->json('ok') !== true) {
+            return [
+                'ok' => false,
+                'error' => $response->json('description') ?: 'HTTP '.$response->status().' dari Telegram.',
+            ];
+        }
+
+        return ['ok' => true, 'error' => null];
     }
 
     /**
