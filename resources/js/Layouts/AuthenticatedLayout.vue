@@ -8,7 +8,7 @@ import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Radar, ScrollText, Search, Settings, Users, WifiOff } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Search, Settings, User, Users, WifiOff } from '@lucide/vue';
 
 const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
@@ -30,6 +30,8 @@ let sidebarMediaQuery = null;
 const can = computed(() => page.props.auth?.can ?? {});
 const isDemo = computed(() => Boolean(can.value.is_demo));
 const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
+const user = computed(() => page.props.auth?.user ?? {});
+const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCase());
 
 const navLinks = computed(() => {
     const links = [
@@ -187,6 +189,38 @@ onUnmounted(() => {
                     </Link>
                 </div>
             </nav>
+
+            <!-- User account (mobile only — desktop uses header UserMenu) -->
+            <div v-if="showSidebarContent" class="relative z-10 border-t border-white/10 px-3 py-3 lg:hidden">
+                <div class="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
+                    <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-white shadow-inner shadow-white/10">
+                        {{ userInitial }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-semibold text-white">{{ user.name }}</p>
+                        <p class="truncate text-[11px] text-slate-500">{{ user.email }}</p>
+                    </div>
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                    <Link
+                        :href="route('profile.edit')"
+                        class="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+                        @click="sidebarOpen = false"
+                    >
+                        <User class="h-4 w-4" />
+                        Profile
+                    </Link>
+                    <Link
+                        :href="route('logout')"
+                        method="post"
+                        as="button"
+                        class="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
+                    >
+                        <LogOut class="h-4 w-4" />
+                        Keluar
+                    </Link>
+                </div>
+            </div>
 
             <!-- System info panel (bottom) -->
             <div v-if="showSidebarContent" class="relative z-10">

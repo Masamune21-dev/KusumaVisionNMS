@@ -70,8 +70,8 @@ const cardStatusColor = (status) => {
 
 const oltImage = computed(() => {
     const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
-    if (hay.includes('c320')) return '/img/c320.png';
-    if (hay.includes('c300')) return '/img/c300.png';
+    if (hay.includes('c320')) return '/img/c320.webp';
+    if (hay.includes('c300')) return '/img/c300.webp';
     return null;
 });
 </script>

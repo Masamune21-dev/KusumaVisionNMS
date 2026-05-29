@@ -184,7 +184,7 @@ const screenshots = [
         icon: LayoutDashboard,
         label: 'Dashboard',
         desc: 'Ringkasan jaringan FTTH real-time',
-        src: '/img/dashboard1.png',
+        src: '/img/dashboard1.webp',
         ratio: '1920 / 1282',
         url: 'app.kusumavision.net/dashboard',
         alt: 'Dashboard KusumaVision NMS — ringkasan OLT, ONU, dan alarm',
@@ -194,7 +194,7 @@ const screenshots = [
         icon: Server,
         label: 'OLT Inventory',
         desc: 'Perangkat, line card & port GPON',
-        src: '/img/oltinventory.png',
+        src: '/img/oltinventory.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt',
         alt: 'Inventaris OLT — daftar perangkat ZTE dan kapabilitasnya',
@@ -204,7 +204,7 @@ const screenshots = [
         icon: Radar,
         label: 'ONU Belum Terdaftar',
         desc: 'Temukan & provisioning ONU baru',
-        src: '/img/unconfigured.png',
+        src: '/img/unconfigured.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/unconfigured',
         alt: 'Daftar ONU belum terkonfigurasi siap di-provisioning',
@@ -214,7 +214,7 @@ const screenshots = [
         icon: Activity,
         label: 'Detail ONU',
         desc: 'Status, RX power & konfigurasi WAN',
-        src: '/img/detail.png',
+        src: '/img/detail.webp',
         ratio: '1920 / 1112',
         url: 'app.kusumavision.net/smartolt/onu',
         alt: 'Halaman detail ONU — status optik, RX power, dan konfigurasi',
@@ -224,7 +224,7 @@ const screenshots = [
         icon: LogIn,
         label: 'Login',
         desc: 'Akses aman untuk operator NOC',
-        src: '/img/login.png',
+        src: '/img/login.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/login',
         alt: 'Halaman login KusumaVision NMS',
@@ -431,7 +431,7 @@ const supportLinks = [
                                 <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">http://localhost/dashboard</span>
                             </div>
                             <img
-                                src="/img/dashboard1.png"
+                                src="/img/dashboard1.webp"
                                 alt="KusumaVision NMS Dashboard"
                                 class="block w-full"
                                 loading="eager"
@@ -459,7 +459,7 @@ const supportLinks = [
                                 </div>
                             </div>
                             <img
-                                src="/img/c320.png"
+                                src="/img/c320.webp"
                                 alt="ZTE OLT hardware"
                                 class="h-32 w-auto object-contain opacity-90 md:h-40"
                                 loading="lazy"

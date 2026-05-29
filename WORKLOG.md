@@ -1187,3 +1187,27 @@ Changed:
 Notes:
 
 - Murni dokumentasi; tidak ada perubahan kode. Deskripsi fitur diverifikasi terhadap WORKLOG & `routes/web.php` (route `reports.*`, `users.*`, `audit-logs.*`, `settings.*`, `telegram.webhook`). Link `docs/DEMO_DEPLOYMENT.md` & `docs/LOCAL_PRODUCTION_HARDENING.md` dipastikan ada.
+
+### Fix: tombol logout tidak ada di tampilan mobile
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — `UserMenu` (berisi tombol Keluar/logout) ternyata hanya dirender di header desktop (`lg:block`), sedangkan mobile top bar & sidebar drawer tak punya menu user sama sekali → user tidak bisa logout di mobile. Ditambahkan blok akun di bagian bawah sidebar drawer, **khusus mobile** (`lg:hidden`, desktop tetap pakai `UserMenu` di header): avatar inisial + nama + email, lalu tombol **Profile** (Inertia `Link` ke `profile.edit`, menutup drawer saat diklik) dan **Keluar** (`Link method="post"` ke `logout`). Import ikon `LogOut`/`User` + computed `user`/`userInitial` dari `auth.user`.
+
+Notes:
+
+- `npm run build` bersih. Build artifacts (`public/build`) di-gitignore — perlu `npm run build` ulang saat deploy.
+
+### Optimasi halaman Welcome — konversi screenshot PNG → WebP
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — 7 referensi gambar (galeri "Tampilan Aplikasi": dashboard/oltinventory/unconfigured/detail/login, hero dashboard, hardware c320) diarahkan dari `.png` → `.webp`.
+- `resources/js/Pages/SmartOlt/Detail.vue` — gambar hardware OLT (`c300`/`c320`) → `.webp`.
+- `public/img/*` — 7 PNG dikonversi ke WebP (`cwebp -q 80`) lalu PNG lama dihapus: `dashboard1`, `oltinventory`, `unconfigured`, `detail`, `login`, `c300`, `c320`.
+
+Notes:
+
+- Folder `public/img` turun **6.3 MB → 516 KB** (~92% lebih kecil). Penghematan per file: login 1387→22 KB, dashboard 1396→98 KB, oltinventory 1108→38 KB, unconfigured 908→38 KB, detail 1133→68 KB, c300 255→109 KB, c320 196→90 KB.
+- Quality 80 cukup untuk screenshot UI (teks tetap tajam). WebP didukung semua browser modern (Chrome/Firefox/Edge, Safari 14+) — aman untuk dashboard NOC, tanpa fallback PNG.
+- Hero dashboard tetap `loading="eager"` (gambar LCP) tapi kini ~98 KB sehingga first paint jauh lebih ringan. `npm run build` bersih.
