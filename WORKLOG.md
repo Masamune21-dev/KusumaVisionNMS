@@ -1023,3 +1023,16 @@ Notes (perubahan ini di tingkat sistem/server, di luar git — didokumentasikan 
 Changed:
 
 - `resources/js/Components/Dashboard/HeroBanner.vue`, `resources/js/Layouts/GuestLayout.vue`, `resources/js/Pages/Welcome.vue` — ganti tagline/subjudul/title tab jadi "ZTE OLT Management & Provisioning Platform" (lebih sesuai scope ZTE GPON). Frontend di-rebuild (`npm run build`).
+
+### Hero/footer landing teks lengkap + matikan autofill PPPoE
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — H1 hero (yang sebelumnya terpecah jadi span: "Unified" / "FTTH Network" / "Management Platform") & teks footer diganti ke "ZTE OLT Management & Provisioning Platform"; aksen gradient kini di "OLT Management".
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue`, `resources/js/Pages/SmartOlt/RegisterOnu.vue` — input WAN PPPoE: tambah `autocomplete="off"` (username) & `autocomplete="new-password"` (password) + `data-1p-ignore`/`data-lpignore` agar browser/password-manager tidak auto-fill kredensial Google ke field PPPoE.
+- `public/img/dashboard1.png` (diperbarui) + `public/img/{detail,login,oltinventory,unconfigured}.png` (baru) — aset screenshot landing disediakan user.
+
+Notes:
+
+- Tulisan di dalam mockup dashboard hero adalah gambar (`/img/dashboard1.png`), bukan teks HTML — diganti dengan mengganti file PNG, bukan kode.
+- `TextInput.vue` meneruskan `$attrs` ke `<input>`, jadi atribut `autocomplete`/`data-*` cukup ditaruh di pemakaian komponen. Frontend di-rebuild (`npm run build`).

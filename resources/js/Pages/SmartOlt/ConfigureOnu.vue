@@ -433,12 +433,12 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <div v-if="cfg.wan_mode === 'pppoe'" class="grid gap-5 md:grid-cols-2">
                                     <div>
                                         <InputLabel for="pppoe_username" value="PPPoE Username" />
-                                        <TextInput id="pppoe_username" v-model="cfg.pppoe_username" class="mt-1 block w-full" />
+                                        <TextInput id="pppoe_username" v-model="cfg.pppoe_username" class="mt-1 block w-full" autocomplete="off" data-1p-ignore data-lpignore="true" />
                                     </div>
                                     <div>
                                         <InputLabel for="pppoe_password" value="PPPoE Password" />
                                         <div class="relative mt-1">
-                                            <TextInput id="pppoe_password" v-model="cfg.pppoe_password" :type="showPppoe ? 'text' : 'password'" class="block w-full pr-10" placeholder="••••••••" />
+                                            <TextInput id="pppoe_password" v-model="cfg.pppoe_password" :type="showPppoe ? 'text' : 'password'" class="block w-full pr-10" placeholder="••••••••" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
                                             <button type="button" class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-white" @click="showPppoe = !showPppoe">
                                                 <EyeOff v-if="showPppoe" class="h-4 w-4" /><Eye v-else class="h-4 w-4" />
                                             </button>

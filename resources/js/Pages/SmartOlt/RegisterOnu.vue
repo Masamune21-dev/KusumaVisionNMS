@@ -205,12 +205,12 @@ const submit = () => {
                             <div v-if="form.wan_mode === 'pppoe'" class="grid gap-5 md:grid-cols-2">
                                 <div>
                                     <InputLabel for="pppoe_username" value="PPPoE Username" />
-                                    <TextInput id="pppoe_username" v-model="form.pppoe_username" class="mt-1 block w-full" />
+                                    <TextInput id="pppoe_username" v-model="form.pppoe_username" class="mt-1 block w-full" autocomplete="off" data-1p-ignore data-lpignore="true" />
                                     <InputError class="mt-1.5" :message="form.errors.pppoe_username" />
                                 </div>
                                 <div>
                                     <InputLabel for="pppoe_password" value="PPPoE Password" />
-                                    <TextInput id="pppoe_password" v-model="form.pppoe_password" class="mt-1 block w-full" type="password" />
+                                    <TextInput id="pppoe_password" v-model="form.pppoe_password" class="mt-1 block w-full" type="password" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
                                     <InputError class="mt-1.5" :message="form.errors.pppoe_password" />
                                 </div>
                             </div>

@@ -273,7 +273,7 @@ const supportLinks = [
                             data-aos="fade-up"
                             data-aos-delay="80"
                         >
-                            Unified <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">FTTH Network</span> Management Platform
+                            ZTE <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">OLT Management</span> &amp; Provisioning Platform
                         </h1>
                         <p
                             class="mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg"
@@ -582,7 +582,7 @@ const supportLinks = [
 
                 <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row">
                     <p>&copy; 2026 KusumaVision NMS &middot; Dibuat oleh Masamune</p>
-                    <p>FTTH Network Management Platform</p>
+                    <p>ZTE OLT Management &amp; Provisioning Platform</p>
                 </div>
             </div>
         </footer>
