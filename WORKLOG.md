@@ -1017,3 +1017,9 @@ Notes (perubahan ini di tingkat sistem/server, di luar git — didokumentasikan 
 - **fail2ban** dipasang (`jail.local`): jail `sshd` (efektif penuh, `/var/log/auth.log`, ban 2h), `nginx-http-auth`, `nginx-botsearch`; `ignoreip` mencakup LAN + subnet admin. Catatan: untuk trafik HTTP yang lewat Cloudflare, ban iptables atas IP visitor asli hanya efektif untuk akses langsung-ke-origin; untuk blokir abuse ber-proxy perlu action Cloudflare API / WAF.
 - **App**: `APP_URL=https://nms.kusumavision.net` (backup `.env.bak.*`), `php artisan config:cache`, `queue:restart`, restart daemon telnet-proxy.
 - **Verifikasi**: lokal `https://127.0.0.1` (Host header) → 200; via IP publik → 200; live `https://nms.kusumavision.net` → HTTP/2 **200** (Inertia + assets ke-render), `http://` → 301 ke https. fail2ban 3 jail aktif tanpa error.
+
+### Ganti tagline "Unified FTTH Network Management Platform" → "ZTE OLT Management & Provisioning Platform"
+
+Changed:
+
+- `resources/js/Components/Dashboard/HeroBanner.vue`, `resources/js/Layouts/GuestLayout.vue`, `resources/js/Pages/Welcome.vue` — ganti tagline/subjudul/title tab jadi "ZTE OLT Management & Provisioning Platform" (lebih sesuai scope ZTE GPON). Frontend di-rebuild (`npm run build`).

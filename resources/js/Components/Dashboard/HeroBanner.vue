@@ -1,6 +1,6 @@
 <script setup>
 defineProps({
-    title: { type: String, default: 'Unified FTTH Network Management Platform' },
+    title: { type: String, default: 'ZTE OLT Management & Provisioning Platform' },
     subtitle: { type: String, default: 'Monitor dan kelola perangkat OLT dan ONU secara terpusat.' },
 });
 </script>

@@ -169,7 +169,7 @@ const supportLinks = [
 </script>
 
 <template>
-    <Head title="KusumaVision NMS — Unified FTTH Network Management" />
+    <Head title="KusumaVision NMS — ZTE OLT Management & Provisioning Platform" />
 
     <div class="min-h-screen bg-slate-950 text-slate-100">
         <!-- ===== Top nav ===== -->

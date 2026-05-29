@@ -26,7 +26,7 @@ import { ArrowLeft } from '@lucide/vue';
             <ApplicationLogo class="h-14 w-auto fill-current text-cyan-400 drop-shadow-[0_0_14px_rgba(34,211,238,0.5)]" />
             <div class="text-center">
                 <div class="text-lg font-bold text-white">KusumaVision NMS</div>
-                <div class="text-[11px] text-slate-500">Unified FTTH Network Management Platform</div>
+                <div class="text-[11px] text-slate-500">ZTE OLT Management & Provisioning Platform</div>
             </div>
         </Link>
 
