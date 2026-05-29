@@ -992,3 +992,16 @@ Notes:
 - Setup server lokal (di luar repo): daemon di `127.0.0.1:6002` via supervisor `kusumavision-telnet-proxy`; nginx route `location /telnet-ws` → proxy ke daemon (pakai port 80 ber-ACL, firewall tak diubah); `.env` set `TELNET_PROXY_WS_URL=/telnet-ws`.
 - Diverifikasi end-to-end lewat nginx:80 dengan fake telnet lokal: handshake 101, frame encoding benar, IAC ter-strip, auto-login berhasil. IAC filter & ticket round-trip lolos unit test.
 - **Gotcha penting:** `.env` tidak terbaca www-data (root:root 640) → app hanya jalan dengan config ter-cache. `config:clear` saat setup sempat menjatuhkan situs (500 sqlite) + daemon 401; dipulihkan dengan `config:cache`. Selalu `config:cache` + restart daemon setelah ubah `.env`/config telnet; jangan tinggalkan config dalam keadaan ter-clear.
+
+### Landing page tampilkan fitur baru + dokumentasi disesuaikan
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — bagian Fitur tambah "Telnet via Browser" & "Global Search", copy "ONU Monitoring" diperbarui jadi lintas-OLT; Modul tambah "ONU Monitoring" (Radar) & "Telnet Console" (Terminal); hero pill tambah "Web Telnet".
+- `CLAUDE.md` — koreksi klaim usang "No Go polling engine" (poller Go `bin/kv-snmp-poller`/`cmd/kv-snmp-poller` lewat `GoSnmpPoller`+`PollOltJob`, prod `SNMP_POLLER_DRIVER=go`, fallback PHP); Architecture tambah ONU Monitoring page, browser telnet (proxy+daemon), global search; Commands tambah `telnet:proxy` & build Go; Conventions tambah gotcha config-cache prod.
+- `README.md` — Fitur tambah ONU Monitoring/Telnet browser/Global search; tabel stack tambah xterm.js & telnet browser; langkah deploy baru "Langkah 8 — Telnet Proxy Browser" (supervisor + nginx `/telnet-ws` + `.env`), akun jadi Langkah 9; ringkasan hardening tambah telnet-proxy & catatan config-cache.
+
+Notes:
+
+- Diverifikasi Golang BENAR dipakai sebagai engine polling terjadwal (bukan vision PRD) — dokumen lama yang menyatakan sebaliknya dikoreksi.
+- Permission `.env` server diselaraskan ke `640 root:www-data` (sesuai README) agar www-data bisa baca; dibuktikan `config:clear` tak lagi menjatuhkan situs (tetap 200). Perubahan permission ini di sistem, di luar git.

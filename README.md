@@ -18,6 +18,9 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - **Configure ONU (CLI)** — reconfigure ONU existing dari live running-config dengan **delta script** (hanya baris yang berubah), preview live + panel *what will change*, lalu apply via Telnet (audit `reconfigured`/`reconfig_failed`).
 - **Manajemen Profile** — ONU Type / T-CONT / VLAN / IP per-OLT, sinkronisasi langsung dari OLT.
 - **Remote ONU Management** — reboot (CLI), enable/disable & edit nama/deskripsi (SNMP SET).
+- **ONU Monitoring (lintas OLT)** — halaman terpusat memantau seluruh ONU dari semua OLT & port dalam satu tabel, dengan filter OLT, port, status (online/LOS/dying-gasp/offline) dan admin; scan ulang seluruh ONU per-OLT dalam satu walk SNMP.
+- **Telnet via Browser** — terminal interaktif (xterm.js) ke CLI OLT langsung dari browser lewat proxy WebSocket↔Telnet; jendela bisa digeser, minimize/maximize, auto-login dengan kredensial OLT tersimpan.
+- **Global search (⌘K)** — cari OLT/ONU instan berdasarkan serial number, nama pelanggan, atau interface.
 - **Background polling** — interval poll per-OLT yang dapat dikonfigurasi (default 5 menit), RX power di-poll pada interval terpisah.
 - **Alarm engine** — siklus raise/clear untuk `olt_unreachable`, `port_down`, `los`, `onu_offline`, `dying_gasp`, `high_rx_attenuation`.
 - **Dashboard** — ringkasan OLT/ONU/alarm dengan grafik (ApexCharts).
@@ -29,11 +32,11 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 | Lapisan | Teknologi |
 |---|---|
 | Backend | Laravel 12 (PHP 8.3), Inertia.js |
-| Frontend | Vue 3 + Inertia, TailwindCSS, ApexCharts |
+| Frontend | Vue 3 + Inertia, TailwindCSS, ApexCharts, xterm.js (terminal) |
 | Database | PostgreSQL |
 | Cache / Queue / Session | Redis |
 | Web Server | Nginx + PHP-FPM 8.3 |
-| Akses OLT | SNMP v1/v2c (read & write), CLI Telnet |
+| Akses OLT | SNMP v1/v2c (read & write), CLI Telnet, telnet interaktif via browser (proxy WebSocket↔Telnet) |
 | SNMP Poller (opsional) | Go 1.18+ — binary `bin/kv-snmp-poller` |
 
 ---
@@ -211,7 +214,50 @@ Alternatif cron tetap bisa dipakai:
 * * * * * php /var/www/KusumaVisionNMS/artisan schedule:run >> /dev/null 2>&1
 ```
 
-### Langkah 8 — Buat akun pertama
+### Langkah 8 — Telnet Proxy Browser (Supervisor + Nginx)
+
+Daemon WebSocket↔Telnet untuk fitur terminal di browser. Bind ke localhost, diakses lewat Nginx (tidak perlu membuka port baru di firewall).
+
+```ini
+[program:kusumavision-telnet-proxy]
+command=php /var/www/KusumaVisionNMS/artisan telnet:proxy
+directory=/var/www/KusumaVisionNMS
+autostart=true
+autorestart=true
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/KusumaVisionNMS/storage/logs/telnet-proxy.log
+stopwaitsecs=5
+```
+
+```bash
+supervisorctl reread && supervisorctl update && supervisorctl start kusumavision-telnet-proxy
+```
+
+Tambahkan route WebSocket di server block Nginx (di dalam `server { ... }`), lalu `nginx -t && systemctl reload nginx`:
+
+```nginx
+location /telnet-ws {
+    proxy_pass http://127.0.0.1:6002;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_read_timeout 3600s;
+}
+```
+
+Set di `.env` (jalankan `php artisan config:cache` setelahnya):
+
+```dotenv
+TELNET_PROXY_HOST=127.0.0.1
+TELNET_PROXY_PORT=6002
+TELNET_PROXY_WS_URL=/telnet-ws   # path relatif → scheme/host (ws/wss) otomatis dari request
+```
+
+> Tombol **Telnet** muncul di halaman SmartOLT untuk OLT dengan `cli_transport=telnet` (role admin/operator). Daemon long-lived — restart (`supervisorctl restart kusumavision-telnet-proxy`) setelah mengubah kode/konfigurasi telnet.
+
+### Langkah 9 — Buat akun pertama
 
 Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
 
@@ -271,6 +317,7 @@ php artisan schedule:work
 
 ```bash
 php artisan olts:poll             # dispatch poll semua OLT yang sudah due sekarang
+php artisan telnet:proxy          # daemon WebSocket<->telnet (terminal browser)
 php artisan config:clear --ansi   # clear config sebelum test
 php artisan test                  # jalankan test suite (SQLite in-memory)
 php artisan optimize              # cache config/routes/views untuk production
@@ -291,7 +338,8 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 - Nginx: root harus ke `public/`, deny dotfiles/file sensitif, security headers aktif, allow-list IP dibatasi.
 - SSH: key-only (`PasswordAuthentication no`), root hanya via key (`PermitRootLogin prohibit-password`), X11 forwarding off.
 - UFW: default deny incoming, allow outgoing, buka hanya port yang diperlukan dari subnet tepercaya.
-- Queue/scheduler: jalankan via Supervisor dan pastikan `queue:work` serta `schedule:work` aktif.
+- Queue/scheduler/telnet-proxy: jalankan via Supervisor dan pastikan `queue:work`, `schedule:work`, serta `telnet:proxy` aktif.
+- Config cache: app jalan dengan `bootstrap/cache/config.php`. Setelah mengubah `.env`/config, jalankan `php artisan config:cache` lalu restart daemon Supervisor — **jangan tinggalkan config dalam keadaan ter-clear** (bila `.env` tidak terbaca `www-data`, situs bisa 500).
 
 ---
 

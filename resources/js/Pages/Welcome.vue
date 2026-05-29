@@ -22,10 +22,13 @@ import {
     MonitorPlay,
     Phone,
     Play,
+    Radar,
     RadioTower,
+    Search,
     Server,
     ShieldCheck,
     Sparkles,
+    Terminal,
     Wifi,
     Workflow,
 } from '@lucide/vue';
@@ -65,6 +68,7 @@ const heroPills = [
     { icon: RadioTower, label: 'SNMP Polling' },
     { icon: BellRing, label: 'Alarm Engine' },
     { icon: Wifi, label: 'ONU Provisioning' },
+    { icon: Terminal, label: 'Web Telnet' },
 ];
 
 const features = [
@@ -78,7 +82,7 @@ const features = [
         icon: Wifi,
         accent: 'kv-circle-emerald',
         title: 'ONU Monitoring',
-        body: 'Pantau status ONU, RX optical power, vendor, dan registrasi secara real-time per port atau per OLT.',
+        body: 'Pantau seluruh ONU lintas OLT & port dalam satu halaman — status online/LOS/dying-gasp, RX optical power, dengan filter cepat per OLT, port, dan status.',
     },
     {
         icon: Workflow,
@@ -104,6 +108,18 @@ const features = [
         title: 'Remote ONU Management',
         body: 'Reboot, enable/disable, dan kontrol jarak jauh ONU langsung dari dashboard tanpa SSH ke OLT.',
     },
+    {
+        icon: Terminal,
+        accent: 'kv-circle-purple',
+        title: 'Telnet via Browser',
+        body: 'Akses CLI OLT langsung dari browser lewat terminal xterm.js — jendela bisa digeser, minimize/maximize, auto-login, tanpa aplikasi telnet terpisah.',
+    },
+    {
+        icon: Search,
+        accent: 'kv-circle-sky',
+        title: 'Global Search',
+        body: 'Cari OLT atau ONU instan berdasarkan serial number, nama pelanggan, atau interface — langsung lompat ke port terkait.',
+    },
 ];
 
 const benefits = [
@@ -128,6 +144,8 @@ const modules = [
     { icon: Server, title: 'OLT Inventory', sub: 'Detail perangkat & kartu line card' },
     { icon: BellRing, title: 'Alarm Center', sub: 'Pusat notifikasi & histori alarm' },
     { icon: Workflow, title: 'Provisioning', sub: 'Wizard registrasi ONU otomatis' },
+    { icon: Radar, title: 'ONU Monitoring', sub: 'Pantau ONU lintas OLT & port' },
+    { icon: Terminal, title: 'Telnet Console', sub: 'CLI OLT langsung dari browser' },
     { icon: Database, title: 'Profiles', sub: 'Manajemen ONU type, T-CONT, VLAN' },
     { icon: FileBarChart, title: 'Reports', sub: 'Laporan statistik dan utilisasi' },
 ];
