@@ -6,8 +6,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Database, Eye, Pencil, Plus, RefreshCw, Trash2 } from '@lucide/vue';
-import { computed } from 'vue';
+import { Cable, Database, Eye, Pencil, Plus, RefreshCw, Terminal, Trash2 } from '@lucide/vue';
+import { computed, defineAsyncComponent, ref } from 'vue';
+
+// Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
+const TelnetWindow = defineAsyncComponent(() => import('@/Components/Shell/TelnetWindow.vue'));
 
 defineProps({
     olts: {
@@ -18,7 +21,13 @@ defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+const telnetOlt = ref(null);
+const openTelnet = (olt) => {
+    telnetOlt.value = { id: olt.id, name: olt.name, ip: olt.ip };
+};
 
 const destroyOlt = async (olt) => {
     const ok = await confirm({
@@ -166,6 +175,14 @@ const formatDate = (value) => formatDateTime(value);
                                     <IconButton :href="route('smartolt.profiles.index', olt.id)" title="Profile">
                                         <Database class="h-4 w-4" />
                                     </IconButton>
+                                    <IconButton
+                                        v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                        variant="primary"
+                                        title="Telnet ke OLT"
+                                        @click="openTelnet(olt)"
+                                    >
+                                        <Terminal class="h-4 w-4" />
+                                    </IconButton>
                                     <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
@@ -254,6 +271,14 @@ const formatDate = (value) => formatDateTime(value);
                                             <IconButton :href="route('smartolt.profiles.index', olt.id)" title="Profile">
                                                 <Database class="h-4 w-4" />
                                             </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                                variant="primary"
+                                                title="Telnet ke OLT"
+                                                @click="openTelnet(olt)"
+                                            >
+                                                <Terminal class="h-4 w-4" />
+                                            </IconButton>
                                             <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
@@ -269,5 +294,6 @@ const formatDate = (value) => formatDateTime(value);
         </div>
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
+        <TelnetWindow v-if="telnetOlt" :olt="telnetOlt" @close="telnetOlt = null" />
     </AuthenticatedLayout>
 </template>

@@ -59,28 +59,40 @@ class DashboardSearchController extends Controller
             $portOnus = collect($olt->last_test_result['port_onus'] ?? []);
             foreach ($portOnus as $port) {
                 foreach (($port['onus'] ?? []) as $onu) {
-                    $serial = strtolower((string) ($onu['sn'] ?? $onu['serial'] ?? ''));
+                    $serialValue = (string) ($onu['serial_number'] ?? $onu['sn'] ?? $onu['serial'] ?? '');
+                    $serial = strtolower($serialValue);
                     $name = strtolower((string) ($onu['name'] ?? ''));
-                    if ($serial === '' && $name === '') {
+                    $interface = strtolower((string) ($onu['interface'] ?? ''));
+                    if ($serial === '' && $name === '' && $interface === '') {
                         continue;
                     }
-                    if (! str_contains($serial, $needle) && ! str_contains($name, $needle)) {
+                    if (! str_contains($serial, $needle) && ! str_contains($name, $needle) && ! str_contains($interface, $needle)) {
                         continue;
                     }
 
                     $slot = $port['slot'] ?? null;
                     $portNo = $port['port'] ?? null;
+                    $label = $serialValue !== '' ? $serialValue : ($onu['name'] ?? $onu['interface'] ?? 'ONU');
+
+                    $sublabelParts = [$olt->name];
+                    if ($slot && $portNo) {
+                        $sublabelParts[] = "{$slot}/{$portNo}";
+                    }
+                    if (($onu['name'] ?? '') !== '') {
+                        $sublabelParts[] = $onu['name'];
+                    }
+
                     $matches[] = [
                         'type' => 'onu',
                         'id' => $olt->id.'-'.$slot.'-'.$portNo.'-'.($onu['onu_id'] ?? $onu['id'] ?? ''),
-                        'label' => $onu['sn'] ?? $onu['serial'] ?? $onu['name'] ?? 'ONU',
-                        'sublabel' => $olt->name.($slot && $portNo ? " · {$slot}/{$portNo}" : ''),
+                        'label' => $label,
+                        'sublabel' => implode(' · ', $sublabelParts),
                         'url' => $slot && $portNo
                             ? route('smartolt.port-onus', [
                                 'olt' => $olt->id,
                                 'slot' => $slot,
                                 'port' => $portNo,
-                                'q' => $onu['sn'] ?? $onu['serial'] ?? $onu['name'] ?? '',
+                                'q' => $serialValue !== '' ? $serialValue : ($onu['name'] ?? ''),
                                 'focus' => $onu['onu_id'] ?? $onu['id'] ?? null,
                             ])
                             : route('smartolt.detail', $olt->id),

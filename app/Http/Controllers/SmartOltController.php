@@ -225,6 +225,131 @@ class SmartOltController extends Controller
         ]);
     }
 
+    public function onuMonitor(): Response
+    {
+        $olts = SnmpOlt::query()->orderBy('name')->get();
+
+        $onus = [];
+        $refreshedAt = [];
+
+        foreach ($olts as $olt) {
+            $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
+            if (! is_array($portOnus)) {
+                continue;
+            }
+
+            foreach ($portOnus as $entry) {
+                $entryRefreshed = data_get($entry, 'refreshed_at');
+                if ($entryRefreshed && (! isset($refreshedAt[$olt->id]) || $entryRefreshed > $refreshedAt[$olt->id])) {
+                    $refreshedAt[$olt->id] = $entryRefreshed;
+                }
+
+                foreach (data_get($entry, 'onus', []) as $onu) {
+                    $onus[] = [
+                        'olt_id' => $olt->id,
+                        'olt_name' => $olt->name,
+                        'slot' => (int) ($onu['slot'] ?? 0),
+                        'port' => (int) ($onu['port'] ?? 0),
+                        'onu_id' => (int) ($onu['onu_id'] ?? 0),
+                        'interface' => $onu['interface'] ?? null,
+                        'serial_number' => $onu['serial_number'] ?? null,
+                        'type_name' => $onu['type_name'] ?? null,
+                        'name' => $onu['name'] ?? null,
+                        'description' => $onu['description'] ?? null,
+                        'admin_state' => $onu['admin_state'] ?? 'unknown',
+                        'phase_state' => $onu['phase_state'] ?? 'Unknown',
+                        'online' => (bool) ($onu['online'] ?? false),
+                        'last_down_cause' => $onu['last_down_cause'] ?? null,
+                        'rx_power_dbm' => $onu['rx_power_dbm'] ?? null,
+                        'rx_power_label' => $onu['rx_power_label'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        usort(
+            $onus,
+            fn (array $a, array $b) => [$a['olt_name'], $a['slot'], $a['port'], $a['onu_id']]
+                <=> [$b['olt_name'], $b['slot'], $b['port'], $b['onu_id']],
+        );
+
+        return Inertia::render('SmartOlt/OnuMonitor', [
+            'olts' => $olts->map(fn (SnmpOlt $olt) => [
+                'id' => $olt->id,
+                'name' => $olt->name,
+                'ip' => $olt->ip,
+            ])->values(),
+            'onus' => $onus,
+            'refreshed_at' => $refreshedAt,
+        ]);
+    }
+
+    public function refreshOnuMonitor(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
+    {
+        $back = redirect()->route('monitoring.onu', ['olt_id' => $olt->id]);
+
+        try {
+            $ports = $client->gponPorts($olt);
+            $onus = $client->registeredOnus($olt, $ports);
+
+            $rxError = null;
+            try {
+                $onus = $client->mergeOnuRxPowers($onus, $client->onuRxPowers($olt));
+            } catch (\Throwable $exception) {
+                $rxError = $exception->getMessage();
+            }
+
+            $byPort = [];
+            foreach ($onus as $onu) {
+                $byPort["{$onu['slot']}_{$onu['port']}"][] = $onu;
+            }
+
+            $snapshot = $olt->last_test_result ?? [];
+            data_set($snapshot, 'ports', $ports);
+            $now = now()->toIso8601String();
+
+            // Index ports by slot_port so ONUs that resolved via if-index fallback still get a row.
+            $portRows = [];
+            foreach ($ports as $portRow) {
+                $portRows["{$portRow['slot']}_{$portRow['port']}"] = $portRow;
+            }
+
+            foreach (array_keys($byPort + $portRows) as $key) {
+                $portOnus = $byPort[$key] ?? [];
+                $portRow = $portRows[$key] ?? null;
+
+                data_set($snapshot, "port_onus.{$key}", [
+                    'ok' => true,
+                    'slot' => (int) ($portOnus[0]['slot'] ?? $portRow['slot'] ?? 0),
+                    'port' => (int) ($portOnus[0]['port'] ?? $portRow['port'] ?? 0),
+                    'if_index' => (int) ($portOnus[0]['if_index'] ?? $portRow['if_index'] ?? 0),
+                    'port_row' => $portRow,
+                    'onus' => $portOnus,
+                    'count' => count($portOnus),
+                    'rx_power' => [
+                        'ok' => $rxError === null,
+                        'source' => 'snmp',
+                        'count' => 0,
+                        'error' => $rxError,
+                    ],
+                    'error' => null,
+                    'refreshed_at' => $now,
+                ]);
+            }
+
+            $olt->forceFill(['last_test_result' => $snapshot])->save();
+
+            $message = sprintf('Scan ONU OK. %s ONU ditemukan di %s.', count($onus), $olt->name);
+            if ($rxError !== null) {
+                $message .= ' (RX power gagal dibaca)';
+            }
+
+            return $back->with('success', $message);
+        } catch (\Throwable $exception) {
+            return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+        }
+    }
+
     public function unconfigured(SnmpOlt $olt): Response
     {
         return Inertia::render('SmartOlt/Unconfigured', [

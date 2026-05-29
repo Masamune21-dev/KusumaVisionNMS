@@ -941,3 +941,54 @@ Deploy: `queue:restart`. 22 test telegram/alarm hijau, `pint` bersih.
 Changed:
 
 - `app/Http/Middleware/HandleInertiaRequests.php` — default `config('app.version')` `1.0.0` → `2.0.0` (ditampilkan di panel System Info).
+
+### Halaman ONU Monitoring (lintas OLT & port)
+
+Created:
+
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — halaman baru di sidebar. Filter dalam card terpisah: search, pilih OLT, pilih port, status (Online/LOS/Dying Gasp/Offline berbasis `phase_state`), admin (Active/Disabled). Default kosong → harus pilih OLT dulu (tidak render semua 2000+ baris di awal). Tabel mirip PortOnus + kolom OLT, tombol "buka di port" (focus ke ONU), tombol "Scan ONU OLT ini".
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — `onuMonitor()` agregasi semua ONU ter-cache (`port_onus.*.onus`) dari semua OLT jadi satu list flat; `refreshOnuMonitor()` scan penuh 1 OLT dalam sekali walk (gponPorts + registeredOnus + RX) lalu tulis balik ke cache per-port agar konsisten dengan halaman PortOnus.
+- `routes/web.php` — `monitoring.onu` (GET `/onu-monitoring`) + `monitoring.onu.refresh` (POST `/onu-monitoring/{olt}/refresh`).
+- `resources/js/Layouts/AuthenticatedLayout.vue` — link sidebar "ONU Monitoring" (ikon Radar), match `monitoring.*`.
+
+Notes:
+
+- Nama route sengaja di luar prefix `smartolt.*` agar tidak ikut meng-highlight item SmartOLT di sidebar.
+
+### Fix: global search bisa cari by Serial Number (SN)
+
+Changed:
+
+- `app/Http/Controllers/DashboardSearchController.php` — pencarian ONU sebelumnya membaca key `sn`/`serial` yang tak pernah ada; `OltSnmpClient` menyimpan serial sebagai `serial_number`. Diperbaiki baca `serial_number` (fallback `sn`/`serial`), tambah cocokkan via `interface`, label hasil = serial, sublabel = `OLT · slot/port · nama`.
+
+Notes:
+
+- Diuji terhadap cache OLT-C320-PATI: query `RTEGCA96` → 10 hasil. Tanpa perubahan frontend (GlobalSearch render hasil generik).
+
+### Fitur Telnet di browser (xterm.js + WebSocket proxy)
+
+Created:
+
+- `config/telnet.php` — host/port daemon, `ws_url` publik, TTL ticket, connect timeout.
+- `app/Support/Telnet/TelnetTicket.php` — ticket terenkripsi (Crypt/APP_KEY) berisi user+olt+exp, TTL pendek, **URL-safe (base64url)** agar lolos query string nginx/browser tanpa mangle.
+- `app/Support/Telnet/TelnetIacFilter.php` — negosiasi/strip IAC telnet (accept ECHO/SGA, tolak lainnya), stateful tahan split antar-chunk.
+- `app/Services/Telnet/TelnetProxyServer.php` — jembatan WS↔telnet (react/socket + ratchet/rfc6455 + guzzle/psr7 yang sudah dibawa Reverb, tanpa dependency baru): handshake → verifikasi ticket → dial telnet OLT → pipe 2 arah + auto-login pakai kredensial OLT.
+- `app/Console/Commands/TelnetProxyCommand.php` — daemon `php artisan telnet:proxy`.
+- `app/Http/Controllers/TelnetSessionController.php` — terbitkan ticket + `ws_url` (gated `canManageOlt`, tolak demo); dukung `ws_url` relatif → scheme/host otomatis dari request.
+- `resources/js/Components/Shell/TelnetWindow.vue` — jendela terminal mengambang xterm: drag, minimize, maximize/restore, resize, status. Lazy-loaded.
+
+Changed:
+
+- `routes/web.php` — `smartolt.telnet.token` (POST `/smartolt/{olt}/telnet/token`).
+- `resources/js/Pages/SmartOlt/Index.vue` — tombol aksi Telnet per OLT (admin/operator + transport telnet); host `TelnetWindow` (lazy via `defineAsyncComponent`).
+- `package.json` / `package-lock.json` — tambah `@xterm/xterm` + `@xterm/addon-fit`.
+- `.env.example` — entri `TELNET_PROXY_*`.
+
+Notes:
+
+- Setup server lokal (di luar repo): daemon di `127.0.0.1:6002` via supervisor `kusumavision-telnet-proxy`; nginx route `location /telnet-ws` → proxy ke daemon (pakai port 80 ber-ACL, firewall tak diubah); `.env` set `TELNET_PROXY_WS_URL=/telnet-ws`.
+- Diverifikasi end-to-end lewat nginx:80 dengan fake telnet lokal: handshake 101, frame encoding benar, IAC ter-strip, auto-login berhasil. IAC filter & ticket round-trip lolos unit test.
+- **Gotcha penting:** `.env` tidak terbaca www-data (root:root 640) → app hanya jalan dengan config ter-cache. `config:clear` saat setup sempat menjatuhkan situs (500 sqlite) + daemon 401; dipulihkan dengan `config:cache`. Selalu `config:cache` + restart daemon setelah ubah `.env`/config telnet; jangan tinggalkan config dalam keadaan ter-clear.

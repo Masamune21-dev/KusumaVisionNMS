@@ -8,7 +8,7 @@ import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Search, Settings, Users, WifiOff } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Radar, Search, Settings, Users, WifiOff } from '@lucide/vue';
 
 const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
@@ -34,6 +34,7 @@ const navLinks = computed(() => {
     const links = [
         { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
         { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: 'smartolt.*', except: 'smartolt.unconfigured-all' },
+        { name: 'ONU Monitoring', icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
         { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
         { name: 'Alarms', icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
         { name: 'Report', icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
