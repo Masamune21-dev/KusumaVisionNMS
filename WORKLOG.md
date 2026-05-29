@@ -1005,3 +1005,15 @@ Notes:
 
 - Diverifikasi Golang BENAR dipakai sebagai engine polling terjadwal (bukan vision PRD) — dokumen lama yang menyatakan sebaliknya dikoreksi.
 - Permission `.env` server diselaraskan ke `640 root:www-data` (sesuai README) agar www-data bisa baca; dibuktikan `config:clear` tak lagi menjatuhkan situs (tetap 200). Perubahan permission ini di sistem, di luar git.
+
+### Go-live publik: nms.kusumavision.net via Cloudflare (TLS Full strict) + hardening
+
+Notes (perubahan ini di tingkat sistem/server, di luar git — didokumentasikan di sini):
+
+- **IP publik** `103.189.249.86` di-bind ke `eth0` sebagai alamat sekunder. Server adalah LXC di Proxmox (jaringan di-manage PVE via `/etc/systemd/network/eth0.network`). Agar tak ditimpa PVE, IP ditaruh di drop-in `/etc/systemd/network/eth0.network.d/10-public-ip.conf` (`Address = 103.189.249.86/32`). Catatan: kalau container di-recreate dari panel Proxmox, IP perlu didaftarkan ulang di config container pada host.
+- **nginx** (`/etc/nginx/sites-available/kusumavision-nms` diganti, backup `.bak.*`): server `:80` redirect 301 ke HTTPS; server `:443 ssl http2` melayani app + WebSocket `/telnet-ws`. ACL `allow/deny` LAN lama **dihapus** karena setelah real-IP Cloudflare dipulihkan ACL itu akan memblokir semua pengunjung publik — penguncian origin dipindah ke firewall. Snippet `/etc/nginx/snippets/cloudflare-realip.conf` (`set_real_ip_from` semua rentang CF v4/v6 + `real_ip_header CF-Connecting-IP`) untuk memulihkan IP visitor asli di log/app/fail2ban. `fastcgi_param HTTPS on` + header HSTS ditambahkan.
+- **TLS**: Cloudflare Origin Certificate (SAN `nms.kusumavision.net`, valid s/d 2041) di `/etc/nginx/ssl/origin.{pem,key}` (key `600`). SSL mode Cloudflare **Full (strict)**. Sebelumnya 526 saat masih self-signed; setelah Origin Cert dipasang → HTTP/2 200.
+- **Firewall (UFW)**: 80/443 dibuka & dikunci hanya ke rentang IP resmi Cloudflare (v4+v6) + LAN privat + subnet admin `103.189.248.0/24`,`103.189.249.0/24`. SSH (22) tetap hanya LAN + subnet admin. SSH sudah hardened sebelumnya (`PasswordAuthentication no`, `PermitRootLogin without-password`, pubkey only).
+- **fail2ban** dipasang (`jail.local`): jail `sshd` (efektif penuh, `/var/log/auth.log`, ban 2h), `nginx-http-auth`, `nginx-botsearch`; `ignoreip` mencakup LAN + subnet admin. Catatan: untuk trafik HTTP yang lewat Cloudflare, ban iptables atas IP visitor asli hanya efektif untuk akses langsung-ke-origin; untuk blokir abuse ber-proxy perlu action Cloudflare API / WAF.
+- **App**: `APP_URL=https://nms.kusumavision.net` (backup `.env.bak.*`), `php artisan config:cache`, `queue:restart`, restart daemon telnet-proxy.
+- **Verifikasi**: lokal `https://127.0.0.1` (Host header) → 200; via IP publik → 200; live `https://nms.kusumavision.net` → HTTP/2 **200** (Inertia + assets ke-render), `http://` → 301 ke https. fail2ban 3 jail aktif tanpa error.
