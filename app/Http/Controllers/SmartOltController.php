@@ -806,7 +806,7 @@ class SmartOltController extends Controller
             'acs_username' => ['nullable', 'required_if:tr069_enabled,true,1', 'string', 'max:120'],
             'acs_password' => ['nullable', 'required_if:tr069_enabled,true,1', 'string', 'max:120'],
             'remote_ont_enabled' => ['boolean'],
-            'remote_ont_id' => ['nullable', 'required_if:remote_ont_enabled,true,1', 'integer', 'between:1,16'],
+            'remote_ont_id' => ['nullable', 'required_if:remote_ont_enabled,true,1', 'integer', 'between:1,4095'],
             'remote_ont_mode' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['forward', 'discard'])],
             'remote_ont_protocol' => ['nullable', 'required_if:remote_ont_enabled,true,1', Rule::in(['web', 'telnet', 'ssh', 'ftp', 'tftp', 'snmp'])],
         ]);

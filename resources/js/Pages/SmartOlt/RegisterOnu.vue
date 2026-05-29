@@ -298,7 +298,7 @@ const submit = () => {
                                 <div v-if="form.remote_ont_enabled" class="mt-4 grid gap-4 sm:grid-cols-3">
                                     <div>
                                         <InputLabel for="remote_ont_id" value="ID" />
-                                        <TextInput id="remote_ont_id" v-model="form.remote_ont_id" type="number" min="1" max="16" class="mt-1 block w-full" />
+                                        <TextInput id="remote_ont_id" v-model="form.remote_ont_id" type="number" min="1" max="4095" class="mt-1 block w-full" />
                                         <InputError class="mt-1.5" :message="form.errors.remote_ont_id" />
                                     </div>
                                     <div>

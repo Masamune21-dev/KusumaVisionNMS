@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
@@ -10,8 +10,17 @@ import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, Menu, Search, Users, WifiOff } from '@lucide/vue';
 
+const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
-const sidebarCollapsed = ref(false);
+const sidebarCollapsed = ref(
+    typeof window !== 'undefined' && window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1',
+);
+
+watch(sidebarCollapsed, (value) => {
+    if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? '1' : '0');
+    }
+});
 const searchOpen = ref(false);
 const isDesktop = ref(false);
 const page = usePage();

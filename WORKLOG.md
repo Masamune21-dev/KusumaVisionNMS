@@ -802,3 +802,20 @@ Notes:
 - Iterasi gaya: grid perspektif synthwave → grid ombak SVG `feTurbulence` (ditolak: berat & noisy) → final **aurora** (CSS transform, ringan & mulus), dipilih dari riset background dashboard dark-theme 2026.
 - Stacking: AuroraBackground `fixed z-index:-1` di dalam `<main>` (isolation) tampil di belakang konten; chrome glass + backdrop-blur memburamkan aurora di belakangnya.
 - `npm run build` bersih. Belum diuji visual di browser dari sesi ini — perlu cek manual: aurora bergerak halus, teks chrome tetap terbaca, dan performa lancar (tanpa lag).
+
+## 2026-05-29
+
+### Sidebar collapse persist + card Logs di Registration History + tweak input
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — state `sidebarCollapsed` kini dipersist ke `localStorage` (key `kv-sidebar-collapsed`): init dibaca sinkron saat setup (di-guard `typeof window` agar aman SSR & tanpa flash), lalu `watch` menyimpan tiap perubahan. Sebelumnya layout dipakai inline (bukan persistent layout Inertia) sehingga remount tiap pindah halaman mereset collapse ke `false`.
+- `resources/js/Pages/SmartOlt/Registrations.vue` — pisah daftar registrasi jadi `pendingRegistrations` (status `generated`) & `loggedRegistrations` (status `executed`/`failed`). Card "Provisioning Scripts" sekarang `v-if` hanya muncul saat ada script pending dan hilang otomatis setelah dikerjakan; tambah card "Logs" baru (ikon `History`) untuk script yang sudah dikerjakan dengan status apa pun. Di Logs, preview CLI script + output eksekusi disembunyikan default di balik tombol toggle "Lihat script / Sembunyikan" (state per-entri via `expandedLogs`).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — input Remote ONT ID `max` dinaikkan dari 16 → 4095 agar konsisten dengan form Configure.
+- `app/Http/Controllers/SmartOltController.php` — validasi `remote_ont_id` saat register dinaikkan dari `between:1,16` → `between:1,4095` (sebelumnya tidak konsisten dengan reconfigure yang sudah `1,4095`).
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — panel RAW RUNNING-CONFIG tampil penuh ke bawah: hapus `max-h-[420px] overflow-auto`, ganti dengan `whitespace-pre-wrap break-words` + `overflow-x-auto` agar tidak ada scroll vertikal.
+
+Notes:
+
+- `npm run build` bersih untuk semua perubahan frontend.
+- Investigasi "halaman detail OLT C300 tidak bisa dibuka": ternyata bukan bug kode, melainkan sesi user kebawa state demo. `SnmpOlt` punya global scope `DemoScope` (user demo hanya lihat `is_demo=true`, non-demo hanya `is_demo=false`); OLT C300 (id=2) adalah data nyata sehingga route-model-binding gagal saat sesi demo. Teratasi setelah user login ulang — tidak ada perubahan kode.

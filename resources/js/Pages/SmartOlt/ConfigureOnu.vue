@@ -230,7 +230,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <div class="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:px-6">
                                 <Terminal class="h-4 w-4" /> Raw running-config
                             </div>
-                            <pre class="max-h-[420px] overflow-auto bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || '(kosong)' }}</pre>
+                            <pre class="overflow-x-auto whitespace-pre-wrap break-words bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || '(kosong)' }}</pre>
                         </div>
                     </div>
 

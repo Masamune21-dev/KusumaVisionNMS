@@ -5,8 +5,8 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Play, XCircle } from '@lucide/vue';
-import { computed } from 'vue';
+import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, XCircle } from '@lucide/vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -22,6 +22,24 @@ const props = defineProps({
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+const pendingRegistrations = computed(() =>
+    props.registrations.filter((registration) => registration.status === 'generated'),
+);
+
+const loggedRegistrations = computed(() =>
+    props.registrations.filter((registration) => registration.status !== 'generated'),
+);
+
+const expandedLogs = ref([]);
+
+const isLogExpanded = (id) => expandedLogs.value.includes(id);
+
+const toggleLogScript = (id) => {
+    expandedLogs.value = isLogExpanded(id)
+        ? expandedLogs.value.filter((logId) => logId !== id)
+        : [...expandedLogs.value, id];
+};
 
 const statuses = {
     generated: {
@@ -129,7 +147,14 @@ const executeRegistration = async (registration) => {
                     {{ flash.error }}
                 </div>
 
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="registrations.length === 0" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="px-6 py-10 text-center text-sm text-slate-500">
+                        Belum ada provisioning script.
+                    </div>
+                </div>
+
+                <!-- Provisioning Scripts (script baru yang belum dieksekusi) -->
+                <div v-if="pendingRegistrations.length" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <ClipboardList class="h-5 w-5 text-cyan-400" />
@@ -137,12 +162,8 @@ const executeRegistration = async (registration) => {
                         <h3 class="text-base font-semibold text-white">Provisioning Scripts</h3>
                     </div>
 
-                    <div v-if="registrations.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
-                        Belum ada provisioning script.
-                    </div>
-
-                    <div v-else class="divide-y divide-white/5">
-                        <div v-for="registration in registrations" :key="registration.id" class="p-6">
+                    <div class="divide-y divide-white/5">
+                        <div v-for="registration in pendingRegistrations" :key="registration.id" class="p-6">
                             <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                                 <div>
                                     <div class="font-medium text-white">
@@ -166,15 +187,63 @@ const executeRegistration = async (registration) => {
                                 </div>
                             </div>
                             <pre class="mt-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.cli_script }}</pre>
-                            <div v-if="registration.executed_at || registration.execution_output || registration.execution_error" class="mt-4 space-y-2">
-                                <div class="text-xs font-medium uppercase tracking-wide text-slate-500">
-                                    Execution · {{ formatDate(registration.executed_at) }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs (script yang sudah dikerjakan, status apa pun) -->
+                <div v-if="loggedRegistrations.length" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/30">
+                            <History class="h-5 w-5 text-violet-300" />
+                        </div>
+                        <h3 class="text-base font-semibold text-white">Logs</h3>
+                    </div>
+
+                    <div class="divide-y divide-white/5">
+                        <div v-for="registration in loggedRegistrations" :key="registration.id" class="p-6">
+                            <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <div class="font-medium text-white">
+                                        {{ registration.customer_name }} · {{ registration.pon_port }}
+                                    </div>
+                                    <div class="text-sm text-slate-500">
+                                        {{ registration.serial_number }} · VLAN {{ registration.vlan }} · {{ registration.wan_mode }} · {{ formatDate(registration.created_at) }}
+                                    </div>
+                                    <div class="mt-2 text-xs font-medium" :class="statusMeta(registration.status).textClass">
+                                        {{ statusDescription(registration) }}
+                                    </div>
                                 </div>
-                                <div v-if="registration.execution_error" class="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                                    {{ registration.execution_error }}
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" :class="statusMeta(registration.status).pillClass">
+                                        <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
+                                        {{ statusMeta(registration.status).label }}
+                                    </span>
+                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? 'Coba eksekusi lagi' : 'Eksekusi ke OLT'" @click="executeRegistration(registration)">
+                                        <Play class="h-4 w-4" />
+                                    </IconButton>
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/40 hover:text-white"
+                                        @click="toggleLogScript(registration.id)"
+                                    >
+                                        <component :is="isLogExpanded(registration.id) ? EyeOff : Eye" class="h-3.5 w-3.5" />
+                                        {{ isLogExpanded(registration.id) ? 'Sembunyikan' : 'Lihat script' }}
+                                    </button>
                                 </div>
-                                <pre v-if="registration.execution_output" class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.execution_output }}</pre>
                             </div>
+                            <template v-if="isLogExpanded(registration.id)">
+                                <pre class="mt-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.cli_script }}</pre>
+                                <div v-if="registration.executed_at || registration.execution_output || registration.execution_error" class="mt-4 space-y-2">
+                                    <div class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                                        Execution · {{ formatDate(registration.executed_at) }}
+                                    </div>
+                                    <div v-if="registration.execution_error" class="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
+                                        {{ registration.execution_error }}
+                                    </div>
+                                    <pre v-if="registration.execution_output" class="overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.execution_output }}</pre>
+                                </div>
+                            </template>
                         </div>
                     </div>
                 </div>
