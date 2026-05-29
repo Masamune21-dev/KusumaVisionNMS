@@ -1054,3 +1054,9 @@ Notes:
 Changed:
 
 - `resources/js/Pages/Settings/Index.vue` — container konten dari `mx-auto w-full max-w-3xl` jadi `w-full` agar card membentang penuh kiri-kanan, konsisten dengan halaman lain (SmartOlt/Users/Reports). Frontend di-rebuild.
+
+### Halaman Pengaturan: rapikan isi jadi grid 2 kolom
+
+Changed:
+
+- `resources/js/Pages/Settings/Index.vue` — body form Telegram dari `space-y-6` single-column jadi `grid lg:grid-cols-2` agar field tidak melebar setelah card full-width: toggle aktif (full), Bot Token | Chat ID, Severity minimum | Pemicu notifikasi (2 checkbox dibungkus panel berlabel), status & tombol aksi span penuh. Frontend di-rebuild.

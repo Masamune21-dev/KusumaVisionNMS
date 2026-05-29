@@ -83,8 +83,8 @@ const lastSent = computed(() =>
                         </div>
                     </div>
 
-                    <div class="space-y-6 p-5 sm:p-6">
-                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                    <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
                             <span>
                                 <span class="block text-sm font-medium text-white">Aktifkan notifikasi</span>
                                 <span class="block text-xs text-slate-400">Bila nonaktif, alarm tetap tersimpan tetapi tidak dikirim ke Telegram.</span>
@@ -136,35 +136,38 @@ const lastSent = computed(() =>
                             <p class="mt-1 text-xs text-slate-400">Hanya alarm dengan severity ini atau lebih tinggi yang dikirim.</p>
                         </div>
 
-                        <div class="space-y-3">
-                            <label class="flex items-start gap-3">
-                                <Checkbox v-model:checked="form.notify_on_raise" class="mt-0.5" />
-                                <span>
-                                    <span class="block text-sm font-medium text-white">Kirim saat alarm baru muncul</span>
-                                    <span class="block text-xs text-slate-400">Notifikasi ketika alarm baru ter-trigger pada siklus polling.</span>
-                                </span>
-                            </label>
-                            <label class="flex items-start gap-3">
-                                <Checkbox v-model:checked="form.notify_on_clear" class="mt-0.5" />
-                                <span>
-                                    <span class="block text-sm font-medium text-white">Kirim saat alarm pulih (cleared)</span>
-                                    <span class="block text-xs text-slate-400">Notifikasi ketika alarm yang aktif kembali normal.</span>
-                                </span>
-                            </label>
+                        <div>
+                            <InputLabel value="Pemicu notifikasi" />
+                            <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                <label class="flex items-start gap-3">
+                                    <Checkbox v-model:checked="form.notify_on_raise" class="mt-0.5" />
+                                    <span>
+                                        <span class="block text-sm font-medium text-white">Kirim saat alarm baru muncul</span>
+                                        <span class="block text-xs text-slate-400">Notifikasi ketika alarm baru ter-trigger pada siklus polling.</span>
+                                    </span>
+                                </label>
+                                <label class="flex items-start gap-3">
+                                    <Checkbox v-model:checked="form.notify_on_clear" class="mt-0.5" />
+                                    <span>
+                                        <span class="block text-sm font-medium text-white">Kirim saat alarm pulih (cleared)</span>
+                                        <span class="block text-xs text-slate-400">Notifikasi ketika alarm yang aktif kembali normal.</span>
+                                    </span>
+                                </label>
+                            </div>
                         </div>
 
-                        <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
+                        <div v-if="lastSent || telegram.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
+                            <p v-if="lastSent" class="text-slate-400">Terakhir terkirim: <span class="text-slate-200">{{ lastSent }}</span></p>
+                            <p v-if="telegram.last_error" class="mt-1 text-red-400">Galat terakhir: {{ telegram.last_error }}</p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
                             <PrimaryButton :disabled="form.processing">Simpan</PrimaryButton>
                             <SecondaryButton type="button" :disabled="!canTest || testing" @click="sendTest">
                                 <Send class="mr-2 h-4 w-4" />
                                 {{ testing ? 'Mengirim…' : 'Kirim Tes' }}
                             </SecondaryButton>
                             <span v-if="!canTest" class="text-xs text-slate-500">Simpan token &amp; chat ID dulu untuk mengirim tes.</span>
-                        </div>
-
-                        <div v-if="lastSent || telegram.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs">
-                            <p v-if="lastSent" class="text-slate-400">Terakhir terkirim: <span class="text-slate-200">{{ lastSent }}</span></p>
-                            <p v-if="telegram.last_error" class="mt-1 text-red-400">Galat terakhir: {{ telegram.last_error }}</p>
                         </div>
                     </div>
                 </form>
