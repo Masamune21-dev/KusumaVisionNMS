@@ -10,20 +10,39 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ## Fitur
 
+### Inventory & Monitoring
+
 - **Inventory OLT** — CRUD OLT, uji koneksi SNMP, kredensial tersimpan terenkripsi.
 - **Monitoring** — GPON port (up/down), ONU per port (online/offline, phase state, RX power via SNMP), search ONU langsung dari halaman Detail.
+- **ONU Monitoring (lintas OLT)** — halaman terpusat memantau seluruh ONU dari semua OLT & port dalam satu tabel, dengan filter OLT, port, status (online/LOS/dying-gasp/offline) dan admin; scan ulang seluruh ONU per-OLT dalam satu walk SNMP.
 - **Discovery ONU unconfigured** — temukan ONU baru via OID ZTE, langsung ke form provisioning.
+- **Dashboard** — ringkasan OLT/ONU/alarm dengan grafik (ApexCharts); status ONU *Warning* dihitung dari RX power ONU online di luar zona aman (-25…-10 dBm).
+- **Global search (⌘K)** — cari OLT/ONU instan berdasarkan serial number, nama pelanggan, atau interface.
+
+### Provisioning & ONU
+
 - **Provisioning ONU** — VLAN, T-CONT, PPPoE/DHCP/Static, TR069, Remote ONT; tersimpan sebagai audit log lalu dieksekusi via Telnet.
 - **Detail ONU (CLI)** — baca `show gpon onu detail-info` + `show pon power attenuation`, divisualisasikan: gauge RX power berzona warna, bar atenuasi up/down, chip metrik optik (temperature/voltage/bias), status & last-event.
 - **Configure ONU (CLI)** — reconfigure ONU existing dari live running-config dengan **delta script** (hanya baris yang berubah), preview live + panel *what will change*, lalu apply via Telnet (audit `reconfigured`/`reconfig_failed`).
 - **Manajemen Profile** — ONU Type / T-CONT / VLAN / IP per-OLT, sinkronisasi langsung dari OLT.
 - **Remote ONU Management** — reboot (CLI), enable/disable & edit nama/deskripsi (SNMP SET).
-- **ONU Monitoring (lintas OLT)** — halaman terpusat memantau seluruh ONU dari semua OLT & port dalam satu tabel, dengan filter OLT, port, status (online/LOS/dying-gasp/offline) dan admin; scan ulang seluruh ONU per-OLT dalam satu walk SNMP.
 - **Telnet via Browser** — terminal interaktif (xterm.js) ke CLI OLT langsung dari browser lewat proxy WebSocket↔Telnet; jendela bisa digeser, minimize/maximize, auto-login dengan kredensial OLT tersimpan.
-- **Global search (⌘K)** — cari OLT/ONU instan berdasarkan serial number, nama pelanggan, atau interface.
+
+### Polling, Alarm & Notifikasi
+
 - **Background polling** — interval poll per-OLT yang dapat dikonfigurasi (default 5 menit), RX power di-poll pada interval terpisah.
-- **Alarm engine** — siklus raise/clear untuk `olt_unreachable`, `port_down`, `los`, `onu_offline`, `dying_gasp`, `high_rx_attenuation`.
-- **Dashboard** — ringkasan OLT/ONU/alarm dengan grafik (ApexCharts).
+- **Alarm engine** — siklus raise/clear berbasis transisi untuk `olt_unreachable`, `port_down`, `los`, `onu_offline`, `dying_gasp`, `high_rx_attenuation` (alarm RX pakai hysteresis/deadband agar tak flapping).
+- **Notifikasi Telegram** — kirim notifikasi alarm (saat muncul / saat pulih) ke satu atau banyak chat via Telegram Bot API, dengan filter severity minimum. Di-hook di titik raise/clear sehingga semua sumber polling ikut memicu.
+- **Bot Telegram (perintah inbound)** — webhook **read-only**: balas data jaringan (`/status /olt /alarm /onu /prov`) hanya untuk chat terdaftar; chat lain hanya `/start /help /id /ping`. Diamankan dengan secret token Telegram.
+
+### Administrasi & Pelaporan
+
+- **Role-based access control (RBAC)** — 3 role: **admin** (kelola user/pengaturan/audit), **operator** (semua operasi OLT/ONU), **demo** (read-only).
+- **Mode Demo** — data demo terisolasi (flag `is_demo` + global scope): user demo hanya melihat OLT/alarm/laporan dummy, terpisah dari data produksi pada instance yang sama.
+- **Manajemen User** — CRUD user + assign role; guard admin terakhir agar akun tak terkunci.
+- **Report** — 5 jenis laporan (inventaris ONU, status OLT, riwayat alarm, provisioning, RX power) dengan filter range/OLT/PON port; export **CSV** & **PDF** berbranding.
+- **Audit Logs** — jejak audit *immutable* (append-only): perubahan model, login/logout/login gagal, pembukaan telnet; secret tak pernah dicatat, bisa difilter & di-expand untuk lihat diff lama→baru. Admin-only.
+- **Pengaturan** — branding aplikasi (nama, versi, logo) + konfigurasi Bot Telegram. Admin-only.
 
 ---
 
@@ -38,6 +57,8 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 | Web Server | Nginx + PHP-FPM 8.3 |
 | Akses OLT | SNMP v1/v2c (read & write), CLI Telnet, telnet interaktif via browser (proxy WebSocket↔Telnet) |
 | SNMP Poller (opsional) | Go 1.18+ — binary `bin/kv-snmp-poller` |
+| Notifikasi | Telegram Bot API (notifikasi alarm + bot perintah read-only) |
+| Export laporan | CSV, PDF (`barryvdh/laravel-dompdf`) |
 
 ---
 
@@ -296,6 +317,27 @@ SNMP_POLLER_BINARY=bin/kv-snmp-poller
 
 ---
 
+## Notifikasi & Bot Telegram (opsional)
+
+Konfigurasi dilakukan dari UI **Pengaturan → Bot Telegram** (admin-only) — tidak perlu mengedit `.env`.
+
+**Notifikasi alarm (outbound):**
+
+1. Buat bot via [@BotFather](https://t.me/BotFather), salin **bot token**.
+2. Dapatkan **chat ID** via [@userinfobot](https://t.me/userinfobot) (bisa banyak ID dipisah koma).
+3. Di Pengaturan: aktifkan, isi token + chat ID, pilih severity minimum, simpan, lalu **Kirim Tes**.
+
+**Bot perintah (inbound, read-only):**
+
+Bot bisa menerima perintah (`/status /olt /alarm /onu /prov`) lewat webhook. Karena Telegram mengirim `POST` ke server, perlu URL HTTPS publik valid (`APP_URL`) dan nginx meneruskan `POST /telegram/webhook` ke aplikasi.
+
+1. Di Pengaturan, centang **Aktifkan perintah bot**, lalu klik **Daftarkan Webhook** (atau `php artisan telegram:webhook set`).
+2. Cek status: `php artisan telegram:webhook info`. Hapus: `php artisan telegram:webhook delete`.
+
+> Perintah data hanya dilayani untuk **chat terdaftar**; chat lain hanya bisa `/start /help /id /ping`. Semua perintah read-only (tidak ada aksi tulis ke OLT). Webhook divalidasi dengan secret token Telegram.
+
+---
+
 ## Menjalankan di Development
 
 ```bash
@@ -349,6 +391,9 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 - **SNMP:** v1/v2c saja (v3 belum didukung). Fitur enable/disable & edit info ONU butuh **write community** terisi.
 - **CLI:** eksekusi provisioning/reboot hanya via **Telnet** (`cli_transport=telnet`).
 - **Poll interval:** per-OLT, dapat diubah di form Edit OLT. Default 5 menit untuk polling SNMP, 5 menit untuk RX power.
+- **Akses (RBAC):** 3 role — `admin` (kelola user/pengaturan/audit), `operator` (operasi OLT/ONU), `demo` (read-only). Registrasi publik dinonaktifkan; user dibuat via `php artisan user:create` atau halaman Users (admin).
+- **Mode Demo:** data demo (`is_demo`) hidup di DB yang sama tapi terisolasi via global scope. Seed dengan `php artisan db:seed --class=DemoSeeder --force` (lihat [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md)). Scheduler hanya memoll OLT nyata.
+- **Telegram bot webhook** butuh URL HTTPS publik + nginx meneruskan `POST /telegram/webhook` (di-exempt dari CSRF).
 - Dashboard & alarm seakurat poll terakhir — pastikan queue worker dan cron scheduler aktif.
 
 ---

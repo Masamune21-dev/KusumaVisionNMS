@@ -1174,3 +1174,16 @@ Notes:
 
 - Dimensi asli gambar dicek via `getimagesize` di `public/img`; container dengan aspect-ratio == rasio asli + `object-contain` membuat gambar mengisi penuh tanpa crop maupun letterbox.
 - `npm run build` sukses, assets di-rebuild. Build artifacts (`public/build`) di-gitignore, hanya source `Welcome.vue` yang ter-commit — perlu `npm run build` ulang saat deploy.
+
+### README — sinkronkan daftar fitur dengan scope terbaru
+
+Changed:
+
+- `README.md` — bagian **Fitur** dirombak jadi 4 kelompok (Inventory & Monitoring, Provisioning & ONU, Polling/Alarm/Notifikasi, Administrasi & Pelaporan) karena daftar membengkak jadi 22 item; ditambahkan fitur yang belum tercatat: **Notifikasi Telegram**, **Bot Telegram (webhook perintah read-only)**, **RBAC** (admin/operator/demo), **Mode Demo** (`is_demo` + global scope), **Manajemen User**, **Report** (5 jenis, export CSV/PDF), **Audit Logs** (immutable), **Pengaturan** (branding + Telegram). Catatan Dashboard *Warning* dari RX power & hysteresis alarm RX ditambahkan ke deskripsi terkait.
+- `README.md` — tabel **Stack Teknologi** tambah baris Telegram Bot API & export CSV/PDF (`barryvdh/laravel-dompdf`).
+- `README.md` — section opsional baru **Notifikasi & Bot Telegram**: langkah setup notifikasi (BotFather/userinfobot) + registrasi webhook (`php artisan telegram:webhook set|info|delete`) dan syarat URL HTTPS publik + forwarding nginx `POST /telegram/webhook`.
+- `README.md` — **Catatan & Batasan** tambah poin RBAC, Mode Demo (link `docs/DEMO_DEPLOYMENT.md`), dan syarat webhook Telegram (CSRF exempt).
+
+Notes:
+
+- Murni dokumentasi; tidak ada perubahan kode. Deskripsi fitur diverifikasi terhadap WORKLOG & `routes/web.php` (route `reports.*`, `users.*`, `audit-logs.*`, `settings.*`, `telegram.webhook`). Link `docs/DEMO_DEPLOYMENT.md` & `docs/LOCAL_PRODUCTION_HARDENING.md` dipastikan ada.
