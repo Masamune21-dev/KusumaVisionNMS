@@ -1036,3 +1036,15 @@ Notes:
 
 - Tulisan di dalam mockup dashboard hero adalah gambar (`/img/dashboard1.png`), bukan teks HTML — diganti dengan mengganti file PNG, bukan kode.
 - `TextInput.vue` meneruskan `$attrs` ke `<input>`, jadi atribut `autocomplete`/`data-*` cukup ditaruh di pemakaian komponen. Frontend di-rebuild (`npm run build`).
+
+### Section galeri "Tampilan Aplikasi" di landing page
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — tambah section `#tampilan` (galeri screenshot interaktif): daftar tab kiri (Dashboard, OLT Inventory, ONU Belum Terdaftar, Detail ONU, Login) + preview dalam frame browser-chrome dengan crossfade `<Transition name="kv-fade">`; pakai `computed currentShot`. Tambah link nav "Tampilan" (header + mobile). Tambah `<style scoped>` untuk transisi (hormati `prefers-reduced-motion`).
+
+Notes:
+
+- Pakai 5 screenshot user di `public/img/` (dashboard1, oltinventory, unconfigured, detail, login). Frame `aspect-[16/10]` + `object-cover object-top` agar konsisten & tanpa layout shift antar-tab; `loading="lazy"` + hanya gambar aktif yang dirender (sisanya dimuat saat tab diklik).
+- A11y: `role="tablist"`/`tab` + `aria-selected`, `alt` deskriptif per gambar. Semua ikon sudah ada di import Lucide.
+- Catatan optimasi: screenshot masih PNG (~0.9–1.4 MB/file); bisa dikonversi WebP untuk hemat bandwidth bila perlu. Frontend di-rebuild.

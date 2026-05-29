@@ -32,7 +32,7 @@ import {
     Wifi,
     Workflow,
 } from '@lucide/vue';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 
@@ -42,6 +42,7 @@ defineProps({
 });
 
 const mobileOpen = ref(false);
+const activeShot = ref('dashboard');
 
 onMounted(() => {
     AOS.init({
@@ -58,6 +59,7 @@ onMounted(() => {
 const navLinks = [
     { label: 'Beranda', href: '#beranda' },
     { label: 'Fitur', href: '#fitur' },
+    { label: 'Tampilan', href: '#tampilan' },
     { label: 'Tech Stack', href: '#tech' },
     { label: 'Modul', href: '#modul' },
     { label: 'Kontak', href: '#kontak' },
@@ -149,6 +151,58 @@ const modules = [
     { icon: Database, title: 'Profiles', sub: 'Manajemen ONU type, T-CONT, VLAN' },
     { icon: FileBarChart, title: 'Reports', sub: 'Laporan statistik dan utilisasi' },
 ];
+
+const screenshots = [
+    {
+        key: 'dashboard',
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+        desc: 'Ringkasan jaringan FTTH real-time',
+        src: '/img/dashboard1.png',
+        url: 'app.kusumavision.net/dashboard',
+        alt: 'Dashboard KusumaVision NMS — ringkasan OLT, ONU, dan alarm',
+    },
+    {
+        key: 'olt',
+        icon: Server,
+        label: 'OLT Inventory',
+        desc: 'Perangkat, line card & port GPON',
+        src: '/img/oltinventory.png',
+        url: 'app.kusumavision.net/smartolt',
+        alt: 'Inventaris OLT — daftar perangkat ZTE dan kapabilitasnya',
+    },
+    {
+        key: 'unconfigured',
+        icon: Radar,
+        label: 'ONU Belum Terdaftar',
+        desc: 'Temukan & provisioning ONU baru',
+        src: '/img/unconfigured.png',
+        url: 'app.kusumavision.net/smartolt/unconfigured',
+        alt: 'Daftar ONU belum terkonfigurasi siap di-provisioning',
+    },
+    {
+        key: 'detail',
+        icon: Activity,
+        label: 'Detail ONU',
+        desc: 'Status, RX power & konfigurasi WAN',
+        src: '/img/detail.png',
+        url: 'app.kusumavision.net/smartolt/onu',
+        alt: 'Halaman detail ONU — status optik, RX power, dan konfigurasi',
+    },
+    {
+        key: 'login',
+        icon: LogIn,
+        label: 'Login',
+        desc: 'Akses aman untuk operator NOC',
+        src: '/img/login.png',
+        url: 'app.kusumavision.net/login',
+        alt: 'Halaman login KusumaVision NMS',
+    },
+];
+
+const currentShot = computed(
+    () => screenshots.find((s) => s.key === activeShot.value) ?? screenshots[0],
+);
 
 const productLinks = [
     { label: 'Dashboard', href: '#beranda' },
@@ -425,6 +479,84 @@ const supportLinks = [
                 </div>
             </section>
 
+            <!-- ===== Tampilan aplikasi (galeri) ===== -->
+            <section id="tampilan" class="border-y border-white/10 bg-slate-950">
+                <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+                    <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tampilan Aplikasi</p>
+                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Lihat Langsung Antarmukanya</h2>
+                        <p class="mt-4 text-base text-slate-400">Dari dashboard hingga provisioning ONU — antarmuka bersih yang dirancang untuk kecepatan operasional NOC.</p>
+                    </div>
+
+                    <div class="mt-14 grid items-start gap-6 lg:grid-cols-[20rem_1fr]" data-aos="fade-up" data-aos-delay="100">
+                        <!-- Tab list -->
+                        <div
+                            role="tablist"
+                            aria-label="Pilih tampilan aplikasi"
+                            class="flex gap-3 overflow-x-auto pb-2 lg:flex-col lg:gap-2.5 lg:overflow-visible lg:pb-0"
+                        >
+                            <button
+                                v-for="shot in screenshots"
+                                :key="shot.key"
+                                type="button"
+                                role="tab"
+                                :aria-selected="activeShot === shot.key"
+                                @click="activeShot = shot.key"
+                                class="group flex min-w-[15rem] shrink-0 items-center gap-3 rounded-xl border px-4 py-3 text-left transition lg:min-w-0"
+                                :class="activeShot === shot.key
+                                    ? 'border-cyan-400/40 bg-gradient-to-r from-cyan-500/15 to-sky-500/5 shadow-lg shadow-cyan-500/10'
+                                    : 'border-white/10 bg-slate-900/50 hover:border-white/20 hover:bg-slate-800/60'"
+                            >
+                                <span
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition"
+                                    :class="activeShot === shot.key
+                                        ? 'border-cyan-400/40 bg-cyan-500/15 text-cyan-300'
+                                        : 'border-white/10 bg-slate-800/60 text-slate-400 group-hover:text-slate-200'"
+                                >
+                                    <component :is="shot.icon" class="h-5 w-5" />
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-semibold" :class="activeShot === shot.key ? 'text-white' : 'text-slate-200'">{{ shot.label }}</span>
+                                    <span class="block truncate text-xs text-slate-400">{{ shot.desc }}</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        <!-- Preview frame -->
+                        <div class="relative">
+                            <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
+                            <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+                                <!-- Browser chrome -->
+                                <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
+                                    <span class="h-3 w-3 rounded-full bg-red-500/70" />
+                                    <span class="h-3 w-3 rounded-full bg-amber-500/70" />
+                                    <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
+                                    <span class="ml-3 flex flex-1 items-center gap-1.5 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">
+                                        <ShieldCheck class="h-3 w-3 shrink-0 text-emerald-400/70" />
+                                        <span class="truncate">{{ currentShot.url }}</span>
+                                    </span>
+                                </div>
+                                <!-- Screenshot dengan crossfade -->
+                                <div class="relative aspect-[16/10] bg-slate-950">
+                                    <Transition name="kv-fade">
+                                        <img
+                                            :key="activeShot"
+                                            :src="currentShot.src"
+                                            :alt="currentShot.alt"
+                                            width="1920"
+                                            height="1200"
+                                            loading="lazy"
+                                            decoding="async"
+                                            class="absolute inset-0 h-full w-full object-cover object-top"
+                                        />
+                                    </Transition>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== Tech stack ===== -->
             <section id="tech" class="border-y border-white/10 bg-slate-950/50">
                 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -588,3 +720,22 @@ const supportLinks = [
         </footer>
     </div>
 </template>
+
+<style scoped>
+/* Crossfade antar screenshot di galeri "Tampilan Aplikasi" */
+.kv-fade-enter-active,
+.kv-fade-leave-active {
+    transition: opacity 250ms ease;
+}
+.kv-fade-enter-from,
+.kv-fade-leave-to {
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kv-fade-enter-active,
+    .kv-fade-leave-active {
+        transition: none;
+    }
+}
+</style>
