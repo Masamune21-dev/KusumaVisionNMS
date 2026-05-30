@@ -44,10 +44,12 @@ Stage semua perubahan yang relevan (termasuk WORKLOG.md yang baru diupdate), lal
 ```
 <tipe>: <deskripsi singkat dalam bahasa Inggris>
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 ```
 
-Tipe commit: `feat` (fitur baru), `fix` (perbaikan bug), `chore` (refactor/konsistensi), `ui` (perubahan tampilan)
+Tipe commit: `feat` (fitur baru), `fix` (perbaikan bug), `chore` (refactor/konsistensi), `ui` (perubahan tampilan), `docs` (dokumentasi)
+
+> Jika perubahan menyentuh struktur, konvensi, perintah, atau alur deploy proyek, pastikan `CLAUDE.md` dan `docs/handbook/` ikut disinkronkan sebelum commit.
 
 ## 4. Push ke GitHub
 

@@ -5,6 +5,7 @@
 Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320/C600 (ZXA10)**: monitoring OLT/ONU, provisioning ONU, remote management, background polling, alarm engine, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 > Riwayat pengembangan per fase: [`WORKLOG.md`](WORKLOG.md).
+> Dokumentasi teknis lengkap (arsitektur, routing, skema DB, SNMP/CLI, troubleshooting, panduan menambah fitur): **[`docs/handbook/`](docs/handbook/README.md)**.
 
 ---
 
@@ -69,12 +70,43 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - PostgreSQL, Redis
 - Nginx
 - UFW / firewall host
-- Ekstensi PHP: `bcmath curl dom intl mbstring openssl pcntl pdo_pgsql pdo_sqlite redis snmp sockets xml zip`
+- Ekstensi PHP: `bcmath ctype curl dom fileinfo intl mbstring openssl pcntl pdo_pgsql pdo_sqlite redis snmp tokenizer xml zip`
 - Go **1.18+** (opsional — diperlukan hanya jika ingin build binary Go SNMP poller)
+
+> 💡 Di server Ubuntu kosong, seluruh runtime + setup bisa dipasang otomatis dengan satu perintah —
+> lihat [Cara Cepat (`install.sh`)](#cara-cepat-installsh--server-ubuntu-kosong) di bawah.
 
 ---
 
-## Instalasi (Ubuntu 22.04)
+## Instalasi (Ubuntu 22.04 / 24.04)
+
+### Cara Cepat (`install.sh`) — server Ubuntu kosong
+
+Untuk deploy **satu perintah** di server Ubuntu fresh, gunakan skrip [`install.sh`](install.sh).
+Skrip memasang seluruh runtime (PHP 8.3, Composer, Node 22, PostgreSQL, Redis, Nginx, Supervisor,
+Go, Net-SNMP), membuat database + `.env`, build frontend & Go poller, migrasi, lalu mendaftarkan
+daemon Supervisor (worker, scheduler, telnet-proxy) + Nginx site, dan opsional membuat akun admin.
+
+```bash
+cd /var/www
+git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+cd KusumaVisionNMS
+
+sudo bash install.sh                 # interaktif (tanya APP_URL, DB, akun admin)
+
+# atau non-interaktif:
+sudo APP_URL=http://nms.example.com \
+     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='P@ssw0rd123' \
+     ENABLE_UFW=1 bash install.sh --yes
+```
+
+Opsi lain: `sudo bash install.sh --help`. Skrip aman dijalankan ulang (idempotent). Setelah selesai
+verifikasi dengan `bash scripts/check-requirements.sh`.
+
+> Bila ingin memahami/melakukan setiap langkah secara manual (atau untuk environment dev),
+> ikuti **Langkah 1–9** di bawah.
+
+---
 
 ### Langkah 1 — Clone repo
 
@@ -92,7 +124,10 @@ Setelah clone, jalankan script cek requirement yang sudah tersedia:
 bash scripts/check-requirements.sh
 ```
 
-Script ini memeriksa PHP, Composer, Node.js, npm, PostgreSQL, Redis, dan semua ekstensi PHP yang dibutuhkan. Output `[OK]` berarti tersedia, `[MISS]` berarti perlu diinstall.
+Script memeriksa **versi minimum** tool (PHP, Composer, Node.js, npm, Go, PostgreSQL, Redis, SNMP),
+semua **ekstensi PHP** wajib, serta — bila dijalankan setelah deploy — **artefak runtime** (binary
+Go poller, build frontend, `.env`/`APP_KEY`) dan **status service/daemon**. `[OK]` = lolos,
+`[MISS]` = requirement wajib kurang (gagalkan), `[WARN]` = info (tidak menggagalkan).
 
 **Jika ada yang `[MISS]`, install dulu:**
 
@@ -398,6 +433,23 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 
 ---
 
+## Dokumentasi
+
+- **[Developer Handbook](docs/handbook/README.md)** — dokumentasi teknis lengkap & terbagi per-bagian:
+  arsitektur, struktur folder, [instalasi & deploy](docs/handbook/04-instalasi-deploy.md),
+  [skema database & model](docs/handbook/05-database-model.md), [routing](docs/handbook/06-routing.md),
+  [modul & fitur](docs/handbook/07-modul-fitur.md), [SNMP & polling](docs/handbook/08-snmp-polling.md),
+  [CLI & telnet](docs/handbook/09-cli-telnet.md), [alarm & Telegram](docs/handbook/10-alarm-telegram.md),
+  [keamanan/RBAC/audit](docs/handbook/11-keamanan-rbac-audit.md), [frontend](docs/handbook/12-frontend.md),
+  [troubleshooting](docs/handbook/13-troubleshooting-maintenance.md), dan
+  [panduan menambah fitur](docs/handbook/14-panduan-tambah-fitur.md).
+- [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_GUIDE.md) — referensi otoritatif perintah CLI ZTE.
+- [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md) — hardening produksi (nginx/UFW/SSH/PHP-FPM).
+- [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md) — penyiapan data & mode demo.
+- [`WORKLOG.md`](WORKLOG.md) — riwayat pekerjaan fase per fase.
+
+---
+
 ## Lisensi
 
-Proprietary — PT Berkah Media Kusuma Vision (BMKV).
+Proprietary — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).

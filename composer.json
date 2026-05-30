@@ -1,10 +1,10 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "bmkv/kusumavision-nms",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
-    "license": "MIT",
+    "description": "KusumaVision NMS — FTTH/GPON Network Management System for ZTE OLTs (PT Berkah Media Kusuma Vision).",
+    "keywords": ["nms", "ftth", "gpon", "zte", "olt", "laravel"],
+    "license": "proprietary",
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",

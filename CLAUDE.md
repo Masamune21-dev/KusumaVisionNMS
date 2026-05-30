@@ -4,6 +4,8 @@ KusumaVision NMS — FTTH/GPON Network Management System (Laravel 12 + Vue 3/Ine
 
 The user communicates in Indonesian — respond in Indonesian (bilingual when discussing code/English terms).
 
+**Detailed developer docs live in `docs/handbook/`** (per-topic: overview, architecture, folder map, install/deploy, DB schema, routing, modules, SNMP/polling, CLI/telnet, alarm/Telegram, security/RBAC, frontend, troubleshooting, how-to-add-features). Start there for deep dives, and keep it in sync when structure or conventions change. License is proprietary (`LICENSE`).
+
 ## Commands
 
 ```bash
@@ -14,6 +16,8 @@ php artisan test    # PHPUnit (uses in-memory sqlite, see phpunit.xml)
 ./vendor/bin/pint   # code style
 php artisan telnet:proxy           # WebSocket<->telnet proxy daemon (browser terminal)
 go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller   # rebuild Go SNMP poller
+sudo bash install.sh               # one-command deploy on a fresh Ubuntu server (--yes for non-interactive)
+bash scripts/check-requirements.sh # verify tools/extensions/artifacts/services (+ min versions)
 ```
 
 App DB is PostgreSQL (`kusumavision_nms`), Redis for cache/session/queue, locale `id`. Tests run on in-memory sqlite, so migrations must stay sqlite-compatible.
@@ -51,3 +55,4 @@ The PRD (`KusumaVision_NMS_PRD.md`) describes a broad vision; the **built scope 
 - UI flash messages and many user-facing strings are in Indonesian.
 - Live test OLTs: id=1 (`OLT-C320-PATI`) and id=2.
 - **Prod runs cached config** (`bootstrap/cache/config.php`); `.env` is `640 root:www-data` so the app user can read it. After any `.env`/config change run `php artisan config:cache` so the cache picks it up, then restart the supervisor daemons (`queue:restart` for `kusumavision-worker`, `supervisorctl restart kusumavision-telnet-proxy`). Long-lived daemons need a restart to pick up code changes. (Keep `.env` group-readable by `www-data` — if it's `root:root`, a cleared config falls back to sqlite and the site 500s.)
+- **Fresh-server deploy** is automated by `install.sh` (installs runtime, DB, `.env`, build, Go poller, migrations, nginx site + supervisor daemons `kusumavision-worker`/`-scheduler`/`-telnet-proxy`). `scripts/check-requirements.sh` validates tools/extensions/services. Full walkthrough: `docs/handbook/04-instalasi-deploy.md`.

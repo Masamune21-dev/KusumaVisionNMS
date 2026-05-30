@@ -1240,3 +1240,60 @@ Notes:
 - Folder `public/img` turun **6.3 MB → 516 KB** (~92% lebih kecil). Penghematan per file: login 1387→22 KB, dashboard 1396→98 KB, oltinventory 1108→38 KB, unconfigured 908→38 KB, detail 1133→68 KB, c300 255→109 KB, c320 196→90 KB.
 - Quality 80 cukup untuk screenshot UI (teks tetap tajam). WebP didukung semua browser modern (Chrome/Firefox/Edge, Safari 14+) — aman untuk dashboard NOC, tanpa fallback PNG.
 - Hero dashboard tetap `loading="eager"` (gambar LCP) tapi kini ~98 KB sehingga first paint jauh lebih ringan. `npm run build` bersih.
+
+## 2026-05-30
+
+### Developer Handbook + bersih-bersih dokumen usang
+
+Created:
+
+- `docs/handbook/README.md` — indeks + cara pakai handbook + konvensi wajib.
+- `docs/handbook/01-overview.md` … `14-panduan-tambah-fitur.md` — 14 bab dokumentasi teknis terbagi per-topik: overview, arsitektur, struktur folder, instalasi/deploy, skema DB & model, routing, modul & fitur, SNMP & polling, CLI & telnet, alarm & Telegram, keamanan/RBAC/audit, frontend, troubleshooting, panduan menambah fitur.
+
+Changed:
+
+- `README.md` — tambah pointer ke `docs/handbook/`, seksi "Cara Cepat (`install.sh`)", deskripsi Langkah 2 (cek requirement) diperbarui, daftar ekstensi PHP diselaraskan, dan seksi "Dokumentasi" baru.
+
+Removed:
+
+- `docs/IMPLEMENTATION_NEXT_STEPS.md`, `docs/PLANNING_NEXT_PHASE.md` — dokumen perencanaan awal yang seluruh langkahnya sudah diimplementasikan (usang). Dikonfirmasi user.
+- `docs/KusumaVision_NMS_Dokumentasi_Fitur.pdf` — PDF deskripsi fitur awal, sudah digantikan README + handbook.
+
+Notes:
+
+- Handbook berbasis kode nyata (bukan PRD); bagian yang masih blueprint (C600 parsial, SSH, TimescaleDB) ditandai eksplisit. Setiap bab punya navigasi prev/next + link silang.
+- File yang dihapus ter-track git → bisa dipulihkan dari history. Tidak ada link aktif (README/CLAUDE.md/handbook) yang rusak.
+- `docs/INSTALLATION_STATUS.md`, `LOCAL_PRODUCTION_HARDENING.md`, `DEMO_DEPLOYMENT.md`, `SMARTOLT_ZTE_C300_C320_GUIDE.md`, `KusumaVision_NMS_PRD.md`, dan 6 PDF C600 dipertahankan.
+
+### Skrip deploy `install.sh` + cek requirement
+
+Created:
+
+- `install.sh` — deploy satu-perintah untuk server Ubuntu kosong (22.04/24.04): pasang runtime (PHP 8.3 + ekstensi, Composer, Node 22, PostgreSQL, Redis, Nginx, Supervisor, Go, Net-SNMP), buat DB + `.env` production, build frontend & Go poller, migrasi, nginx site (+ proxy `/telnet-ws`), daftarkan daemon supervisor (`kusumavision-worker`/`-scheduler`/`-telnet-proxy`), opsional buat admin & UFW, lalu smoke test. Mendukung `--yes` (non-interaktif via env var) dan `--help`; idempotent.
+
+Changed:
+
+- `scripts/check-requirements.sh` — ditingkatkan: cek versi minimum tool (PHP≥8.2, Composer≥2, Node≥20, Go≥1.18, psql≥14), daftar ekstensi PHP, artefak runtime (binary poller/build/`.env`/`APP_KEY`), dan status service + daemon supervisor. `[MISS]` (wajib) memengaruhi exit code; `[WARN]` (info) tidak.
+
+Notes:
+
+- Langkah `install.sh` mengikuti baseline `INSTALLATION_STATUS.md`/`LOCAL_PRODUCTION_HARDENING.md`. `bash -n` lolos untuk kedua skrip; `check-requirements.sh` diverifikasi jalan di host dev (semua wajib OK, exit 0).
+- `install.sh` belum diuji end-to-end di server Ubuntu kosong (tidak tersedia di lingkungan ini) — logika dirancang idempotent + aman.
+- Artefak runtime (`bin/kv-snmp-poller`, `public/build`) di-gitignore — `install.sh` membangun ulang saat deploy.
+
+### Lisensi proprietary + sinkron CLAUDE.md & skill /done
+
+Created:
+
+- `LICENSE` — lisensi proprietary BMKV ringkas (bilingual ID/EN): kepemilikan, larangan salin/ubah/distribusi/reverse-engineer/pakai tanpa izin, komponen pihak ketiga tetap di bawah lisensinya, disclaimer "as is".
+
+Changed:
+
+- `composer.json` — `license` `MIT` → `proprietary`; `name`/`description`/`keywords` diganti dari sisa skeleton Laravel ke identitas proyek.
+- `CLAUDE.md` — tambah pointer ke `docs/handbook/`, perintah deploy (`install.sh`, `scripts/check-requirements.sh`), dan bullet konvensi deploy fresh-server + catatan lisensi proprietary.
+- `.claude/commands/done.md` — `Co-Authored-By` `Sonnet 4.6` → `Opus 4.8`, tambah tipe commit `docs`, dan pengingat sinkronkan `CLAUDE.md`/`docs/handbook/` bila struktur/konvensi berubah.
+
+Notes:
+
+- JSON `composer.json` tervalidasi; `proprietary` adalah nilai lisensi yang dikenali Composer.
+- Murni dokumentasi/tooling — tidak ada perubahan kode aplikasi atau migrasi.
