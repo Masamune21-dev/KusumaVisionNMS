@@ -30,6 +30,9 @@ let sidebarMediaQuery = null;
 const can = computed(() => page.props.auth?.can ?? {});
 const isDemo = computed(() => Boolean(can.value.is_demo));
 const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
+// Atribusi pemilik permanen (dari konstanta backend, bukan Settings). Lihat GeneralSetting::OWNER.
+const owner = computed(() => page.props.branding?.owner ?? 'PT Berkah Media Kusuma Vision');
+const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '2026');
 const user = computed(() => page.props.auth?.user ?? {});
 const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCase());
 
@@ -292,7 +295,7 @@ onUnmounted(() => {
             <!-- Footer -->
             <footer class="border-t border-white/10 bg-slate-950/40 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
-                    <p>&copy; 2026 {{ appName }} NMS &middot; Dibuat Oleh Masamune</p>
+                    <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>
                     <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>
                 </div>
             </footer>

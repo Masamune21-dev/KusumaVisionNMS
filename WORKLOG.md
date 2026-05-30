@@ -1297,3 +1297,17 @@ Notes:
 
 - JSON `composer.json` tervalidasi; `proprietary` adalah nilai lisensi yang dikenali Composer.
 - Murni dokumentasi/tooling — tidak ada perubahan kode aplikasi atau migrasi.
+
+### Atribusi pemilik permanen di footer (anti-ubah lewat UI)
+
+Changed:
+
+- `app/Models/GeneralSetting.php` — tambah konstanta permanen `OWNER` ("PT Berkah Media Kusuma Vision"), `OWNER_SHORT` ("BMKV"), `COPYRIGHT_YEAR`; `brandingPayload()` selalu menyertakan `owner`/`owner_short`/`copyright_year` dari konstanta (bukan dari DB), sehingga tidak bisa diubah lewat halaman Pengaturan.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — footer jadi `© {tahun} {appName} NMS · {owner}` (sebelumnya hardcode "Dibuat Oleh Masamune"); `owner`/`copyrightYear` dibaca dari `branding` dengan fallback.
+- `resources/js/Layouts/GuestLayout.vue` — footer login memakai `branding` (appName + owner permanen) menggantikan teks statis.
+
+Notes:
+
+- Keputusan user: kunci **atribusi pemilik saja** — `app_name` tetap bisa di-white-label via Settings, tetapi pemilik/copyright permanen di level kode.
+- Disclaimer jujur ke user: kode sumber tidak bisa dibuat benar-benar anti-ubah; proteksi nyata adalah `LICENSE` proprietary. Perubahan ini hanya memindah atribusi dari DB/UI ke konstanta kode, sehingga menghapusnya berarti edit source = pelanggaran lisensi.
+- Fallback JS (`?? 'PT Berkah Media Kusuma Vision'`) menjaga footer benar walau cache branding lama; cache key `general_settings.branding` di-forget + `npm run build`. 121 test lolos.

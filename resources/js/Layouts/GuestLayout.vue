@@ -1,8 +1,15 @@
 <script setup>
+import { computed } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
+
+const page = usePage();
+const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
+// Atribusi pemilik permanen (konstanta backend GeneralSetting::OWNER), bukan dari Settings.
+const owner = computed(() => page.props.branding?.owner ?? 'PT Berkah Media Kusuma Vision');
+const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '2026');
 </script>
 
 <template>
@@ -39,7 +46,7 @@ import { ArrowLeft } from '@lucide/vue';
         </div>
 
         <p class="relative mt-6 text-center text-xs text-slate-500">
-            &copy; 2026 KusumaVision NMS &middot; PT Berkah Media Kusuma Vision
+            &copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}
         </p>
     </div>
 </template>
