@@ -1,6 +1,35 @@
 # Worklog
 
-## 2026-05-29
+## 2026-05-30
+
+### Overhaul halaman Welcome — animatif, interaktif & premium (GSAP + Lenis + tsParticles)
+
+Merombak total landing page (`Welcome.vue`) agar lebih profesional, modern, dan interaktif. Stack animasi di-upgrade dari AOS ke GSAP + ScrollTrigger (scroll reveal), Lenis (smooth scroll), tsParticles (latar jaringan), typed.js (CLI typewriter), dan NumberFlow (statistik beranimasi). Mengikuti rekomendasi skill `ui-ux-pro-max` (pola "Real-Time / Operations Landing", efek hemat & bermakna, hormati `prefers-reduced-motion`).
+
+Created:
+
+- `resources/js/Components/Shell/ParticleNetwork.vue` — latar partikel saling terhubung garis (topologi fiber/GPON) berbasis tsParticles (slim bundle), reaktif kursor (mode grab). Skip total saat reduced-motion.
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — overhaul struktur & animasi:
+  - **Hero baru**: latar `ParticleNetwork`, preview dashboard dengan **tilt 3D + parallax** (direktif `v-tilt`, anak `data-depth`), kartu **terminal CLI hidup** yang mengetik command ZTE (`show gpon onu state ...`) via typed.js, chip status ONU "live".
+  - **Stats band baru**: 4 statistik dengan **NumberFlow** (count-up saat masuk viewport via IntersectionObserver).
+  - **Section "Cara Kerja" baru**: 4 langkah (Hubungkan OLT → Discovery/Polling → Provisioning → Monitor/Alarm).
+  - **Scroll reveal**: AOS dihapus, diganti `ScrollTrigger.batch` (stagger) pada elemen `[data-reveal]`. Intro hero pakai animasi **CSS murni** (`.reveal-hero`) agar selalu tampil walau JS belum siap.
+  - **Magnetic button** (direktif `v-magnetic`) pada CTA utama; **tilt** pada kartu fitur & langkah.
+  - Smooth scroll **Lenis** disinkronkan ke ScrollTrigger via `gsap.ticker`; anchor nav pakai `lenis.scrollTo` (offset header). Cleanup di `onBeforeUnmount`.
+  - `ParticleNetwork` dimuat via **`defineAsyncComponent`** → tsParticles jadi chunk terpisah `ParticleNetwork-*.js` (~31 KB gzip, lazy). GSAP/ScrollTrigger/Lenis di-import statis. Welcome chunk ~70 KB gzip.
+- `app/Providers/AppServiceProvider.php` — **menonaktifkan `Vite::prefetch(concurrency: 3)`**. Prefetch eager memuat SELURUH chunk app (~60) di setiap halaman termasuk landing publik; tiap deploy (hash berubah) + cache CDN dingin → badai request **503** di console (script prefetcher `(index)` menembak hash lama yang sudah terhapus build baru). Dimatikan; Inertia tetap memuat chunk halaman tujuan saat dibuka. Mudah dikembalikan (1 baris).
+- `resources/js/app.js` — handler `vite:preloadError`: auto-reload sekali (throttle 10 dtk via sessionStorage) saat preload chunk gagal (mis. setelah deploy hash berubah) agar browser memuat HTML + asset map terbaru.
+- `vite.config.js` — `build.emptyOutDir: false`: pertahankan chunk hash lama saat rebuild agar tab/sesi aktif tidak patah ketika deploy. Konsekuensi: `public/build/assets/` menumpuk seiring waktu — perlu dibersihkan berkala saat deploy.
+
+Notes:
+
+- **PENTING — penyebab 500 saat pertama deploy & fix-nya:** meng-import statis komponen yang menarik library dengan banyak `import()` dinamis internal (di sini `@tsparticles/slim`) ke dalam sebuah Inertia page membuat Rollup **menggabungkan facade chunk page** sehingga key `resources/js/Pages/Welcome.vue` **hilang dari Vite manifest**. `app.blade.php` mem-preload `@vite([... "resources/js/Pages/{$page['component']}.vue"])` → `Unable to locate file in Vite manifest` → **HTTP 500**. Solusi: bungkus komponen tsParticles dengan `defineAsyncComponent` (chunk terpisah, facade page tetap utuh). Setelah build, **reload php-fpm** (`systemctl reload php8.3-fpm`) karena Laravel meng-cache manifest Vite di memori per-worker. Diverifikasi: `https://nms.kusumavision.net/` → **HTTP 200**.
+- Dependency baru: `gsap`, `lenis`, `@tsparticles/engine`, `@tsparticles/slim`, `@number-flow/vue`, `typed.js`. AOS belum di-uninstall (masih di `package.json`) tetapi tidak lagi dipakai di Welcome — bisa dibersihkan terpisah bila tak dipakai halaman lain.
+- Aksesibilitas: semua animasi (partikel, tilt, magnetic, reveal, typed, NumberFlow) dimatikan/diabaikan saat `prefers-reduced-motion: reduce`. Tema dark dipertahankan (sesuai konteks ops/NOC console).
+- Diverifikasi dengan `npm run build` (sukses) + cek key manifest + HTTP 200. Verifikasi visual mendetail (partikel, typed, count-up, tilt bergerak mulus) sebaiknya dicek manual di browser.
 
 ### Bot Telegram — webhook perintah (inbound, read-only)
 

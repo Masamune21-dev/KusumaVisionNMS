@@ -7,6 +7,27 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const chunkReloadKey = 'kusumavision-nms:chunk-reload-at';
+
+window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+
+    const now = Date.now();
+
+    try {
+        const lastReloadAt = Number(sessionStorage.getItem(chunkReloadKey) || 0);
+
+        if (now - lastReloadAt <= 10000) {
+            return;
+        }
+
+        sessionStorage.setItem(chunkReloadKey, String(now));
+    } catch {
+        // Reload anyway if storage is unavailable; the fresh HTML has the new asset map.
+    }
+
+    window.location.reload();
+});
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

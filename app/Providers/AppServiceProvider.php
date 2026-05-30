@@ -8,7 +8,6 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,7 +25,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Vite::prefetch(concurrency: 3);
+        // Prefetch eager seluruh chunk app dinonaktifkan: di landing publik ini
+        // mem-prefetch puluhan asset (Dashboard/Auth/Telnet/dll) yang tidak
+        // dibutuhkan pengunjung, dan tiap deploy (hash berubah) memicu badai
+        // request 503 saat cache CDN masih dingin. Inertia tetap memuat chunk
+        // halaman tujuan saat dibuka. Aktifkan lagi bila perlu: Vite::prefetch(concurrency: 3);
 
         Event::listen(Login::class, function (Login $event) {
             AuditLogger::log(AuditLog::EVENT_LOGIN, null, [], 'Login ke sistem', $event->user);

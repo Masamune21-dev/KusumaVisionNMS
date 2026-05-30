@@ -1,6 +1,5 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
-import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Activity,
@@ -8,7 +7,6 @@ import {
     BellRing,
     Boxes,
     Cable,
-    CheckCircle2,
     ChevronRight,
     Cog,
     Database,
@@ -34,36 +32,107 @@ import {
     Wifi,
     Workflow,
 } from '@lucide/vue';
-import { computed, onMounted, ref } from 'vue';
-import AOS from 'aos';
-import 'aos/dist/aos.css';
+import NumberFlow from '@number-flow/vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
+import Typed from 'typed.js';
 
 defineProps({
     canLogin: { type: Boolean },
     canRegister: { type: Boolean },
 });
 
+// tsParticles dimuat sebagai chunk terpisah (async) — jika di-import statis,
+// banyaknya dynamic import internal tsParticles membuat Rollup menggabungkan
+// facade chunk Welcome sehingga key-nya hilang dari Vite manifest (500 di prod).
+const ParticleNetwork = defineAsyncComponent(
+    () => import('@/Components/Shell/ParticleNetwork.vue'),
+);
+
+const reduceMotion = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ===== Directive: tilt 3D + parallax anak [data-depth] (mouse only) ===== */
+const vTilt = {
+    mounted(el, binding) {
+        if (reduceMotion()) return;
+        const strength = binding.value?.strength ?? 6;
+        let raf = null;
+        const onMove = (e) => {
+            const r = el.getBoundingClientRect();
+            const px = (e.clientX - r.left) / r.width - 0.5;
+            const py = (e.clientY - r.top) / r.height - 0.5;
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                el.style.transform = `perspective(1100px) rotateX(${(-py * strength).toFixed(2)}deg) rotateY(${(px * strength).toFixed(2)}deg)`;
+                el.querySelectorAll('[data-depth]').forEach((c) => {
+                    const d = parseFloat(c.dataset.depth) || 0;
+                    c.style.transform = `translate3d(${(px * d * 22).toFixed(1)}px, ${(py * d * 22).toFixed(1)}px, 0)`;
+                });
+            });
+        };
+        const onLeave = () => {
+            cancelAnimationFrame(raf);
+            el.style.transform = 'perspective(1100px) rotateX(0deg) rotateY(0deg)';
+            el.querySelectorAll('[data-depth]').forEach((c) => {
+                c.style.transform = 'translate3d(0,0,0)';
+            });
+        };
+        el.__tilt = { onMove, onLeave };
+        el.addEventListener('mousemove', onMove);
+        el.addEventListener('mouseleave', onLeave);
+    },
+    unmounted(el) {
+        if (!el.__tilt) return;
+        el.removeEventListener('mousemove', el.__tilt.onMove);
+        el.removeEventListener('mouseleave', el.__tilt.onLeave);
+    },
+};
+
+/* ===== Directive: magnetic (tombol mengikuti kursor) ===== */
+const vMagnetic = {
+    mounted(el, binding) {
+        if (reduceMotion()) return;
+        const strength = binding.value?.strength ?? 0.35;
+        let raf = null;
+        const onMove = (e) => {
+            const r = el.getBoundingClientRect();
+            const x = e.clientX - r.left - r.width / 2;
+            const y = e.clientY - r.top - r.height / 2;
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                el.style.transform = `translate(${(x * strength).toFixed(1)}px, ${(y * strength).toFixed(1)}px)`;
+            });
+        };
+        const onLeave = () => {
+            cancelAnimationFrame(raf);
+            el.style.transform = 'translate(0,0)';
+        };
+        el.__mag = { onMove, onLeave };
+        el.addEventListener('mousemove', onMove);
+        el.addEventListener('mouseleave', onLeave);
+    },
+    unmounted(el) {
+        if (!el.__mag) return;
+        el.removeEventListener('mousemove', el.__mag.onMove);
+        el.removeEventListener('mouseleave', el.__mag.onLeave);
+    },
+};
+
 const mobileOpen = ref(false);
 const activeShot = ref('dashboard');
-
-onMounted(() => {
-    AOS.init({
-        duration: 650,
-        easing: 'ease-out-cubic',
-        once: true,
-        offset: 80,
-        // Hormati preferensi pengguna yang mengurangi animasi (aksesibilitas).
-        disable: () =>
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    });
-});
+const cliEl = ref(null);
+const statsEl = ref(null);
 
 const navLinks = [
     { label: 'Beranda', href: '#beranda' },
     { label: 'Fitur', href: '#fitur' },
+    { label: 'Cara Kerja', href: '#cara-kerja' },
     { label: 'Tampilan', href: '#tampilan' },
     { label: 'Tech Stack', href: '#tech' },
-    { label: 'Modul', href: '#modul' },
     { label: 'Kontak', href: '#kontak' },
 ];
 
@@ -73,6 +142,41 @@ const heroPills = [
     { icon: BellRing, label: 'Alarm Engine' },
     { icon: Wifi, label: 'ONU Provisioning' },
     { icon: Terminal, label: 'Web Telnet' },
+];
+
+const stats = [
+    { value: 3, suffix: '', label: 'Seri OLT ZTE', sub: 'C300 · C320 · C600' },
+    { value: 12, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning' },
+    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm & Telegram realtime' },
+    { value: 100, suffix: '%', label: 'Berbasis Web', sub: 'Tanpa install aplikasi' },
+];
+const displayStats = ref(stats.map((s) => ({ ...s, current: 0 })));
+
+const steps = [
+    {
+        n: '01',
+        icon: Server,
+        title: 'Hubungkan OLT',
+        body: 'Daftarkan OLT ZTE (IP, SNMP community, kredensial CLI) ke inventaris terpusat dengan deteksi kapabilitas otomatis.',
+    },
+    {
+        n: '02',
+        icon: Radar,
+        title: 'Discovery & Polling',
+        body: 'Engine Go mem-polling system info, status port GPON, dan tabel ONU secara terjadwal — tersimpan sebagai snapshot per OLT.',
+    },
+    {
+        n: '03',
+        icon: Workflow,
+        title: 'Provisioning ONU',
+        body: 'Generate skrip CLI ZTE (register, T-CONT, VLAN, PPPoE/DHCP/Static, TR-069) lalu eksekusi langsung via Telnet dari browser.',
+    },
+    {
+        n: '04',
+        icon: BellRing,
+        title: 'Monitor & Alarm',
+        body: 'Pantau RX power & status ONU, terima alarm penting via Telegram, lalu unduh laporan utilisasi & optik per rentang waktu.',
+    },
 ];
 
 const features = [
@@ -239,18 +343,117 @@ const productLinks = [
     { label: 'Dashboard', href: '#beranda' },
     { label: 'Fitur', href: '#fitur' },
     { label: 'Tech Stack', href: '#tech' },
-    { label: 'Modul', href: '#modul' },
+    { label: 'Tampilan', href: '#tampilan' },
 ];
 const companyLinks = [
     { label: 'Tentang', href: '#' },
     { label: 'Blog', href: '#' },
     { label: 'Karier', href: '#' },
 ];
-const supportLinks = [
-    { label: 'Dokumentasi', href: '#' },
-    { label: 'FAQ', href: '#' },
-    { label: 'Status', href: '#' },
-];
+
+/* ===== Animation engine: GSAP + ScrollTrigger + Lenis ===== */
+let lenis = null;
+let typed = null;
+let statsObserver = null;
+const lenisRaf = (time) => lenis && lenis.raf(time * 1000);
+
+const scrollToHash = (e, href) => {
+    if (!href || !href.startsWith('#')) return;
+    const target = document.querySelector(href);
+    if (!target) return;
+    e.preventDefault();
+    mobileOpen.value = false;
+    if (lenis) {
+        lenis.scrollTo(target, { offset: -72 });
+    } else {
+        target.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth' });
+    }
+};
+
+onMounted(() => {
+    const reduced = reduceMotion();
+
+    // CLI typewriter (hero terminal)
+    if (cliEl.value) {
+        if (reduced) {
+            cliEl.value.textContent = 'show gpon onu state gpon-olt_1/1/1';
+        } else {
+            typed = new Typed(cliEl.value, {
+                strings: [
+                    'show gpon onu state gpon-olt_1/1/1',
+                    'show pon power onu-rx gpon-onu_1/1/1:1',
+                    'show gpon onu uncfg',
+                    'show card',
+                ],
+                typeSpeed: 45,
+                backSpeed: 18,
+                backDelay: 1700,
+                startDelay: 500,
+                loop: true,
+                smartBackspace: true,
+                cursorChar: '▋',
+            });
+        }
+    }
+
+    // Stat counters animate when scrolled into view
+    if (statsEl.value) {
+        statsObserver = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((en) => en.isIntersecting)) {
+                    displayStats.value = stats.map((s) => ({ ...s, current: s.value }));
+                    statsObserver.disconnect();
+                }
+            },
+            { threshold: 0.35 },
+        );
+        statsObserver.observe(statsEl.value);
+    }
+
+    if (reduced) return; // CSS sudah menampilkan elemen reveal; lewati animasi.
+
+    gsap.registerPlugin(ScrollTrigger);
+
+    // Smooth scroll (sinkron dengan ScrollTrigger via ticker GSAP)
+    lenis = new Lenis({
+        duration: 1.1,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+    });
+    lenis.on('scroll', ScrollTrigger.update);
+    gsap.ticker.add(lenisRaf);
+    gsap.ticker.lagSmoothing(0);
+
+    // Hero intro ditangani via CSS (kelas .reveal-hero) agar tidak bergantung
+    // pada chunk GSAP yang dimuat belakangan.
+
+    // Section reveals (scroll-triggered, staggered batch)
+    ScrollTrigger.batch('[data-reveal]', {
+        start: 'top 86%',
+        once: true,
+        onEnter: (els) =>
+            gsap.to(els, {
+                opacity: 1,
+                y: 0,
+                duration: 0.7,
+                ease: 'power3.out',
+                stagger: 0.08,
+                overwrite: true,
+            }),
+    });
+
+    ScrollTrigger.refresh();
+});
+
+onBeforeUnmount(() => {
+    typed?.destroy();
+    statsObserver?.disconnect();
+    ScrollTrigger.getAll().forEach((t) => t.kill());
+    gsap.ticker.remove(lenisRaf);
+    if (lenis) {
+        lenis.destroy();
+        lenis = null;
+    }
+});
 </script>
 
 <template>
@@ -274,6 +477,7 @@ const supportLinks = [
                         :key="link.href"
                         :href="link.href"
                         class="rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
+                        @click="scrollToHash($event, link.href)"
                     >
                         {{ link.label }}
                     </a>
@@ -283,16 +487,18 @@ const supportLinks = [
                     <template v-if="canLogin">
                         <Link
                             v-if="$page.props.auth.user"
+                            v-magnetic
                             :href="route('dashboard')"
-                            class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                            class="kv-magnetic inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                         >
                             <LayoutDashboard class="h-4 w-4" />
                             Dashboard
                         </Link>
                         <Link
                             v-else
+                            v-magnetic
                             :href="route('login')"
-                            class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                            class="kv-magnetic inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                         >
                             <LogIn class="h-4 w-4" />
                             Login
@@ -326,7 +532,7 @@ const supportLinks = [
                             :key="link.href"
                             :href="link.href"
                             class="rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-                            @click="mobileOpen = false"
+                            @click="scrollToHash($event, link.href)"
                         >
                             {{ link.label }}
                         </a>
@@ -338,46 +544,32 @@ const supportLinks = [
         <main>
             <!-- ===== Hero ===== -->
             <section id="beranda" class="kv-grid-bg relative flex items-center overflow-hidden lg:min-h-[calc(100vh-57px)]">
-                <AuroraBackground />
+                <ParticleNetwork id="kv-hero-particles" />
                 <!-- Ambient glows -->
                 <div class="pointer-events-none absolute -left-32 top-20 h-96 w-96 animate-pulse rounded-full bg-cyan-500/15 blur-[120px]" />
                 <div class="pointer-events-none absolute -right-32 top-40 h-96 w-96 animate-pulse rounded-full bg-purple-500/10 blur-[120px]" style="animation-delay: 1.5s" />
 
                 <div class="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-24">
                     <div>
-                        <div
-                            class="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300"
-                            data-aos="fade-down"
-                        >
+                        <div class="reveal-hero inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300" style="animation-delay: 0.05s">
                             <Sparkles class="h-3.5 w-3.5" />
                             GPON Operations Console &middot; v2
                         </div>
 
-                        <h1
-                            class="mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-[3.5rem]"
-                            data-aos="fade-up"
-                            data-aos-delay="80"
-                        >
+                        <h1 class="reveal-hero mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-[3.5rem]" style="animation-delay: 0.12s">
                             ZTE <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">OLT Management</span> &amp; Provisioning Platform
                         </h1>
-                        <p
-                            class="mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg"
-                            data-aos="fade-up"
-                            data-aos-delay="160"
-                        >
+                        <p class="reveal-hero mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg" style="animation-delay: 0.19s">
                             Monitor, provisioning, dan manajemen OLT ZTE C300/C320/C600 secara terpusat. Dibangun untuk operasional ISP Indonesia yang menuntut kecepatan dan akurasi.
                         </p>
 
                         <!-- Hero CTAs -->
-                        <div
-                            class="mt-8 flex flex-wrap items-center gap-3"
-                            data-aos="fade-up"
-                            data-aos-delay="240"
-                        >
+                        <div class="reveal-hero mt-8 flex flex-wrap items-center gap-3" style="animation-delay: 0.26s">
                             <Link
                                 v-if="$page.props.auth.user"
+                                v-magnetic
                                 :href="route('dashboard')"
-                                class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                             >
                                 <LayoutDashboard class="h-4 w-4" />
                                 Buka Dashboard
@@ -386,28 +578,26 @@ const supportLinks = [
                             <template v-else>
                                 <Link
                                     v-if="canLogin"
+                                    v-magnetic
                                     :href="route('login')"
-                                    class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                                    class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                                 >
                                     Get Started
                                     <ArrowRight class="h-4 w-4" />
                                 </Link>
                             </template>
                             <a
-                                href="#modul"
+                                href="#tampilan"
                                 class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900/60 px-6 py-3.5 text-sm font-semibold text-slate-200 backdrop-blur transition hover:border-white/20 hover:bg-slate-800/80 hover:text-white"
+                                @click="scrollToHash($event, '#tampilan')"
                             >
                                 <Play class="h-4 w-4" />
-                                View Demo
+                                Lihat Tampilan
                             </a>
                         </div>
 
                         <!-- Hero pills -->
-                        <div
-                            class="mt-8 flex flex-wrap gap-2"
-                            data-aos="fade-up"
-                            data-aos-delay="320"
-                        >
+                        <div class="reveal-hero mt-8 flex flex-wrap gap-2" style="animation-delay: 0.33s">
                             <span
                                 v-for="pill in heroPills"
                                 :key="pill.label"
@@ -419,34 +609,95 @@ const supportLinks = [
                         </div>
                     </div>
 
-                    <!-- Dashboard preview -->
-                    <div class="relative" data-aos="fade-left" data-aos-delay="200">
-                        <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
-                        <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
-                            <!-- Browser chrome -->
-                            <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
-                                <span class="h-3 w-3 rounded-full bg-red-500/70" />
-                                <span class="h-3 w-3 rounded-full bg-amber-500/70" />
-                                <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
-                                <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">http://localhost/dashboard</span>
+                    <!-- Visual: tilt group (dashboard preview + floating live terminal) -->
+                    <div class="reveal-hero relative" style="animation-delay: 0.2s">
+                        <div v-tilt="{ strength: 7 }" class="kv-tilt relative">
+                            <div class="pointer-events-none absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
+
+                            <!-- Dashboard preview -->
+                            <div data-depth="0.25" class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+                                <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
+                                    <span class="h-3 w-3 rounded-full bg-red-500/70" />
+                                    <span class="h-3 w-3 rounded-full bg-amber-500/70" />
+                                    <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
+                                    <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">app.kusumavision.net/dashboard</span>
+                                </div>
+                                <img
+                                    src="/img/dashboard1.webp"
+                                    alt="KusumaVision NMS Dashboard"
+                                    class="block w-full"
+                                    loading="eager"
+                                />
                             </div>
-                            <img
-                                src="/img/dashboard1.webp"
-                                alt="KusumaVision NMS Dashboard"
-                                class="block w-full"
-                                loading="eager"
-                            />
+
+                            <!-- Floating status chip -->
+                            <div
+                                data-depth="1.2"
+                                class="absolute -top-4 right-4 hidden items-center gap-2 rounded-xl border border-emerald-400/30 bg-slate-950/80 px-3 py-2 shadow-xl shadow-emerald-500/10 backdrop-blur-xl lg:flex"
+                            >
+                                <span class="relative flex h-2.5 w-2.5">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
+                                    <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                                </span>
+                                <div class="leading-tight">
+                                    <div class="text-[11px] font-semibold text-white">ONU Online</div>
+                                    <div class="text-[10px] text-emerald-300/80">RX −18.2 dBm · OK</div>
+                                </div>
+                            </div>
+
+                            <!-- Floating live terminal (typed CLI) -->
+                            <div
+                                data-depth="0.85"
+                                class="relative mt-5 overflow-hidden rounded-xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-black/40 backdrop-blur-xl lg:absolute lg:-bottom-10 lg:-left-10 lg:mt-0 lg:w-[20rem]"
+                            >
+                                <div class="flex items-center gap-2 border-b border-white/10 bg-slate-900/70 px-3 py-2">
+                                    <Terminal class="h-3.5 w-3.5 text-cyan-400" />
+                                    <span class="text-[11px] font-medium text-slate-300">OLT-C320-PATI · telnet</span>
+                                    <span class="ml-auto flex gap-1">
+                                        <span class="h-2 w-2 rounded-full bg-slate-600" />
+                                        <span class="h-2 w-2 rounded-full bg-slate-600" />
+                                    </span>
+                                </div>
+                                <div class="space-y-1 px-3 py-3 font-mono text-[11px] leading-relaxed">
+                                    <div class="text-slate-500">$ telnet 10.10.0.1</div>
+                                    <div class="text-emerald-400">✓ Connected — ZXAN login: admin</div>
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="text-cyan-400">OLT-C320-PATI#</span>
+                                        <span ref="cliEl" class="text-slate-200"></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- ===== Hardware showcase strip ===== -->
+            <!-- ===== Stats band ===== -->
             <section class="border-y border-white/10 bg-slate-950">
+                <div ref="statsEl" class="mx-auto grid max-w-7xl grid-cols-2 gap-px overflow-hidden px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
+                    <div
+                        v-for="(s, i) in displayStats"
+                        :key="s.label"
+                        class="relative px-2 py-8 text-center sm:px-6"
+                        data-reveal
+                    >
+                        <div class="flex items-baseline justify-center text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                            <NumberFlow :value="s.current" />
+                            <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">{{ s.suffix }}</span>
+                        </div>
+                        <div class="mt-2 text-sm font-semibold text-slate-200">{{ s.label }}</div>
+                        <div class="mt-0.5 text-xs text-slate-500">{{ s.sub }}</div>
+                        <div v-if="i < displayStats.length - 1" class="absolute inset-y-6 right-0 hidden w-px bg-white/10 lg:block" />
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== Hardware showcase strip ===== -->
+            <section class="border-b border-white/10 bg-slate-950">
                 <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                    <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl" data-aos="fade-up">
+                    <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl" data-reveal>
                         <div class="grid items-center gap-8 p-6 md:grid-cols-[1fr_auto] md:gap-12 md:p-10">
-                            <div data-aos="fade-right" data-aos-delay="100">
+                            <div>
                                 <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Hardware Compatible</p>
                                 <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Mendukung lini OLT ZTE C-series</h2>
                                 <p class="mt-3 max-w-xl text-sm text-slate-400">
@@ -463,8 +714,6 @@ const supportLinks = [
                                 alt="ZTE OLT hardware"
                                 class="h-32 w-auto object-contain opacity-90 md:h-40"
                                 loading="lazy"
-                                data-aos="zoom-in"
-                                data-aos-delay="200"
                             />
                         </div>
                     </div>
@@ -473,7 +722,7 @@ const supportLinks = [
 
             <!-- ===== Feature grid ===== -->
             <section id="fitur" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                <div class="mx-auto max-w-2xl text-center" data-reveal>
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Fitur Utama</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Semua yang Anda Butuhkan dalam Satu Platform</h2>
                     <p class="mt-4 text-base text-slate-400">Dirancang khusus untuk operasional FTTH/GPON ISP Indonesia — dari monitoring hingga remote management.</p>
@@ -481,11 +730,11 @@ const supportLinks = [
 
                 <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     <div
-                        v-for="(f, i) in features"
+                        v-for="f in features"
                         :key="f.title"
-                        class="kv-glass-card kv-glass-hover group"
-                        data-aos="fade-up"
-                        :data-aos-delay="(i % 3) * 100"
+                        v-tilt="{ strength: 4 }"
+                        class="kv-tilt kv-glass-card kv-glass-hover group"
+                        data-reveal
                     >
                         <span :class="f.accent" class="!h-12 !w-12 transition-transform group-hover:scale-105">
                             <component :is="f.icon" class="h-5 w-5" />
@@ -498,11 +747,10 @@ const supportLinks = [
                 <!-- Benefit pills strip -->
                 <div class="mt-14 flex flex-wrap items-center justify-center gap-3 border-y border-white/10 py-6">
                     <span
-                        v-for="(b, i) in benefits"
+                        v-for="b in benefits"
                         :key="b.label"
                         class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-4 py-2 text-xs font-medium text-slate-300 backdrop-blur"
-                        data-aos="zoom-in"
-                        :data-aos-delay="i * 80"
+                        data-reveal
                     >
                         <component :is="b.icon" class="h-3.5 w-3.5 text-cyan-400" />
                         {{ b.label }}
@@ -510,16 +758,47 @@ const supportLinks = [
                 </div>
             </section>
 
-            <!-- ===== Tampilan aplikasi (galeri) ===== -->
-            <section id="tampilan" class="border-y border-white/10 bg-slate-950">
+            <!-- ===== How it works ===== -->
+            <section id="cara-kerja" class="border-y border-white/10 bg-slate-950">
                 <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                    <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                    <div class="mx-auto max-w-2xl text-center" data-reveal>
+                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Cara Kerja</p>
+                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dari Perangkat ke Operasional dalam 4 Langkah</h2>
+                        <p class="mt-4 text-base text-slate-400">Alur kerja yang sama dipakai tim NOC setiap hari — terhubung, ter-monitor, dan ter-provisioning tanpa lompat antar tools.</p>
+                    </div>
+
+                    <div class="relative mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <!-- Connector line (decorative, lg only) -->
+                        <div class="pointer-events-none absolute left-0 right-0 top-8 hidden h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent lg:block" />
+
+                        <div
+                            v-for="step in steps"
+                            :key="step.n"
+                            v-tilt="{ strength: 4 }"
+                            class="kv-tilt group relative rounded-2xl border border-white/10 bg-slate-900/40 p-6 shadow-lg shadow-black/30 backdrop-blur-xl transition-colors hover:border-cyan-400/30"
+                            data-reveal
+                        >
+                            <span class="pointer-events-none absolute right-4 top-3 text-4xl font-black text-white/5 transition-colors group-hover:text-cyan-500/10">{{ step.n }}</span>
+                            <span class="relative flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/20 to-sky-600/10 text-cyan-300 shadow-lg shadow-cyan-500/10">
+                                <component :is="step.icon" class="h-6 w-6" />
+                            </span>
+                            <h3 class="mt-5 text-base font-semibold text-white">{{ step.title }}</h3>
+                            <p class="mt-2 text-sm leading-6 text-slate-400">{{ step.body }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== Tampilan aplikasi (galeri) ===== -->
+            <section id="tampilan" class="bg-slate-950">
+                <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+                    <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tampilan Aplikasi</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Lihat Langsung Antarmukanya</h2>
                         <p class="mt-4 text-base text-slate-400">Dari dashboard hingga provisioning ONU — antarmuka bersih yang dirancang untuk kecepatan operasional NOC.</p>
                     </div>
 
-                    <div class="mt-14 grid items-start gap-6 lg:grid-cols-[20rem_1fr]" data-aos="fade-up" data-aos-delay="100">
+                    <div class="mt-14 grid items-start gap-6 lg:grid-cols-[20rem_1fr]" data-reveal>
                         <!-- Tab list -->
                         <div
                             role="tablist"
@@ -557,7 +836,6 @@ const supportLinks = [
                         <div class="relative">
                             <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
                             <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
-                                <!-- Browser chrome -->
                                 <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
                                     <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-amber-500/70" />
@@ -567,7 +845,6 @@ const supportLinks = [
                                         <span class="truncate">{{ currentShot.url }}</span>
                                     </span>
                                 </div>
-                                <!-- Screenshot dengan crossfade — tinggi frame mengikuti rasio asli tiap gambar agar tidak terpotong -->
                                 <div
                                     class="relative bg-slate-950 transition-[aspect-ratio] duration-300"
                                     :style="{ aspectRatio: currentShot.ratio }"
@@ -592,26 +869,23 @@ const supportLinks = [
             <!-- ===== Tech stack ===== -->
             <section id="tech" class="border-y border-white/10 bg-slate-950/50">
                 <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-                    <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                    <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tech Stack</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dibangun dengan Teknologi Modern & Andal</h2>
                     </div>
 
                     <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                         <div
-                            v-for="(t, i) in techStack"
+                            v-for="t in techStack"
                             :key="t.name"
                             class="group relative flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-8 text-center backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-slate-900/60"
                             :style="{ '--glow-color': t.glow }"
-                            data-aos="zoom-in"
-                            :data-aos-delay="i * 70"
+                            data-reveal
                         >
-                            <!-- Ambient glow on hover -->
                             <div
                                 class="pointer-events-none absolute inset-0 rounded-2xl opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100"
                                 :style="{ background: `radial-gradient(circle at 50% 30%, ${t.glow}, transparent 70%)` }"
                             />
-
                             <div class="relative mb-4 flex h-16 w-16 items-center justify-center transition-transform duration-300 group-hover:scale-110">
                                 <img
                                     :src="t.logo"
@@ -629,7 +903,7 @@ const supportLinks = [
 
             <!-- ===== Modul lengkap ===== -->
             <section id="modul" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-                <div class="mx-auto max-w-2xl text-center" data-aos="fade-up">
+                <div class="mx-auto max-w-2xl text-center" data-reveal>
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Modul</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Modul Lengkap untuk Operasional FTTH</h2>
                     <p class="mt-4 text-base text-slate-400">Setiap modul dirancang ringkas, dengan alur kerja yang terasa natural buat tim NOC.</p>
@@ -637,11 +911,10 @@ const supportLinks = [
 
                 <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div
-                        v-for="(m, i) in modules"
+                        v-for="m in modules"
                         :key="m.title"
                         class="kv-glass-card kv-glass-hover group flex items-start gap-4"
-                        data-aos="fade-up"
-                        :data-aos-delay="(i % 3) * 100"
+                        data-reveal
                     >
                         <span class="kv-circle-cyan !h-11 !w-11">
                             <component :is="m.icon" class="h-5 w-5" />
@@ -659,7 +932,7 @@ const supportLinks = [
 
             <!-- ===== Final CTA ===== -->
             <section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-                <div class="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12" data-aos="zoom-in-up">
+                <div class="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12" data-reveal>
                     <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
                     <div class="pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
 
@@ -671,8 +944,9 @@ const supportLinks = [
                         <div class="flex flex-wrap items-center justify-center gap-3">
                             <Link
                                 v-if="canLogin && !$page.props.auth.user"
+                                v-magnetic
                                 :href="route('login')"
-                                class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/40 transition hover:shadow-cyan-500/60"
+                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/40 transition hover:shadow-cyan-500/60"
                             >
                                 Login
                                 <ArrowRight class="h-4 w-4" />
@@ -680,6 +954,7 @@ const supportLinks = [
                             <a
                                 href="#kontak"
                                 class="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/60 px-6 py-3.5 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-white/25 hover:bg-slate-800/80"
+                                @click="scrollToHash($event, '#kontak')"
                             >
                                 <Phone class="h-4 w-4" />
                                 Hubungi Kami
@@ -711,7 +986,7 @@ const supportLinks = [
                         <h4 class="text-sm font-semibold text-white">Produk</h4>
                         <ul class="mt-4 space-y-2.5 text-sm">
                             <li v-for="l in productLinks" :key="l.label">
-                                <a :href="l.href" class="text-slate-400 transition-colors hover:text-cyan-400">{{ l.label }}</a>
+                                <a :href="l.href" class="text-slate-400 transition-colors hover:text-cyan-400" @click="scrollToHash($event, l.href)">{{ l.label }}</a>
                             </li>
                         </ul>
                     </div>
@@ -754,6 +1029,45 @@ const supportLinks = [
 </template>
 
 <style scoped>
+/* === Hero intro: animasi CSS murni (tidak bergantung GSAP) === */
+.reveal-hero {
+    animation: kv-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: opacity, transform;
+}
+@keyframes kv-hero-in {
+    from {
+        opacity: 0;
+        transform: translateY(22px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* === Scroll reveal: keadaan awal tersembunyi (di-reveal oleh GSAP) === */
+[data-reveal] {
+    opacity: 0;
+    transform: translateY(26px);
+    will-change: opacity, transform;
+}
+
+/* === Tilt & magnetic: smoothing transform === */
+.kv-tilt {
+    transform-style: preserve-3d;
+    transition: transform 0.3s ease-out;
+    will-change: transform;
+}
+.kv-tilt [data-depth] {
+    transition: transform 0.3s ease-out;
+}
+.kv-magnetic {
+    transition:
+        transform 0.25s cubic-bezier(0.33, 1, 0.68, 1),
+        box-shadow 0.2s ease;
+    will-change: transform;
+}
+
 /* Crossfade antar screenshot di galeri "Tampilan Aplikasi" */
 .kv-fade-enter-active,
 .kv-fade-leave-active {
@@ -764,7 +1078,20 @@ const supportLinks = [
     opacity: 0;
 }
 
+/* Aksesibilitas: hormati pengguna yang mengurangi animasi. */
 @media (prefers-reduced-motion: reduce) {
+    .reveal-hero {
+        animation: none;
+    }
+    [data-reveal] {
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    .kv-tilt,
+    .kv-magnetic,
+    .kv-tilt [data-depth] {
+        transition: none;
+    }
     .kv-fade-enter-active,
     .kv-fade-leave-active {
         transition: none;
