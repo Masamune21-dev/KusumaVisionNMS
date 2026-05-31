@@ -1,9 +1,15 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
+
+// tsParticles dimuat sebagai chunk async (lihat catatan di Welcome.vue) agar
+// key manifest halaman Auth tidak hilang saat build.
+const ParticleNetwork = defineAsyncComponent(
+    () => import('@/Components/Shell/ParticleNetwork.vue'),
+);
 
 const page = usePage();
 const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
@@ -15,6 +21,8 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
 <template>
     <div class="kv-grid-bg relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
         <AuroraBackground />
+        <!-- Jaring partikel (sama seperti hero Welcome) -->
+        <ParticleNetwork id="kv-login-particles" :quantity="48" />
         <!-- Ambient glows -->
         <div class="pointer-events-none absolute -left-40 top-10 h-96 w-96 rounded-full bg-cyan-500/15 blur-[120px]" />
         <div class="pointer-events-none absolute -right-40 bottom-10 h-96 w-96 rounded-full bg-purple-500/10 blur-[120px]" />

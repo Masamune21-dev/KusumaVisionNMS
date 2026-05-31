@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
@@ -9,6 +9,12 @@ import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, Menu, Radar, ScrollText, Search, Settings, User, Users, WifiOff } from '@lucide/vue';
+
+// Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
+// Chunk async (lihat catatan di Welcome.vue) agar key manifest tidak hilang saat build.
+const ParticleNetwork = defineAsyncComponent(
+    () => import('@/Components/Shell/ParticleNetwork.vue'),
+);
 
 const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
@@ -285,10 +291,12 @@ onUnmounted(() => {
             </div>
 
             <!-- Page content -->
-            <main class="kv-grid-bg flex-1">
+            <main class="kv-grid-bg relative flex-1">
                 <AuroraBackground />
+                <!-- Jaring partikel fixed di belakang konten semua halaman app -->
+                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" />
                 <Transition name="page" mode="out-in">
-                    <div :key="page.component" class="min-w-0">
+                    <div :key="page.component" class="relative min-w-0">
                         <slot />
                     </div>
                 </Transition>

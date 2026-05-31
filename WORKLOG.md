@@ -1360,3 +1360,21 @@ Notes:
 - Atribut `scroll-region` membuat Inertia 2 me-reset posisi scroll area tengah saat pindah halaman (sebelumnya scroll mengikuti `window`); pola sama dipakai `resources/js/Components/Modal.vue`.
 - Footer dulu hanya `lg:sticky` (diam di desktop saja) — sekarang diam di mobile juga karena berada di luar area scroll.
 - Pakai `h-screen` (100vh); di sebagian browser mobile address-bar bisa sedikit memotong — bila mengganggu nanti bisa diganti `h-[100dvh]`. Build `npm run build` lolos (20.01s).
+
+### Animasi jaring partikel (ParticleNetwork) menyeluruh di app + login, fix gagal re-init saat navigasi
+
+Created:
+
+- `resources/js/lib/particles.js` — module singleton tsParticles: `ensureParticlesEngine()` cache promise `loadSlim()` (register plugin **sekali seumur tab**) dan `nextParticlesId(prefix)` untuk id unik per mount. State harus di module ini (bukan di `<script setup>`) supaya benar-benar persist lintas mount.
+
+Changed:
+
+- `resources/js/Components/Shell/ParticleNetwork.vue` — tidak lagi `import loadSlim` + `tsParticles.load` dengan id statis. Sekarang `import { ensureParticlesEngine, nextParticlesId, tsParticles } from '@/lib/particles'`; pakai `uid = nextParticlesId(props.id)` untuk DOM id + registry id; tambah flag `destroyed` (guard race kalau komponen unmount selama `await` saat navigasi cepat → bersihkan/ batalkan init).
+- `resources/js/Layouts/AuthenticatedLayout.vue` — pasang `<ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" />` di dalam `<main>` (di belakang konten) via `defineAsyncComponent`, jadi animasi tampil **menyeluruh di semua halaman app** (Dashboard, SmartOLT, Monitoring, Alarms, Report, Users, dst), bukan per-halaman. `<main>` diberi `relative`, slot konten diberi `relative` agar di atas partikel.
+- `resources/js/Layouts/GuestLayout.vue` — pasang `<ParticleNetwork id="kv-login-particles" :quantity="48" />` di latar halaman login & semua halaman Auth (via `defineAsyncComponent`).
+
+Notes:
+
+- **Akar masalah utama** (error `Register plugins can only be done before calling tsParticles.load()`): isi `<script setup>` sebenarnya badan `setup()` yang dieksekusi ulang TIAP komponen mount. Karena layout app **non-persistent** (komponen partikel re-mount tiap navigasi Inertia), singleton `let enginePromise` yang ditaruh di dalam `<script setup>` ter-reset ke `null` tiap pindah halaman → `loadSlim()` terpanggil lagi setelah `load()` pertama → `pluginManager.register()` throw (lihat `node_modules/@tsparticles/engine/cjs/Core/Utils/PluginManager.js`, `#initialized`). Solusi: pindahkan singleton ke module eksternal (`lib/particles.js`) yang benar-benar di module scope.
+- Pola `defineAsyncComponent` dipertahankan (gotcha Vite manifest page facade yang sudah tercatat) — diverifikasi chunk `AuthenticatedLayout`/`GuestLayout`/`Dashboard` tetap ada di manifest, `ParticleNetwork` jadi chunk async terpisah (~106 kB).
+- Tiap instance pakai id unik → tidak bentrok registry tsParticles saat mount/unmount tumpang-tindih. `pointer-events-none` + hormati `prefers-reduced-motion` (latar statis). Build `npm run build` lolos (18.07s).

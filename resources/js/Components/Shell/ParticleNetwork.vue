@@ -5,11 +5,14 @@
  * Reaktif ke kursor (mode "grab") dan menghormati prefers-reduced-motion.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
-import { tsParticles } from '@tsparticles/engine';
-import { loadSlim } from '@tsparticles/slim';
+// Singleton engine + id unik hidup di module eksternal — BUKAN di <script setup>,
+// karena isi <script setup> adalah badan setup() yang dieksekusi ulang tiap mount
+// (sehingga singleton apa pun di sini akan ter-reset tiap navigasi → loadSlim
+// terpanggil lagi → register throw). Lihat resources/js/lib/particles.js.
+import { ensureParticlesEngine, nextParticlesId, tsParticles } from '@/lib/particles';
 
 const props = defineProps({
-    // id unik wajib agar beberapa instance tidak bentrok.
+    // id dasar — dibedakan otomatis per mount, jadi cukup deskriptif saja.
     id: { type: String, default: 'kv-particles' },
     // jumlah node — turunkan di area kecil untuk hemat resource.
     quantity: { type: Number, default: 64 },
@@ -18,7 +21,10 @@ const props = defineProps({
 });
 
 const el = ref(null);
+// id unik untuk mount ini (DOM + registry tsParticles).
+const uid = nextParticlesId(props.id);
 let container = null;
+let destroyed = false;
 
 const reduceMotion = () =>
     typeof window !== 'undefined' &&
@@ -28,10 +34,14 @@ onMounted(async () => {
     // Hormati pengguna yang mengurangi animasi — biarkan latar statis.
     if (reduceMotion() || !el.value) return;
 
-    await loadSlim(tsParticles);
+    // Daftarkan engine sekali saja (idempoten lintas mount, dari module singleton).
+    await ensureParticlesEngine();
+
+    // Komponen bisa keburu unmount selama await di atas (navigasi cepat).
+    if (destroyed || !el.value) return;
 
     container = await tsParticles.load({
-        id: props.id,
+        id: uid,
         element: el.value,
         options: {
             fullScreen: { enable: false },
@@ -78,9 +88,16 @@ onMounted(async () => {
             },
         },
     });
+
+    // Kalau sudah keburu unmount saat load() selesai, langsung bersihkan.
+    if (destroyed) {
+        container?.destroy();
+        container = null;
+    }
 });
 
 onBeforeUnmount(() => {
+    destroyed = true;
     container?.destroy();
     container = null;
 });
@@ -88,7 +105,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div
-        :id="id"
+        :id="uid"
         ref="el"
         class="pointer-events-none absolute inset-0 h-full w-full"
         aria-hidden="true"
