@@ -122,10 +122,34 @@ const vMagnetic = {
     },
 };
 
+/* ===== Directive: spotlight (radial highlight mengikuti kursor di kartu) ===== */
+const vSpotlight = {
+    mounted(el) {
+        const onMove = (e) => {
+            const r = el.getBoundingClientRect();
+            el.style.setProperty('--spot-x', `${e.clientX - r.left}px`);
+            el.style.setProperty('--spot-y', `${e.clientY - r.top}px`);
+        };
+        el.__spot = onMove;
+        el.addEventListener('mousemove', onMove);
+    },
+    unmounted(el) {
+        if (el.__spot) el.removeEventListener('mousemove', el.__spot);
+    },
+};
+
 const mobileOpen = ref(false);
+const scrolled = ref(false);
 const activeShot = ref('dashboard');
 const cliEl = ref(null);
 const statsEl = ref(null);
+const stepsLineEl = ref(null);
+const galleryPaused = ref(false);
+const GALLERY_MS = 5000;
+
+// Navbar pakai latar solid (semi-transparan) saat halaman sudah di-scroll
+// atau ketika drawer mobile dibuka — di puncak halaman ia transparan penuh.
+const navSolid = computed(() => scrolled.value || mobileOpen.value);
 
 const navLinks = [
     { label: 'Beranda', href: '#beranda' },
@@ -145,10 +169,10 @@ const heroPills = [
 ];
 
 const stats = [
-    { value: 3, suffix: '', label: 'Seri OLT ZTE', sub: 'C300 · C320 · C600' },
-    { value: 12, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning' },
-    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm & Telegram realtime' },
-    { value: 100, suffix: '%', label: 'Berbasis Web', sub: 'Tanpa install aplikasi' },
+    { value: 3, suffix: '', label: 'Seri OLT ZTE', sub: 'C300 · C320 · C600', icon: Cable, circle: 'kv-circle-sky' },
+    { value: 12, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning', icon: Boxes, circle: 'kv-circle-cyan' },
+    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm & Telegram realtime', icon: Activity, circle: 'kv-circle-emerald' },
+    { value: 100, suffix: '%', label: 'Berbasis Web', sub: 'Tanpa install aplikasi', icon: MonitorPlay, circle: 'kv-circle-purple' },
 ];
 const displayStats = ref(stats.map((s) => ({ ...s, current: 0 })));
 
@@ -262,6 +286,22 @@ const benefits = [
     { icon: Activity, label: 'ISP-Focused Workflow' },
 ];
 
+// Kapabilitas untuk marquee berjalan (infinite scroll antar-section)
+const marqueeItems = [
+    'GPON Monitoring',
+    'SNMP Polling',
+    'ONU Provisioning',
+    'Alarm Engine',
+    'Web Telnet',
+    'RX Optical Power',
+    'Remote ONU',
+    'Telegram Alerts',
+    'Audit Logs',
+    'Role-based Access',
+    'Reports & Analytics',
+    'Global Search',
+];
+
 const techStack = [
     { name: 'Laravel 12', sub: 'PHP Framework', logo: '/img/tech/laravel.svg', glow: 'rgba(239, 68, 68, 0.25)' },
     { name: 'Vue 3', sub: 'Frontend SPA', logo: '/img/tech/vue.svg', glow: 'rgba(16, 185, 129, 0.25)' },
@@ -339,6 +379,31 @@ const currentShot = computed(
     () => screenshots.find((s) => s.key === activeShot.value) ?? screenshots[0],
 );
 
+/* ===== Galeri "Tampilan Aplikasi": autoplay + pause saat hover ===== */
+let galleryTimer = null;
+const advanceShot = (dir = 1) => {
+    const idx = screenshots.findIndex((s) => s.key === activeShot.value);
+    const next = (idx + dir + screenshots.length) % screenshots.length;
+    activeShot.value = screenshots[next].key;
+};
+const stopGallery = () => {
+    if (galleryTimer) {
+        clearInterval(galleryTimer);
+        galleryTimer = null;
+    }
+};
+const startGallery = () => {
+    if (reduceMotion()) return;
+    stopGallery();
+    galleryTimer = window.setInterval(() => {
+        if (!galleryPaused.value) advanceShot(1);
+    }, GALLERY_MS);
+};
+const selectShot = (key) => {
+    activeShot.value = key;
+    startGallery(); // reset timer ketika dipilih manual
+};
+
 const productLinks = [
     { label: 'Dashboard', href: '#beranda' },
     { label: 'Fitur', href: '#fitur' },
@@ -357,6 +422,10 @@ let typed = null;
 let statsObserver = null;
 const lenisRaf = (time) => lenis && lenis.raf(time * 1000);
 
+const onWindowScroll = () => {
+    scrolled.value = (window.scrollY || window.pageYOffset || 0) > 12;
+};
+
 const scrollToHash = (e, href) => {
     if (!href || !href.startsWith('#')) return;
     const target = document.querySelector(href);
@@ -372,6 +441,10 @@ const scrollToHash = (e, href) => {
 
 onMounted(() => {
     const reduced = reduceMotion();
+
+    // Status scroll untuk transisi navbar (transparan → semi-transparan)
+    window.addEventListener('scroll', onWindowScroll, { passive: true });
+    onWindowScroll();
 
     // CLI typewriter (hero terminal)
     if (cliEl.value) {
@@ -410,6 +483,9 @@ onMounted(() => {
         statsObserver.observe(statsEl.value);
     }
 
+    // Autoplay galeri tampilan aplikasi
+    startGallery();
+
     if (reduced) return; // CSS sudah menampilkan elemen reveal; lewati animasi.
 
     gsap.registerPlugin(ScrollTrigger);
@@ -441,10 +517,30 @@ onMounted(() => {
             }),
     });
 
+    // Garis konektor "Cara Kerja" menggambar mengikuti scroll
+    if (stepsLineEl.value) {
+        gsap.fromTo(
+            stepsLineEl.value,
+            { scaleX: 0 },
+            {
+                scaleX: 1,
+                ease: 'none',
+                scrollTrigger: {
+                    trigger: stepsLineEl.value,
+                    start: 'top 92%',
+                    end: 'top 45%',
+                    scrub: true,
+                },
+            },
+        );
+    }
+
     ScrollTrigger.refresh();
 });
 
 onBeforeUnmount(() => {
+    window.removeEventListener('scroll', onWindowScroll);
+    stopGallery();
     typed?.destroy();
     statsObserver?.disconnect();
     ScrollTrigger.getAll().forEach((t) => t.kill());
@@ -461,13 +557,18 @@ onBeforeUnmount(() => {
 
     <div class="min-h-screen bg-slate-950 text-slate-100">
         <!-- ===== Top nav ===== -->
-        <header class="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
-            <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <header
+            class="fixed inset-x-0 top-0 z-40 transition-colors duration-300"
+            :class="navSolid
+                ? 'border-b border-white/10 bg-slate-950/60 shadow-lg shadow-black/20 backdrop-blur-xl'
+                : 'border-b border-transparent bg-transparent'"
+        >
+            <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                 <Link href="/" class="flex items-center gap-2.5">
-                    <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                    <ApplicationLogo class="h-9 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
                     <div class="leading-tight">
-                        <div class="text-sm font-bold text-white">KusumaVision</div>
-                        <div class="text-[10px] text-slate-500">NMS v2 &middot; GPON Management</div>
+                        <div class="text-[15px] font-bold text-white">KusumaVision</div>
+                        <div class="text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
                     </div>
                 </Link>
 
@@ -489,19 +590,21 @@ onBeforeUnmount(() => {
                             v-if="$page.props.auth.user"
                             v-magnetic
                             :href="route('dashboard')"
-                            class="kv-magnetic inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
                         >
-                            <LayoutDashboard class="h-4 w-4" />
-                            Dashboard
+                            <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+                            <span class="relative">Dashboard</span>
+                            <ArrowRight class="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
                         </Link>
                         <Link
                             v-else
                             v-magnetic
                             :href="route('login')"
-                            class="kv-magnetic inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
                         >
-                            <LogIn class="h-4 w-4" />
-                            Login
+                            <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
+                            <span class="relative">Login</span>
+                            <ArrowRight class="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
                         </Link>
                     </template>
 
@@ -526,7 +629,7 @@ onBeforeUnmount(() => {
                 leave-to-class="opacity-0"
             >
                 <nav v-if="mobileOpen" class="border-t border-white/10 md:hidden">
-                    <div class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 sm:px-6">
+                    <div class="mx-auto flex max-w-[1600px] flex-col gap-1 px-4 py-3 sm:px-6">
                         <a
                             v-for="link in navLinks"
                             :key="link.href"
@@ -543,13 +646,13 @@ onBeforeUnmount(() => {
 
         <main>
             <!-- ===== Hero ===== -->
-            <section id="beranda" class="kv-grid-bg relative flex items-center overflow-hidden lg:min-h-[calc(100vh-57px)]">
+            <section id="beranda" class="kv-grid-bg relative flex min-h-screen items-center overflow-hidden">
                 <ParticleNetwork id="kv-hero-particles" />
                 <!-- Ambient glows -->
                 <div class="pointer-events-none absolute -left-32 top-20 h-96 w-96 animate-pulse rounded-full bg-cyan-500/15 blur-[120px]" />
                 <div class="pointer-events-none absolute -right-32 top-40 h-96 w-96 animate-pulse rounded-full bg-purple-500/10 blur-[120px]" style="animation-delay: 1.5s" />
 
-                <div class="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-24">
+                <div class="relative mx-auto grid w-full max-w-[1600px] items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:px-8 lg:py-24">
                     <div>
                         <div class="reveal-hero inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300" style="animation-delay: 0.05s">
                             <Sparkles class="h-3.5 w-3.5" />
@@ -674,13 +777,18 @@ onBeforeUnmount(() => {
 
             <!-- ===== Stats band ===== -->
             <section class="border-y border-white/10 bg-slate-950">
-                <div ref="statsEl" class="mx-auto grid max-w-7xl grid-cols-2 gap-px overflow-hidden px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
+                <div ref="statsEl" class="mx-auto grid max-w-[1600px] grid-cols-2 gap-px overflow-hidden px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
                     <div
                         v-for="(s, i) in displayStats"
                         :key="s.label"
-                        class="relative px-2 py-8 text-center sm:px-6"
+                        v-spotlight
+                        class="kv-spotlight group relative px-4 py-10 text-center transition-colors duration-300 hover:bg-white/[0.025] sm:px-6"
                         data-reveal
                     >
+                        <span class="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <span :class="s.circle" class="mx-auto mb-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105">
+                            <component :is="s.icon" class="h-5 w-5" />
+                        </span>
                         <div class="flex items-baseline justify-center text-4xl font-bold tracking-tight text-white sm:text-5xl">
                             <NumberFlow :value="s.current" />
                             <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">{{ s.suffix }}</span>
@@ -694,8 +802,14 @@ onBeforeUnmount(() => {
 
             <!-- ===== Hardware showcase strip ===== -->
             <section class="border-b border-white/10 bg-slate-950">
-                <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                    <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl" data-reveal>
+                <div class="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8">
+                    <div
+                        v-spotlight
+                        class="kv-spotlight kv-ring group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/30 backdrop-blur-xl"
+                        data-reveal
+                    >
+                        <div class="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
+                        <div class="pointer-events-none absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-purple-500/10 blur-3xl" />
                         <div class="grid items-center gap-8 p-6 md:grid-cols-[1fr_auto] md:gap-12 md:p-10">
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Hardware Compatible</p>
@@ -710,9 +824,9 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
                             <img
-                                src="/img/c320.webp"
+                                src="/img/c320(1).webp"
                                 alt="ZTE OLT hardware"
-                                class="h-32 w-auto object-contain opacity-90 md:h-40"
+                                class="kv-float h-20 w-auto object-contain opacity-90 drop-shadow-[0_12px_30px_rgba(56,189,248,0.18)] md:h-24 lg:h-28"
                                 loading="lazy"
                             />
                         </div>
@@ -720,8 +834,27 @@ onBeforeUnmount(() => {
                 </div>
             </section>
 
+            <!-- ===== Capability marquee ===== -->
+            <section class="border-b border-white/10 bg-slate-950/60">
+                <div class="kv-marquee-wrap group relative overflow-hidden py-5">
+                    <!-- fade tepi kiri/kanan -->
+                    <div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-slate-950 to-transparent" />
+                    <div class="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-slate-950 to-transparent" />
+                    <div class="kv-marquee gap-3">
+                        <span
+                            v-for="(item, i) in [...marqueeItems, ...marqueeItems]"
+                            :key="`${item}-${i}`"
+                            class="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-slate-900/50 px-4 py-2 text-sm font-medium text-slate-300"
+                        >
+                            <span class="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                            {{ item }}
+                        </span>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== Feature grid ===== -->
-            <section id="fitur" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+            <section id="fitur" class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl text-center" data-reveal>
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Fitur Utama</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Semua yang Anda Butuhkan dalam Satu Platform</h2>
@@ -733,13 +866,14 @@ onBeforeUnmount(() => {
                         v-for="f in features"
                         :key="f.title"
                         v-tilt="{ strength: 4 }"
-                        class="kv-tilt kv-glass-card kv-glass-hover group"
+                        v-spotlight
+                        class="kv-tilt kv-spotlight kv-ring kv-glass-card kv-glass-hover group"
                         data-reveal
                     >
-                        <span :class="f.accent" class="!h-12 !w-12 transition-transform group-hover:scale-105">
+                        <span :class="f.accent" class="!h-12 !w-12 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5">
                             <component :is="f.icon" class="h-5 w-5" />
                         </span>
-                        <h3 class="mt-4 text-base font-semibold text-white">{{ f.title }}</h3>
+                        <h3 class="mt-4 text-base font-semibold text-white transition-colors group-hover:text-cyan-300">{{ f.title }}</h3>
                         <p class="mt-2 text-sm leading-6 text-slate-400">{{ f.body }}</p>
                     </div>
                 </div>
@@ -760,7 +894,7 @@ onBeforeUnmount(() => {
 
             <!-- ===== How it works ===== -->
             <section id="cara-kerja" class="border-y border-white/10 bg-slate-950">
-                <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+                <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Cara Kerja</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dari Perangkat ke Operasional dalam 4 Langkah</h2>
@@ -768,18 +902,22 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="relative mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                        <!-- Connector line (decorative, lg only) -->
-                        <div class="pointer-events-none absolute left-0 right-0 top-8 hidden h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent lg:block" />
+                        <!-- Connector line — digambar mengikuti scroll (lg only) -->
+                        <div
+                            ref="stepsLineEl"
+                            class="pointer-events-none absolute left-0 right-0 top-8 hidden h-px origin-left bg-gradient-to-r from-cyan-500/0 via-cyan-400/50 to-purple-500/0 lg:block"
+                        />
 
                         <div
                             v-for="step in steps"
                             :key="step.n"
                             v-tilt="{ strength: 4 }"
-                            class="kv-tilt group relative rounded-2xl border border-white/10 bg-slate-900/40 p-6 shadow-lg shadow-black/30 backdrop-blur-xl transition-colors hover:border-cyan-400/30"
+                            v-spotlight
+                            class="kv-tilt kv-spotlight kv-ring group relative rounded-2xl border border-white/10 bg-slate-900/40 p-6 shadow-lg shadow-black/30 backdrop-blur-xl transition-colors hover:border-cyan-400/30"
                             data-reveal
                         >
                             <span class="pointer-events-none absolute right-4 top-3 text-4xl font-black text-white/5 transition-colors group-hover:text-cyan-500/10">{{ step.n }}</span>
-                            <span class="relative flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/20 to-sky-600/10 text-cyan-300 shadow-lg shadow-cyan-500/10">
+                            <span class="relative flex h-14 w-14 items-center justify-center rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/20 to-sky-600/10 text-cyan-300 shadow-lg shadow-cyan-500/10 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105">
                                 <component :is="step.icon" class="h-6 w-6" />
                             </span>
                             <h3 class="mt-5 text-base font-semibold text-white">{{ step.title }}</h3>
@@ -791,14 +929,19 @@ onBeforeUnmount(() => {
 
             <!-- ===== Tampilan aplikasi (galeri) ===== -->
             <section id="tampilan" class="bg-slate-950">
-                <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+                <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tampilan Aplikasi</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Lihat Langsung Antarmukanya</h2>
                         <p class="mt-4 text-base text-slate-400">Dari dashboard hingga provisioning ONU — antarmuka bersih yang dirancang untuk kecepatan operasional NOC.</p>
                     </div>
 
-                    <div class="mt-14 grid items-start gap-6 lg:grid-cols-[20rem_1fr]" data-reveal>
+                    <div
+                        class="mt-14 grid items-start gap-6 lg:grid-cols-[20rem_1fr]"
+                        data-reveal
+                        @mouseenter="galleryPaused = true"
+                        @mouseleave="galleryPaused = false"
+                    >
                         <!-- Tab list -->
                         <div
                             role="tablist"
@@ -811,7 +954,7 @@ onBeforeUnmount(() => {
                                 type="button"
                                 role="tab"
                                 :aria-selected="activeShot === shot.key"
-                                @click="activeShot = shot.key"
+                                @click="selectShot(shot.key)"
                                 class="group flex min-w-[15rem] shrink-0 items-center gap-3 rounded-xl border px-4 py-3 text-left transition lg:min-w-0"
                                 :class="activeShot === shot.key
                                     ? 'border-cyan-400/40 bg-gradient-to-r from-cyan-500/15 to-sky-500/5 shadow-lg shadow-cyan-500/10'
@@ -836,6 +979,14 @@ onBeforeUnmount(() => {
                         <div class="relative">
                             <div class="absolute -inset-4 rounded-3xl bg-gradient-to-br from-cyan-500/20 via-sky-500/10 to-purple-500/20 blur-2xl" />
                             <div class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
+                                <!-- Progress bar autoplay -->
+                                <div class="absolute inset-x-0 top-0 z-20 h-0.5 bg-white/5">
+                                    <div
+                                        :key="activeShot"
+                                        class="kv-prog h-full bg-gradient-to-r from-cyan-400 to-sky-500"
+                                        :style="{ animationPlayState: galleryPaused ? 'paused' : 'running' }"
+                                    />
+                                </div>
                                 <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
                                     <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-amber-500/70" />
@@ -868,7 +1019,7 @@ onBeforeUnmount(() => {
 
             <!-- ===== Tech stack ===== -->
             <section id="tech" class="border-y border-white/10 bg-slate-950/50">
-                <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+                <div class="mx-auto max-w-[1600px] px-4 py-16 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tech Stack</p>
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dibangun dengan Teknologi Modern & Andal</h2>
@@ -876,9 +1027,9 @@ onBeforeUnmount(() => {
 
                     <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
                         <div
-                            v-for="t in techStack"
+                            v-for="(t, i) in techStack"
                             :key="t.name"
-                            class="group relative flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-8 text-center backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-slate-900/60"
+                            class="kv-ring group relative flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-slate-900/40 px-4 py-8 text-center backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-slate-900/60"
                             :style="{ '--glow-color': t.glow }"
                             data-reveal
                         >
@@ -886,7 +1037,10 @@ onBeforeUnmount(() => {
                                 class="pointer-events-none absolute inset-0 rounded-2xl opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100"
                                 :style="{ background: `radial-gradient(circle at 50% 30%, ${t.glow}, transparent 70%)` }"
                             />
-                            <div class="relative mb-4 flex h-16 w-16 items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                            <div
+                                class="kv-float relative mb-4 flex h-16 w-16 items-center justify-center transition-transform duration-300 group-hover:scale-110"
+                                :style="{ animationDelay: `${i * 0.45}s` }"
+                            >
                                 <img
                                     :src="t.logo"
                                     :alt="`${t.name} logo`"
@@ -902,7 +1056,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Modul lengkap ===== -->
-            <section id="modul" class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+            <section id="modul" class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl text-center" data-reveal>
                     <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Modul</p>
                     <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Modul Lengkap untuk Operasional FTTH</h2>
@@ -913,16 +1067,17 @@ onBeforeUnmount(() => {
                     <div
                         v-for="m in modules"
                         :key="m.title"
-                        class="kv-glass-card kv-glass-hover group flex items-start gap-4"
+                        v-spotlight
+                        class="kv-glass-card kv-glass-hover kv-spotlight kv-ring group flex items-start gap-4 transition-transform duration-200 hover:-translate-y-0.5"
                         data-reveal
                     >
-                        <span class="kv-circle-cyan !h-11 !w-11">
+                        <span class="kv-circle-cyan !h-11 !w-11 transition-transform duration-300 group-hover:scale-105">
                             <component :is="m.icon" class="h-5 w-5" />
                         </span>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center justify-between gap-2">
-                                <h3 class="text-sm font-semibold text-white">{{ m.title }}</h3>
-                                <ChevronRight class="h-4 w-4 flex-shrink-0 text-slate-600 transition-colors group-hover:text-cyan-400" />
+                                <h3 class="text-sm font-semibold text-white transition-colors group-hover:text-cyan-300">{{ m.title }}</h3>
+                                <ChevronRight class="h-4 w-4 flex-shrink-0 text-slate-600 transition-all group-hover:translate-x-0.5 group-hover:text-cyan-400" />
                             </div>
                             <p class="mt-1 text-xs leading-5 text-slate-400">{{ m.sub }}</p>
                         </div>
@@ -931,10 +1086,10 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Final CTA ===== -->
-            <section class="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-                <div class="relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12" data-reveal>
-                    <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-                    <div class="pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
+            <section class="mx-auto max-w-[1600px] px-4 pb-20 sm:px-6 lg:px-8">
+                <div class="kv-ring group relative overflow-hidden rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 via-slate-900/40 to-purple-500/10 p-8 backdrop-blur-xl sm:p-12" data-reveal>
+                    <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 animate-pulse rounded-full bg-cyan-500/20 blur-3xl" />
+                    <div class="kv-float pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
 
                     <div class="relative flex flex-col items-center justify-between gap-6 md:flex-row md:gap-10">
                         <div class="text-center md:text-left">
@@ -967,7 +1122,7 @@ onBeforeUnmount(() => {
 
         <!-- ===== Footer ===== -->
         <footer id="kontak" class="border-t border-white/10 bg-slate-950">
-            <div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-[1600px] px-4 py-12 sm:px-6 lg:px-8">
                 <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
                     <div class="lg:col-span-2">
                         <div class="flex items-center gap-2.5">
@@ -1078,6 +1233,20 @@ onBeforeUnmount(() => {
     opacity: 0;
 }
 
+/* Progress bar autoplay galeri (restart via :key, durasi = GALLERY_MS) */
+.kv-prog {
+    transform-origin: left;
+    animation: kv-prog 5000ms linear forwards;
+}
+@keyframes kv-prog {
+    from {
+        transform: scaleX(0);
+    }
+    to {
+        transform: scaleX(1);
+    }
+}
+
 /* Aksesibilitas: hormati pengguna yang mengurangi animasi. */
 @media (prefers-reduced-motion: reduce) {
     .reveal-hero {
@@ -1095,6 +1264,10 @@ onBeforeUnmount(() => {
     .kv-fade-enter-active,
     .kv-fade-leave-active {
         transition: none;
+    }
+    .kv-prog {
+        animation: none;
+        transform: scaleX(1);
     }
 }
 </style>

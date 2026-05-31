@@ -229,6 +229,116 @@
     .kv-icon-tile-sm {
         @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30;
     }
+
+    /* === Landing: interactive spotlight (cursor-follow highlight) === */
+    .kv-spotlight {
+        position: relative;
+    }
+    .kv-spotlight > * {
+        position: relative;
+        z-index: 1;
+    }
+    .kv-spotlight::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.35s ease;
+        background: radial-gradient(
+            420px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+            rgba(56, 189, 248, 0.16),
+            transparent 55%
+        );
+    }
+    .kv-spotlight:hover::before {
+        opacity: 1;
+    }
+
+    /* === Landing: animated gradient ring border (hover) === */
+    .kv-ring::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        border-radius: inherit;
+        padding: 1px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        background: conic-gradient(
+            from var(--ring-angle, 0deg),
+            transparent 0deg,
+            rgba(56, 189, 248, 0.65) 70deg,
+            rgba(168, 85, 247, 0.55) 140deg,
+            transparent 210deg
+        );
+        -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+    }
+    .kv-ring:hover::after {
+        opacity: 1;
+        animation: kv-ring-spin 4s linear infinite;
+    }
+
+    /* === Landing: marquee (infinite horizontal scroll) === */
+    .kv-marquee {
+        display: flex;
+        width: max-content;
+        animation: kv-marquee 34s linear infinite;
+    }
+    .kv-marquee-wrap:hover .kv-marquee {
+        animation-play-state: paused;
+    }
+
+    /* === Landing: gentle idle float === */
+    .kv-float {
+        animation: kv-float 6s ease-in-out infinite;
+    }
+}
+
+/* === Landing animation keyframes & registered custom props === */
+@property --ring-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+@keyframes kv-ring-spin {
+    to {
+        --ring-angle: 360deg;
+    }
+}
+@keyframes kv-marquee {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-50%);
+    }
+}
+@keyframes kv-float {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-9px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kv-marquee,
+    .kv-float {
+        animation: none !important;
+    }
+    .kv-ring:hover::after {
+        animation: none !important;
+    }
 }
 
 /* === Page transition === */

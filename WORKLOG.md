@@ -1311,3 +1311,34 @@ Notes:
 - Keputusan user: kunci **atribusi pemilik saja** — `app_name` tetap bisa di-white-label via Settings, tetapi pemilik/copyright permanen di level kode.
 - Disclaimer jujur ke user: kode sumber tidak bisa dibuat benar-benar anti-ubah; proteksi nyata adalah `LICENSE` proprietary. Perubahan ini hanya memindah atribusi dari DB/UI ke konstanta kode, sehingga menghapusnya berarti edit source = pelanggaran lisensi.
 - Fallback JS (`?? 'PT Berkah Media Kusuma Vision'`) menjaga footer benar walau cache branding lama; cache key `general_settings.branding` di-forget + `npm run build`. 121 test lolos.
+
+## 2026-05-31
+
+### Navbar transparan-saat-scroll, hero full layar, lebar kontainer, swap gambar OLT
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — navbar: dari `sticky` + latar solid permanen menjadi `fixed` overlay yang **transparan di puncak** dan memunculkan latar semi-transparan (`bg-slate-950/60` + blur) saat di-scroll (>12px) atau drawer mobile terbuka (`navSolid` computed + listener `onWindowScroll`). Ukuran navbar dibesarkan sedikit (`py-3`→`py-4`, logo `h-8`→`h-9`, brand `text-[15px]`). Tombol Login/Dashboard dipercantik (padding lega, `rounded-xl`, inner ring, efek kilau/shine saat hover, ikon panah `ArrowRight`). Hero `lg:min-h-[calc(100vh-57px)]`→`min-h-screen` (full satu layar). Semua kontainer halaman `max-w-7xl`→`max-w-[1600px]` (12 lokasi) agar mengisi layar kanan-kiri.
+- `public/img/c320(1).webp` — gambar strip hardware OLT baru (konversi dari `c320(1).png` via `cwebp -q 90`, 1600×444, alpha lossless); tinggi gambar di welcome dikecilkan `h-32/md:h-40` → `h-20/md:h-24/lg:h-28` agar tidak kebesaran (rasio gambar sangat lebar).
+
+Notes:
+
+- Navbar `fixed` membuat hero benar-benar tembus di belakangnya; padding atas hero (`py-16`/`lg:py-24`) menjaga konten tidak tertutup navbar.
+- Gambar lama `public/img/c320.webp` dihapus (di-replace `c320(1).webp`).
+
+### Upgrade interaktif semua section landing (Bold & interaktif)
+
+Created:
+
+- (helper CSS, bukan file baru — ditambah di `app.css`)
+
+Changed:
+
+- `resources/css/app.css` — helper landing reusable di `@layer components`: `.kv-spotlight` (sorotan radial ikut kursor via `--spot-x/--spot-y`), `.kv-ring` (border conic-gradient beranimasi saat hover, pakai `@property --ring-angle`), `.kv-marquee` (+ `.kv-marquee-wrap`, infinite scroll, pause on hover), `.kv-float` (idle float). Tambah `@keyframes kv-ring-spin/kv-marquee/kv-float` + guard `prefers-reduced-motion`.
+- `resources/js/Pages/Welcome.vue` — directive baru `vSpotlight` (gaya sama `vTilt`/`vMagnetic`). **Stats**: ikon+aksen warna per angka, garis aksen atas saat hover, spotlight. **Hardware strip**: gradient ring + ambient glow + gambar `kv-float`. **Section baru**: capability marquee (12 kapabilitas berjalan, fade tepi). **Feature grid**: spotlight + ring + ikon/judul beranimasi. **Cara Kerja**: garis konektor digambar mengikuti scroll (GSAP `fromTo` scaleX + ScrollTrigger scrub, ref `stepsLineEl`) + kartu spotlight/ring. **Galeri Tampilan**: autoplay 5s (`startGallery/stopGallery/advanceShot/selectShot`, `GALLERY_MS`), pause saat hover (`galleryPaused`), progress bar `.kv-prog` (restart via `:key`). **Tech Stack**: ring + logo `kv-float` (delay desync per index). **Modul**: spotlight + ring + hover lift + chevron geser. **Final CTA**: ring + glow `animate-pulse`/`kv-float`.
+
+Notes:
+
+- Tanpa dependency baru — semua efek pakai stack terpasang (GSAP/ScrollTrigger/Lenis) + directive `v-spotlight` ringan + CSS murni; bundle tetap lean.
+- Semua animasi dimatikan untuk pengguna `prefers-reduced-motion` (guard di `app.css` global + `<style scoped>` Welcome).
+- `.kv-spotlight > *` diberi `z-index:1`; `position:absolute` anak (mis. nomor langkah, divider stats) tetap menang karena utilities layer Tailwind di atas components layer. `@property` graceful-degrade di browser lama (ring jadi statis, tidak rotasi). Build `npm run build` lolos.
