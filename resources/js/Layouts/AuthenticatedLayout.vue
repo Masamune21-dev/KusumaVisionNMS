@@ -93,9 +93,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="min-h-screen overflow-x-hidden bg-slate-950">
-        <!-- Mobile top bar -->
-        <div class="sticky top-0 z-50 flex h-14 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
+    <div class="flex h-screen flex-col overflow-hidden bg-slate-950">
+        <!-- Mobile top bar (fixed, tidak ikut scroll) -->
+        <div class="z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -233,12 +233,12 @@ onUnmounted(() => {
 
         <!-- Main column (offset by sidebar on desktop) -->
         <div
-            class="flex min-h-screen min-w-0 flex-col transition-[padding] duration-200"
+            class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-200"
             :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'"
         >
-            <!-- Top header (desktop) — search + notif + user -->
+            <!-- Top header (desktop, fixed — tidak ikut scroll) — search + notif + user -->
             <header
-                class="sticky top-0 z-30 hidden border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
+                class="z-30 hidden flex-shrink-0 border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
             >
                 <div class="flex h-[72px] w-full items-center gap-4 px-6 lg:px-8">
                     <!-- Search trigger -->
@@ -261,10 +261,12 @@ onUnmounted(() => {
                 </div>
             </header>
 
-            <!-- Page header slot (optional, used by inner pages) -->
+            <!-- Area scroll: header per-halaman + konten (ikut scroll) -->
+            <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" scroll-region>
+            <!-- Page header slot (optional, used by inner pages) — ikut scroll -->
             <header
                 v-if="$slots.header"
-                class="sticky top-14 z-20 border-b border-white/10 bg-slate-950/30 backdrop-blur-xl lg:top-[72px]"
+                class="flex-shrink-0 border-b border-white/10 bg-slate-950/30 backdrop-blur-xl"
             >
                 <div class="flex min-h-14 w-full items-center px-4 py-3 sm:px-6 lg:px-8">
                     <div class="w-full text-slate-100">
@@ -291,9 +293,11 @@ onUnmounted(() => {
                     </div>
                 </Transition>
             </main>
+            </div>
+            <!-- /Area scroll -->
 
-            <!-- Footer -->
-            <footer class="border-t border-white/10 bg-slate-950/40 backdrop-blur-xl lg:sticky lg:bottom-0 lg:z-10">
+            <!-- Footer (fixed, tidak ikut scroll) -->
+            <footer class="z-10 flex-shrink-0 border-t border-white/10 bg-slate-950/40 backdrop-blur-xl">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
                     <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>
                     <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>

@@ -1348,3 +1348,15 @@ Notes:
 Changed:
 
 - `resources/js/Pages/Welcome.vue` — kartu Feature grid dibuat rata tengah: `text-center` di kartu + `mx-auto` di span ikon (judul & deskripsi ikut center).
+
+### Header atas & footer app dikunci (tidak ikut scroll), header per-halaman tetap ikut scroll
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — layout app login diubah dari *document scroll* (`min-h-screen` + header/footer `sticky`) menjadi **viewport tetap dengan area scroll di tengah**: root jadi `flex h-screen flex-col overflow-hidden`; kolom utama `flex-1 overflow-hidden`. Header atas (top bar mobile + header desktop search/notif/user) dan footer kini `flex-shrink-0` (benar-benar diam, tidak lagi `sticky`). Header per-halaman (slot `header`) + demo banner + `<main>` dibungkus satu kontainer `flex min-h-0 flex-1 flex-col overflow-y-auto` dengan atribut `scroll-region`, sehingga **header per-halaman ikut tergulir bersama konten** sesuai permintaan; header paling atas & footer tetap menempel.
+
+Notes:
+
+- Atribut `scroll-region` membuat Inertia 2 me-reset posisi scroll area tengah saat pindah halaman (sebelumnya scroll mengikuti `window`); pola sama dipakai `resources/js/Components/Modal.vue`.
+- Footer dulu hanya `lg:sticky` (diam di desktop saja) — sekarang diam di mobile juga karena berada di luar area scroll.
+- Pakai `h-screen` (100vh); di sebagian browser mobile address-bar bisa sedikit memotong — bila mengganggu nanti bisa diganti `h-[100dvh]`. Build `npm run build` lolos (20.01s).
