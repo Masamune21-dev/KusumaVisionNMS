@@ -104,6 +104,10 @@ router.post(route('smartolt.foo', olt.id), form);
 - Gunakan `useConfirm` untuk aksi destruktif; tampilkan `flash` via layout.
 - Sembunyikan tombol berdasarkan `auth.can`, tetapi **backend tetap menegakkan izin**.
 
+> 🎨 **Look & feel.** Untuk design token, kelas `kv-*`, palet, dan **aturan wajib** tampilan
+> (kartu kaca, tabel responsif, warna status, sidebar), ikuti
+> [15 — UI & Tema Dashboard](15-ui-tema-dashboard.md).
+
 ## Selanjutnya
 
 → [13 — Troubleshooting & Maintenance](13-troubleshooting-maintenance.md)

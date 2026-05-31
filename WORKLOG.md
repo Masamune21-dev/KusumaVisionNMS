@@ -1378,3 +1378,21 @@ Notes:
 - **Akar masalah utama** (error `Register plugins can only be done before calling tsParticles.load()`): isi `<script setup>` sebenarnya badan `setup()` yang dieksekusi ulang TIAP komponen mount. Karena layout app **non-persistent** (komponen partikel re-mount tiap navigasi Inertia), singleton `let enginePromise` yang ditaruh di dalam `<script setup>` ter-reset ke `null` tiap pindah halaman → `loadSlim()` terpanggil lagi setelah `load()` pertama → `pluginManager.register()` throw (lihat `node_modules/@tsparticles/engine/cjs/Core/Utils/PluginManager.js`, `#initialized`). Solusi: pindahkan singleton ke module eksternal (`lib/particles.js`) yang benar-benar di module scope.
 - Pola `defineAsyncComponent` dipertahankan (gotcha Vite manifest page facade yang sudah tercatat) — diverifikasi chunk `AuthenticatedLayout`/`GuestLayout`/`Dashboard` tetap ada di manifest, `ParticleNetwork` jadi chunk async terpisah (~106 kB).
 - Tiap instance pakai id unik → tidak bentrok registry tsParticles saat mount/unmount tumpang-tindih. `pointer-events-none` + hormati `prefers-reduced-motion` (latar statis). Build `npm run build` lolos (18.07s).
+
+### Dokumentasi UI & tema dashboard + aturan halaman/komponen baru
+
+Created:
+
+- `docs/handbook/15-ui-tema-dashboard.md` — dokumen handbook baru: bahasa desain "dark glass cyber/NOC", palet & token warna (aksen/status + heks yang dipakai di kode), referensi lengkap kelas utilitas `kv-*` (chrome, permukaan kaca, lingkaran ikon, pill/badge, form, alert, tabel responsif desktop+mobile), anatomi shell `AuthenticatedLayout`, template halaman acuan, 13 aturan wajib + daftar "hindari", dan checklist pre-commit UI.
+
+Changed:
+
+- `docs/handbook/README.md` — tambah baris indeks #15 + petunjuk cepat "menambah/ubah halaman atau komponen UI".
+- `docs/handbook/12-frontend.md` — callout look & feel yang merujuk doc 15.
+- `docs/handbook/14-panduan-tambah-fitur.md` — Resep 1 tambah langkah "Tampilan" yang merujuk doc 15.
+- `CLAUDE.md` — pointer singkat di bagian Conventions ke aturan tema (pakai `kv-*` dulu, kartu kaca, tabel responsif, gerbang `auth.can`, string Indonesia).
+
+Notes:
+
+- Sumber kebenaran token = `resources/css/app.css` (`@layer components`) + `Layouts/AuthenticatedLayout.vue`; dokumen mendeskripsikan kode yang benar-benar ada (bukan PRD) dan menegaskan "kode menang" bila ada beda.
+- Hanya perubahan dokumentasi — tidak ada kode aplikasi/asset yang berubah, jadi tidak perlu rebuild/deploy.

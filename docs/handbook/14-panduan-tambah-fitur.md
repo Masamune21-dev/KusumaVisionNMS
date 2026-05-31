@@ -27,7 +27,9 @@ terkait di handbook ini, lalu ikuti pola yang sudah ada di kode (jangan mencipta
    lewat `defineProps`. Pakai `route('fitur.index')` (Ziggy) untuk link/aksi.
 4. **Menu** (opsional): tambah item di array `links` `AuthenticatedLayout.vue` dengan `match`.
 5. **Izin**: sembunyikan tombol via `auth.can.*`, tegakkan di backend (`role:` / `canManageOlt()`).
-6. `php artisan route:list` untuk verifikasi.
+6. **Tampilan**: ikuti tema (kartu kaca, kelas `kv-*`, palet cyan/sky, tabel responsif, item
+   sidebar) — aturan lengkap di [15 — UI & Tema Dashboard](15-ui-tema-dashboard.md).
+7. `php artisan route:list` untuk verifikasi.
 
 ## Resep 2 — Menambah tabel + model
 

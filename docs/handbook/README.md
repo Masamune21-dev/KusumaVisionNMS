@@ -32,6 +32,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 | 12 | [Frontend](12-frontend.md) | Vue 3 + Inertia, layout, komponen, build Vite |
 | 13 | [Troubleshooting & Maintenance](13-troubleshooting-maintenance.md) | Gejala → penyebab → solusi |
 | 14 | [Panduan Menambah Fitur](14-panduan-tambah-fitur.md) | Resep langkah demi langkah |
+| 15 | [UI & Tema Dashboard](15-ui-tema-dashboard.md) | Design token, kelas `kv-*`, aturan halaman/komponen baru |
 
 ---
 
@@ -39,6 +40,8 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 
 - **Mau menambah fitur baru?** Mulai dari [14 — Panduan Menambah Fitur](14-panduan-tambah-fitur.md),
   lalu lihat bagian terkait (mis. [06 Routing](06-routing.md), [05 Model](05-database-model.md)).
+- **Mau menambah/ubah halaman atau komponen UI?** Ikuti aturan tema di
+  [15 — UI & Tema Dashboard](15-ui-tema-dashboard.md).
 - **Site error / daemon mati / data aneh?** Buka [13 — Troubleshooting](13-troubleshooting-maintenance.md).
 - **Mau paham alur data SNMP/polling?** Baca [02 Arsitektur](02-arsitektur.md) lalu [08 SNMP & Polling](08-snmp-polling.md).
 - **Setup mesin baru?** [04 — Instalasi & Deploy](04-instalasi-deploy.md).
