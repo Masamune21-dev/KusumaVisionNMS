@@ -1342,3 +1342,9 @@ Notes:
 - Tanpa dependency baru — semua efek pakai stack terpasang (GSAP/ScrollTrigger/Lenis) + directive `v-spotlight` ringan + CSS murni; bundle tetap lean.
 - Semua animasi dimatikan untuk pengguna `prefers-reduced-motion` (guard di `app.css` global + `<style scoped>` Welcome).
 - `.kv-spotlight > *` diberi `z-index:1`; `position:absolute` anak (mis. nomor langkah, divider stats) tetap menang karena utilities layer Tailwind di atas components layer. `@property` graceful-degrade di browser lama (ring jadi statis, tidak rotasi). Build `npm run build` lolos.
+
+### Feature grid: ikon & isi rata tengah
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — kartu Feature grid dibuat rata tengah: `text-center` di kartu + `mx-auto` di span ikon (judul & deskripsi ikut center).

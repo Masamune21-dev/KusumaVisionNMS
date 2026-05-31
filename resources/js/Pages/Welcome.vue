@@ -867,10 +867,10 @@ onBeforeUnmount(() => {
                         :key="f.title"
                         v-tilt="{ strength: 4 }"
                         v-spotlight
-                        class="kv-tilt kv-spotlight kv-ring kv-glass-card kv-glass-hover group"
+                        class="kv-tilt kv-spotlight kv-ring kv-glass-card kv-glass-hover group text-center"
                         data-reveal
                     >
-                        <span :class="f.accent" class="!h-12 !w-12 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5">
+                        <span :class="f.accent" class="mx-auto !h-12 !w-12 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5">
                             <component :is="f.icon" class="h-5 w-5" />
                         </span>
                         <h3 class="mt-4 text-base font-semibold text-white transition-colors group-hover:text-cyan-300">{{ f.title }}</h3>
