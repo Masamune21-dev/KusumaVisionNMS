@@ -1435,3 +1435,25 @@ Notes:
 
 - Semua filter **server-side** → export CSV/PDF ikut terfilter.
 - Diverifikasi: ONU `status_options` = [Online, LOS, Dying Gasp, Offline]; distribusi cocok dengan `phase_state` cache (Online 2154, Dying Gasp 76, Offline 15, LOS 10); tiap filter konsisten 100%. Hanya PHP + frontend, tidak perlu restart daemon (`npm run build` lolos).
+
+### Foto tampilan aplikasi di README + tooling snapshot
+
+Created:
+
+- `scripts/snapshot.mjs` — script Playwright (Chromium headless) untuk capture halaman **Welcome (hero+navbar)**, **Login**, dan **Dashboard** ke `public/img/*.webp`; screenshot PNG lalu dikonversi `.webp` via `cwebp`. Konfigurasi via env (`BASE_URL`, `OUT_DIR`, `WIDTH/HEIGHT`, `DSF`, `WEBP_QUALITY`, `ONLY`, `SNAP_USER/SNAP_PASS`). Default akses `https://127.0.0.1` + `ignoreHTTPSErrors` (hindari Cloudflare bot-challenge di domain publik); tunggu `networkidle` + 2.5 dtk agar animasi hero (tsParticles/typed.js/AOS/gsap) & chart ApexCharts selesai.
+- `public/img/welcome.webp`, `public/img/dashboard.webp` — screenshot baru (landing hero+navbar; dashboard full-page dengan data live).
+
+Changed:
+
+- `README.md` — section baru **Tampilan Aplikasi** (sebelum Fitur): `welcome.webp` sebagai gambar utama + `dashboard.webp`, lalu grid 2 kolom `login`/`oltinventory`/`detail`/`unconfigured`.
+- `public/img/login.webp` — di-capture ulang (retina/DSF=2, lebih tajam dari versi lama).
+- `package.json` / `package-lock.json` — tambah script `snapshot`; `playwright` jadi devDependency.
+- `.gitignore` — abaikan `.snap.env` (file kredensial sementara untuk capture dashboard).
+
+Notes:
+
+- **Server ini produksi.** Capture dashboard perlu login → kredensial disuplai user via `.snap.env`, di-`source` saat run tanpa dicetak, lalu dihapus (`shred`). Tidak pernah masuk kode/log/commit. Semua request hanya `GET` (read-only), tidak menyentuh data.
+- Skill Claude Code `snapshot` (`.claude/skills/snapshot/SKILL.md`) dibuat **lokal saja** — tidak di-commit karena `.claude` di-gitignore. Pakai `npm run snapshot` untuk regenerasi.
+- Tooling terpasang di server: `playwright` + Chromium + OS-deps (`npx playwright install-deps chromium`: libnss3, libcups2, libnspr4, dll).
+- `public/img/dashboard1.webp` lama tidak lagi dirujuk README (dibiarkan di repo, tidak dihapus).
+- Regenerasi kapan saja: `npm run snapshot` (welcome+login) atau `SNAP_USER=… SNAP_PASS=… npm run snapshot` (+dashboard); subset via `ONLY=welcome,login,dashboard`.

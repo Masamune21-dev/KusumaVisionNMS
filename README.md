@@ -9,6 +9,24 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ---
 
+## Tampilan Aplikasi
+
+> UI dark-glass bertema cyan/sky — landing, dashboard terpusat, manajemen OLT, dan provisioning ONU.
+
+![Landing KusumaVision NMS](public/img/welcome.webp)
+
+![Dashboard KusumaVision NMS](public/img/dashboard.webp)
+
+| Login | SmartOLT — Inventory OLT |
+|---|---|
+| ![Halaman login](public/img/login.webp) | ![Inventory OLT & uji koneksi SNMP](public/img/oltinventory.webp) |
+
+| Detail OLT (system info & status card) | Discovery ONU unconfigured |
+|---|---|
+| ![Detail OLT](public/img/detail.webp) | ![Discovery ONU unconfigured](public/img/unconfigured.webp) |
+
+---
+
 ## Fitur
 
 ### Inventory & Monitoring

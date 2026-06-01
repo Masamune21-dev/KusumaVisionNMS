@@ -26,3 +26,6 @@ Homestead.yaml
 Thumbs.db
 .agents
 .claude
+
+# kredensial sementara untuk scripts/snapshot.mjs (jangan commit)
+.snap.env
