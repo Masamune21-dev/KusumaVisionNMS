@@ -30,6 +30,7 @@ const oltFilter = ref('');
 const portFilter = ref('all');
 const statusFilter = ref('all');
 const adminFilter = ref('all');
+const rxFilter = ref('all');
 const scanning = ref(false);
 
 const hasOlt = computed(() => oltFilter.value !== '');
@@ -62,6 +63,14 @@ const portOptions = computed(() => {
     return [...set.values()].sort((a, b) => a.slot - b.slot || a.port - b.port);
 });
 
+// Klasifikasi level redaman ONU RX (dipakai bersama badge & filter agar ambang batas konsisten).
+const rxLevel = (value) => {
+    if (value === null || value === undefined) return 'none';
+    if (value <= -28 || value >= -8) return 'critical';
+    if (value <= -25 || value >= -10) return 'warning';
+    return 'good';
+};
+
 const matchStatus = (onu) => {
     switch (statusFilter.value) {
         case 'online':
@@ -84,6 +93,7 @@ const filteredOnus = computed(() => {
         if (!matchStatus(onu)) return false;
         if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
+        if (rxFilter.value !== 'all' && rxLevel(onu.rx_power_dbm) !== rxFilter.value) return false;
         if (!term) return true;
         const hay = [onu.interface, onu.serial_number, onu.name, onu.description, onu.type_name, onu.olt_name]
             .filter(Boolean)
@@ -110,7 +120,8 @@ const hasFilter = computed(
         search.value.trim() !== '' ||
         portFilter.value !== 'all' ||
         statusFilter.value !== 'all' ||
-        adminFilter.value !== 'all',
+        adminFilter.value !== 'all' ||
+        rxFilter.value !== 'all',
 );
 
 const clearFilters = () => {
@@ -118,6 +129,7 @@ const clearFilters = () => {
     portFilter.value = 'all';
     statusFilter.value = 'all';
     adminFilter.value = 'all';
+    rxFilter.value = 'all';
 };
 
 const scanOlt = () => {
@@ -140,10 +152,16 @@ const portOnuHref = (onu) => `${route('smartolt.port-onus', [onu.olt_id, onu.slo
 const formatDate = (value) => formatDateTime(value);
 
 const rxBadgeClass = (value) => {
-    if (value === null || value === undefined) return 'bg-slate-800/60 text-slate-500 ring-1 ring-slate-500/30';
-    if (value <= -28 || value >= -8) return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
-    if (value <= -25 || value >= -10) return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
-    return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
+    switch (rxLevel(value)) {
+        case 'critical':
+            return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
+        case 'warning':
+            return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
+        case 'good':
+            return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
+        default:
+            return 'bg-slate-800/60 text-slate-500 ring-1 ring-slate-500/30';
+    }
 };
 
 const phaseClass = (onu) => {
@@ -251,6 +269,13 @@ const phaseDotClass = (onu) => {
                                 <option value="all">Semua Admin</option>
                                 <option value="active">Active</option>
                                 <option value="disabled">Disabled</option>
+                            </select>
+                            <select v-model="rxFilter" :disabled="!hasOlt" title="Filter berdasarkan level redaman ONU RX" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50">
+                                <option value="all">Semua Redaman</option>
+                                <option value="good">Redaman Normal</option>
+                                <option value="warning">Redaman Peringatan</option>
+                                <option value="critical">Redaman Kritis</option>
+                                <option value="none">Tanpa Data RX</option>
                             </select>
                             <button v-if="hasFilter" type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset</button>
                         </div>

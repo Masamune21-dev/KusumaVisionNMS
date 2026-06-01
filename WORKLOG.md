@@ -1396,3 +1396,42 @@ Notes:
 
 - Sumber kebenaran token = `resources/css/app.css` (`@layer components`) + `Layouts/AuthenticatedLayout.vue`; dokumen mendeskripsikan kode yang benar-benar ada (bukan PRD) dan menegaskan "kode menang" bila ada beda.
 - Hanya perubahan dokumentasi — tidak ada kode aplikasi/asset yang berubah, jadi tidak perlu rebuild/deploy.
+
+## 2026-06-01
+
+### Fix konversi RX power ONU (SNMP raw → dBm): nilai +98 & redaman -30/-40 tidak terbaca
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — `convertOnuRxPowerToDbm()`: cabang `raw > 0` (encoding C300/C320 OID `3902.1012.3.50.12.1.1.10`) kini menafsirkan raw sebagai **signed 16-bit** sebelum rumus `dBm = signed16(raw) * 0.002 - 30`. Guard lama `raw >= 65000` dihapus (sempat membuang range -30 s/d -31 dBm); ganti sentinel `raw === 65535` (0xFFFF = N/A) + jendela kewajaran hasil `[-45, 0]` dBm untuk buang garbage.
+- `cmd/kv-snmp-poller/main.go` — `convertOnuRXPowerToDBM()`: perbaikan identik pada jalur Go poller terjadwal (prod `SNMP_POLLER_DRIVER=go`). Binary `bin/kv-snmp-poller` sudah di-rebuild (`go build -mod=mod`).
+
+Notes:
+
+- **Diverifikasi di OLT live `OLT-C320-PATI` (id=1)**: encoding terbukti `raw * 0.002 - 30` (raw 207→-29.586, 5000→-20, 10805→-8.39). Bug: raw `64032` ditafsir unsigned → **+98.064 dBm** ("nilai sampai 90an"); sebenarnya signed `-1504` → **-33.008 dBm**. Sinyal lemah lain (mis. -40 dBm = raw 60536) salah hitung jadi positif besar lalu ter-skip ("ngga kebaca di -40").
+- Setelah fix: poll ulang OLT 1 via binary baru → tidak ada lagi dBm > 0, raw 64032 = -33.008, dan nilai bagus lama tetap sama. Cabang negatif (`/1000`, `/10`) untuk firmware lain tidak diubah.
+- Cara diagnosa untuk ke depan: dump `raw_rx_power` vs `rx_power_dbm` dari `last_test_result.port_onus`, cek nilai > 32767 sebagai two's-complement.
+- Deploy: `opcache.validate_timestamps=On` (PHP terpungut otomatis); binary Go di-exec fresh tiap poll → poll terjadwal berikutnya otomatis pakai logika baru. Klik "Scan ONU OLT ini" untuk refresh cache seketika. Opsional `php artisan queue:restart` untuk fallback PHP di worker.
+
+### Filter redaman ONU RX di halaman ONU Monitoring
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — tambah dropdown filter **Redaman** (Semua/Normal/Peringatan/Kritis/Tanpa Data RX). Helper `rxLevel()` baru mengklasifikasikan `rx_power_dbm` dan dipakai bersama oleh `rxBadgeClass()` + filter `filteredOnus` agar ambang batas konsisten. Filter masuk ke `hasFilter`/`clearFilters`. Murni sisi klien (data `rx_power_dbm` sudah ada).
+
+Notes:
+
+- Stat cards tetap menghitung seluruh ONU (tidak ikut terfilter) — perilaku sama seperti filter lain di halaman ini.
+
+### Filter Redaman RX, filter Status, & status berbasis phase di halaman Report
+
+Changed:
+
+- `app/Services/Report/ReportService.php` — (1) konstanta `RX_STATUSES`; `rxPower()` menerima filter `rx_status` (Normal/Warning/Critical) yang mempersempit baris tapi summary tetap penuh. (2) `build()` membungkus hasil dengan `applyStatusFilter()` baru: menempel `status_options` (+`status_column`) dan filter baris per status; RX dilewati (pakai redaman). (3) helper `onuPhaseLabel()`: kolom status laporan **Inventaris ONU** kini dari `phase_state` (Working→Online, LOS, DyingGasp→Dying Gasp, Offline) dengan 4 opsi tetap seperti ONU Monitoring; jenis lain (OLT pakai kolom `reachable`, Alarm, Provisioning) opsinya diturunkan dari data.
+- `app/Http/Controllers/ReportController.php` — parse & validasi query `rx_status` + `status`, diteruskan ke view.
+- `resources/js/Pages/Reports/Index.vue` — dropdown **Redaman RX** (hanya jenis `rx`) dan **Status** (jenis non-`rx` yang punya opsi); auto-reset saat ganti jenis laporan; `statusClass()` tambah warna LOS (merah) & Dying Gasp (kuning).
+
+Notes:
+
+- Semua filter **server-side** → export CSV/PDF ikut terfilter.
+- Diverifikasi: ONU `status_options` = [Online, LOS, Dying Gasp, Offline]; distribusi cocok dengan `phase_state` cache (Online 2154, Dying Gasp 76, Offline 15, LOS 10); tiap filter konsisten 100%. Hanya PHP + frontend, tidak perlu restart daemon (`npm run build` lolos).

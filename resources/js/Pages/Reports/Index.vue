@@ -21,6 +21,8 @@ const state = reactive({
     range: props.filters.range,
     olt_id: props.filters.olt_id ?? '',
     pon_port: props.filters.pon_port ?? '',
+    rx_status: props.filters.rx_status ?? '',
+    status: props.filters.status ?? '',
 });
 
 const queryParams = () => ({
@@ -28,6 +30,8 @@ const queryParams = () => ({
     range: state.range,
     ...(state.olt_id !== '' && state.olt_id !== null ? { olt_id: state.olt_id } : {}),
     ...(state.olt_id !== '' && state.olt_id !== null && state.pon_port !== '' ? { pon_port: state.pon_port } : {}),
+    ...(state.type === 'rx' && state.rx_status !== '' ? { rx_status: state.rx_status } : {}),
+    ...(state.type !== 'rx' && state.status !== '' ? { status: state.status } : {}),
 });
 
 const reload = () => {
@@ -38,10 +42,16 @@ const reload = () => {
     });
 };
 
-watch(() => [state.type, state.range, state.olt_id, state.pon_port], (next, prev) => {
+watch(() => [state.type, state.range, state.olt_id, state.pon_port, state.rx_status, state.status], (next, prev) => {
     // OLT berubah -> reset PON port (akan men-trigger ulang watcher ini lalu reload).
     if (next[2] !== prev[2] && state.pon_port !== '') {
         state.pon_port = '';
+        return;
+    }
+    // Jenis laporan berubah -> reset filter spesifik (redaman & status) agar tidak terbawa.
+    if (next[0] !== prev[0] && (state.rx_status !== '' || state.status !== '')) {
+        state.rx_status = '';
+        state.status = '';
         return;
     }
     reload();
@@ -54,10 +64,10 @@ const statusClass = (value) => {
     if (['online', 'normal', 'berhasil', 'success', 'executed', 'completed'].includes(v)) {
         return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300';
     }
-    if (['warning', 'minor', 'aktif'].includes(v)) {
+    if (['warning', 'minor', 'aktif', 'dying gasp'].includes(v)) {
         return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
     }
-    if (['offline', 'critical', 'gagal', 'failed', 'error', 'major'].includes(v)) {
+    if (['offline', 'critical', 'gagal', 'failed', 'error', 'major', 'los'].includes(v)) {
         return 'border-red-500/30 bg-red-500/15 text-red-300';
     }
     return 'border-slate-500/30 bg-slate-500/15 text-slate-300';
@@ -121,6 +131,22 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
                         >
                             <option value="">{{ state.olt_id ? 'Semua Port' : 'Pilih OLT dulu' }}</option>
                             <option v-for="opt in ponPortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                        </select>
+                    </div>
+                    <div v-if="state.type === 'rx'">
+                        <InputLabel for="rx_status" value="Redaman RX" />
+                        <select id="rx_status" v-model="state.rx_status" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                            <option value="">Semua Redaman</option>
+                            <option value="normal">Normal (&ge; -25 dBm)</option>
+                            <option value="warning">Warning (&lt; -25 dBm)</option>
+                            <option value="critical">Critical (&lt; -28 dBm)</option>
+                        </select>
+                    </div>
+                    <div v-if="state.type !== 'rx' && (report.status_options?.length ?? 0) > 0">
+                        <InputLabel for="status" value="Status" />
+                        <select id="status" v-model="state.status" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                            <option value="">Semua Status</option>
+                            <option v-for="opt in report.status_options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                     </div>
                 </div>

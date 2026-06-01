@@ -878,7 +878,8 @@ class OltSnmpClient
 
     private function convertOnuRxPowerToDbm(int $raw): ?float
     {
-        if ($raw <= -80000 || $raw >= 2147480000 || $raw >= 65000 || $raw === -32768) {
+        // 0xFFFF (65535) = "N/A" sentinel; other hard sentinels for negative-encoded firmwares.
+        if ($raw <= -80000 || $raw >= 2147480000 || $raw === -32768 || $raw === 65535) {
             return null;
         }
 
@@ -890,8 +891,14 @@ class OltSnmpClient
             return round($raw / 10, 3);
         }
 
-        if ($raw > 0) {
-            return round(($raw * 0.002) - 30, 3);
+        if ($raw > 0 && $raw <= 65534) {
+            // ZTE C300/C320 ONU-RX: unsigned 16-bit, dBm = signed16(raw) * 0.002 - 30.
+            // raw 32768..65534 are negative two's-complement (weak signal),
+            // e.g. raw 64032 = -1504 = -33.0 dBm. Window drops impossible/garbage values.
+            $signed = $raw > 32767 ? $raw - 65536 : $raw;
+            $dbm = round(($signed * 0.002) - 30, 3);
+
+            return ($dbm >= -45.0 && $dbm <= 0.0) ? $dbm : null;
         }
 
         return null;

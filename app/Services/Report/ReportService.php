@@ -13,6 +13,9 @@ class ReportService
 
     public const RANGES = ['24h', '7d', '30d', 'all'];
 
+    /** RX attenuation levels usable as a filter on the RX power report. */
+    public const RX_STATUSES = ['normal', 'warning', 'critical'];
+
     /**
      * Build a report dataset for the given type and filters.
      *
@@ -23,13 +26,61 @@ class ReportService
     {
         $type = in_array($type, self::TYPES, true) ? $type : 'onu';
 
-        return match ($type) {
+        $report = match ($type) {
             'olt' => $this->oltStatus($filters),
             'alarm' => $this->alarmHistory($filters),
             'provisioning' => $this->provisioning($filters),
             'rx' => $this->rxPower($filters),
             default => $this->onuInventory($filters),
         };
+
+        return $this->applyStatusFilter($report, $type, $filters['status'] ?? null);
+    }
+
+    /**
+     * Expose the available status values (from the full dataset) and narrow the
+     * displayed rows to the chosen one. Summary counts stay over the full dataset,
+     * mirroring the RX attenuation filter. RX reports use their own redaman filter.
+     *
+     * @param  array<string, mixed>  $report
+     * @return array<string, mixed>
+     */
+    private function applyStatusFilter(array $report, string $type, ?string $status): array
+    {
+        if ($type === 'rx') {
+            return $report;
+        }
+
+        // OLT report keeps its status under "reachable"; the rest use "status".
+        $column = $type === 'olt' ? 'reachable' : 'status';
+
+        $report['status_column'] = $column;
+        // ONU inventory uses fixed phase states (matching the ONU monitoring filter);
+        // other reports derive their available statuses from the data.
+        $report['status_options'] = $type === 'onu'
+            ? [
+                ['value' => 'Online', 'label' => 'Online'],
+                ['value' => 'LOS', 'label' => 'LOS'],
+                ['value' => 'Dying Gasp', 'label' => 'Dying Gasp'],
+                ['value' => 'Offline', 'label' => 'Offline'],
+            ]
+            : collect($report['rows'])
+                ->pluck($column)
+                ->filter(fn ($value) => $value !== null && $value !== '')
+                ->unique()
+                ->sort()
+                ->values()
+                ->map(fn ($value) => ['value' => (string) $value, 'label' => (string) $value])
+                ->all();
+
+        if ($status !== null && $status !== '') {
+            $report['rows'] = array_values(array_filter(
+                $report['rows'],
+                fn (array $row) => (string) ($row[$column] ?? '') === $status,
+            ));
+        }
+
+        return $report;
     }
 
     public function title(string $type): string
@@ -70,6 +121,23 @@ class ReportService
         ];
     }
 
+    /**
+     * Human-friendly ONU phase label, mirroring the ONU monitoring status filter.
+     */
+    private function onuPhaseLabel(bool $online, string $phase): string
+    {
+        if ($online || $phase === 'Working') {
+            return 'Online';
+        }
+
+        return match ($phase) {
+            'LOS' => 'LOS',
+            'DyingGasp' => 'Dying Gasp',
+            'Offline' => 'Offline',
+            default => $phase !== '' ? $phase : 'Offline',
+        };
+    }
+
     private function startFor(string $range): ?Carbon
     {
         return match ($range) {
@@ -104,7 +172,7 @@ class ReportService
                         'onu_id' => data_get($onu, 'onu_id'),
                         'serial_number' => data_get($onu, 'serial_number'),
                         'name' => data_get($onu, 'name') ?: '-',
-                        'status' => $isOnline ? 'Online' : 'Offline',
+                        'status' => $this->onuPhaseLabel($isOnline, (string) data_get($onu, 'phase_state', '')),
                     ];
                 }
             }
@@ -131,11 +199,14 @@ class ReportService
     }
 
     /**
-     * @param  array{range?:string, olt_id?:int|null}  $filters
+     * @param  array{range?:string, olt_id?:int|null, rx_status?:string|null}  $filters
      */
     private function rxPower(array $filters): array
     {
         $olts = $this->oltsQuery($filters)->get();
+        $rxFilter = in_array($filters['rx_status'] ?? null, self::RX_STATUSES, true)
+            ? $filters['rx_status']
+            : null;
         $rows = [];
         $warning = 0;
         $critical = 0;
@@ -152,21 +223,28 @@ class ReportService
                         continue;
                     }
                     $rx = (float) $rx;
-                    $status = 'Normal';
+                    $level = 'normal';
                     if ($rx < -28) {
-                        $status = 'Critical';
+                        $level = 'critical';
                         $critical++;
                     } elseif ($rx < -25) {
-                        $status = 'Warning';
+                        $level = 'warning';
                         $warning++;
                     }
+
+                    // Summary counts above reflect the full dataset; the displayed rows are
+                    // narrowed to the chosen attenuation level (like the ONU monitoring filter).
+                    if ($rxFilter !== null && $level !== $rxFilter) {
+                        continue;
+                    }
+
                     $rows[] = [
                         'olt' => $olt->name,
                         'interface' => data_get($onu, 'interface', "{$slot}/{$port}"),
                         'serial_number' => data_get($onu, 'serial_number'),
                         'name' => data_get($onu, 'name') ?: '-',
                         'rx_power' => sprintf('%.2f dBm', $rx),
-                        'status' => $status,
+                        'status' => ucfirst($level),
                     ];
                 }
             }

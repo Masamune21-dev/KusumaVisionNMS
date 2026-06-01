@@ -801,7 +801,8 @@ func decodeOperStatus(code *int) string {
 }
 
 func convertOnuRXPowerToDBM(raw int) (float64, bool) {
-	if raw <= -80000 || raw >= 2147480000 || raw >= 65000 || raw == -32768 {
+	// 0xFFFF (65535) = "N/A" sentinel; other hard sentinels for negative-encoded firmwares.
+	if raw <= -80000 || raw >= 2147480000 || raw == -32768 || raw == 65535 {
 		return 0, false
 	}
 
@@ -813,8 +814,19 @@ func convertOnuRXPowerToDBM(raw int) (float64, bool) {
 		return round3(float64(raw) / 10), true
 	}
 
-	if raw > 0 {
-		return round3(float64(raw)*0.002 - 30), true
+	if raw > 0 && raw <= 65534 {
+		// ZTE C300/C320 ONU-RX: unsigned 16-bit, dBm = signed16(raw) * 0.002 - 30.
+		// raw 32768..65534 are negative two's-complement (weak signal),
+		// e.g. raw 64032 = -1504 = -33.0 dBm. Window drops impossible/garbage values.
+		signed := raw
+		if raw > 32767 {
+			signed = raw - 65536
+		}
+		dbm := round3(float64(signed)*0.002 - 30)
+		if dbm >= -45 && dbm <= 0 {
+			return dbm, true
+		}
+		return 0, false
 	}
 
 	return 0, false

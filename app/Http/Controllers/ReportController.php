@@ -26,6 +26,8 @@ class ReportController extends Controller
                 'range' => $filters['range'],
                 'olt_id' => $filters['olt_id'],
                 'pon_port' => $filters['pon_port'],
+                'rx_status' => $filters['rx_status'],
+                'status' => $filters['status'],
             ],
             'typeOptions' => ReportService::typeOptions(),
             'rangeOptions' => ReportService::rangeOptions(),
@@ -112,7 +114,7 @@ class ReportController extends Controller
     }
 
     /**
-     * @return array{range:string, olt_id:int|null, pon_port:string|null}
+     * @return array{range:string, olt_id:int|null, pon_port:string|null, rx_status:string|null, status:string|null}
      */
     private function filters(Request $request): array
     {
@@ -125,10 +127,20 @@ class ReportController extends Controller
         $ponPort = (string) $request->query('pon_port', '');
         $ponPort = $oltId && preg_match('/^\d+_\d+$/', $ponPort) === 1 ? $ponPort : null;
 
+        // RX attenuation level, only relevant for the RX power report.
+        $rxStatus = (string) $request->query('rx_status', '');
+        $rxStatus = in_array($rxStatus, ReportService::RX_STATUSES, true) ? $rxStatus : null;
+
+        // Status value matched against the report's status column (options are per-type).
+        $status = trim((string) $request->query('status', ''));
+        $status = $status !== '' ? $status : null;
+
         return [
             'range' => in_array($range, ReportService::RANGES, true) ? $range : '7d',
             'olt_id' => $oltId,
             'pon_port' => $ponPort,
+            'rx_status' => $rxStatus,
+            'status' => $status,
         ];
     }
 }
