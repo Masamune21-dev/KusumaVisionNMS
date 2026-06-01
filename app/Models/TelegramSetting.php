@@ -43,6 +43,7 @@ class TelegramSetting extends Model
         'min_severity',
         'notify_on_raise',
         'notify_on_clear',
+        'notify_types',
         'last_sent_at',
         'last_error',
     ];
@@ -61,6 +62,7 @@ class TelegramSetting extends Model
             'commands_enabled' => 'boolean',
             'notify_on_raise' => 'boolean',
             'notify_on_clear' => 'boolean',
+            'notify_types' => 'array',
             'last_sent_at' => 'datetime',
         ];
     }
@@ -121,5 +123,32 @@ class TelegramSetting extends Model
     public function minSeverityRank(): int
     {
         return self::SEVERITY_RANK[$this->min_severity] ?? 1;
+    }
+
+    /**
+     * The alarm types selected for Telegram delivery.
+     *
+     * A null column means "all types" (default / not yet configured); an explicit
+     * array — even empty — is honoured exactly, so unchecking everything mutes push.
+     *
+     * @return array<int, string>
+     */
+    public function notifyTypes(): array
+    {
+        return $this->notify_types ?? AlarmEvent::types();
+    }
+
+    /**
+     * Whether alarms of the given type should be pushed to Telegram.
+     */
+    public function shouldNotifyType(?string $type): bool
+    {
+        // Unknown/null types fall back to allowed, mirroring the old "send everything"
+        // behaviour for alarm kinds that predate this filter.
+        if ($type === null || $this->notify_types === null) {
+            return true;
+        }
+
+        return in_array($type, $this->notify_types, true);
     }
 }

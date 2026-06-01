@@ -42,7 +42,7 @@ class AlarmEvaluator
 
             if ($active->has('olt:unreachable') || ($previous['ok'] ?? false)) {
                 $detected['olt:unreachable'] = [
-                    'type' => 'olt_unreachable',
+                    'type' => AlarmEvent::TYPE_OLT_UNREACHABLE,
                     'severity' => AlarmEvent::SEVERITY_CRITICAL,
                     'scope' => 'olt',
                     'message' => 'OLT tidak dapat dihubungi: '.($snapshot['error'] ?? 'unknown error'),
@@ -129,7 +129,7 @@ class AlarmEvaluator
         $rx = $onu['rx_power_dbm'] ?? null;
         $online = (bool) ($onu['online'] ?? false);
 
-        if ($alarm->type === 'high_rx_attenuation') {
+        if ($alarm->type === AlarmEvent::TYPE_HIGH_RX) {
             $message = $rx !== null
                 ? "ONU {$iface} RX {$rx} dBm kembali normal."
                 : "ONU {$iface} RX kembali normal.";
@@ -192,7 +192,7 @@ class AlarmEvaluator
         }
 
         return [$signature => [
-            'type' => 'port_down',
+            'type' => AlarmEvent::TYPE_PORT_DOWN,
             'severity' => AlarmEvent::SEVERITY_CRITICAL,
             'scope' => 'port',
             'slot' => $slot,
@@ -248,7 +248,7 @@ class AlarmEvaluator
         if ($phase === 'DyingGasp' || $lastDown === 'DyingGasp') {
             return ["onu:{$key}:dying_gasp" => [
                 ...$base,
-                'type' => 'dying_gasp',
+                'type' => AlarmEvent::TYPE_DYING_GASP,
                 'severity' => AlarmEvent::SEVERITY_MINOR,
                 'message' => "ONU {$iface} dying gasp.",
             ]];
@@ -257,7 +257,7 @@ class AlarmEvaluator
         if ($phase === 'LOS' || $lastDown === 'LOS') {
             return ["onu:{$key}:los" => [
                 ...$base,
-                'type' => 'los',
+                'type' => AlarmEvent::TYPE_LOS,
                 'severity' => AlarmEvent::SEVERITY_MAJOR,
                 'message' => "ONU {$iface} loss of signal (LOS).",
             ]];
@@ -265,7 +265,7 @@ class AlarmEvaluator
 
         return ["onu:{$key}:onu_offline" => [
             ...$base,
-            'type' => 'onu_offline',
+            'type' => AlarmEvent::TYPE_ONU_OFFLINE,
             'severity' => AlarmEvent::SEVERITY_MINOR,
             'message' => "ONU {$iface} offline (phase: ".($phase ?? 'unknown').').',
         ]];
@@ -322,7 +322,7 @@ class AlarmEvaluator
 
         return [$signature => [
             ...$this->onuScopeFields($onu),
-            'type' => 'high_rx_attenuation',
+            'type' => AlarmEvent::TYPE_HIGH_RX,
             'severity' => AlarmEvent::SEVERITY_WARNING,
             'message' => "ONU {$iface} RX {$rx} dBm di luar rentang sehat.",
             'meta' => [

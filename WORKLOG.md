@@ -1,5 +1,46 @@
 # Worklog
 
+## 2026-06-01
+
+### Filter per-jenis alarm Telegram — pilih jenis alert yang dikirim di Pengaturan
+
+Sebelumnya semua jenis alarm yang lolos `min_severity` selalu dikirim ke Telegram. Sekarang admin
+bisa memilih jenis alarm mana yang masuk Telegram (mis. hanya **LOS, Dying Gasp, Redaman RX tinggi,
+Port GPON down**) lewat checkbox di **Pengaturan → Bot Telegram**. Filter berlaku untuk notifikasi
+raise maupun clear.
+
+Created:
+
+- `database/migrations/2026_06_01_000000_add_notify_types_to_telegram_settings_table.php` — kolom
+  `notify_types` (json, nullable) di `telegram_settings`. `null` = semua jenis (kompat lama);
+  array eksplisit (termasuk kosong) dihormati apa adanya. Sqlite-compatible.
+
+Changed:
+
+- `app/Models/AlarmEvent.php` — tambah konstanta `TYPE_*` (6 jenis) + `TYPE_LABELS` (label ID) +
+  `types()` sebagai **sumber tunggal** daftar jenis alarm.
+- `app/Services/AlarmEvaluator.php` — literal string jenis (`'los'`, `'port_down'`, dll) diganti
+  konstanta `AlarmEvent::TYPE_*` agar tidak drift dengan daftar di filter.
+- `app/Models/TelegramSetting.php` — `notify_types` fillable + cast `array`; helper
+  `notifyTypes()` (null → semua) & `shouldNotifyType($type)`.
+- `app/Services/Telegram/TelegramNotifier.php` — `notify()` lewati alarm yang jenisnya tak dicentang
+  (`shouldNotifyType()`), berlaku untuk raise & clear; filter severity tetap.
+- `app/Http/Controllers/SettingsController.php` — payload `telegram.notify_types` +
+  `alarmTypeOptions`; validasi `notify_types` (array of `AlarmEvent::types()`), hanya overwrite bila
+  field dikirim (absen → pertahankan set lama), disimpan ternormalisasi & berurutan kanonis.
+- `resources/js/Pages/Settings/Index.vue` — grup checkbox "Jenis alarm yang dikirim" (Pilih semua /
+  Kosongkan semua, peringatan saat kosong) di tab Telegram.
+
+Notes:
+
+- Default & kompat lama: instalasi yang sudah ada (`notify_types = null`) tetap menerima semua jenis
+  alarm sampai admin mengubah pilihan. Mengosongkan semua centang = membisukan semua notifikasi alarm
+  (perintah bot tetap jalan).
+- Diverifikasi: `php artisan test` (TelegramSettings/TelegramWebhook/AlarmEngine — 31 passed),
+  `./vendor/bin/pint` (passed), `npm run build` (sukses), `php artisan migrate --force` (DONE).
+- Catatan: saat menjalankan test, `bootstrap/cache/config.php` harus di-`config:clear` dulu (kalau
+  ter-cache, test nyasar ke pgsql & gagal palsu); sudah di-`config:cache` ulang setelahnya.
+
 ## 2026-05-30
 
 ### Overhaul halaman Welcome — animatif, interaktif & premium (GSAP + Lenis + tsParticles)

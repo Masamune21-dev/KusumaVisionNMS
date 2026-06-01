@@ -53,12 +53,20 @@ class TelegramNotifier
             $eligible = $this->filterBySeverity($raised, $setting->minSeverityRank());
 
             foreach ($eligible as $alarm) {
+                if (! $setting->shouldNotifyType($alarm->type)) {
+                    continue;
+                }
+
                 $sections[] = $this->formatAlarm($alarm, raised: true);
             }
         }
 
         if ($setting->notify_on_clear) {
             foreach ($cleared as $alarm) {
+                if (! $setting->shouldNotifyType($alarm->type)) {
+                    continue;
+                }
+
                 $sections[] = $this->formatAlarm($alarm, raised: false);
             }
         }

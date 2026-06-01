@@ -16,6 +16,7 @@ const props = defineProps({
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
     telegram: { type: Object, required: true },
     severityOptions: { type: Array, default: () => [] },
+    alarmTypeOptions: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -92,8 +93,25 @@ const form = useForm({
     min_severity: props.telegram.min_severity,
     notify_on_raise: props.telegram.notify_on_raise,
     notify_on_clear: props.telegram.notify_on_clear,
+    notify_types: [...(props.telegram.notify_types ?? [])],
     commands_enabled: props.telegram.commands_enabled,
 });
+
+const isTypeSelected = (value) => form.notify_types.includes(value);
+
+const toggleType = (value) => {
+    form.notify_types = isTypeSelected(value)
+        ? form.notify_types.filter((v) => v !== value)
+        : [...form.notify_types, value];
+};
+
+const allTypesSelected = computed(
+    () => props.alarmTypeOptions.length > 0 && form.notify_types.length === props.alarmTypeOptions.length,
+);
+
+const toggleAllTypes = () => {
+    form.notify_types = allTypesSelected.value ? [] : props.alarmTypeOptions.map((opt) => opt.value);
+};
 
 const submit = () => {
     form.put(route('settings.telegram.update'), {
@@ -391,6 +409,38 @@ const lastSent = computed(() =>
                                     </span>
                                 </label>
                             </div>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <div class="flex items-center justify-between gap-3">
+                                <InputLabel value="Jenis alarm yang dikirim" />
+                                <button
+                                    type="button"
+                                    class="text-xs font-medium text-cyan-300 hover:text-cyan-200"
+                                    @click="toggleAllTypes"
+                                >
+                                    {{ allTypesSelected ? 'Kosongkan semua' : 'Pilih semua' }}
+                                </button>
+                            </div>
+                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
+                                <label
+                                    v-for="opt in alarmTypeOptions"
+                                    :key="opt.value"
+                                    class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
+                                >
+                                    <Checkbox
+                                        :checked="isTypeSelected(opt.value)"
+                                        class="h-4 w-4"
+                                        @update:checked="toggleType(opt.value)"
+                                    />
+                                    <span class="text-sm text-slate-200">{{ opt.label }}</span>
+                                </label>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-400">
+                                Hanya jenis alarm yang dicentang yang dikirim ke Telegram. Mis. centang LOS, Dying Gasp, Redaman RX tinggi, dan Port GPON down saja.
+                                <span v-if="form.notify_types.length === 0" class="text-amber-400">Tidak ada yang dicentang — semua notifikasi alarm dimatikan.</span>
+                            </p>
+                            <InputError :message="form.errors.notify_types" class="mt-2" />
                         </div>
 
                         <div class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-4 lg:col-span-2">

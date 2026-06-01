@@ -35,6 +35,7 @@ class SettingsController extends Controller
                 'min_severity' => $setting->min_severity ?? AlarmEvent::SEVERITY_WARNING,
                 'notify_on_raise' => (bool) $setting->notify_on_raise,
                 'notify_on_clear' => (bool) $setting->notify_on_clear,
+                'notify_types' => $setting->notifyTypes(),
                 'commands_enabled' => (bool) $setting->commands_enabled,
                 'webhook_set' => filled($setting->webhook_secret),
                 'last_sent_at' => $setting->last_sent_at?->toIso8601String(),
@@ -46,6 +47,9 @@ class SettingsController extends Controller
                 ['value' => AlarmEvent::SEVERITY_MAJOR, 'label' => 'Major ke atas'],
                 ['value' => AlarmEvent::SEVERITY_CRITICAL, 'label' => 'Hanya Critical'],
             ],
+            'alarmTypeOptions' => collect(AlarmEvent::TYPE_LABELS)
+                ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
+                ->values(),
         ]);
     }
 
@@ -97,6 +101,8 @@ class SettingsController extends Controller
             ])],
             'notify_on_raise' => ['boolean'],
             'notify_on_clear' => ['boolean'],
+            'notify_types' => ['array'],
+            'notify_types.*' => [Rule::in(AlarmEvent::types())],
             'commands_enabled' => ['boolean'],
         ]);
 
@@ -110,6 +116,15 @@ class SettingsController extends Controller
             'notify_on_clear' => (bool) ($validated['notify_on_clear'] ?? false),
             'commands_enabled' => (bool) ($validated['commands_enabled'] ?? false),
         ]);
+
+        // Only touch the per-type filter when the form actually submits it. An absent
+        // field keeps the existing set (null = all); an explicit (even empty) array is
+        // stored normalised to known types in canonical order.
+        if ($request->has('notify_types')) {
+            $setting->notify_types = array_values(
+                array_intersect(AlarmEvent::types(), $validated['notify_types'] ?? [])
+            );
+        }
 
         // Empty token field means "keep the existing token".
         if (filled($validated['bot_token'] ?? null)) {

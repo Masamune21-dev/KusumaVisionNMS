@@ -48,14 +48,23 @@ Dua arah: **push** (alarm ke chat) dan **inbound command** (query dari chat).
 ### Konfigurasi — `telegram_settings` (singleton)
 Diatur di **Pengaturan → Telegram** (`SettingsController`, admin). Field: `enabled`, `bot_token`
 (enc), `chat_id` (boleh banyak, pisah spasi/koma), `min_severity`, `notify_on_raise`,
-`notify_on_clear`, `commands_enabled`, `webhook_secret` (enc). Helper model: `isReady()`,
-`commandsReady()`, `isChatAuthorized()`, `minSeverityRank()`, `chatIds()`.
+`notify_on_clear`, `notify_types` (json), `commands_enabled`, `webhook_secret` (enc). Helper
+model: `isReady()`, `commandsReady()`, `isChatAuthorized()`, `minSeverityRank()`, `chatIds()`,
+`notifyTypes()`, `shouldNotifyType()`.
+
+**Filter per-jenis alarm** (`notify_types`): admin memilih jenis alarm mana yang dikirim ke
+Telegram (mis. hanya LOS, dying gasp, redaman RX tinggi, port down). Daftar jenis kanonis +
+labelnya ada di `AlarmEvent::TYPE_LABELS` (sumber tunggal; `AlarmEvent::types()` =
+`olt_unreachable`, `port_down`, `los`, `dying_gasp`, `onu_offline`, `high_rx_attenuation`).
+`notify_types = null` berarti **semua jenis** (default/kompat lama); array eksplisit (termasuk
+kosong = semua dibisukan) dihormati apa adanya.
 
 ### Push — `TelegramNotifier`
 `app/Services/Telegram/TelegramNotifier.php`.
 - `notify($olt, $raised, $cleared)` — kirim alarm baru/clear bila `isReady()`; filter berdasar
-  `min_severity` (`filterBySeverity`), hormati `notify_on_raise`/`notify_on_clear`. Format pesan
-  `formatAlarm()` (escape MarkdownV2 via `escape()`).
+  `min_severity` (`filterBySeverity`) **dan** jenis alarm (`shouldNotifyType()`, berlaku untuk
+  raise & clear), hormati `notify_on_raise`/`notify_on_clear`. Format pesan `formatAlarm()`
+  (escape MarkdownV2 via `escape()`).
 - `sendTest()` — tombol "Test" di Settings.
 - `sendTo($chatId,$text)` / `dispatch()` — kirim ke Telegram Bot API; simpan `last_sent_at`/
   `last_error`.
