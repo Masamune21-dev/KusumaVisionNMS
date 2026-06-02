@@ -1,6 +1,7 @@
 <script setup>
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import FilterCard from '@/Components/Shell/FilterCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, usePage } from '@inertiajs/vue3';
@@ -224,63 +225,58 @@ const phaseDotClass = (onu) => {
                 </div>
 
                 <!-- Filter card -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
-                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
-                            <Search class="h-5 w-5 text-cyan-400" />
-                        </div>
-                        <div>
-                            <h3 class="text-base font-semibold text-white">Filter ONU</h3>
-                            <p class="mt-0.5 text-xs text-slate-500">Pilih OLT untuk mulai menampilkan ONU.</p>
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-3 px-4 py-4 sm:px-6">
-                        <div class="relative">
+                <FilterCard title="Filter ONU" subtitle="Pilih OLT untuk mulai menampilkan ONU." :icon="Search">
+                    <template #actions>
+                        <button v-if="hasFilter" type="button" class="kv-filter-reset" @click="clearFilters">
+                            <X class="h-4 w-4" />
+                            Reset
+                        </button>
+                    </template>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative w-full lg:flex-1 lg:min-w-[16rem]">
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                             <input
                                 v-model="search"
                                 type="text"
                                 placeholder="Cari interface, serial, nama, type, atau OLT..."
-                                class="w-full rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-9 pr-9 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
+                                class="kv-filter-control !pl-9 !pr-9"
                             />
                             <button v-if="search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" title="Hapus" @click="search = ''">
                                 <X class="h-4 w-4" />
                             </button>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <select v-model="oltFilter" class="rounded-lg border py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500" :class="hasOlt ? 'border-cyan-500/40 bg-slate-950/40' : 'border-cyan-500/50 bg-cyan-500/10'" @change="onOltChange">
-                                <option value="" disabled>Pilih OLT…</option>
-                                <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
-                            </select>
-                            <select v-model="portFilter" :disabled="!hasOlt" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50">
-                                <option value="all">Semua Port</option>
-                                <option v-for="opt in portOptions" :key="`${opt.slot}/${opt.port}`" :value="`${opt.slot}/${opt.port}`">
-                                    Port {{ opt.slot }}/{{ opt.port }}
-                                </option>
-                            </select>
-                            <select v-model="statusFilter" :disabled="!hasOlt" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50">
-                                <option value="all">Semua Status</option>
-                                <option value="online">Online</option>
-                                <option value="los">LOS</option>
-                                <option value="dying_gasp">Dying Gasp</option>
-                                <option value="offline">Offline</option>
-                            </select>
-                            <select v-model="adminFilter" :disabled="!hasOlt" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50">
-                                <option value="all">Semua Admin</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
-                            </select>
-                            <select v-model="rxFilter" :disabled="!hasOlt" title="Filter berdasarkan level redaman ONU RX" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50">
-                                <option value="all">Semua Redaman</option>
-                                <option value="good">Redaman Normal</option>
-                                <option value="warning">Redaman Peringatan</option>
-                                <option value="critical">Redaman Kritis</option>
-                                <option value="none">Tanpa Data RX</option>
-                            </select>
-                            <button v-if="hasFilter" type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset</button>
-                        </div>
+                        <select v-model="oltFilter" class="kv-filter-control w-full sm:w-auto" :class="hasOlt ? '' : '!border-cyan-500/50 !bg-cyan-500/10'" @change="onOltChange">
+                            <option value="" disabled>Pilih OLT…</option>
+                            <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
+                        </select>
+                        <select v-model="portFilter" :disabled="!hasOlt" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Port</option>
+                            <option v-for="opt in portOptions" :key="`${opt.slot}/${opt.port}`" :value="`${opt.slot}/${opt.port}`">
+                                Port {{ opt.slot }}/{{ opt.port }}
+                            </option>
+                        </select>
+                        <select v-model="statusFilter" :disabled="!hasOlt" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Status</option>
+                            <option value="online">Online</option>
+                            <option value="los">LOS</option>
+                            <option value="dying_gasp">Dying Gasp</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                        <select v-model="adminFilter" :disabled="!hasOlt" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Admin</option>
+                            <option value="active">Active</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                        <select v-model="rxFilter" :disabled="!hasOlt" title="Filter berdasarkan level redaman ONU RX" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Redaman</option>
+                            <option value="good">Redaman Normal</option>
+                            <option value="warning">Redaman Peringatan</option>
+                            <option value="critical">Redaman Kritis</option>
+                            <option value="none">Tanpa Data RX</option>
+                        </select>
                     </div>
-                </div>
+                </FilterCard>
 
                 <!-- Prompt: pick an OLT first -->
                 <div v-if="!hasOlt" class="rounded-lg border border-white/10 bg-slate-900/40 px-6 py-16 text-center shadow-lg shadow-black/30 backdrop-blur-xl">

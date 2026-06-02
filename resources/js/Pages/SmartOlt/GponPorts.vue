@@ -128,7 +128,7 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                             <input
                                 v-model="portSearch"
                                 type="search"
-                                class="min-h-11 w-full rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl px-3 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 sm:w-72"
+                                class="kv-filter-control sm:w-72"
                                 placeholder="Cari ONU (SN/Nama)..."
                             />
                             <span class="inline-flex h-8 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">

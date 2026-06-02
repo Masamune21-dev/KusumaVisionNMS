@@ -1,5 +1,6 @@
 <script setup>
 import Pagination from '@/Components/Pagination.vue';
+import FilterCard from '@/Components/Shell/FilterCard.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
@@ -127,75 +128,40 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
-                <form class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30" @submit.prevent="applyFilters">
-                    <div class="flex items-center gap-2 text-sm font-semibold text-white">
-                        <Filter class="h-4 w-4 text-slate-400" />
-                        Filter
-                    </div>
-
-                    <div class="mt-4 grid gap-4 md:grid-cols-6">
-                        <label class="block md:col-span-2">
-                            <span class="text-xs font-medium uppercase text-slate-500">Cari</span>
-                            <div class="mt-1 flex rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500">
-                                <span class="flex items-center px-3 text-slate-400">
-                                    <Search class="h-4 w-4" />
-                                </span>
-                                <input
-                                    v-model="form.q"
-                                    type="search"
-                                    class="block min-h-11 w-full border-0 bg-transparent py-2.5 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0"
-                                    placeholder="Deskripsi, user, IP"
-                                >
-                            </div>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Event</span>
-                            <select v-model="form.event" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua</option>
-                                <option v-for="event in filterOptions.events" :key="event" :value="event">
-                                    {{ eventMeta(event).label }}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">User</span>
-                            <select v-model="form.user_id" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="">Semua</option>
-                                <option v-for="user in filterOptions.users" :key="user.id" :value="user.id">
-                                    {{ user.name }}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Dari</span>
-                            <input v-model="form.from" type="date" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Sampai</span>
-                            <input v-model="form.to" type="date" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                        </label>
-                    </div>
-
-                    <div class="mt-4 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-                        <button
-                            type="button"
-                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl px-3 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="!hasFilters"
-                            @click="resetFilters"
-                        >
+                <FilterCard title="Filter" :icon="Filter">
+                    <form class="flex flex-wrap items-center gap-2" @submit.prevent="applyFilters">
+                        <div class="relative w-full lg:flex-1 lg:min-w-[16rem]">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                v-model="form.q"
+                                type="search"
+                                placeholder="Cari deskripsi, user, IP…"
+                                class="kv-filter-control !pl-9"
+                            >
+                        </div>
+                        <select v-model="form.event" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Event</option>
+                            <option v-for="event in filterOptions.events" :key="event" :value="event">{{ eventMeta(event).label }}</option>
+                        </select>
+                        <select v-model="form.user_id" class="kv-filter-control w-full sm:w-auto">
+                            <option value="">Semua User</option>
+                            <option v-for="user in filterOptions.users" :key="user.id" :value="user.id">{{ user.name }}</option>
+                        </select>
+                        <div class="flex w-full items-center gap-1.5 sm:w-auto">
+                            <input v-model="form.from" type="date" title="Dari tanggal" class="kv-filter-control w-full sm:w-auto">
+                            <span class="text-slate-500">–</span>
+                            <input v-model="form.to" type="date" title="Sampai tanggal" class="kv-filter-control w-full sm:w-auto">
+                        </div>
+                        <button type="button" class="kv-filter-reset w-full sm:w-auto" :disabled="!hasFilters" @click="resetFilters">
                             <RotateCcw class="h-4 w-4" />
                             Reset
                         </button>
-                        <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-cyan-600">
+                        <button type="submit" class="kv-filter-apply w-full sm:w-auto">
                             <Search class="h-4 w-4" />
                             Terapkan
                         </button>
-                    </div>
-                </form>
+                    </form>
+                </FilterCard>
 
                 <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">

@@ -2,9 +2,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
-import InputLabel from '@/Components/InputLabel.vue';
+import FilterCard from '@/Components/Shell/FilterCard.vue';
 import { Head, router } from '@inertiajs/vue3';
-import { FileBarChart, FileDown, FileText } from '@lucide/vue';
+import { FileBarChart, FileDown, FileText, SlidersHorizontal } from '@lucide/vue';
 import { reactive, watch } from 'vue';
 
 const props = defineProps({
@@ -101,55 +101,40 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
                 <!-- Filter bar -->
-                <div class="grid gap-4 rounded-lg border border-white/10 bg-slate-900/40 p-4 backdrop-blur-xl sm:grid-cols-2 lg:grid-cols-4">
-                    <div>
-                        <InputLabel for="type" value="Jenis Laporan" />
-                        <select id="type" v-model="state.type" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                <FilterCard title="Filter Laporan" :icon="SlidersHorizontal">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="type" v-model="state.type" class="kv-filter-control w-full sm:w-auto" title="Jenis laporan">
                             <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                    </div>
-                    <div>
-                        <InputLabel for="range" value="Rentang Waktu" />
-                        <select id="range" v-model="state.range" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                        <select id="range" v-model="state.range" class="kv-filter-control w-full sm:w-auto" title="Rentang waktu">
                             <option v-for="opt in rangeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                    </div>
-                    <div>
-                        <InputLabel for="olt" value="OLT" />
-                        <select id="olt" v-model="state.olt_id" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                        <select id="olt" v-model="state.olt_id" class="kv-filter-control w-full sm:w-auto" title="OLT">
                             <option value="">Semua OLT</option>
                             <option v-for="opt in oltOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                    </div>
-                    <div>
-                        <InputLabel for="pon_port" value="PON Port" />
                         <select
                             id="pon_port"
                             v-model="state.pon_port"
                             :disabled="!state.olt_id || ponPortOptions.length === 0"
-                            class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="kv-filter-control w-full sm:w-auto"
+                            title="PON port"
                         >
                             <option value="">{{ state.olt_id ? 'Semua Port' : 'Pilih OLT dulu' }}</option>
                             <option v-for="opt in ponPortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                    </div>
-                    <div v-if="state.type === 'rx'">
-                        <InputLabel for="rx_status" value="Redaman RX" />
-                        <select id="rx_status" v-model="state.rx_status" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                        <select v-if="state.type === 'rx'" id="rx_status" v-model="state.rx_status" class="kv-filter-control w-full sm:w-auto" title="Redaman RX">
                             <option value="">Semua Redaman</option>
                             <option value="normal">Normal (&ge; -25 dBm)</option>
                             <option value="warning">Warning (&lt; -25 dBm)</option>
                             <option value="critical">Critical (&lt; -28 dBm)</option>
                         </select>
-                    </div>
-                    <div v-if="state.type !== 'rx' && (report.status_options?.length ?? 0) > 0">
-                        <InputLabel for="status" value="Status" />
-                        <select id="status" v-model="state.status" class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                        <select v-if="state.type !== 'rx' && (report.status_options?.length ?? 0) > 0" id="status" v-model="state.status" class="kv-filter-control w-full sm:w-auto" title="Status">
                             <option value="">Semua Status</option>
                             <option v-for="opt in report.status_options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                     </div>
-                </div>
+                </FilterCard>
 
                 <!-- Summary -->
                 <div class="grid gap-3 sm:grid-cols-3">

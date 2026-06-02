@@ -116,6 +116,52 @@ Semua didefinisikan di [`resources/css/app.css`](../../resources/css/app.css) (`
 | `kv-link` / `kv-link-muted` | Tautan teks (cyan / slate) |
 | `kv-alert-success` / `kv-alert-danger` | Banner flash (lihat pola flash di §5) |
 
+### Kartu filter (pola wajib untuk halaman dengan filter)
+**Selalu** pakai komponen `Components/Shell/FilterCard.vue` agar bentuk kartu filter seragam di
+semua halaman (Alarms, Audit Logs, ONU Monitoring, Reports, dst). Jangan bikin kartu filter ad-hoc.
+
+Bentuk standar = **toolbar satu baris**: input cari `lg:flex-1` (melebar) + kontrol `kv-filter-control`
+berukuran `w-full sm:w-auto` (HP menumpuk, desktop sejajar satu baris) dalam wadah
+`flex flex-wrap items-center gap-2`. **Tanpa label** di atas tiap kontrol — pakai opsi pertama yang
+self-describing (mis. `Semua Severity`, `Semua OLT`) atau atribut `title` untuk input tanggal, supaya
+ringkas tapi tetap jelas.
+
+```vue
+<FilterCard title="Filter" :icon="Filter">          <!-- filter server-side (router.get) -->
+  <form class="flex flex-wrap items-center gap-2" @submit.prevent="applyFilters">
+    <div class="relative w-full lg:flex-1 lg:min-w-[16rem]">
+      <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+      <input v-model="form.q" type="search" class="kv-filter-control !pl-9" placeholder="Cari…">
+    </div>
+    <select v-model="form.severity" class="kv-filter-control w-full sm:w-auto">
+      <option value="all">Semua Severity</option> …
+    </select>
+    <button type="button" class="kv-filter-reset w-full sm:w-auto" :disabled="!hasFilters" @click="resetFilters">Reset</button>
+    <button type="submit" class="kv-filter-apply w-full sm:w-auto">Terapkan</button>
+  </form>
+</FilterCard>
+
+<FilterCard title="Filter ONU" subtitle="…" :icon="Search">   <!-- filter live/client-side -->
+  <template #actions>
+    <button v-if="hasFilter" class="kv-filter-reset" @click="clearFilters">Reset</button>
+  </template>
+  <div class="flex flex-wrap items-center gap-2"> input cari + select … </div>
+</FilterCard>
+```
+
+| Kelas | Fungsi |
+|-------|--------|
+| `kv-filter` | Shell kartu (dipakai internal `FilterCard`; sama dengan panel tabel: `rounded-lg` kaca) |
+| `kv-filter-head` / `kv-filter-body` | Header (ikon-tile + judul + slot `actions`) / body |
+| `kv-filter-control` | Input/select seragam (tinggi 44px, fokus cyan, ada state `disabled`). Toolbar: `w-full sm:w-auto` |
+| `kv-filter-reset` / `kv-filter-apply` | Tombol Reset (sekunder) / Terapkan (cyan) |
+| `kv-filter-grid` / `kv-filter-label` / `kv-filter-actions` | Alternatif **grid berlabel** (kalau field sangat banyak); jarang dipakai sejak standar = toolbar |
+
+Aturan: header dengan ikon-tile + judul; **filter live** → tombol Reset di slot `#actions`;
+**filter server-side** → tombol Reset+Terapkan ikut di akhir baris toolbar. Kontrol selalu
+`kv-filter-control` agar tinggi & gaya sama. Toolbar inline di header tabel (mis. PortOnus, GponPorts)
+juga memakai `kv-filter-control`/`kv-filter-reset` agar seragam.
+
 ### Tabel responsif (pola wajib untuk data tabular)
 | Kelas | Fungsi |
 |-------|--------|

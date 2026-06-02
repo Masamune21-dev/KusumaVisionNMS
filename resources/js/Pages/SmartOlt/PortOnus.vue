@@ -304,24 +304,24 @@ const rxBadgeClass = (value) => {
                                 v-model="search"
                                 type="text"
                                 placeholder="Cari interface, serial, nama, atau type..."
-                                class="w-full rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-9 pr-9 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
+                                class="kv-filter-control !pl-9 !pr-9"
                             />
                             <button v-if="search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" title="Hapus" @click="search = ''">
                                 <X class="h-4 w-4" />
                             </button>
                         </div>
                         <div class="flex items-center gap-2">
-                            <select v-model="phaseFilter" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500">
+                            <select v-model="phaseFilter" class="min-h-11 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
                                 <option value="all">Semua Phase</option>
                                 <option value="online">Online</option>
                                 <option value="offline">Offline</option>
                             </select>
-                            <select v-model="adminFilter" class="rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-3 pr-8 text-sm text-slate-100 focus:border-cyan-500 focus:ring-cyan-500">
+                            <select v-model="adminFilter" class="min-h-11 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
                                 <option value="all">Semua Admin</option>
                                 <option value="active">Active</option>
                                 <option value="disabled">Disabled</option>
                             </select>
-                            <button v-if="hasFilter" type="button" class="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset</button>
+                            <button v-if="hasFilter" type="button" class="kv-filter-reset" @click="clearFilters">Reset</button>
                         </div>
                     </div>
 

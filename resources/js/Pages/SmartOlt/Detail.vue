@@ -72,6 +72,7 @@ const oltImage = computed(() => {
     const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
     if (hay.includes('c320')) return '/img/c320.webp';
     if (hay.includes('c300')) return '/img/c300.webp';
+    if (hay.includes('c600')) return '/img/c600.webp';
     return null;
 });
 </script>

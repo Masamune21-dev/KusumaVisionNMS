@@ -130,6 +130,46 @@
         @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500;
     }
 
+    /* === Filter card (bentuk standar lintas halaman; dipakai via <FilterCard/>) === */
+    .kv-filter {
+        @apply overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
+    }
+
+    .kv-filter-head {
+        @apply flex flex-wrap items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6;
+    }
+
+    .kv-filter-body {
+        @apply px-4 py-4 sm:px-6;
+    }
+
+    /* Grid field: 1 kolom (mobile) → 2 → 4 (desktop). Field "lebar" pakai sm:col-span-2. */
+    .kv-filter-grid {
+        @apply grid gap-4 sm:grid-cols-2 lg:grid-cols-4;
+    }
+
+    .kv-filter-label {
+        @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500;
+    }
+
+    /* Kontrol input/select seragam. Tinggi 44px (target sentuh), fokus cyan. */
+    .kv-filter-control {
+        @apply block min-h-11 w-full rounded-lg border-white/10 bg-slate-900/60 px-3 text-sm text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    /* Baris tombol aksi (Reset/Terapkan) di kaki kartu filter server-side. */
+    .kv-filter-actions {
+        @apply mt-4 grid gap-2 border-t border-white/10 pt-4 sm:flex sm:flex-wrap sm:items-center sm:justify-end;
+    }
+
+    .kv-filter-reset {
+        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50;
+    }
+
+    .kv-filter-apply {
+        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 text-sm font-medium text-white transition-colors hover:bg-cyan-600;
+    }
+
     .kv-link {
         @apply font-medium text-cyan-400 transition-colors hover:text-cyan-300;
     }

@@ -1,5 +1,6 @@
 <script setup>
 import Pagination from '@/Components/Pagination.vue';
+import FilterCard from '@/Components/Shell/FilterCard.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -191,85 +192,43 @@ const formatDate = (value) => {
                     </button>
                 </div>
 
-                <form class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30" @submit.prevent="applyFilters">
-                    <div class="flex items-center gap-2 text-sm font-semibold text-white">
-                        <Filter class="h-4 w-4 text-slate-400" />
-                        Filter
-                    </div>
-
-                    <div class="mt-4 grid gap-4 md:grid-cols-6">
-                        <label class="block md:col-span-2">
-                            <span class="text-xs font-medium uppercase text-slate-500">Cari</span>
-                            <div class="mt-1 flex rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500">
-                                <span class="flex items-center px-3 text-slate-400">
-                                    <Search class="h-4 w-4" />
-                                </span>
-                                <input
-                                    v-model="form.q"
-                                    type="search"
-                                    class="block min-h-11 w-full border-0 bg-transparent py-2.5 pr-3 text-sm text-white placeholder:text-slate-400 focus:ring-0"
-                                    placeholder="Serial, pesan, tipe, OLT"
-                                >
-                            </div>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Severity</span>
-                            <select v-model="form.severity" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua</option>
-                                <option v-for="severity in filterOptions.severities" :key="severity" :value="severity">
-                                    {{ severity }}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">OLT</span>
-                            <select v-model="form.olt_id" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="">Semua</option>
-                                <option v-for="olt in filterOptions.olts" :key="olt.id" :value="olt.id">
-                                    {{ olt.name }}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Scope</span>
-                            <select v-model="form.scope" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua</option>
-                                <option v-for="scope in filterOptions.scopes" :key="scope" :value="scope">
-                                    {{ scopeOptionLabel(scope) }}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label class="block">
-                            <span class="text-xs font-medium uppercase text-slate-500">Tipe</span>
-                            <select v-model="form.type" class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua</option>
-                                <option v-for="type in filterOptions.types" :key="type" :value="type">
-                                    {{ type }}
-                                </option>
-                            </select>
-                        </label>
-                    </div>
-
-                    <div class="mt-4 grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
-                        <button
-                            type="button"
-                            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-slate-900/40 backdrop-blur-xl px-3 py-2.5 text-sm font-medium text-slate-200 hover:bg-white/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="!hasFilters"
-                            @click="resetFilters"
-                        >
+                <FilterCard title="Filter" :icon="Filter">
+                    <form class="flex flex-wrap items-center gap-2" @submit.prevent="applyFilters">
+                        <div class="relative w-full lg:flex-1 lg:min-w-[16rem]">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                v-model="form.q"
+                                type="search"
+                                placeholder="Cari serial, pesan, tipe, OLT…"
+                                class="kv-filter-control !pl-9"
+                            >
+                        </div>
+                        <select v-model="form.severity" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Severity</option>
+                            <option v-for="severity in filterOptions.severities" :key="severity" :value="severity">{{ severity }}</option>
+                        </select>
+                        <select v-model="form.olt_id" class="kv-filter-control w-full sm:w-auto">
+                            <option value="">Semua OLT</option>
+                            <option v-for="olt in filterOptions.olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
+                        </select>
+                        <select v-model="form.scope" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Scope</option>
+                            <option v-for="scope in filterOptions.scopes" :key="scope" :value="scope">{{ scopeOptionLabel(scope) }}</option>
+                        </select>
+                        <select v-model="form.type" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">Semua Tipe</option>
+                            <option v-for="type in filterOptions.types" :key="type" :value="type">{{ type }}</option>
+                        </select>
+                        <button type="button" class="kv-filter-reset w-full sm:w-auto" :disabled="!hasFilters" @click="resetFilters">
                             <RotateCcw class="h-4 w-4" />
                             Reset
                         </button>
-                        <button type="submit" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-cyan-600">
+                        <button type="submit" class="kv-filter-apply w-full sm:w-auto">
                             <Search class="h-4 w-4" />
                             Terapkan
                         </button>
-                    </div>
-                </form>
+                    </form>
+                </FilterCard>
 
                 <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">

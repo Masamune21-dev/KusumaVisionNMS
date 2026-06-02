@@ -1,5 +1,65 @@
 # Worklog
 
+## 2026-06-02
+
+### Kartu filter seragam — komponen FilterCard + toolbar satu baris lintas halaman
+
+Tampilan kartu filter sebelumnya beda-beda di tiap halaman (3 pola: header inline+grid+tombol,
+header ikon-tile+flex select, grid polos tanpa header). Diseragamkan jadi satu bentuk via komponen
+`FilterCard` + kelas `kv-filter-*`, lalu dipadatkan jadi **toolbar satu baris** (cari `lg:flex-1` +
+kontrol `w-full sm:w-auto`) agar tidak memanjang ke 2 baris. Tanpa label di atas tiap kontrol —
+opsi pertama dibuat self-describing ("Semua Severity", "Semua OLT", dst), input tanggal pakai `title`.
+
+Created:
+
+- `resources/js/Components/Shell/FilterCard.vue` — shell kartu filter standar (shell kaca +
+  header ikon-tile + judul/subjudul + slot `#actions` + body). Dipakai semua halaman ber-filter.
+
+Changed:
+
+- `resources/css/app.css` — kelas `kv-filter`, `kv-filter-head/body`, `kv-filter-grid`,
+  `kv-filter-label`, `kv-filter-control` (kontrol seragam 44px), `kv-filter-actions`,
+  `kv-filter-reset`/`kv-filter-apply`.
+- `resources/js/Pages/SmartOlt/Alarms.vue`, `resources/js/Pages/AuditLogs/Index.vue`,
+  `resources/js/Pages/Reports/Index.vue`, `resources/js/Pages/SmartOlt/OnuMonitor.vue` — filter
+  diubah ke `FilterCard` + toolbar satu baris (Alarms/AuditLogs server-side dgn tombol Terapkan;
+  Reports/OnuMonitor live).
+- `resources/js/Pages/SmartOlt/PortOnus.vue`, `resources/js/Pages/SmartOlt/GponPorts.vue` —
+  toolbar inline di header tabel diselaraskan ke `kv-filter-control`/`kv-filter-reset` (tetap inline,
+  bukan kartu terpisah).
+- `docs/handbook/15-ui-tema-dashboard.md` — bagian "Kartu filter (pola wajib)": standar = toolbar
+  satu baris via `FilterCard`, grid berlabel jadi alternatif.
+
+Notes:
+
+- Konsistensi di level **shell kartu + kontrol**; layout internal menyesuaikan jumlah field. Label
+  dilepas hanya jika opsi self-describing (Alarms/AuditLogs/OnuMonitor/Reports semua aman).
+- PortManager tidak diubah (select-nya kontrol kontekstual di dalam panel, bukan kartu filter).
+- Diverifikasi `npm run build` (sukses) + reload php-fpm.
+
+### Perbaiki gambar halaman detail OLT (C320 rusak, tambah C600)
+
+Halaman detail OLT (`Detail.vue`) menampilkan foto hardware per model. Referensi `/img/c320.webp`
+**tidak ada** (file asli `c320(1).webp`) → gambar C320 patah/404, termasuk OLT utama `OLT-C320-PATI`.
+
+Created:
+
+- `public/img/c320.webp` — disalin dari `c320(1).webp` agar referensi `/img/c320.webp` valid.
+- `public/img/c600.webp` — konversi `c600.png` via `cwebp -q 82` (≈34 KB).
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/Detail.vue` — `oltImage` tambah mapping `c600` → `/img/c600.webp`
+  (selain c320 & c300).
+
+Notes:
+
+- C300 tetap pakai `c300.webp` resolusi tinggi; `c300(1).png` yang diunggah hanya thumbnail low-res
+  jadi **tidak** dipakai (akan pecah di `max-h-96`).
+- Diverifikasi via curl lokal: `/img/c300.webp`, `/img/c320.webp`, `/img/c600.webp` → semua
+  `200 image/webp` (c320 sebelumnya 404).
+- File unggahan mentah `c300(1).png`/`c600.png` dibiarkan untracked (tidak ikut commit).
+
 ## 2026-06-01
 
 ### Filter per-jenis alarm Telegram — pilih jenis alert yang dikirim di Pengaturan
