@@ -187,14 +187,14 @@ su - postgres -c "psql -c \"CREATE DATABASE kusumavision_nms OWNER kusumavision;
 cp .env.example .env
 ```
 
-Edit `.env` sesuai server:
+Edit `.env` sesuai server. **Selama tahap setup, biarkan mode `local` + debug aktif** supaya bila migrasi/build gagal errornya terlihat jelas — nanti di-*harden* ke `production` di [Langkah 10](#langkah-10--harden-ke-production):
 
 ```dotenv
 APP_NAME="KusumaVision NMS"
-APP_ENV=production
-APP_DEBUG=false
+APP_ENV=local
+APP_DEBUG=true
 APP_URL=http://ip-server-anda
-LOG_LEVEL=warning
+LOG_LEVEL=debug
 
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
@@ -233,8 +233,9 @@ Setelah selesai, set permission storage:
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 php artisan storage:link
-php artisan optimize
 ```
+
+> Caching config + `php artisan optimize` sengaja ditunda sampai [Langkah 10](#langkah-10--harden-ke-production) (saat beralih ke production). Selama setup, jalankan dulu dengan `php artisan serve` / `composer dev` untuk memverifikasi semua berfungsi.
 
 ### Langkah 6 — Queue Worker (Supervisor)
 
@@ -338,6 +339,25 @@ Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
 ```bash
 php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password="P@ssw0rd123"
 ```
+
+### Langkah 10 — Harden ke production
+
+Setelah aplikasi terverifikasi berjalan (login, dashboard, uji SNMP OLT), baru beralih ke mode production. Ubah di `.env`:
+
+```dotenv
+APP_ENV=production
+APP_DEBUG=false
+LOG_LEVEL=warning
+```
+
+Lalu cache ulang config + optimize, dan restart daemon Supervisor agar perubahan terpakai:
+
+```bash
+php artisan optimize        # cache config + route + view untuk production
+supervisorctl restart kusumavision-worker:* kusumavision-scheduler kusumavision-telnet-proxy
+```
+
+> ⚠️ Jangan tinggalkan config dalam keadaan ter-*clear*. Pastikan `.env` permission `640 root:www-data` agar terbaca `www-data` — bila tidak, config yang ter-cache bisa fallback ke sqlite dan situs **500**. Hardening OS/Nginx/UFW/SSH selengkapnya: [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md).
 
 ---
 

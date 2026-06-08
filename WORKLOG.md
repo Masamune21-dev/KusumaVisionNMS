@@ -1558,3 +1558,17 @@ Notes:
 - Tooling terpasang di server: `playwright` + Chromium + OS-deps (`npx playwright install-deps chromium`: libnss3, libcups2, libnspr4, dll).
 - `public/img/dashboard1.webp` lama tidak lagi dirujuk README (dibiarkan di repo, tidak dihapus).
 - Regenerasi kapan saja: `npm run snapshot` (welcome+login) atau `SNAP_USER=… SNAP_PASS=… npm run snapshot` (+dashboard); subset via `ONLY=welcome,login,dashboard`.
+
+## 2026-06-08
+
+### README: alur env setup→production + fix prompt Composer root di check-requirements
+
+Changed:
+
+- `README.md` — restrukturisasi alur environment pada panduan instalasi manual. **Langkah 4** kini set `APP_ENV=local` + `APP_DEBUG=true` + `LOG_LEVEL=debug` selama setup (sebelumnya langsung `production`/`APP_DEBUG=false`) supaya error saat migrasi/build terlihat jelas. **Langkah 5** — `php artisan optimize` dihapus dari blok permission (ditunda ke langkah harden) + catatan verifikasi via `php artisan serve`/`composer dev`. **Langkah 10 — Harden ke production** (baru): set `production`/`APP_DEBUG=false`/`LOG_LEVEL=warning`, lalu `php artisan optimize` + restart daemon Supervisor, plus peringatan permission `.env` `640 root:www-data` (kalau salah → fallback sqlite → 500).
+- `scripts/check-requirements.sh` — `export COMPOSER_ALLOW_SUPERUSER=1` + `COMPOSER_NO_INTERACTION=1` di awal script. Saat dijalankan sebagai root, `composer --version` (dengan `2>/dev/null`) memunculkan prompt "Continue as root/super user [yes]?" yang teksnya kebuang ke stderr → script seolah berhenti menunggu Enter setelah pengecekan PHP. Kedua env var mematikan prompt root sepenuhnya.
+
+Notes:
+
+- Hanya dokumentasi + script utilitas; tidak menyentuh runtime aplikasi. `.env.example` (sudah `local`) dan `install.sh` (sudah set `production` di akhir deploy otomatis, baris 245-246) tidak diubah — alur manual baru kini konsisten dengan keduanya.
+- Fix Composer diverifikasi: di lingkungan non-tty Composer otomatis non-interaktif sehingga tak reproduksi, tapi `COMPOSER_ALLOW_SUPERUSER=1` mematikan peringatan/prompt tanpa peduli tty. Script dijalankan ulang penuh → semua tool [OK] tanpa jeda.

@@ -10,6 +10,14 @@
 #
 set -u
 
+# Saat dijalankan sebagai root, Composer interaktif akan menampilkan peringatan +
+# bertanya "Continue as root/super user [yes]?" dan menunggu input. Karena
+# pemanggilan composer di bawah membuang stderr (2>/dev/null), promptnya tak
+# terlihat sehingga script seolah berhenti menunggu Enter. Set kedua variabel ini
+# agar Composer tidak prompt sama sekali.
+export COMPOSER_ALLOW_SUPERUSER=1
+export COMPOSER_NO_INTERACTION=1
+
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 failures=0
