@@ -30,6 +30,7 @@ PROJECT_DIR="${PROJECT_DIR:-$SCRIPT_DIR}"
 APP_USER="www-data"
 
 PHP_VERSION="${PHP_VERSION:-8.3}"
+PHP_CLI="php${PHP_VERSION}"          # binari CLI versi target (mis. php8.3) — dipakai eksplisit, bukan 'php' polos
 NODE_MAJOR="${NODE_MAJOR:-22}"
 
 DB_NAME="${DB_NAME:-kusumavision_nms}"
@@ -82,7 +83,7 @@ set_env() {
   fi
 }
 
-run_artisan() { (cd "$PROJECT_DIR" && php artisan "$@"); }
+run_artisan() { (cd "$PROJECT_DIR" && "$PHP_CLI" artisan "$@"); }
 
 # ---------------------------------------------------------------------------
 # Parse argumen
@@ -182,16 +183,23 @@ apt-get install -y \
   nodejs
 
 systemctl enable --now postgresql redis-server nginx supervisor "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
-ok "Runtime terpasang"
+
+# Samakan CLI default 'php' ke versi target. Tanpa ini, bila server sudah punya PHP
+# lebih baru (mis. 8.4) maka 'php' polos menunjuk ke situ → artisan/worker jalan di
+# versi berbeda dari PHP-FPM (8.3) → mismatch. Pin agar web & CLI satu versi.
+if [ -x "/usr/bin/${PHP_CLI}" ]; then
+  update-alternatives --set php "/usr/bin/${PHP_CLI}" >/dev/null 2>&1 || true
+fi
+ok "Runtime terpasang (CLI php: $(${PHP_CLI} -r 'echo PHP_VERSION;' 2>/dev/null || echo '?'))"
 
 # Composer
 step "Memasang Composer"
 if ! command -v composer >/dev/null 2>&1; then
   EXPECTED="$(curl -fsSL https://composer.github.io/installer.sig)"
   curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
-  ACTUAL="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+  ACTUAL="$("$PHP_CLI" -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
   [ "$EXPECTED" = "$ACTUAL" ] || die "Checksum installer Composer tidak cocok."
-  php /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
+  "$PHP_CLI" /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
   rm -f /tmp/composer-setup.php
 fi
 ok "Composer: $(composer --version 2>/dev/null | head -n1)"
@@ -226,7 +234,7 @@ ok "Database ${DB_NAME} & user ${DB_USER} siap"
 step "Memasang dependensi PHP (composer)"
 # .env harus ada sebelum composer install agar post-script (package:discover) bisa boot.
 [ -f "$PROJECT_DIR/.env" ] || cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
-(cd "$PROJECT_DIR" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-interaction)
+(cd "$PROJECT_DIR" && COMPOSER_ALLOW_SUPERUSER=1 "$PHP_CLI" "$(command -v composer)" install --no-dev --optimize-autoloader --no-interaction)
 
 step "Memasang dependensi & build frontend (npm)"
 if [ -f "$PROJECT_DIR/package-lock.json" ]; then
@@ -270,10 +278,20 @@ ok ".env dikonfigurasi (production)"
 # ---------------------------------------------------------------------------
 # 6. Build Go SNMP poller
 # ---------------------------------------------------------------------------
-step "Build Go SNMP poller"
-(cd "$PROJECT_DIR" && go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller)
+step "Build Go SNMP poller (statis)"
+# CGO_ENABLED=0 -> binary self-contained (tak tergantung glibc), aman dipindah antar
+# server. -mod=mod karena repo punya folder vendor/ (PHP) di root. -trimpath + -s -w
+# memperkecil & menstabilkan build.
+(cd "$PROJECT_DIR" && CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller)
 chmod +x "$PROJECT_DIR/bin/kv-snmp-poller"
-ok "bin/kv-snmp-poller terbangun"
+
+# Smoke test: pastikan binary benar-benar jalan & emit JSON. Kalau tidak, PollOltJob
+# akan diam-diam fallback ke PHP -> ketahuan sekarang, bukan pas produksi.
+if KV_SNMP_COMMUNITY=public "$PROJECT_DIR/bin/kv-snmp-poller" --host 127.0.0.1 --timeout 1s --retries 0 2>/dev/null | grep -q '"ok"'; then
+  ok "bin/kv-snmp-poller terbangun & berfungsi (emit JSON)"
+else
+  warn "bin/kv-snmp-poller terbangun TAPI tidak emit JSON — poll akan fallback ke PHP. Cek: file bin/kv-snmp-poller; jalankan manual untuk lihat error."
+fi
 
 # ---------------------------------------------------------------------------
 # 7. Migrasi
@@ -359,7 +377,7 @@ ok "Nginx aktif (root ${PROJECT_DIR}/public, /telnet-ws → :6002)"
 # 10. Supervisor (worker, scheduler, telnet proxy)
 # ---------------------------------------------------------------------------
 step "Mendaftarkan daemon Supervisor"
-PHP_BIN="$(command -v php)"
+PHP_BIN="$(command -v "$PHP_CLI" || command -v php)"
 write_supervisor() {
   local name="$1" cmd="$2"
   cat > "/etc/supervisor/conf.d/${name}.conf" <<SUP

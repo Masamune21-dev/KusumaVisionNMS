@@ -1572,3 +1572,15 @@ Notes:
 
 - Hanya dokumentasi + script utilitas; tidak menyentuh runtime aplikasi. `.env.example` (sudah `local`) dan `install.sh` (sudah set `production` di akhir deploy otomatis, baris 245-246) tidak diubah — alur manual baru kini konsisten dengan keduanya.
 - Fix Composer diverifikasi: di lingkungan non-tty Composer otomatis non-interaktif sehingga tak reproduksi, tapi `COMPOSER_ALLOW_SUPERUSER=1` mematikan peringatan/prompt tanpa peduli tty. Script dijalankan ulang penuh → semua tool [OK] tanpa jeda.
+
+### install.sh: pin PHP 8.3 konsisten + Go poller build statis & smoke test
+
+Changed:
+
+- `install.sh` — (1) **Pin versi PHP**: variabel baru `PHP_CLI="php${PHP_VERSION}"`; `run_artisan`, `PHP_BIN` (command daemon Supervisor), serta installer & `composer install` kini dipanggil eksplisit lewat `php8.3` (bukan `php` polos). Plus `update-alternatives --set php /usr/bin/php8.3` setelah pasang runtime agar default `php` sistem = 8.3. Mencegah split di mana FPM jalan 8.3 tapi artisan/worker nyangkut ke PHP lebih baru (mis. 8.4) bila sudah terpasang — persis mismatch yang ditemukan saat cek deploy manual di server lain. (2) **Go SNMP poller**: build jadi statis (`CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w'`) supaya binary self-contained (tak tergantung glibc) & aman dipindah antar server, lalu **smoke test** pasca-build (jalankan binary, pastikan emit JSON `"ok"`; kalau gagal → `[WARN]`, karena `PollOltJob` akan diam-diam fallback ke PHP).
+
+Notes:
+
+- Diverifikasi di server ini: build statis menghasilkan `statically linked` (binary 2.67 MB vs 3.96 MB dynamic), smoke test → `"ok":true`. Build uji dilakukan ke `/tmp` agar binary produksi yang sedang dipakai worker tidak terganggu; `bash -n install.sh` lolos.
+- Hanya menyentuh `install.sh` (alur deploy fresh) — aplikasi yang sudah berjalan tidak terdampak.
+- Bukti Go benar-benar terpakai saat runtime: `snmp_olts.last_test_result::jsonb ->> 'go_poller_error'` bernilai null pada OLT id=1 & id=2 (poll nyata via Go, bukan fallback).
