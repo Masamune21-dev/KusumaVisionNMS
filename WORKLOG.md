@@ -1604,3 +1604,21 @@ Notes:
 - Latar masalah: di sesama OLT C320, sebagian ONU tidak konek di mode VLAN+Priority (`service ... cos 0 vlan 125`) tapi konek di mode Transparent (`service ... gemport 1`). Disamakan dengan pilihan mode mapping di GUI ZTE NetNumen (VLAN+Priority vs Transparent).
 - `service_mode` **tidak** dipersist ke tabel `smartolt_onu_registrations` (bukan di `$fillable`, jadi Laravel silently discard seperti `is_c600`) — modenya sudah terekam implisit di kolom `cli_script` audit. Tidak perlu migrasi.
 - Verifikasi: `php artisan test tests/Unit/ZteOnuConfigureTest.php` → 9 passed (52 assertions); `npm run build` sukses; Pint passed. Feature test `SmartOltInventoryTest` yang gagal 419 adalah gotcha config cache produksi, bukan dari perubahan ini.
+
+### Fix bug pemetaan slot/port ONU: tabrakan if-index ONU-prefix vs IF-MIB port
+
+Created:
+
+- `cmd/kv-snmp-poller/main_test.go` — test regresi: `buildPortMap` harus di-key oleh ONU-prefix index (bukan IF-MIB if-index), round-trip `onuPortPrefixIndex`↔`decodeIfIndex`, dan decode if-index ONU C320.
+
+Changed:
+
+- `cmd/kv-snmp-poller/main.go` — `buildPortMap()` kini di-key oleh **ONU-table prefix index** `0x10000000|slot<<16|port<<8` (helper baru `onuPortPrefixIndex()`), bukan `port.IfIndex` (IF-MIB). Sebabnya: dua sistem penomoran if-index ZTE tumpang tindih — prefix ONU slot 1 port P **sama persis** dengan if-index IF-MIB port `gpon_1/2/(P+1)` (mis. ONU 1/1 prefix `268501248` == if-index `gpon_1/2/2`), sehingga override `portMap[ifIndex]` salah mengikat semua ONU slot 1 ke port slot 2 (P→P+1).
+- `app/Services/Snmp/OltSnmpClient.php` — `registeredOnus()`: untuk **non-C600** (C300/C320) slot/port ONU diambil langsung dari `decodeIfIndex()` (otoritatif untuk ONU-prefix); override portMap (IF-MIB) di-skip. **C600 dibiarkan di jalur lama** (belum bisa diuji untuk tabrakan ini).
+
+Notes:
+
+- Diagnosa dari OLT produksi teman (`OLT NOBLE NET`, C320 @192.168.2.10, lewat server `nms-kusuma`, **read-only**): raw `snmpbulkwalk` tabel ONU type mengembalikan **2060 ONU <1 detik**, slot 1 port 1–10 penuh (1/1=88 … 1/10=1, 1/16=60). Tapi cache NMS menaruh slot 1 port 1–15=0 dan menggelembungkan slot 2. **Total tetap 2060** — bukan ONU hilang, murni salah label. Pola pergeseran 1/P→2/(P+1) cocok 100% di 10 port (mis. 2/2: 93+88=181, 2/3: 128+47=175). Dikonfirmasi NetNumen GUI (Slot 1/GTGH Port 1 NGADIPIRO penuh) — decode `>>16/>>8` = kenyataan.
+- Slot 2 & port 16 selamat karena prefix-nya **di atas** rentang if-index port tertinggi (gpon_1/2/16 = 268504832) → tak ada match di portMap → pakai decode (benar).
+- Verifikasi lokal: `go vet`/`go test` (3 test) ok, `go build` statis ok (binary 2.67 MB), smoke test emit JSON valid; Pint passed; PHPUnit Unit 13 passed.
+- **Penting buat deploy teman:** `bin/kv-snmp-poller` di-gitignore → setelah `git pull` WAJIB rebuild (`go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller` atau `install.sh`), lalu `php artisan queue:restart` + re-poll OLT agar cache slot 1 terisi benar. Perubahan PHP cukup `php artisan config:cache` bila perlu (kode otomatis terpakai untuk refresh on-demand).

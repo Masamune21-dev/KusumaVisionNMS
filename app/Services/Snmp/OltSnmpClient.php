@@ -367,10 +367,21 @@ class OltSnmpClient
 
             [$ifIndex, $onuId] = $index;
             $suffix = "{$ifIndex}.{$onuId}";
-            $portRow = $portMap[$ifIndex] ?? null;
-            [$slot, $port] = $portRow
-                ? [(int) $portRow['slot'], (int) $portRow['port']]
-                : $this->decodeIfIndex($olt, $ifIndex);
+
+            // C300/C320: the ZTE ONU-table prefix index self-encodes slot/port, so
+            // decode it directly. The portMap is keyed by the IF-MIB GPON-port
+            // if-index — a different numbering whose slot-2 range numerically
+            // collides with slot-1 ONU prefixes (ONU 1/P prefix == gpon_1/2/(P+1)
+            // if-index), which would mis-bind every slot-1 ONU onto a slot-2 port.
+            // C600 keeps the legacy port-map path (untested for this collision).
+            if ($isC600) {
+                $portRow = $portMap[$ifIndex] ?? null;
+                [$slot, $port] = $portRow
+                    ? [(int) $portRow['slot'], (int) $portRow['port']]
+                    : $this->decodeIfIndex($olt, $ifIndex);
+            } else {
+                [$slot, $port] = $this->decodeIfIndex($olt, $ifIndex);
+            }
             $phaseRaw = $this->intFromWalk($phaseStates, $oids['phase_state'], $suffix);
             $adminRaw = $this->intFromWalk($adminStates, $oids['admin_state'], $suffix);
             $lastDownRaw = $this->intFromWalk($lastDownCauses, $oids['last_down'], $suffix);

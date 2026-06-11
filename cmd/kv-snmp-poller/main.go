@@ -346,6 +346,10 @@ func (c *collector) registeredOnus(ports []portRow) ([]onuRow, error) {
 		}
 
 		suffix := fmt.Sprintf("%d.%d", ifIndex, onuID)
+		// ifIndex here is the ONU-table prefix index, which self-encodes slot/port.
+		// portMap is keyed by that same prefix index (see buildPortMap), so this
+		// binds the ONU to its real parent port and inherits the port's
+		// name-derived slot/port — without colliding across slots.
 		slot, port := decodeIfIndex(ifIndex)
 		if portRow, ok := portMap[ifIndex]; ok {
 			slot = portRow.Slot
@@ -653,9 +657,20 @@ func decodeIfIndex(ifIndex int) (int, int) {
 func buildPortMap(ports []portRow) map[int]portRow {
 	m := map[int]portRow{}
 	for _, port := range ports {
-		m[port.IfIndex] = port
+		// Key by the ZTE ONU-table prefix index (0x10000000|slot<<16|port<<8) —
+		// the value the ONU table uses to reference its parent port — NOT the raw
+		// IF-MIB port if-index. The two numberings overlap: a slot-1 ONU prefix
+		// equals the IF-MIB if-index of gpon_1/2/(port+1), so keying by if-index
+		// mis-binds every slot-1 ONU onto a slot-2 port.
+		m[onuPortPrefixIndex(port.Slot, port.Port)] = port
 	}
 	return m
+}
+
+// onuPortPrefixIndex returns the ZTE C300/C320 ONU-table prefix index for a
+// GPON port (matches decodeIfIndex: slot at bits 23-16, port at bits 15-8).
+func onuPortPrefixIndex(slot, port int) int {
+	return 0x10000000 | (slot << 16) | (port << 8)
 }
 
 func intPointerFromString(value string) *int {
