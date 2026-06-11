@@ -30,6 +30,11 @@ const tcontProfiles = computed(() => props.profiles.tcont ?? []);
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
 
+const serviceModes = [
+    { value: 'vlanpri', label: 'VLAN + Priority' },
+    { value: 'transparent', label: 'Transparent' },
+];
+
 watch(() => form.vlan_profile, (name) => {
     const profile = vlanProfiles.value.find((item) => item.name === name);
     if (!profile) {
@@ -161,10 +166,33 @@ const submit = () => {
                                 </select>
                                 <InputError class="mt-1.5" :message="form.errors.vlan_profile" />
                             </div>
-                            <div class="md:col-span-2">
+                            <div>
                                 <InputLabel for="service_name" value="Service Name" />
                                 <TextInput id="service_name" v-model="form.service_name" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.service_name" />
+                            </div>
+                            <div>
+                                <InputLabel value="Service Mapping Mode" />
+                                <div class="mt-1 flex flex-wrap gap-2">
+                                    <button
+                                        v-for="opt in serviceModes"
+                                        :key="opt.value"
+                                        type="button"
+                                        class="rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-1"
+                                        :class="form.service_mode === opt.value
+                                            ? 'bg-cyan-500 text-white border-cyan-500'
+                                            : 'bg-slate-900/40 backdrop-blur-xl border border-white/10 text-slate-200 hover:border-cyan-500/40'"
+                                        @click="form.service_mode = opt.value"
+                                    >
+                                        {{ opt.label }}
+                                    </button>
+                                </div>
+                                <p class="mt-1.5 text-xs text-slate-500">
+                                    {{ form.service_mode === 'transparent'
+                                        ? 'CLI: service ' + (form.service_name || 'ServiceName') + ' gemport 1 (tanpa cos/vlan).'
+                                        : 'CLI: service ' + (form.service_name || 'ServiceName') + ' gemport 1 cos 0 vlan ' + (form.vlan || '—') + '.' }}
+                                </p>
+                                <InputError class="mt-1.5" :message="form.errors.service_mode" />
                             </div>
                         </div>
                     </div>

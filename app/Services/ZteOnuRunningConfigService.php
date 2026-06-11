@@ -154,13 +154,15 @@ class ZteOnuRunningConfigService
             return;
         }
 
-        if (preg_match('/^service\s+(\S+)(?:\s+type\s+(\S+))?\s+gemport\s+(\d+)\s+cos\s+(\d+)\s+vlan\s+(\d+)/i', $line, $m)) {
+        if (preg_match('/^service\s+(\S+)(?:\s+type\s+(\S+))?\s+gemport\s+(\d+)(?:\s+cos\s+(\d+)\s+vlan\s+(\d+))?/i', $line, $m)) {
+            $hasVlan = isset($m[5]) && $m[5] !== '';
             $config['services'][] = [
                 'name' => $m[1],
-                'type' => $m[2] !== '' ? $m[2] : null,
+                'type' => ($m[2] ?? '') !== '' ? $m[2] : null,
+                'mode' => $hasVlan ? 'vlanpri' : 'transparent',
                 'gem' => (int) $m[3],
-                'cos' => (int) $m[4],
-                'vlan' => (int) $m[5],
+                'cos' => $hasVlan ? (int) $m[4] : 0,
+                'vlan' => $hasVlan ? (int) $m[5] : null,
             ];
 
             return;

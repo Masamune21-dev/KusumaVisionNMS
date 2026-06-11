@@ -69,7 +69,7 @@ const nextId = (rows) => (rows.length ? Math.max(...rows.map((r) => Number(r.id)
 const addTcont = () => cfg.tconts.push({ id: nextId(cfg.tconts), name: '1', profile: tcontProfiles.value[0]?.name ?? '', gap: 'mode0' });
 const addGemport = () => cfg.gemports.push({ id: nextId(cfg.gemports), name: '1', tcont: 1, traffic_up: '', traffic_down: '' });
 const addServicePort = () => cfg.service_ports.push({ id: nextId(cfg.service_ports), vport: 1, user_vlan: null, vlan: null });
-const addService = () => cfg.services.push({ name: '', type: null, gem: 1, cos: 0, vlan: null });
+const addService = () => cfg.services.push({ name: '', type: null, mode: 'vlanpri', gem: 1, cos: 0, vlan: null });
 const addVlanPort = () => cfg.vlan_ports.push({ port_type: 'eth', port: 1, mode: 'hybrid', vlan: null, def_vlan: null, priority: null });
 const addWanService = () => cfg.wan_services.push({ id: nextId(cfg.wan_services), ethuni: '', ssid: '', service: '', mvlan: '', host: '' });
 const removeRow = (rows, index) => rows.splice(index, 1);
@@ -156,7 +156,7 @@ const cols = {
     tcont: '4rem minmax(8rem,1fr) minmax(8rem,1fr) minmax(6rem,1fr) 2.75rem',
     gemport: '4rem minmax(7rem,1fr) 6rem minmax(7rem,1fr) minmax(7rem,1fr) 2.75rem',
     servicePort: '4rem minmax(6rem,1fr) minmax(7rem,1fr) minmax(6rem,1fr) 2.75rem',
-    service: 'minmax(8rem,1.4fr) minmax(8rem,1.2fr) 5rem 5rem minmax(5rem,1fr) 2.75rem',
+    service: 'minmax(8rem,1.3fr) minmax(6rem,1fr) minmax(8rem,1fr) 4rem 4rem minmax(5rem,1fr) 2.75rem',
     uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
     wanService: '4rem minmax(6rem,1fr) minmax(6rem,1fr) minmax(7rem,1fr) minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
 };
@@ -355,14 +355,20 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                                 <div class="space-y-3 md:min-w-[720px] md:space-y-1.5">
                                     <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.service }">
-                                        <span>Name</span><span>Type</span><span>GEM</span><span>COS</span><span>VLAN</span><span></span>
+                                        <span>Name</span><span>Mode</span><span>Type</span><span>GEM</span><span>COS</span><span>VLAN</span><span></span>
                                     </div>
                                     <div v-for="(row, i) in cfg.services" :key="`sv-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.service } : null">
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Mode</span>
+                                            <select v-model="row.mode" :class="fieldClass">
+                                                <option value="vlanpri">VLAN+Priority</option>
+                                                <option value="transparent">Transparent</option>
+                                            </select>
+                                        </div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Type</span><TextInput v-model="row.type" :class="fieldClass" placeholder="internet/iptv" /></div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">GEM</span><TextInput v-model.number="row.gem" type="number" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">COS</span><TextInput v-model.number="row.cos" type="number" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">COS</span><TextInput v-model.number="row.cos" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
                                         <div class="kv-cell kv-action-cell">
                                             <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
                                         </div>

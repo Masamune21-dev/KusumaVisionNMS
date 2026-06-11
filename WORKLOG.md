@@ -1584,3 +1584,23 @@ Notes:
 - Diverifikasi di server ini: build statis menghasilkan `statically linked` (binary 2.67 MB vs 3.96 MB dynamic), smoke test → `"ok":true`. Build uji dilakukan ke `/tmp` agar binary produksi yang sedang dipakai worker tidak terganggu; `bash -n install.sh` lolos.
 - Hanya menyentuh `install.sh` (alur deploy fresh) — aplikasi yang sudah berjalan tidak terdampak.
 - Bukti Go benar-benar terpakai saat runtime: `snmp_olts.last_test_result::jsonb ->> 'go_poller_error'` bernilai null pada OLT id=1 & id=2 (poll nyata via Go, bukan fallback).
+
+## 2026-06-11
+
+### Pilihan Service Mapping Mode (VLAN+Priority / Transparent) di provisioning & configure ONU
+
+Changed:
+
+- `app/Services/ZteProvisioningScriptBuilder.php` — helper baru `serviceLine()`; baca `service_mode` dari data form. Mode `transparent` emit `service NAME gemport 1` (tanpa cos/vlan), mode `vlanpri` (default) tetap `service NAME gemport 1 cos 0 vlan {vlan}`.
+- `app/Services/ZteOnuRunningConfigService.php` — regex parser service kini menjadikan `cos X vlan Y` opsional; baris tanpa cos/vlan → `mode = transparent` (vlan null), dengan cos/vlan → `mode = vlanpri`. Mencegah service transparent terbaca sebagai "berubah" saat diff.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `diffServices()` & `fmtService()` mendukung per-baris `mode`; saat transparent, `vlan` boleh kosong dan baris hanya emit `gemport N`.
+- `app/Http/Controllers/SmartOltController.php` — default form `service_mode: 'vlanpri'` + aturan validasi `service_mode` (provisioning) dan `config.services.*.mode` (reconfigure), keduanya `in:vlanpri,transparent`.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — toggle "Service Mapping Mode" di samping Service Name + preview CLI live.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — kolom **Mode** (dropdown) di tabel service; input COS/VLAN otomatis disabled saat transparent; `addService()` default `mode: 'vlanpri'`.
+- `tests/Unit/ZteOnuConfigureTest.php` — 3 test baru (parser vlanpri/transparent, switch reconfigure ke transparent, builder provisioning transparent vs vlanpri).
+
+Notes:
+
+- Latar masalah: di sesama OLT C320, sebagian ONU tidak konek di mode VLAN+Priority (`service ... cos 0 vlan 125`) tapi konek di mode Transparent (`service ... gemport 1`). Disamakan dengan pilihan mode mapping di GUI ZTE NetNumen (VLAN+Priority vs Transparent).
+- `service_mode` **tidak** dipersist ke tabel `smartolt_onu_registrations` (bukan di `$fillable`, jadi Laravel silently discard seperti `is_c600`) — modenya sudah terekam implisit di kolom `cli_script` audit. Tidak perlu migrasi.
+- Verifikasi: `php artisan test tests/Unit/ZteOnuConfigureTest.php` → 9 passed (52 assertions); `npm run build` sukses; Pint passed. Feature test `SmartOltInventoryTest` yang gagal 419 adalah gotcha config cache produksi, bukan dari perubahan ini.

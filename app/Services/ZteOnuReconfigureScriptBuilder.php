@@ -182,12 +182,14 @@ class ZteOnuReconfigureScriptBuilder
             $gem = (int) ($row['gem'] ?? 1);
             $cos = (int) ($row['cos'] ?? 0);
             $vlan = (int) ($row['vlan'] ?? 0);
-            if ($name === '' || $vlan < 1) {
+            $mode = strtolower($this->str($row['mode'] ?? 'vlanpri')) === 'transparent' ? 'transparent' : 'vlanpri';
+            // Mode transparent tidak memetakan vlan/cos, jadi vlan boleh kosong.
+            if ($name === '' || ($mode !== 'transparent' && $vlan < 1)) {
                 continue;
             }
 
             $prev = $base[$name] ?? null;
-            $newDesc = "gemport {$gem} cos {$cos} vlan {$vlan}";
+            $newDesc = $mode === 'transparent' ? "gemport {$gem}" : "gemport {$gem} cos {$cos} vlan {$vlan}";
             if ($prev === null || $this->fmtService($prev) !== $newDesc) {
                 $lines[] = "service {$name} {$newDesc}";
                 $changes[] = $this->change("Service {$name}", $this->fmtService($prev), $newDesc);
@@ -434,7 +436,16 @@ class ZteOnuReconfigureScriptBuilder
 
     private function fmtService(?array $row): string
     {
-        return $row ? sprintf('gemport %d cos %d vlan %d', (int) ($row['gem'] ?? 0), (int) ($row['cos'] ?? 0), (int) ($row['vlan'] ?? 0)) : '';
+        if (! $row) {
+            return '';
+        }
+
+        $gem = (int) ($row['gem'] ?? 0);
+        if (strtolower($this->str($row['mode'] ?? '')) === 'transparent') {
+            return "gemport {$gem}";
+        }
+
+        return sprintf('gemport %d cos %d vlan %d', $gem, (int) ($row['cos'] ?? 0), (int) ($row['vlan'] ?? 0));
     }
 
     private function fmtWanService(?array $row): string

@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuReconfigureScriptBuilder;
 use App\Services\ZteOnuRunningConfigService;
+use App\Services\ZteProvisioningScriptBuilder;
 use PHPUnit\Framework\TestCase;
 
 class ZteOnuConfigureTest extends TestCase
@@ -144,5 +145,51 @@ RAW;
         $this->assertStringContainsString('vlan-profile PPPOEPATI', $delta['script']);
         $this->assertStringContainsString('tr069-mgmt 1 state lock', $delta['script']);
         $this->assertStringContainsString('security-mgmt 212 state disable', $delta['script']);
+    }
+
+    public function test_parses_service_mode_vlanpri_and_transparent(): void
+    {
+        $vlanpri = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/1:3\n  service ServiceName gemport 1 cos 0 vlan 22\n"
+        );
+        $this->assertSame('vlanpri', $vlanpri['services'][0]['mode']);
+        $this->assertSame(22, $vlanpri['services'][0]['vlan']);
+
+        $transparent = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/1:3\n  service ServiceName gemport 1\n"
+        );
+        $this->assertSame('transparent', $transparent['services'][0]['mode']);
+        $this->assertNull($transparent['services'][0]['vlan']);
+        $this->assertSame(1, $transparent['services'][0]['gem']);
+    }
+
+    public function test_reconfigure_switch_service_to_transparent(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        $target['services'] = [
+            ['name' => 'ServiceName', 'type' => null, 'mode' => 'transparent', 'gem' => 1, 'cos' => 0, 'vlan' => null],
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('service ServiceName gemport 1', $delta['script']);
+        $this->assertStringNotContainsString('service ServiceName gemport 1 cos', $delta['script']);
+    }
+
+    public function test_provisioning_builder_emits_transparent_service_line(): void
+    {
+        $data = [
+            'slot' => 1, 'port' => 2, 'onu_id' => 3, 'serial_number' => 'ZTEGabc12345',
+            'customer_name' => 'Budi', 'onu_type' => 'ALL-ONT', 'tcont_profile' => 'SERVER',
+            'vlan' => 125, 'service_name' => 'ServiceName', 'wan_mode' => 'dhcp',
+        ];
+
+        $vlanpri = (new ZteProvisioningScriptBuilder)->build($data + ['service_mode' => 'vlanpri']);
+        $this->assertStringContainsString('service ServiceName gemport 1 cos 0 vlan 125', $vlanpri);
+
+        $transparent = (new ZteProvisioningScriptBuilder)->build($data + ['service_mode' => 'transparent']);
+        $this->assertStringContainsString("service ServiceName gemport 1\n", $transparent."\n");
+        $this->assertStringNotContainsString('cos 0 vlan', $transparent);
     }
 }

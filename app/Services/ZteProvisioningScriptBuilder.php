@@ -20,6 +20,7 @@ class ZteProvisioningScriptBuilder
         $tcontProfile = (string) ($data['tcont_profile'] ?? 'SERVER');
         $vlan = (int) $data['vlan'];
         $serviceName = (string) ($data['service_name'] ?? 'ServiceName');
+        $serviceMode = (string) ($data['service_mode'] ?? 'vlanpri');
         $wanLine = $this->wanLine($data, $name);
         $description = "{$onuId}\$\${$name}\$\$";
         $isC600 = (bool) ($data['is_c600'] ?? false);
@@ -50,7 +51,7 @@ class ZteProvisioningScriptBuilder
             'exit',
             '',
             "pon-onu-mng {$onuIface}",
-            "service {$serviceName} gemport 1 cos 0 vlan {$vlan}",
+            $this->serviceLine($serviceName, $serviceMode, $vlan),
             ...$this->tr069Lines($data),
             $wanLine,
             $this->remoteOntLine($data),
@@ -59,6 +60,20 @@ class ZteProvisioningScriptBuilder
         ]);
 
         return implode("\n", array_filter($lines, fn (?string $line) => $line !== null));
+    }
+
+    /**
+     * Service mapping line. Mode `transparent` melewatkan trafik apa adanya
+     * (tanpa cos/vlan) — beberapa firmware C320 hanya konek di mode ini;
+     * mode `vlanpri` (VLAN+Priority) memetakan cos 0 + vlan.
+     */
+    private function serviceLine(string $serviceName, string $mode, int $vlan): string
+    {
+        if (strtolower($mode) === 'transparent') {
+            return "service {$serviceName} gemport 1";
+        }
+
+        return "service {$serviceName} gemport 1 cos 0 vlan {$vlan}";
     }
 
     /**
