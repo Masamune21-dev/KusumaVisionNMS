@@ -115,6 +115,16 @@ Lapor jumlah dispatched/skipped.
   `last_tested_at/last_polled_at` (dan `last_rx_polled_at` bila RX sukses).
 - Panggil `AlarmEvaluator::evaluate($olt, $previousSnapshot)` → raise/clear alarm.
 - Catat `PollingEvent` (`olt_poll`, dan `rx_poll` bila due). `failed()` mencatat kegagalan.
+- **Time-series RX**: bila RX poll sukses, `recordRxSamples()` bulk-insert satu titik per ONU
+  ber-nilai RX numerik ke tabel `onu_rx_samples` (`polled_at = now`). Hanya saat sukses → tidak
+  menulis nilai yang di-preserve. Dipakai histogram distribusi (ONU Monitoring) & grafik tren
+  (ONU Detail, `OnuRxSample::seriesFor`).
+
+### Retensi RX (`optical:prune-rx`)
+`PruneOnuRxSamplesCommand` menghapus sample `onu_rx_samples` melewati masa retensi (default
+`config('services.snmp_poller.rx_sample_retention_days')` = 90, env `SNMP_POLLER_RX_RETENTION_DAYS`;
+override `--days=`). Hapus bertahap (pilih id → `whereIn`, portabel sqlite/pgsql). Dijadwalkan
+harian 03:15 di `routes/console.php`.
 
 ### Struktur `port_onus` di cache
 Lihat [02 — Arsitektur](02-arsitektur.md#cache-live-state-snmp_oltslast_test_result). ONU dibucket

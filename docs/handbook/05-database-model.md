@@ -17,6 +17,7 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `smartolt_interface_statuses` | `SmartOltInterfaceStatus` | Status interface uplink/GPON + metrik optik/trafik |
 | `alarm_events` | `AlarmEvent` | Alarm aktif/cleared |
 | `polling_events` | `PollingEvent` | Log tiap polling/test/provisioning (untuk tren dashboard) |
+| `onu_rx_samples` | `OnuRxSample` | Time-series RX power per ONU (histogram distribusi & grafik tren) |
 | `telegram_settings` | `TelegramSetting` | Singleton konfigurasi bot Telegram |
 | `general_settings` | `GeneralSetting` | Singleton branding (nama app, versi, logo) |
 | `audit_logs` | `AuditLog` | Jejak audit immutable |
@@ -110,6 +111,13 @@ Konstanta status & severity ada di model. Diisi `AlarmEvaluator`.
 `kind` (`olt_test`/`olt_poll`/`rx_poll`/`provisioning`), `success`, `message`, `duration_ms`,
 `is_demo`. Helper `PollingEvent::log($oltId,$kind,$success,$message,$durationMs)`. Dipakai dashboard
 untuk tren.
+
+### `onu_rx_samples`
+Time-series RX power per ONU: `snmp_olt_id`, `slot/port/onu_id`, `serial_number`, `rx_power_dbm`,
+`polled_at` (tanpa `timestamps`). Composite index `onu_rx_samples_lookup_idx`. Diisi `PollOltJob`
+saat RX poll sukses; dibaca via `OnuRxSample::seriesFor()` (grafik tren ONU Detail). Retensi via
+command `optical:prune-rx` (lihat [08 — SNMP & Polling](08-snmp-polling.md)). Tanpa `DemoScope` —
+isolasi cukup lewat OLT (route ke ONU Detail di-bind ke `SnmpOlt` yang sudah ter-scope).
 
 ### `telegram_settings` (singleton)
 `enabled`, `bot_token(enc)`, `chat_id` (boleh banyak, dipisah spasi/koma), `webhook_secret(enc)`,

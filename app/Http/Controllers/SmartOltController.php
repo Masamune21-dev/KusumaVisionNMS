@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
@@ -19,6 +20,7 @@ use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -625,12 +627,21 @@ class SmartOltController extends Controller
         }
     }
 
-    public function onuDetail(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
+    public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
     {
         $this->assertCapability($olt, 'supports_cli_onu_detail');
 
-        $live = $service->fetch($olt, $slot, $port, $onuId);
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
+
+        $range = $this->rxRange($request->query('range'));
+        $rxHistory = OnuRxSample::seriesFor($olt->id, $slot, $port, $onuId, $range['since']);
+
+        // Live CLI fetch (telnet) di-defer ke closure agar partial reload — mis. saat ganti
+        // rentang grafik tren (only: rx_history) — tidak memicu sesi telnet baru.
+        $live = null;
+        $resolveLive = function () use (&$live, $service, $olt, $slot, $port, $onuId): array {
+            return $live ??= $service->fetch($olt, $slot, $port, $onuId);
+        };
 
         return Inertia::render('SmartOlt/OnuDetail', [
             'olt' => $this->serializeOlt($olt),
@@ -642,11 +653,31 @@ class SmartOltController extends Controller
                 'sn' => $cached['serial_number'] ?? null,
                 'name' => $cached['name'] ?? null,
             ],
-            'groups' => $live['groups'],
-            'raw' => $live['raw'],
-            'fetch_ok' => $live['ok'],
-            'fetch_error' => $live['error'],
+            'groups' => fn () => $resolveLive()['groups'],
+            'raw' => fn () => $resolveLive()['raw'],
+            'fetch_ok' => fn () => $resolveLive()['ok'],
+            'fetch_error' => fn () => $resolveLive()['error'],
+            'rx_history' => $rxHistory,
+            'range' => $range['key'],
         ]);
+    }
+
+    /**
+     * Petakan rentang waktu grafik tren RX ke titik mulai (default 7 hari).
+     *
+     * @return array{key:string, since:Carbon}
+     */
+    private function rxRange(?string $range): array
+    {
+        $key = in_array($range, ['24h', '7d', '30d'], true) ? $range : '7d';
+
+        $since = match ($key) {
+            '24h' => now()->subDay(),
+            '30d' => now()->subDays(30),
+            default => now()->subDays(7),
+        };
+
+        return ['key' => $key, 'since' => $since];
     }
 
     public function configureOnuForm(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuRunningConfigService $service): Response

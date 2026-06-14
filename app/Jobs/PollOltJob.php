@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
@@ -126,6 +127,10 @@ class PollOltJob implements ShouldQueue
 
         $olt->forceFill($updates)->save();
 
+        if ($rxPollSucceeded && is_array($onus)) {
+            $this->recordRxSamples($olt->id, $onus, $now);
+        }
+
         $alarms->evaluate($olt, $previousSnapshot);
 
         PollingEvent::log(
@@ -154,6 +159,39 @@ class PollOltJob implements ShouldQueue
             false,
             $exception?->getMessage(),
         );
+    }
+
+    /**
+     * Simpan satu titik time-series RX power per ONU (hanya yang punya nilai numerik).
+     * Dipanggil hanya saat RX poll sukses agar tidak menulis nilai yang di-preserve.
+     *
+     * @param  array<int, array<string, mixed>>  $onus
+     */
+    private function recordRxSamples(int $oltId, array $onus, Carbon $polledAt): void
+    {
+        $rows = [];
+
+        foreach ($onus as $onu) {
+            $rx = $onu['rx_power_dbm'] ?? null;
+
+            if (! is_numeric($rx)) {
+                continue;
+            }
+
+            $rows[] = [
+                'snmp_olt_id' => $oltId,
+                'slot' => (int) ($onu['slot'] ?? 0),
+                'port' => (int) ($onu['port'] ?? 0),
+                'onu_id' => (int) ($onu['onu_id'] ?? 0),
+                'serial_number' => $onu['serial_number'] ?? null,
+                'rx_power_dbm' => round((float) $rx, 2),
+                'polled_at' => $polledAt,
+            ];
+        }
+
+        if ($rows !== []) {
+            OnuRxSample::insert($rows);
+        }
     }
 
     /**

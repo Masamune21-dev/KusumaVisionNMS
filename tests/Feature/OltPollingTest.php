@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\PollOltJob;
+use App\Models\OnuRxSample;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\Snmp\OltSnmpClient;
@@ -272,5 +273,42 @@ class OltPollingTest extends TestCase
 
         $this->assertNull($olt->last_polled_at);
         $this->assertNull($olt->last_test_result);
+    }
+
+    public function test_poll_job_records_rx_power_samples_when_rx_poll_succeeds(): void
+    {
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient([
+            '268501760.1' => [
+                'if_index' => 268501760,
+                'onu_id' => 1,
+                'rx_power_port' => 1,
+                'raw_rx_power' => 5635,
+                'rx_power_dbm' => -18.73,
+                'rx_power_label' => '-18.730 dBm',
+                'rx_power_source' => 'snmp_onu_rx',
+            ],
+        ]), new AlarmEvaluator);
+
+        $this->assertDatabaseCount('onu_rx_samples', 1);
+
+        $sample = OnuRxSample::first();
+        $this->assertSame($olt->id, $sample->snmp_olt_id);
+        $this->assertSame(1, $sample->slot);
+        $this->assertSame(1, $sample->port);
+        $this->assertSame(1, $sample->onu_id);
+        $this->assertSame('ZTEG1', $sample->serial_number);
+        $this->assertEqualsWithDelta(-18.73, $sample->rx_power_dbm, 0.001);
+        $this->assertNotNull($sample->polled_at);
+    }
+
+    public function test_poll_job_does_not_record_rx_samples_when_rx_walk_fails(): void
+    {
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(rxError: 'SNMP walk failed'), new AlarmEvaluator);
+
+        $this->assertDatabaseCount('onu_rx_samples', 0);
     }
 }

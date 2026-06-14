@@ -1,13 +1,15 @@
 <script setup>
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import RxTrendCard from '@/Components/SmartOlt/RxTrendCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
     Activity, ArrowLeft, ChevronDown, Clock, Fingerprint, Gauge, ListChecks,
-    RefreshCw, Settings, Signal, Terminal, Thermometer, Zap,
+    RefreshCw, Settings, Signal, Terminal, Zap,
 } from '@lucide/vue';
 import { computed } from 'vue';
+import VueApexCharts from 'vue3-apexcharts';
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -20,6 +22,8 @@ const props = defineProps({
     raw: { type: String, default: '' },
     fetch_ok: { type: Boolean, default: false },
     fetch_error: { type: String, default: null },
+    rx_history: { type: Array, default: () => [] },
+    range: { type: String, default: '7d' },
 });
 
 const ifaceLabel = computed(() => props.interface);
@@ -39,9 +43,6 @@ const rxVal = computed(() => num(optical.value.rx_power_dbm ?? optical.value.onu
 const txVal = computed(() => num(optical.value.tx_power_dbm ?? optical.value.onu_tx_dbm));
 const attUp = computed(() => num(optical.value.att_up_db));
 const attDown = computed(() => num(optical.value.att_down_db));
-const temp = computed(() => num(optical.value.temperature_c));
-const volt = computed(() => num(optical.value.voltage_v));
-const bias = computed(() => num(optical.value.bias_current_ma));
 const distance = computed(() => num(optical.value.distance_m));
 const duration = computed(() => num(state.value.online_duration));
 
@@ -49,7 +50,7 @@ const online = computed(() => {
     const s = `${state.value.phase_state ?? ''} ${state.value.state ?? ''}`.toLowerCase();
     return /work|online|\bup\b|o5|los_off/.test(s) && !/offline|los\b|dying/.test(s);
 });
-const hasOptical = computed(() => rxVal.value !== null || txVal.value !== null || temp.value !== null);
+const hasOptical = computed(() => rxVal.value !== null || txVal.value !== null);
 
 const rxTone = (v) => {
     if (v === null) return { text: 'text-slate-400', ring: 'ring-slate-500/30', bg: 'bg-slate-800/60' };
@@ -58,8 +59,48 @@ const rxTone = (v) => {
     return { text: 'text-emerald-300', ring: 'ring-emerald-500/30', bg: 'bg-emerald-500/15' };
 };
 const rxToneCur = computed(() => rxTone(rxVal.value));
-const rxPct = computed(() => (rxVal.value === null ? 0 : clampPct(rxVal.value, -30, -5)));
-const rxGradient = 'linear-gradient(to right, #ef4444 0%, #ef4444 8%, #f59e0b 8%, #f59e0b 20%, #10b981 20%, #10b981 80%, #f59e0b 80%, #f59e0b 88%, #ef4444 88%, #ef4444 100%)';
+
+// Warna zona (hex) untuk gauge speedometer RX.
+const rxHex = (v) => {
+    if (v === null) return '#64748b';
+    if (v <= -28 || v >= -8) return '#ef4444';
+    if (v <= -25 || v >= -10) return '#f59e0b';
+    return '#10b981';
+};
+const rxZoneLabel = computed(() => {
+    if (rxVal.value === null) return '—';
+    if (rxVal.value <= -28 || rxVal.value >= -8) return 'Kritis';
+    if (rxVal.value <= -25 || rxVal.value >= -10) return 'Warning';
+    return 'Sehat';
+});
+// Petakan RX (-30…-5 dBm) ke 0…100% busur gauge.
+const rxGaugePct = computed(() => (rxVal.value === null ? 0 : clampPct(rxVal.value, -30, -5)));
+const rxGaugeSeries = computed(() => [Math.round(rxGaugePct.value * 10) / 10]);
+const rxGaugeOptions = computed(() => ({
+    chart: { type: 'radialBar', background: 'transparent', sparkline: { enabled: true }, animations: { enabled: false } },
+    plotOptions: {
+        radialBar: {
+            startAngle: -135,
+            endAngle: 135,
+            hollow: { size: '68%' },
+            track: { background: 'rgba(148,163,184,0.15)', strokeWidth: '100%' },
+            dataLabels: {
+                name: { show: true, offsetY: 30, color: '#94a3b8', fontSize: '12px' },
+                value: {
+                    show: true,
+                    offsetY: -12,
+                    color: rxHex(rxVal.value),
+                    fontSize: '24px',
+                    fontWeight: 700,
+                    formatter: () => (rxVal.value === null ? '—' : rxVal.value.toFixed(2)),
+                },
+            },
+        },
+    },
+    fill: { colors: [rxHex(rxVal.value)] },
+    stroke: { lineCap: 'round' },
+    labels: [`dBm · ${rxZoneLabel.value}`],
+}));
 
 const attMeta = (v) => {
     if (v === null) return { color: 'bg-slate-600', label: '—' };
@@ -203,86 +244,55 @@ const refresh = () => router.reload({ preserveScroll: true });
                     </div>
                 </div>
 
-                <!-- Optical visualization -->
-                <section v-if="hasOptical" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                    <header class="flex items-center gap-2 border-b border-white/10 px-4 py-3 sm:px-6">
-                        <Signal class="h-4 w-4 text-cyan-400" />
-                        <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">Optical</h3>
-                    </header>
-                    <div class="grid gap-6 p-5 sm:p-6 lg:grid-cols-2">
-                        <!-- RX gauge -->
-                        <div>
-                            <div class="mb-2 flex items-end justify-between">
-                                <span class="text-xs font-medium uppercase tracking-wider text-slate-500">RX Power</span>
-                                <span class="text-lg font-bold" :class="rxToneCur.text">
-                                    {{ rxVal !== null ? rxVal.toFixed(2) + ' dBm' : '—' }}
-                                </span>
+                <!-- Optical (gauge) + tren RX power — 2 kolom -->
+                <div :class="hasOptical ? 'grid gap-5 xl:grid-cols-2' : ''">
+                    <!-- Optical visualization -->
+                    <section v-if="hasOptical" class="flex flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                        <header class="flex items-center gap-2 border-b border-white/10 px-4 py-3 sm:px-6">
+                            <Signal class="h-4 w-4 text-cyan-400" />
+                            <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">Optical</h3>
+                        </header>
+                        <div class="flex flex-1 flex-col p-5 sm:p-6">
+                            <!-- RX speedometer -->
+                            <div class="flex flex-col items-center">
+                                <VueApexCharts type="radialBar" height="220" width="100%" :options="rxGaugeOptions" :series="rxGaugeSeries" />
+                                <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+                                    <span class="rounded-full px-2 py-0.5 font-medium ring-1" :class="[rxToneCur.bg, rxToneCur.text, rxToneCur.ring]">RX Power</span>
+                                    <span class="text-slate-500">Zona aman <span class="text-emerald-400">-25…-10 dBm</span></span>
+                                </div>
                             </div>
-                            <div class="relative h-3 rounded-full ring-1 ring-white/10" :style="{ background: rxGradient }">
-                                <div
-                                    v-if="rxVal !== null"
-                                    class="absolute top-1/2 h-6 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.7)] ring-1 ring-slate-900/40"
-                                    :style="{ left: rxPct + '%' }"
-                                ></div>
-                            </div>
-                            <div class="mt-1 flex justify-between text-[10px] text-slate-500">
-                                <span>-30</span><span>-20</span><span>-10</span><span>-5 dBm</span>
-                            </div>
-                            <p class="mt-2 text-xs text-slate-500">Zona aman <span class="text-emerald-400">-25…-10 dBm</span></p>
-                        </div>
 
-                        <!-- TX + attenuation -->
-                        <div class="space-y-4">
-                            <div class="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                                <span class="flex items-center gap-2 text-sm text-slate-400"><Zap class="h-4 w-4 text-cyan-400" /> TX Power ONU</span>
-                                <span class="text-base font-semibold text-slate-100">{{ txVal !== null ? txVal.toFixed(2) + ' dBm' : '—' }}</span>
-                            </div>
-                            <div>
-                                <div class="mb-1 flex items-center justify-between text-xs">
-                                    <span class="text-slate-500">Atenuasi Up</span>
-                                    <span class="font-medium text-slate-300">{{ attUpMeta.label }}</span>
+                            <!-- TX + attenuation -->
+                            <div class="mt-5 space-y-4">
+                                <div class="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                    <span class="flex items-center gap-2 text-sm text-slate-400"><Zap class="h-4 w-4 text-cyan-400" /> TX Power ONU</span>
+                                    <span class="text-base font-semibold text-slate-100">{{ txVal !== null ? txVal.toFixed(2) + ' dBm' : '—' }}</span>
                                 </div>
-                                <div class="h-2 overflow-hidden rounded-full bg-slate-800">
-                                    <div class="h-full rounded-full transition-all" :class="attUpMeta.color" :style="{ width: clampPct(attUp ?? 0, 0, 32) + '%' }"></div>
+                                <div>
+                                    <div class="mb-1 flex items-center justify-between text-xs">
+                                        <span class="text-slate-500">Atenuasi Up</span>
+                                        <span class="font-medium text-slate-300">{{ attUpMeta.label }}</span>
+                                    </div>
+                                    <div class="h-2 overflow-hidden rounded-full bg-slate-800">
+                                        <div class="h-full rounded-full transition-all" :class="attUpMeta.color" :style="{ width: clampPct(attUp ?? 0, 0, 32) + '%' }"></div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <div class="mb-1 flex items-center justify-between text-xs">
-                                    <span class="text-slate-500">Atenuasi Down</span>
-                                    <span class="font-medium text-slate-300">{{ attDownMeta.label }}</span>
-                                </div>
-                                <div class="h-2 overflow-hidden rounded-full bg-slate-800">
-                                    <div class="h-full rounded-full transition-all" :class="attDownMeta.color" :style="{ width: clampPct(attDown ?? 0, 0, 32) + '%' }"></div>
+                                <div>
+                                    <div class="mb-1 flex items-center justify-between text-xs">
+                                        <span class="text-slate-500">Atenuasi Down</span>
+                                        <span class="font-medium text-slate-300">{{ attDownMeta.label }}</span>
+                                    </div>
+                                    <div class="h-2 overflow-hidden rounded-full bg-slate-800">
+                                        <div class="h-full rounded-full transition-all" :class="attDownMeta.color" :style="{ width: clampPct(attDown ?? 0, 0, 32) + '%' }"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    <!-- Optical chips -->
-                    <div class="grid gap-3 border-t border-white/10 px-5 py-4 sm:grid-cols-3 sm:px-6">
-                        <div class="flex items-center gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                            <Thermometer class="h-5 w-5 text-amber-400" />
-                            <div>
-                                <p class="text-[11px] uppercase tracking-wider text-slate-500">Temperature</p>
-                                <p class="text-sm font-semibold text-slate-100">{{ temp !== null ? temp + ' °C' : '—' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                            <Zap class="h-5 w-5 text-cyan-400" />
-                            <div>
-                                <p class="text-[11px] uppercase tracking-wider text-slate-500">Voltage</p>
-                                <p class="text-sm font-semibold text-slate-100">{{ volt !== null ? volt + ' V' : '—' }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                            <Activity class="h-5 w-5 text-emerald-400" />
-                            <div>
-                                <p class="text-[11px] uppercase tracking-wider text-slate-500">Bias Current</p>
-                                <p class="text-sm font-semibold text-slate-100">{{ bias !== null ? bias + ' mA' : '—' }}</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    <!-- RX power trend (historis) -->
+                    <RxTrendCard :history="rx_history" :range="range" />
+                </div>
 
                 <!-- Detail group cards -->
                 <div class="grid gap-5 lg:grid-cols-3">

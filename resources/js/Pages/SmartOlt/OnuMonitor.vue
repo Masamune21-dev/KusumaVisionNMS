@@ -1,6 +1,7 @@
 <script setup>
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import RxDistributionCard from '@/Components/SmartOlt/RxDistributionCard.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
@@ -312,6 +313,9 @@ const phaseDotClass = (onu) => {
                         <p class="mt-3 text-2xl font-bold text-slate-300">{{ stats.offline }}</p>
                     </div>
                 </div>
+
+                <!-- RX power distribution -->
+                <RxDistributionCard :onus="oltScopedOnus" />
 
                 <!-- ONU table card -->
                 <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">

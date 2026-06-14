@@ -55,6 +55,11 @@ Profile/Edit (+ Partials/*)    Auth/* (Breeze)
 `OnuStatusDonut`, `RecentAlarmsTable`, `ProvisioningTimeline`, `RemoteActionsGrid`,
 `OnuQuickActionModal`, `HeroBanner`.
 
+**SmartOlt (`Components/SmartOlt/`):** `RxDistributionCard` (histogram distribusi RX per zona —
+ApexCharts bar, dihitung client-side dari list ONU; dipakai ONU Monitoring), `RxTrendCard` (grafik
+tren RX power 24h/7d/30d + pita zona — props `rx_history`/`range`, toggle via `router.reload`
+partial; dipakai ONU Detail). Ambang zona = `rxLevel()` (kritis `<-28`/`≥-8`, warning, sehat).
+
 **Shell (`Components/Shell/`):** `GlobalSearch` (⌘K → `dashboard.search`), `NotificationBell`
 (pakai props `notifications` global), `UserMenu`, `SystemInfoPanel` (versi/uptime/users online),
 `AuroraBackground`, `ParticleNetwork`, `SidebarConstellation` (efek visual), **`TelnetWindow`**

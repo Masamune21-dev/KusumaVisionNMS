@@ -1,5 +1,64 @@
 # Worklog
 
+## 2026-06-14
+
+### Histori RX Power (time-series) + visualisasi distribusi & tren
+
+NMS sebelumnya tidak menyimpan data historis apa pun — polling hanya menulis snapshot terakhir ke
+`snmp_olts.last_test_result` + log event. Padahal riwayat **RX power** adalah indikator dini
+degradasi fiber/splitter (RX turun perlahan sebelum ONU mati). Slice pertama roadmap: simpan
+time-series RX per ONU dari job polling yang sudah ada, lalu tampilkan **histogram distribusi RX**
+lintas-ONU di ONU Monitoring dan **grafik tren RX 24h/7d/30d** per-ONU di ONU Detail. Ambang zona
+konsisten dengan yang sudah dipakai (`kritis < -28`, `warning -28..-25/-10..-8`, `sehat`, overload
+`≥ -8`) — sama dengan `rxLevel()` di OnuMonitor & `ReportService`.
+
+Created:
+
+- `database/migrations/2026_06_14_000000_create_onu_rx_samples_table.php` — tabel time-series
+  ringan (`snmp_olt_id`, `slot`, `port`, `onu_id`, `serial_number`, `rx_power_dbm`, `polled_at`)
+  + composite index `onu_rx_samples_lookup_idx` untuk query tren. Sqlite-compatible.
+- `app/Models/OnuRxSample.php` — model (`$timestamps = false`) + static `seriesFor()` (riwayat satu
+  ONU sejak `$since`, urut waktu menaik).
+- `app/Console/Commands/PruneOnuRxSamplesCommand.php` — `optical:prune-rx {--days=}` (default
+  `config services.snmp_poller.rx_sample_retention_days` = 90), hapus bertahap (pilih id → whereIn,
+  portabel sqlite/pgsql).
+- `resources/js/Components/SmartOlt/RxDistributionCard.vue` — histogram bin dBm (ApexCharts bar)
+  diwarnai per zona + legend ringkas (Sehat/Warning/Kritis). Dihitung client-side, tanpa ubah backend.
+- `resources/js/Components/SmartOlt/RxTrendCard.vue` — area chart RX vs waktu + pita zona +
+  toggle rentang (router.reload partial), ringkasan terakhir/rata-rata/tertinggi/terendah.
+- `tests/Feature/OnuRxHistoryTest.php` — `seriesFor` (filter range+urutan), prune command,
+  prop `rx_history` di route onu.detail (stub `ZteOnuDetailService` agar tak buka telnet).
+
+Changed:
+
+- `app/Jobs/PollOltJob.php` — `recordRxSamples()` bulk-insert sample RX **hanya saat RX poll
+  sukses** (pakai list `$onus` yang sudah di-merge, baik jalur Go poller maupun PHP).
+- `app/Http/Controllers/SmartOltController.php` — `onuDetail()` baca `range` (default 7d) →
+  `OnuRxSample::seriesFor`, kirim props `rx_history`+`range`. Props live CLI fetch dijadikan
+  **lazy closure** + memoized supaya partial reload (ganti rentang grafik) tidak memicu sesi telnet.
+- `config/services.php` — tambah `snmp_poller.rx_sample_retention_days` (env `SNMP_POLLER_RX_RETENTION_DAYS`).
+- `routes/console.php` — jadwal `optical:prune-rx` harian 03:15.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — render `RxDistributionCard` (data `oltScopedOnus`)
+  di bawah stat cards.
+- `resources/js/Pages/SmartOlt/OnuDetail.vue` — props `rx_history`/`range`. Panel **Optical**
+  diubah: RX power jadi **speedometer** (ApexCharts radialBar, busur diwarnai per zona + nilai dBm
+  di tengah), Optical & **Tren RX Power** disusun **2 kolom** (`xl:grid-cols-2`), kartu
+  Temperature/Voltage/Bias Current dihapus (selalu kosong di firmware ini).
+- `tests/Feature/OltPollingTest.php` — 2 test baru: sample tercatat saat RX sukses; tidak tercatat
+  saat RX walk gagal.
+
+Notes:
+
+- Diverifikasi: `./vendor/bin/pint` bersih, `php artisan test` **129 passed**, `npm run build` sukses.
+- Gotcha terulang: `php artisan test` nyasar ke **pgsql** karena config ter-cache override
+  `phpunit.xml` → `config:clear` dulu (test pakai sqlite :memory:), lalu `config:cache` ulang.
+  Tidak ada kerusakan data (RefreshDatabase pakai transaksi yang di-rollback).
+- Deploy diterapkan di server: `config:cache`, `php artisan migrate --force` (tabel onu_rx_samples
+  dibuat di pgsql), `npm run build`, `queue:restart` (worker pakai PollOltJob baru). Sample akan
+  mulai terisi pada siklus RX poll berikutnya.
+- Di luar scope (slice berikutnya): sparkline per-baris di OnuMonitor, tren TX/suhu & trafik per-PON,
+  peta geografis OLT, live push Reverb, bulk operations.
+
 ## 2026-06-02
 
 ### Kartu filter seragam — komponen FilterCard + toolbar satu baris lintas halaman

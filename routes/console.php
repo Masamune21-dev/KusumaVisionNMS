@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('olts:poll')->everyMinute()->withoutOverlapping();
+Schedule::command('optical:prune-rx')->dailyAt('03:15')->withoutOverlapping();

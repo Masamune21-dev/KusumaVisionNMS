@@ -43,6 +43,7 @@ return [
         'retries' => (int) env('SNMP_POLLER_RETRIES', 2),
         'walk_mode' => env('SNMP_POLLER_WALK_MODE', 'bulk'),
         'max_repetitions' => (int) env('SNMP_POLLER_MAX_REPETITIONS', 10),
+        'rx_sample_retention_days' => (int) env('SNMP_POLLER_RX_RETENTION_DAYS', 90),
     ],
 
 ];
