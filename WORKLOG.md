@@ -1681,3 +1681,16 @@ Notes:
 - Slot 2 & port 16 selamat karena prefix-nya **di atas** rentang if-index port tertinggi (gpon_1/2/16 = 268504832) → tak ada match di portMap → pakai decode (benar).
 - Verifikasi lokal: `go vet`/`go test` (3 test) ok, `go build` statis ok (binary 2.67 MB), smoke test emit JSON valid; Pint passed; PHPUnit Unit 13 passed.
 - **Penting buat deploy teman:** `bin/kv-snmp-poller` di-gitignore → setelah `git pull` WAJIB rebuild (`go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller` atau `install.sh`), lalu `php artisan queue:restart` + re-poll OLT agar cache slot 1 terisi benar. Perubahan PHP cukup `php artisan config:cache` bila perlu (kode otomatis terpakai untuk refresh on-demand).
+
+## 2026-06-15
+
+### Hapus kartu "Distribusi RX Power" di halaman ONU Monitoring
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — buang pemakaian `<RxDistributionCard :onus="oltScopedOnus" />` beserta import-nya; histogram distribusi RX power dihilangkan dari halaman monitoring.
+
+Notes:
+
+- Atas permintaan user — kartu histogram dirasa kurang pas di layout halaman. Hanya histogram distribusi yang dihapus; fitur RX power time-series & trend gauge dari commit sebelumnya tetap ada.
+- `oltScopedOnus` dibiarkan utuh (masih dipakai tabel ONU & statistik). File komponen `resources/js/Components/SmartOlt/RxDistributionCard.vue` ikut dihapus karena sudah tak ada referensi.
