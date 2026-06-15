@@ -1787,3 +1787,18 @@ Notes:
 
 - Atas permintaan user — sesuai layout fisik chassis C300, slot 0/1 memang bertumpuk. Logika `chassisColumns` yang ada otomatis menangani pasangan baru ini; tak perlu perubahan lain.
 - Verifikasi: `npm run build` sukses.
+
+### Faceplate kartu power (PRWG) & kontrol (SCXN) di visualisasi chassis
+
+Changed:
+
+- `resources/js/Components/SmartOlt/OltChassis.vue` — kartu yang sebelumnya tampil "tanpa port" sekarang digambar faceplate sesuai fisiknya (orientasi vertikal C300 & horizontal C320):
+  - Helper `isPowerCard()` (prefix `PRW`) & `isControlCard()` (prefix `SCX`).
+  - Kartu power (PRWG): konektor daya **-48V** (kotak amber 2 pin) + **2 port LAN RJ45** (kotak dengan garis pin emas, menghadap kiri), tersusun vertikal ke bawah.
+  - Kartu kontrol (SCXN): **3 port LAN manajemen** ditambahkan di bawah deretan port; kartu dibagi dua secara vertikal (4 port di tengah paruh atas, 3 LAN di tengah paruh bawah) via dua area `flex-1` yang masing-masing `justify-center`.
+
+Notes:
+
+- Atas permintaan user, beberapa iterasi tweak UI: arah hadap port LAN, ukuran, spacing, dan posisi (akhirnya port LAN power card & SCXN seragam — `h-5 w-7`, pin menghadap kiri).
+- Faceplate murni dekoratif (kartu power/kontrol tak bisa di-poll/klik), ikut tema `kv-*` (slate gelap, aksen amber).
+- Verifikasi: `npm run build` sukses (beberapa kali sepanjang iterasi).

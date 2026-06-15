@@ -21,6 +21,13 @@ const GPON_PREFIX = /^G[TF]/i;
 // Kartu uplink (selaras dgn ZteCardUplinkService): XGEI = 10GE, GEI = 1GE.
 const XGEI_CARDS = ['HUVQ', 'HUVG', 'HUVX'];
 const GEI_CARDS = ['SMXA', 'SMXB'];
+// Kartu catu daya (PRWG/PRWH/dll): tak punya port GPON/uplink, tapi fisiknya
+// ada konektor daya -48V + 2 port LAN RJ45 → digambar faceplate, bukan "tanpa port".
+const POWER_PREFIX = /^PRW/i;
+const isPowerCard = (card) => POWER_PREFIX.test(card?.cfg_type ?? '');
+// Kartu kontrol/switch (SCXN/SCXM/dll): selain port uplink ada 3 port LAN manajemen
+// di faceplate bagian bawah → digambar di bawah deretan port.
+const isControlCard = (card) => /^SCX/i.test(card?.cfg_type ?? '');
 
 // C320 = chassis kecil → kartu digambar sebagai strip horizontal yang ditumpuk.
 const isHorizontal = computed(() => /c320/i.test(props.model ?? ''));
@@ -337,7 +344,28 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                         :class="[ledClass(led), led.link ? 'cursor-pointer' : 'cursor-default']"
                                     >{{ led.num }}</component>
                                 </div>
+                                <!-- Kartu power: konektor daya -48V + 2 port LAN RJ45 -->
+                                <div v-else-if="isPowerCard(entry.card)" class="flex flex-col items-center justify-center gap-7 py-2" title="Kartu catu daya: konektor -48V + 2 port LAN">
+                                    <div class="flex flex-col items-center gap-0.5">
+                                        <div class="flex h-12 w-8 flex-col items-center justify-center gap-1.5 rounded border border-amber-500/30 bg-amber-500/10">
+                                            <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+                                            <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+                                        </div>
+                                        <span class="text-[7px] font-medium uppercase tracking-wide text-slate-500">-48V</span>
+                                    </div>
+                                    <div class="flex flex-col items-center gap-2">
+                                        <div v-for="n in 2" :key="n" class="flex h-5 w-7 flex-col items-start justify-center gap-0.5 rounded-sm border border-slate-500/50 bg-slate-800/80 py-1 pl-1">
+                                            <span v-for="p in 4" :key="p" class="h-px w-3 bg-amber-300/40"></span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <span v-else class="py-4 text-center text-[10px] leading-tight text-slate-600">tanpa<br />port</span>
+                            </div>
+                            <!-- Kartu kontrol (SCXN): 3 port LAN manajemen, di tengah paruh bawah kartu -->
+                            <div v-if="isControlCard(entry.card)" class="flex flex-1 flex-col items-center justify-center gap-1.5 px-1.5" title="Port LAN manajemen">
+                                <div v-for="n in 3" :key="n" class="flex h-5 w-7 flex-col items-start justify-center gap-0.5 rounded-sm border border-slate-500/50 bg-slate-800/80 py-1 pl-1">
+                                    <span v-for="p in 4" :key="p" class="h-px w-3 bg-amber-300/40"></span>
+                                </div>
                             </div>
                             <!-- Beban processor (CPU/Mem) — detail saat hover -->
                             <div
@@ -399,6 +427,22 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                     class="group flex h-8 w-8 items-center justify-center rounded-md text-[11px] font-semibold leading-none text-black/70"
                                     :class="[ledClass(led), led.link ? 'cursor-pointer' : 'cursor-default']"
                                 >{{ led.num }}</component>
+                            </div>
+                            <!-- Kartu power: konektor daya -48V + 2 port LAN RJ45 -->
+                            <div v-else-if="isPowerCard(entry.card)" class="flex items-center gap-3" title="Kartu catu daya: konektor -48V + 2 port LAN">
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <div class="flex h-7 w-10 items-center justify-center gap-1 rounded border border-amber-500/30 bg-amber-500/10">
+                                        <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+                                        <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+                                    </div>
+                                    <span class="text-[8px] font-medium uppercase tracking-wide text-slate-500">-48V</span>
+                                </div>
+                                <div class="flex items-end gap-2">
+                                    <div v-for="n in 2" :key="n" class="flex h-6 w-5 items-end justify-center gap-px rounded-sm border border-slate-500/50 bg-slate-800/80 px-0.5 pb-0.5">
+                                        <span v-for="p in 4" :key="p" class="h-2.5 w-px bg-amber-300/40"></span>
+                                    </div>
+                                </div>
+                                <span class="text-[9px] font-medium uppercase tracking-wide text-slate-500">2× LAN</span>
                             </div>
                             <span v-else class="text-[11px] text-slate-600">tanpa port</span>
                         </div>
