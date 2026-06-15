@@ -81,6 +81,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/register', [SmartOltController::class, 'storeOnu'])->name('smartolt.register.store');
     Route::get('/smartolt/{olt}/registrations', [SmartOltController::class, 'registrations'])->name('smartolt.registrations');
     Route::post('/smartolt/{olt}/registrations/{registration}/execute', [SmartOltController::class, 'executeRegistration'])->name('smartolt.registrations.execute');
+    Route::delete('/smartolt/{olt}/registrations/{registration}', [SmartOltController::class, 'destroyRegistration'])->name('smartolt.registrations.destroy');
     Route::get('/smartolt/{olt}/profiles', [SmartOltProfileController::class, 'index'])->name('smartolt.profiles.index');
     Route::post('/smartolt/{olt}/profiles', [SmartOltProfileController::class, 'store'])->name('smartolt.profiles.store');
     Route::post('/smartolt/{olt}/profiles/sync', [SmartOltProfileController::class, 'syncFromOlt'])->name('smartolt.profiles.sync');

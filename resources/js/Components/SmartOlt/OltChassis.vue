@@ -78,8 +78,9 @@ const slotOf = (entry) => (entry.empty ? entry.slot : Number(entry.card.slot));
 // C320: slot line-card (1–2) span penuh; slot kontrol/uplink (≥3) berbagi 2 kolom.
 const isWideSlot = (entry) => slotOf(entry) <= 2;
 
-// C300 (vertikal): pasangan slot yang fisiknya ditumpuk atas-bawah dalam 1 kolom (mis. uplink HUVQ).
-const STACK_PAIRS = [[19, 20]];
+// C300 (vertikal): pasangan slot yang fisiknya ditumpuk atas-bawah dalam 1 kolom
+// (kartu power/kontrol PRWG di slot 0–1, dan uplink HUVQ di slot 19–20).
+const STACK_PAIRS = [[0, 1], [19, 20]];
 
 // Susun chassisSlots jadi kolom; pasangan STACK_PAIRS digabung jadi satu kolom (2 kartu atas-bawah).
 const chassisColumns = computed(() => {

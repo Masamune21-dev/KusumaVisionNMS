@@ -927,6 +927,25 @@ class SmartOltController extends Controller
         }
     }
 
+    public function destroyRegistration(
+        SnmpOlt $olt,
+        SmartOltOnuRegistration $registration,
+    ): RedirectResponse {
+        abort_unless($registration->snmp_olt_id === $olt->id, 404);
+
+        if ($registration->status === 'executed') {
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('error', 'Provisioning script yang sudah teregister di OLT tidak bisa dihapus.');
+        }
+
+        $registration->delete();
+
+        return redirect()
+            ->route('smartolt.registrations', $olt)
+            ->with('success', 'Provisioning script berhasil dihapus.');
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, XCircle } from '@lucide/vue';
+import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, Trash2, XCircle } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -69,6 +69,8 @@ const statusMeta = (status) => statuses[status] ?? statuses.generated;
 
 const canExecute = (registration) => registration.status !== 'executed';
 
+const canDelete = (registration) => registration.status !== 'executed';
+
 const statusDescription = (registration) => {
     if (registration.status === 'executed') {
         return registration.executed_at
@@ -105,6 +107,30 @@ const executeRegistration = async (registration) => {
         olt: props.olt.id,
         registration: registration.id,
     }), {}, {
+        preserveScroll: true,
+    });
+};
+
+const deleteRegistration = async (registration) => {
+    if (!canDelete(registration)) {
+        return;
+    }
+
+    const ok = await confirm({
+        title: 'Hapus Provisioning Script',
+        message: `Hapus script provisioning untuk ${registration.customer_name} · ${registration.pon_port}? Tindakan ini tidak bisa dibatalkan.`,
+        confirmLabel: 'Hapus',
+        variant: 'danger',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    router.delete(route('smartolt.registrations.destroy', {
+        olt: props.olt.id,
+        registration: registration.id,
+    }), {
         preserveScroll: true,
     });
 };
@@ -178,6 +204,9 @@ const executeRegistration = async (registration) => {
                                     <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? 'Coba eksekusi lagi' : 'Eksekusi ke OLT'" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
                                     </IconButton>
+                                    <IconButton v-if="canDelete(registration)" variant="danger" title="Hapus script" @click="deleteRegistration(registration)">
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
                                 </div>
                             </div>
                             <pre class="mt-4 overflow-x-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-300 border border-slate-700">{{ registration.cli_script }}</pre>
@@ -215,6 +244,9 @@ const executeRegistration = async (registration) => {
                                     </span>
                                     <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? 'Coba eksekusi lagi' : 'Eksekusi ke OLT'" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="canDelete(registration)" variant="danger" title="Hapus script" @click="deleteRegistration(registration)">
+                                        <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                     <button
                                         type="button"

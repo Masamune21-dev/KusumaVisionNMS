@@ -1762,3 +1762,28 @@ Notes:
 - Status link uplink baru terisi setelah Refresh Hardware (butuh CLI per-interface) — sebelum itu port uplink tampil abu (bukan hijau palsu).
 - Layout C320 (horizontal) dideteksi dari nama model mengandung `c320`. Slot 19/20 stacked di C300 lewat `STACK_PAIRS=[[19,20]]` (mudah ditambah pasangan lain mis. 10/11).
 - Verifikasi: `php artisan test tests/Feature/SmartOltHardwareInterfaceTest.php` → 5 passed; full suite 129 passed; `npm run build` sukses; Pint passed. Gotcha test: route/config cache prod harus di-clear sebelum test lalu di-cache lagi.
+
+### Tombol hapus provisioning script di Registration History
+
+Changed:
+
+- `routes/web.php` — tambah route `DELETE /smartolt/{olt}/registrations/{registration}` (`smartolt.registrations.destroy`).
+- `app/Http/Controllers/SmartOltController.php` — tambah method `destroyRegistration()`: validasi registrasi milik OLT tsb (`abort_unless` 404), tolak hapus bila `status === 'executed'` (sudah teregister di OLT), selain itu `delete()` + flash sukses.
+- `resources/js/Pages/SmartOlt/Registrations.vue` — import ikon `Trash2`, helper `canDelete()` (`status !== 'executed'`), fungsi `deleteRegistration()` dengan `ConfirmModal` varian `danger`; tombol delete (IconButton merah) muncul di section "Provisioning Scripts" (belum dieksekusi) & di "Logs" untuk yang `failed`.
+
+Notes:
+
+- Atas permintaan user — script yang belum dieksekusi bisa dihapus dari Registration History.
+- Script yang sudah `executed`/teregister tidak bisa dihapus, baik dari UI (tombol disembunyikan) maupun server (ditolak dengan flash error), supaya log audit ONU yang sudah aktif di OLT tetap utuh.
+- Verifikasi: `npm run build` sukses, Pint passed, route terdaftar (`route:list`). Route prod ter-cache → `route:cache` ulang setelah tambah route.
+
+### Slot 0/1 (PRWG) ditumpuk atas-bawah di visualisasi chassis
+
+Changed:
+
+- `resources/js/Components/SmartOlt/OltChassis.vue` — tambah pasangan `[0, 1]` ke `STACK_PAIRS` (jadi `[[0, 1], [19, 20]]`) supaya kartu power/kontrol PRWG di slot 0 & 1 digabung jadi satu kolom (atas-bawah), bukan dua kolom penuh berdampingan.
+
+Notes:
+
+- Atas permintaan user — sesuai layout fisik chassis C300, slot 0/1 memang bertumpuk. Logika `chassisColumns` yang ada otomatis menangani pasangan baru ini; tak perlu perubahan lain.
+- Verifikasi: `npm run build` sukses.
