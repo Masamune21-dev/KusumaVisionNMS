@@ -41,6 +41,14 @@ class OltSnmpClient
 
     private const ZTE_ONU_RX_POWER = '1.3.6.1.4.1.3902.1012.3.50.12.1.1.10';
 
+    // zxAnCardTable per-board processor load (C300 & C320), index = rack.shelf.slot.
+    // Mirrors the CLI `show processor` columns. Verified against OLT-C320-PATI / OLT-C300-SEKARJALAK.
+    private const ZTE_CARD_CPU = '1.3.6.1.4.1.3902.1015.2.1.1.3.1.9';      // CPU usage %
+
+    private const ZTE_CARD_MEM = '1.3.6.1.4.1.3902.1015.2.1.1.3.1.11';     // memory usage %
+
+    private const ZTE_CARD_PHYMEM = '1.3.6.1.4.1.3902.1015.2.1.1.3.1.19';  // physical memory (MB)
+
     private const ZTE_UNCFG_OIDS = [
         '1.3.6.1.4.1.3902.1012.3.13.3.1.2',
         '1.3.6.1.4.1.3902.1082.500.10.2.1.1',
@@ -631,6 +639,63 @@ class OltSnmpClient
     /**
      * @return array<string, string>
      */
+    /**
+     * Per-board (card) processor load: CPU%, memory%, physical memory (MB).
+     * Keyed by "rack.shelf.slot" so callers can merge onto `show card` rows.
+     * Same zxAnCardTable OIDs work on C300 and C320; boards without a CPU
+     * (e.g. power cards) report phy_mem 0 and are still returned.
+     *
+     * @return array<string, array{cpu: ?int, mem: ?int, phy_mem: int}>
+     */
+    public function cardProcessors(SnmpOlt $olt): array
+    {
+        $columns = [
+            'phy_mem' => self::ZTE_CARD_PHYMEM,
+            'cpu' => self::ZTE_CARD_CPU,
+            'mem' => self::ZTE_CARD_MEM,
+        ];
+
+        $byIndex = [];
+
+        foreach ($columns as $field => $baseOid) {
+            foreach ($this->walk($olt, $baseOid) as $oid => $value) {
+                $index = $this->cardIndexSuffix((string) $oid, $baseOid);
+
+                if ($index === null) {
+                    continue;
+                }
+
+                $byIndex[$index][$field] = (int) $value;
+            }
+        }
+
+        $result = [];
+
+        foreach ($byIndex as $index => $vals) {
+            $result[$index] = [
+                'cpu' => $vals['cpu'] ?? null,
+                'mem' => $vals['mem'] ?? null,
+                'phy_mem' => $vals['phy_mem'] ?? 0,
+            ];
+        }
+
+        return $result;
+    }
+
+    private function cardIndexSuffix(string $oid, string $baseOid): ?string
+    {
+        $prefix = $this->normalizeOid($baseOid).'.';
+        $oid = $this->normalizeOid($oid);
+
+        if (! str_starts_with($oid, $prefix)) {
+            return null;
+        }
+
+        $suffix = substr($oid, strlen($prefix)); // "rack.shelf.slot"
+
+        return $suffix !== '' ? $suffix : null;
+    }
+
     public function walk(SnmpOlt $olt, string $oid): array
     {
         if ($olt->snmp_version === 'v3') {

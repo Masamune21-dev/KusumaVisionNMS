@@ -1,5 +1,46 @@
 # Worklog
 
+## 2026-06-15
+
+### Monitoring beban processor per-board (CPU/Mem/PhyMem) di chassis
+
+Output CLI `show processor` (CPU 5s/1m/5m, PhyMem, Memory% per slot) belum tampil di dashboard.
+Ditemukan padanan SNMP-nya di **zxAnCardTable** (`1.3.6.1.4.1.3902.1015.2.1.1.3.1.X`, index
+`rack.shelf.slot` — sama dengan kolom Rack/Shelf/Slot CLI): kolom `.9` = CPU%, `.11` = Memory%,
+`.19` = PhyMem (MB). Diverifikasi langsung ke OLT live C300 (172.27.10.102) & C320 (172.27.10.101) —
+nilai cocok dengan screenshot operator (Mem 21/40/58/23/7%, PhyMem 1024/512/2048/128 MB). SNMP hanya
+mengekspos satu angka CPU (bukan pecahan 5s/1m/5m), dan kartu tanpa CPU (power `PRWG`, slot 0/1)
+melapor PhyMem 0. Penempatan UI dipilih user: **overlay mini-bar CPU/Mem di tiap board pada
+Visualisasi Chassis + detail saat hover** (bukan panel/tabel terpisah), karena board & processor
+adalah objek yang sama. Diisi saat **Refresh Hardware** (gabung ke alur CLI `show card`) supaya
+halaman detail tetap baca DB/cache (cepat, tanpa SNMP live).
+
+Created:
+
+- `database/migrations/2026_06_15_100000_add_processor_load_to_smartolt_card_statuses.php` — kolom
+  nullable `cpu_load`, `mem_load`, `phy_mem_mb` di `smartolt_card_statuses`. Sqlite-compatible.
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — const OID `ZTE_CARD_CPU/MEM/PHYMEM` + method
+  `cardProcessors()` (walk 3 kolom, key `rack.shelf.slot`) + helper `cardIndexSuffix()`.
+- `app/Services/ZteCardUplinkService.php` — inject `OltSnmpClient`; `mergeProcessorLoad()` gabung
+  CPU/Mem/PhyMem ke baris card by rack/shelf/slot (non-fatal saat SNMP gagal; gerbang PhyMem>0 agar
+  kartu power tak dapat bar); `serializeCard()` ekspos 3 field baru.
+- `app/Models/SmartOltCardStatus.php` — fillable + cast integer untuk 3 kolom baru.
+- `resources/js/Components/SmartOlt/OltChassis.vue` — helper `procFor`/`loadBarClass`/`procTitle` +
+  computed `procByCardId`; overlay 2 mini-bar (CPU cyan / Mem sky, amber>70% merah>85%) di board
+  orientasi vertikal (C300) & horizontal (C320), tooltip `CPU% · Mem% · PhyMem MB` saat hover; catatan legend.
+- `tests/Feature/SmartOltHardwareInterfaceTest.php` — fake `OltSnmpClient` di test refresh (hermetik,
+  tanpa I/O jaringan) + assert `cpu_load/mem_load/phy_mem_mb` tersimpan.
+
+Notes:
+
+- Verifikasi nyata: `refreshCardStatus()` ke OLT C300 live → slot 2/3/4 GTGH, 10/11 SCXN, 19/20 HUVQ
+  terisi CPU/Mem/PhyMem; PRWG (power) null. Test suite (5/5) hijau saat config cache di-clear (gotcha
+  pgsql/CSRF cached-config sudah dikenal); `php artisan config:cache` dijalankan ulang setelah test.
+- OID identik untuk C300 & C320, jadi aman lintas driver.
+
 ## 2026-06-14
 
 ### Histori RX Power (time-series) + visualisasi distribusi & tren

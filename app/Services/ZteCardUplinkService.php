@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\SmartOltCardStatus;
 use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
+use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
+use Throwable;
 
 class ZteCardUplinkService
 {
@@ -24,7 +26,10 @@ class ZteCardUplinkService
 
     private const INACTIVE_CARD_STATUSES = ['OFFLINE', 'EMPTY', 'PWROFF'];
 
-    public function __construct(private ZteCliProvisioningExecutor $executor) {}
+    public function __construct(
+        private ZteCliProvisioningExecutor $executor,
+        private OltSnmpClient $snmp,
+    ) {}
 
     /**
      * Read stored hardware status only. CLI refresh is handled by refreshCardStatus().
@@ -60,6 +65,8 @@ class ZteCardUplinkService
             throw new RuntimeException('Output show card tidak berisi data card yang bisa diparse'.$reason);
         }
 
+        $cards = $this->mergeProcessorLoad($olt, $cards);
+
         $now = now();
 
         DB::transaction(function () use ($olt, $cards, $now): void {
@@ -77,6 +84,39 @@ class ZteCardUplinkService
         });
 
         return $this->getCardStatus($olt);
+    }
+
+    /**
+     * Enrich parsed `show card` rows with per-board processor load (CPU%, mem%,
+     * physical memory MB) read from SNMP zxAnCardTable, matched by rack/shelf/slot.
+     * Non-fatal: card data is already valid, so an SNMP hiccup leaves load null.
+     *
+     * @param  array<int, array<string, mixed>>  $cards
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeProcessorLoad(SnmpOlt $olt, array $cards): array
+    {
+        try {
+            $processors = $this->snmp->cardProcessors($olt);
+        } catch (Throwable) {
+            $processors = [];
+        }
+
+        foreach ($cards as &$card) {
+            $key = ($card['rack'] ?? 1).'.'.($card['shelf'] ?? 1).'.'.($card['slot'] ?? 0);
+            $proc = $processors[$key] ?? null;
+
+            // PhyMem 0 = board without a processor (e.g. power cards). Those report
+            // cpu/mem 0 too, so gate everything on PhyMem and store null so the UI skips them.
+            $hasCpu = $proc && ($proc['phy_mem'] ?? 0) > 0;
+
+            $card['cpu_load'] = $hasCpu ? ($proc['cpu'] ?? null) : null;
+            $card['mem_load'] = $hasCpu ? ($proc['mem'] ?? null) : null;
+            $card['phy_mem_mb'] = $hasCpu ? $proc['phy_mem'] : null;
+        }
+        unset($card);
+
+        return $cards;
     }
 
     /**
@@ -550,7 +590,7 @@ class ZteCardUplinkService
         if ($result['ok']) {
             try {
                 $this->refreshVlanMapping($olt, $interface);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 //
             }
         }
@@ -867,6 +907,9 @@ class ZteCardUplinkService
             'hard_ver' => $card->hard_ver,
             'soft_ver' => $card->soft_ver,
             'status' => $card->status,
+            'cpu_load' => $card->cpu_load,
+            'mem_load' => $card->mem_load,
+            'phy_mem_mb' => $card->phy_mem_mb,
             'raw_line' => $card->raw_line,
             'refreshed_at' => $card->refreshed_at?->toIso8601String(),
         ];

@@ -221,6 +221,45 @@ const cardStatusText = (status) => {
     return 'text-red-300';
 };
 
+// Beban processor per board (CPU/Mem/PhyMem dari SNMP zxAnCardTable). null = board
+// tanpa CPU (mis. kartu power) → overlay tidak ditampilkan.
+const procFor = (card) => {
+    if (!card) return null;
+    const cpu = card.cpu_load;
+    const mem = card.mem_load;
+    const phy = Number(card.phy_mem_mb ?? 0);
+    if (cpu == null && mem == null && phy <= 0) return null;
+    const clamp = (v) => (v == null ? null : Math.max(0, Math.min(100, Number(v))));
+    return { cpu: clamp(cpu), mem: clamp(mem), phy };
+};
+
+// Warna bar: cyan/sky normal, amber >70%, merah >85%.
+const loadBarClass = (pct, base) => {
+    if (pct == null) return 'bg-slate-700';
+    if (pct >= 85) return 'bg-red-500';
+    if (pct >= 70) return 'bg-amber-400';
+    return base;
+};
+
+// Detail lengkap untuk tooltip (hover).
+const procTitle = (card) => {
+    const p = procFor(card);
+    if (!p) return '';
+    const parts = [`CPU ${p.cpu ?? '—'}%`, `Mem ${p.mem ?? '—'}%`];
+    if (p.phy > 0) parts.push(`PhyMem ${p.phy} MB`);
+    return parts.join(' · ');
+};
+
+// Map beban processor per id card, supaya template tidak menghitung ulang.
+const procByCardId = computed(() => {
+    const map = {};
+    for (const c of props.cards) {
+        const p = procFor(c);
+        if (p) map[c.id] = p;
+    }
+    return map;
+});
+
 // Ringkasan port GPON live.
 const gponUp = computed(() => props.ports.filter((p) => String(p.oper_status).toLowerCase() === 'up').length);
 const gponDown = computed(() => props.ports.length - gponUp.value);
@@ -299,6 +338,25 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                 </div>
                                 <span v-else class="py-4 text-center text-[10px] leading-tight text-slate-600">tanpa<br />port</span>
                             </div>
+                            <!-- Beban processor (CPU/Mem) — detail saat hover -->
+                            <div
+                                v-if="procByCardId[entry.card.id]"
+                                class="space-y-1 border-t border-white/10 px-1.5 py-1.5"
+                                :title="procTitle(entry.card)"
+                            >
+                                <div class="flex items-center gap-1">
+                                    <span class="w-2.5 flex-shrink-0 text-[8px] font-bold leading-none text-cyan-300/80">C</span>
+                                    <div class="h-1 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                        <div class="h-full rounded-full transition-all" :class="loadBarClass(procByCardId[entry.card.id].cpu, 'bg-cyan-400')" :style="{ width: (procByCardId[entry.card.id].cpu ?? 0) + '%' }"></div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span class="w-2.5 flex-shrink-0 text-[8px] font-bold leading-none text-sky-300/80">M</span>
+                                    <div class="h-1 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                        <div class="h-full rounded-full transition-all" :class="loadBarClass(procByCardId[entry.card.id].mem, 'bg-sky-400')" :style="{ width: (procByCardId[entry.card.id].mem ?? 0) + '%' }"></div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="flex items-center justify-center gap-1 border-t border-white/10 px-1 py-1.5">
                                 <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full" :class="cardStatusDot(entry.card.status)"></span>
                                 <span class="truncate text-[9px] font-medium uppercase" :class="cardStatusText(entry.card.status)">{{ entry.card.status }}</span>
@@ -343,6 +401,27 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                             </div>
                             <span v-else class="text-[11px] text-slate-600">tanpa port</span>
                         </div>
+                        <!-- Beban processor (CPU/Mem) — detail saat hover -->
+                        <div
+                            v-if="procByCardId[entry.card.id]"
+                            class="hidden w-28 flex-shrink-0 flex-col gap-1.5 sm:flex"
+                            :title="procTitle(entry.card)"
+                        >
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-7 flex-shrink-0 text-[9px] font-medium uppercase tracking-wide text-slate-500">CPU</span>
+                                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                    <div class="h-full rounded-full transition-all" :class="loadBarClass(procByCardId[entry.card.id].cpu, 'bg-cyan-400')" :style="{ width: (procByCardId[entry.card.id].cpu ?? 0) + '%' }"></div>
+                                </div>
+                                <span class="w-7 flex-shrink-0 text-right text-[9px] tabular-nums text-slate-300">{{ procByCardId[entry.card.id].cpu ?? '—' }}%</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-7 flex-shrink-0 text-[9px] font-medium uppercase tracking-wide text-slate-500">Mem</span>
+                                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                    <div class="h-full rounded-full transition-all" :class="loadBarClass(procByCardId[entry.card.id].mem, 'bg-sky-400')" :style="{ width: (procByCardId[entry.card.id].mem ?? 0) + '%' }"></div>
+                                </div>
+                                <span class="w-7 flex-shrink-0 text-right text-[9px] tabular-nums text-slate-300">{{ procByCardId[entry.card.id].mem ?? '—' }}%</span>
+                            </div>
+                        </div>
                         <div class="flex w-20 flex-shrink-0 items-center justify-end gap-1.5 sm:w-24">
                             <span class="h-2 w-2 flex-shrink-0 rounded-full" :class="cardStatusDot(entry.card.status)"></span>
                             <span class="truncate text-[10px] font-medium uppercase" :class="cardStatusText(entry.card.status)">{{ entry.card.status }}</span>
@@ -368,7 +447,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                     </span>
                 </div>
                 <p class="text-[11px] text-slate-500">
-                    Port GPON live dari SNMP; port uplink live setelah <span class="text-slate-400">Refresh Hardware</span>. Klik port untuk detail (trafik &amp; SFP).
+                    Port GPON live dari SNMP; port uplink &amp; bar <span class="text-cyan-300">CPU</span>/<span class="text-sky-300">Mem</span> per board terisi setelah <span class="text-slate-400">Refresh Hardware</span>. Arahkan kursor ke board untuk detail processor; klik port untuk detail (trafik &amp; SFP).
                 </p>
             </div>
         </div>

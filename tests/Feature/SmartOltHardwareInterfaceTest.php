@@ -6,6 +6,7 @@ use App\Models\SmartOltCardStatus;
 use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
@@ -90,6 +91,18 @@ OUT,
             }
         });
 
+        // Fake the SNMP processor walk so the refresh stays hermetic (no real network I/O).
+        $this->app->instance(OltSnmpClient::class, new class extends OltSnmpClient
+        {
+            public function cardProcessors(SnmpOlt $olt): array
+            {
+                return [
+                    '1.1.2' => ['cpu' => 26, 'mem' => 21, 'phy_mem' => 1024],
+                    '1.1.20' => ['cpu' => 17, 'mem' => 7, 'phy_mem' => 128],
+                ];
+            }
+        });
+
         $response = $this->actingAs($user)->post(route('smartolt.hardware.refresh', $olt));
 
         $response->assertRedirect(route('smartolt.detail', $olt));
@@ -98,12 +111,18 @@ OUT,
             'slot' => 2,
             'cfg_type' => 'GTGH',
             'status' => 'INSERVICE',
+            'cpu_load' => 26,
+            'mem_load' => 21,
+            'phy_mem_mb' => 1024,
         ]);
         $this->assertDatabaseHas('smartolt_card_statuses', [
             'snmp_olt_id' => $olt->id,
             'slot' => 20,
             'cfg_type' => 'HUVQ',
             'port_count' => 4,
+            'cpu_load' => 17,
+            'mem_load' => 7,
+            'phy_mem_mb' => 128,
         ]);
     }
 
