@@ -193,6 +193,18 @@ const taggedVlans = computed(() => d.value.tagged_vlans ?? []);
 const vlanForm = reactive({ vlan_id: '', submitting: false });
 const vlanToast = reactive({ show: false, ok: true, message: '' });
 
+// Entri VLAN bisa berupa angka tunggal ("122") atau rentang ("20-120").
+const isVlanRange = (v) => /^\d+-\d+$/.test(String(v));
+// Tampilkan rentang dengan en-dash agar lebih rapi (20–120).
+const formatVlan = (v) => String(v).replace('-', '–');
+// Jumlah total VLAN individual (rentang dihitung penuh) untuk ringkasan di header.
+const totalVlanCount = computed(() =>
+    taggedVlans.value.reduce((sum, v) => {
+        const m = String(v).match(/^(\d+)-(\d+)$/);
+        return sum + (m ? Number(m[2]) - Number(m[1]) + 1 : 1);
+    }, 0),
+);
+
 const submitVlan = async () => {
     const vlanId = parseInt(vlanForm.vlan_id, 10);
     if (Number.isNaN(vlanId) || vlanId < 1 || vlanId > 4094) return;
@@ -410,28 +422,58 @@ const submitVlan = async () => {
 
                 <!-- VLAN (uplink) -->
                 <div v-if="isUplink" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
-                        <Tag class="h-5 w-5 text-cyan-400" />
-                        <h3 class="text-base font-semibold text-white">VLAN Tagged</h3>
+                    <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex items-center gap-3">
+                            <Tag class="h-5 w-5 text-cyan-400" />
+                            <h3 class="text-base font-semibold text-white">VLAN Tagged</h3>
+                        </div>
+                        <span v-if="taggedVlans.length" class="kv-pill-info">{{ totalVlanCount }} VLAN</span>
                     </div>
                     <div class="p-4 sm:p-6">
-                        <div v-if="taggedVlans.length" class="flex flex-wrap gap-2">
-                            <span v-for="v in taggedVlans" :key="v" class="rounded-full bg-sky-500/15 px-2.5 py-1 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/30">{{ v }}</span>
+                        <div v-if="taggedVlans.length" class="flex flex-wrap gap-1.5">
+                            <span
+                                v-for="v in taggedVlans"
+                                :key="v"
+                                class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium tabular-nums ring-1 transition-colors"
+                                :class="isVlanRange(v)
+                                    ? 'bg-violet-500/15 text-violet-200 ring-violet-500/30'
+                                    : 'bg-sky-500/15 text-cyan-300 ring-cyan-500/30'"
+                                :title="isVlanRange(v) ? 'Rentang VLAN' : 'VLAN'"
+                            >
+                                <Network v-if="isVlanRange(v)" class="h-3 w-3 opacity-70" />
+                                {{ formatVlan(v) }}
+                            </span>
                         </div>
-                        <p v-else class="text-sm text-slate-500">Belum ada VLAN tagged.</p>
+                        <div v-else class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                            <Tag class="h-4 w-4 flex-shrink-0 text-slate-600" />
+                            Belum ada VLAN tagged pada port ini.
+                        </div>
 
-                        <form class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center" @submit.prevent="submitVlan">
-                            <input
-                                v-model="vlanForm.vlan_id"
-                                type="number" min="1" max="4094" placeholder="VLAN ID (1-4094)"
-                                class="w-full rounded-lg border-white/10 bg-slate-950/60 text-sm text-white placeholder:text-slate-600 focus:border-cyan-500/50 focus:ring-cyan-500/30 sm:w-48"
-                            />
-                            <PrimaryButton type="submit" :disabled="vlanForm.submitting">
-                                <Plus class="mr-2 h-4 w-4" />
-                                {{ vlanForm.submitting ? 'Menyimpan...' : 'Tambah & Tag VLAN' }}
-                            </PrimaryButton>
-                        </form>
-                        <p v-if="vlanToast.show" class="mt-2 text-xs" :class="vlanToast.ok ? 'text-emerald-300' : 'text-red-300'">{{ vlanToast.message }}</p>
+                        <div class="mt-5 border-t border-white/10 pt-5">
+                            <label for="vlan-add" class="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Tambah VLAN tagged</label>
+                            <form class="flex flex-col gap-2 sm:flex-row sm:items-center" @submit.prevent="submitVlan">
+                                <input
+                                    id="vlan-add"
+                                    v-model="vlanForm.vlan_id"
+                                    type="number" min="1" max="4094" placeholder="VLAN ID (1-4094)"
+                                    class="kv-input w-full text-sm sm:w-48"
+                                />
+                                <PrimaryButton type="submit" :disabled="vlanForm.submitting || !vlanForm.vlan_id">
+                                    <Plus class="mr-2 h-4 w-4" />
+                                    {{ vlanForm.submitting ? 'Menyimpan...' : 'Tambah & Tag VLAN' }}
+                                </PrimaryButton>
+                            </form>
+                            <div
+                                v-if="vlanToast.show"
+                                class="mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
+                                :class="vlanToast.ok
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                    : 'border-red-500/30 bg-red-500/10 text-red-300'"
+                            >
+                                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full" :class="vlanToast.ok ? 'bg-emerald-400' : 'bg-red-400'"></span>
+                                {{ vlanToast.message }}
+                            </div>
+                        </div>
                     </div>
                 </div>
 

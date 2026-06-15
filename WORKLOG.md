@@ -1802,3 +1802,15 @@ Notes:
 - Atas permintaan user, beberapa iterasi tweak UI: arah hadap port LAN, ukuran, spacing, dan posisi (akhirnya port LAN power card & SCXN seragam — `h-5 w-7`, pin menghadap kiri).
 - Faceplate murni dekoratif (kartu power/kontrol tak bisa di-poll/klik), ikut tema `kv-*` (slate gelap, aksen amber).
 - Verifikasi: `npm run build` sukses (beberapa kali sepanjang iterasi).
+
+### Perbaikan UI VLAN Tagged di halaman Detail Port (uplink)
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/PortDetail.vue` — rapikan section "VLAN Tagged": header dapat badge ringkasan **jumlah total VLAN** (rentang dihitung penuh); chip dibedakan VLAN tunggal (cyan) vs rentang (violet + ikon `Network`, en-dash + `tabular-nums`); empty state jadi kotak dashed berikon; form tambah dipisah garis + label, input pakai kelas `.kv-input` standar (sebelumnya styling inline), tombol disable saat input kosong; notifikasi hasil diubah dari teks kecil jadi alert box (border + dot warna).
+
+Notes:
+
+- Atas permintaan user — UI lama terasa kosong/sparse. Header tetap pakai ikon polos (bukan `kv-circle`) supaya konsisten dengan kartu lain di halaman yang sama.
+- Helper baru: `isVlanRange()`, `formatVlan()` (en-dash), computed `totalVlanCount`. Tak ada perubahan backend (route/endpoint VLAN tetap).
+- Verifikasi: `npm run build` sukses.
