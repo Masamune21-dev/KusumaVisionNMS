@@ -70,11 +70,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');
-    Route::get('/smartolt/{olt}/port-manager', [SmartOltController::class, 'dashboard'])->name('smartolt.port-manager');
-    Route::post('/smartolt/{olt}/port-manager/refresh', [SmartOltController::class, 'refreshDashboard'])->name('smartolt.port-manager.refresh');
-    Route::post('/smartolt/{olt}/port-manager/interface/refresh', [SmartOltController::class, 'refreshDashboardInterface'])->name('smartolt.port-manager.interface.refresh');
-    Route::get('/smartolt/{olt}/port-manager/traffic', [SmartOltController::class, 'dashboardTraffic'])->name('smartolt.port-manager.traffic');
-    Route::post('/smartolt/{olt}/port-manager/vlan', [SmartOltController::class, 'storeDashboardVlan'])->name('smartolt.port-manager.vlan');
+    Route::get('/smartolt/{olt}/port-detail', [SmartOltController::class, 'portDetail'])->name('smartolt.port.detail');
+    Route::post('/smartolt/{olt}/port-detail/refresh', [SmartOltController::class, 'refreshPortDetail'])->name('smartolt.port.refresh');
+    Route::get('/smartolt/{olt}/port-detail/traffic', [SmartOltController::class, 'portTraffic'])->name('smartolt.port.traffic');
+    Route::post('/smartolt/{olt}/port-detail/vlan', [SmartOltController::class, 'storePortVlan'])->name('smartolt.port.vlan');
     Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus', [SmartOltController::class, 'portOnus'])->name('smartolt.port-onus');
     Route::get('/smartolt/{olt}/unconfigured', [SmartOltController::class, 'unconfigured'])->name('smartolt.unconfigured');
     Route::post('/smartolt/{olt}/unconfigured/refresh', [SmartOltController::class, 'refreshUnconfigured'])->name('smartolt.unconfigured.refresh');

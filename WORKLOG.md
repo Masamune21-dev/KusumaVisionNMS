@@ -1694,3 +1694,30 @@ Notes:
 
 - Atas permintaan user — kartu histogram dirasa kurang pas di layout halaman. Hanya histogram distribusi yang dihapus; fitur RX power time-series & trend gauge dari commit sebelumnya tetap ada.
 - `oltScopedOnus` dibiarkan utuh (masih dipakai tabel ONU & statistik). File komponen `resources/js/Components/SmartOlt/RxDistributionCard.vue` ikut dihapus karena sudah tak ada referensi.
+
+### Visualisasi chassis OLT + hapus Port Manager → halaman Detail Port per-interface
+
+Created:
+
+- `resources/js/Components/SmartOlt/OltChassis.vue` — visualisasi sasis OLT data-driven (di halaman Detail OLT). Render 1 modul per slot dari `cards`; LED port diwarnai live: GPON dari `oper_status` SNMP, uplink dari `link_status` tersimpan (hijau=up, merah=down, abu=belum dipoll). Slot kosong di antara min–max tetap tampil. Klik port GPON/uplink → halaman detail port. Dua orientasi: vertikal (C300, kolom ramping melar penuh kiri-kanan, port 1 kolom, pasangan slot 19/20 ditumpuk atas-bawah via `STACK_PAIRS`) & horizontal (C320, line-card span penuh + slot kontrol ≥3 berbagi 2 kolom kartu, port 1 baris, LED besar di tengah).
+- `resources/js/Pages/SmartOlt/PortDetail.vue` — halaman detail per-interface: status link, trafik (chart live ApexCharts untuk uplink + counter), optical/SFP (redaman RX/TX + threshold warna), VLAN tagged + form tambah VLAN (uplink), ringkasan ONU + tombol ke daftar ONU (GPON).
+
+Changed:
+
+- `app/Services/ZteCardUplinkService.php` — tambah `refreshUplinkInterface()` (refresh 1 port uplink xgei/gei dari CLI: port-status + vlan + optical, mirror `refreshGponInterface`).
+- `app/Http/Controllers/SmartOltController.php` — hapus method Port Manager (`dashboard`/`refreshDashboard`/`refreshDashboardInterface`/`dashboardTraffic`/`storeDashboardVlan`); tambah `portDetail`/`refreshPortDetail` (dispatch GPON vs uplink)/`portTraffic` (JSON)/`storePortVlan`. `detail()` kirim prop `interfaces` (link/admin per interface) ke chassis; `refreshHardware()` sekalian refresh detail interface uplink (non-fatal) agar status link per-port terisi.
+- `routes/web.php` — hapus 5 route `smartolt.port-manager*`, tambah `smartolt.port.detail/refresh/traffic/vlan`.
+- `resources/js/Pages/SmartOlt/Detail.vue` — ganti blok gambar/tabel hardware lama dengan komponen `OltChassis` (+ tombol Refresh Hardware via slot `#actions`); hapus tombol "Port Manager"; teruskan prop `interfaces`.
+- `tests/Feature/SmartOltHardwareInterfaceTest.php` — 3 test diarahkan ke route/komponen baru (`smartolt.port.refresh`, `SmartOlt/PortDetail`).
+- `docs/handbook/01,03,06,07,12-*.md` — sinkron Port Manager → Detail Port + visualisasi chassis.
+
+Deleted:
+
+- `resources/js/Pages/SmartOlt/PortManager.vue` (1013 baris) — digantikan navigasi via chassis + halaman Detail Port.
+
+Notes:
+
+- Nama interface dibentuk di chassis dari tipe kartu: GPON→`gpon-olt_1/{slot}/{port}`, HUVQ/HUVG/HUVX→`xgei_1/...`, SMXA/SMXB→`gei_1/...`; kartu kontrol (SCXN)/power (PRWG) tidak diklik. Prefix shelf dipakukan `1` (selaras `discoverUplinkInterfaces` & snapshot C300/C320 single-shelf).
+- Status link uplink baru terisi setelah Refresh Hardware (butuh CLI per-interface) — sebelum itu port uplink tampil abu (bukan hijau palsu).
+- Layout C320 (horizontal) dideteksi dari nama model mengandung `c320`. Slot 19/20 stacked di C300 lewat `STACK_PAIRS=[[19,20]]` (mudah ditambah pasangan lain mis. 10/11).
+- Verifikasi: `php artisan test tests/Feature/SmartOltHardwareInterfaceTest.php` → 5 passed; full suite 129 passed; `npm run build` sukses; Pint passed. Gotcha test: route/config cache prod harus di-clear sebelum test lalu di-cache lagi.

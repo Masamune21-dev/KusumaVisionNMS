@@ -357,6 +357,86 @@ class ZteCardUplinkService
     }
 
     /**
+     * Refresh one uplink interface (xgei/gei) detail from CLI and persist it.
+     *
+     * @return array<string, mixed>
+     */
+    public function refreshUplinkInterface(SnmpOlt $olt, string $interface): array
+    {
+        if (! preg_match('/^(?:xgei|gei)_\d+\/\d+\/\d+$/', $interface)) {
+            throw new RuntimeException('Interface uplink tidak valid.');
+        }
+
+        $statusCommand = "show interface port-status {$interface}";
+        $vlanCommand = "show vlan port {$interface}";
+        $opticalCommand = "show interface optical-module-info {$interface}";
+
+        $result = $this->executor->execute($olt, implode("\n", [$statusCommand, $vlanCommand, $opticalCommand]));
+        $output = $this->cleanCliOutput($result['output']);
+        $segments = $this->splitCommandOutput($output);
+        $now = now();
+
+        $metadata = $this->interfaceMetadata($interface);
+        $values = [
+            ...$metadata,
+            'card_type' => $this->cardTypeForSlot($olt, (int) ($metadata['slot'] ?? 0)),
+            'refreshed_at' => $now,
+        ];
+        $hasData = false;
+
+        $statusOutput = $segments[$statusCommand] ?? '';
+        $status = $this->parsePortStatus($statusOutput);
+        if ($status !== null) {
+            $values = [
+                ...$values,
+                ...$status,
+                'raw_status' => trim($statusOutput) ?: null,
+                'status_refreshed_at' => $now,
+            ];
+            $hasData = true;
+        }
+
+        $vlanOutput = $segments[$vlanCommand] ?? '';
+        if ($vlanOutput !== '' && ! $this->isInvalidOutput($vlanOutput)) {
+            $values = [
+                ...$values,
+                'tagged_vlans' => $this->parseTaggedVlans($vlanOutput),
+                'raw_vlan' => trim($vlanOutput) ?: null,
+                'vlan_refreshed_at' => $now,
+            ];
+            $hasData = true;
+        }
+
+        $opticalOutput = $segments[$opticalCommand] ?? '';
+        $optical = $this->parseOpticalModuleInfo($opticalOutput);
+        if ($optical !== null) {
+            $values = [
+                ...$values,
+                ...$optical,
+                'raw_optical' => trim($opticalOutput) ?: null,
+                'optical_refreshed_at' => $now,
+            ];
+            $hasData = true;
+        }
+
+        if (! $hasData) {
+            $reason = $result['error'] ? ': '.$result['error'] : '';
+
+            throw new RuntimeException("Output {$interface} tidak bisa diparse{$reason}");
+        }
+
+        $row = SmartOltInterfaceStatus::updateOrCreate(
+            [
+                'snmp_olt_id' => $olt->id,
+                'interface' => $interface,
+            ],
+            $values,
+        );
+
+        return $this->serializeInterface($row);
+    }
+
+    /**
      * @return array{interface:string, line_status:string, input_bps:int, output_bps:int, input_pps:int, output_pps:int, timestamp:int}
      */
     public function getUplinkInfo(SnmpOlt $olt, string $interface): array

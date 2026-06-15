@@ -141,7 +141,7 @@ resources/
     ├── Layouts/               AuthenticatedLayout, GuestLayout
     ├── Pages/                 Halaman Inertia (1 file = 1 route render). Lihat 12-frontend.md
     │   ├── Dashboard.vue  Welcome.vue
-    │   ├── SmartOlt/…     (Index, Detail, GponPorts, PortManager, PortOnus,
+    │   ├── SmartOlt/…     (Index, Detail, GponPorts, PortDetail, PortOnus,
     │   │                   OnuMonitor, OnuDetail, ConfigureOnu, RegisterOnu,
     │   │                   Registrations, Profiles, Unconfigured[Global], Create/Edit)
     │   ├── Reports/  Settings/  Users/  AuditLogs/  Profile/  Auth/

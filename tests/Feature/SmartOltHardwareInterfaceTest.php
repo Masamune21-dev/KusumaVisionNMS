@@ -6,7 +6,6 @@ use App\Models\SmartOltCardStatus;
 use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
 use App\Models\User;
-use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
@@ -108,7 +107,7 @@ OUT,
         ]);
     }
 
-    public function test_port_manager_refresh_persists_interface_details(): void
+    public function test_port_detail_refresh_persists_uplink_interface(): void
     {
         $user = User::factory()->create();
         $olt = $this->makeOlt();
@@ -117,23 +116,6 @@ OUT,
         {
             public function execute(SnmpOlt $olt, string $script): array
             {
-                if ($script === 'show card') {
-                    return [
-                        'ok' => true,
-                        'error' => null,
-                        'output' => <<<'OUT'
-Rack Shelf Slot CfgType RealType Port  HardVer SoftVer         Status
--------------------------------------------------------------------------------
-1    1     2    GTGH    GTGHG    2     V1.0.0  V2.1.0          INSERVICE
-1    1     20   HUVQ    HUVQ     1     V1.0.0  V2.1.0          INSERVICE
-OUT,
-                    ];
-                }
-
-                if (str_contains($script, 'gpon-olt_')) {
-                    throw new RuntimeException('Dashboard refresh should not sweep GPON optical ports synchronously.');
-                }
-
                 return [
                     'ok' => true,
                     'error' => null,
@@ -157,14 +139,11 @@ OUT,
             }
         });
 
-        // Mock SNMP client so the GPON port scan in refreshDashboard returns immediately.
-        $snmpMock = $this->createMock(OltSnmpClient::class);
-        $snmpMock->method('gponPorts')->willReturn([]);
-        $this->app->instance(OltSnmpClient::class, $snmpMock);
+        $response = $this->actingAs($user)->post(route('smartolt.port.refresh', $olt), [
+            'interface' => 'xgei_1/20/1',
+        ]);
 
-        $response = $this->actingAs($user)->post(route('smartolt.port-manager.refresh', $olt));
-
-        $response->assertRedirect(route('smartolt.port-manager', $olt));
+        $response->assertRedirect(route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => 'xgei_1/20/1']));
 
         $uplink = SmartOltInterfaceStatus::query()
             ->where('snmp_olt_id', $olt->id)
@@ -177,18 +156,18 @@ OUT,
         $this->assertSame(['100', '200-202'], $uplink->tagged_vlans);
         $this->assertNull($uplink->tx_power_dbm);
 
-        $response = $this->actingAs($user)->get(route('smartolt.port-manager', $olt));
+        $response = $this->actingAs($user)->get(route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => 'xgei_1/20/1']));
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
-            ->component('SmartOlt/PortManager')
-            ->has('uplink_interfaces', 1)
-            ->where('uplink_interfaces.0.interface', 'xgei_1/20/1')
-            ->has('interface_details', 1)
+            ->component('SmartOlt/PortDetail')
+            ->where('type', 'uplink')
+            ->where('interface', 'xgei_1/20/1')
+            ->where('detail.interface', 'xgei_1/20/1')
         );
     }
 
-    public function test_port_manager_lists_gpon_interfaces_from_snapshot_without_cli(): void
+    public function test_port_detail_reads_gpon_from_snapshot_without_cli(): void
     {
         $user = User::factory()->create();
         $olt = $this->makeOlt([
@@ -203,18 +182,18 @@ OUT,
         {
             public function execute(SnmpOlt $olt, string $script): array
             {
-                throw new RuntimeException('CLI should not run while rendering Port Manager.');
+                throw new RuntimeException('CLI should not run while rendering port detail.');
             }
         });
 
-        $response = $this->actingAs($user)->get(route('smartolt.port-manager', $olt));
+        $response = $this->actingAs($user)->get(route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => 'gpon-olt_1/2/1']));
 
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
-            ->component('SmartOlt/PortManager')
-            ->has('interface_details', 1)
-            ->where('interface_details.0.interface', 'gpon-olt_1/2/1')
-            ->where('interface_details.0.interface_type', 'gpon')
+            ->component('SmartOlt/PortDetail')
+            ->where('type', 'gpon')
+            ->where('detail.interface', 'gpon-olt_1/2/1')
+            ->where('detail.interface_type', 'gpon')
         );
     }
 
@@ -288,11 +267,11 @@ OUT,
             }
         });
 
-        $response = $this->actingAs($user)->post(route('smartolt.port-manager.interface.refresh', $olt), [
+        $response = $this->actingAs($user)->post(route('smartolt.port.refresh', $olt), [
             'interface' => 'gpon-olt_1/2/1',
         ]);
 
-        $response->assertRedirect(route('smartolt.port-manager', $olt));
+        $response->assertRedirect(route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => 'gpon-olt_1/2/1']));
 
         $row = SmartOltInterfaceStatus::query()
             ->where('snmp_olt_id', $olt->id)

@@ -1,10 +1,11 @@
 <script setup>
+import OltChassis from '@/Components/SmartOlt/OltChassis.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, CheckCircle2, ClipboardList, Layers, LayoutDashboard, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, ClipboardList, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -17,6 +18,10 @@ const props = defineProps({
         required: true,
     },
     cards: {
+        type: Array,
+        default: () => [],
+    },
+    interfaces: {
         type: Array,
         default: () => [],
     },
@@ -61,13 +66,6 @@ const formatUptime = (timeticks) => {
     return parts.join(' ');
 };
 
-const cardStatusColor = (status) => {
-    const s = String(status ?? '').toUpperCase();
-    if (s === 'INSERVICE') return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
-    if (s === 'STANDBY') return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
-    return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
-};
-
 const oltImage = computed(() => {
     const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
     if (hay.includes('c320')) return '/img/c320.webp';
@@ -97,12 +95,6 @@ const oltImage = computed(() => {
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
                             Kembali
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.port-manager', olt.id)">
-                        <SecondaryButton type="button">
-                            <LayoutDashboard class="mr-2 h-4 w-4" />
-                            Port Manager
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.edit', olt.id)">
@@ -212,96 +204,22 @@ const oltImage = computed(() => {
                     </div>
                 </div>
 
-                <!-- Status Card / Hardware -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                    <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
-                                <Layers class="h-5 w-5 text-cyan-400" />
-                            </div>
-                            <div>
-                                <h3 class="text-base font-semibold text-white">Status Card / Hardware</h3>
-                                <p class="mt-0.5 text-xs text-slate-500">Refresh terakhir: {{ formatDate(hardwareLastRefresh) }}</p>
-                            </div>
-                        </div>
+                <!-- Visualisasi Chassis -->
+                <OltChassis
+                    :olt-id="olt.id"
+                    :cards="cards"
+                    :ports="snapshot.ports"
+                    :interfaces="interfaces"
+                    :model="olt.name"
+                    :last-refresh="hardwareLastRefresh"
+                >
+                    <template #actions>
                         <SecondaryButton type="button" :disabled="hardwareRefreshing" @click="refreshHardware">
                             <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': hardwareRefreshing }" />
                             Refresh Hardware
                         </SecondaryButton>
-                    </div>
-                    <div v-if="cards.length === 0" class="px-5 py-10 text-center text-sm text-slate-500">
-                        Belum ada data hardware tersimpan.
-                    </div>
-                    <template v-else>
-                        <div class="kv-mobile-list">
-                            <article v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`" class="kv-mobile-card">
-                                <div class="kv-mobile-card-header">
-                                    <div class="min-w-0">
-                                        <h4 class="kv-mobile-card-title">{{ card.cfg_type }}</h4>
-                                        <p class="kv-mobile-card-subtitle font-mono">Rack/Shelf/Slot {{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</p>
-                                    </div>
-                                    <span
-                                        class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
-                                        :class="cardStatusColor(card.status)"
-                                    >
-                                        {{ card.status }}
-                                    </span>
-                                </div>
-                                <div class="kv-mobile-fields">
-                                    <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Real</span>
-                                        <span class="kv-mobile-value">{{ card.real_type || '—' }}</span>
-                                    </div>
-                                    <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Port</span>
-                                        <span class="kv-mobile-value">{{ card.port_count }}</span>
-                                    </div>
-                                    <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">HW Ver</span>
-                                        <span class="kv-mobile-value font-mono text-xs">{{ card.hard_ver || '—' }}</span>
-                                    </div>
-                                    <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">SW Ver</span>
-                                        <span class="kv-mobile-value font-mono text-xs">{{ card.soft_ver || '—' }}</span>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-
-                        <div class="kv-table-desktop">
-                        <table class="min-w-[980px] w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Rack/Shelf/Slot</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipe</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Real</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Port</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">HW Ver</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">SW Ver</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-white/5">
-                                <tr v-for="card in cards" :key="`${card.rack}-${card.shelf}-${card.slot}`"
-                                    class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.rack }}/{{ card.shelf }}/{{ card.slot }}</td>
-                                    <td class="px-4 py-4 font-medium text-white">{{ card.cfg_type }}</td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">{{ card.real_type || '—' }}</td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">{{ card.port_count }}</td>
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.hard_ver || '—' }}</td>
-                                    <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ card.soft_ver || '—' }}</td>
-                                    <td class="px-4 py-4">
-                                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
-                                              :class="cardStatusColor(card.status)">
-                                            {{ card.status }}
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        </div>
                     </template>
-                </div>
+                </OltChassis>
 
             </div>
         </div>

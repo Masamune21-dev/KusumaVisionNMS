@@ -79,17 +79,18 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | GET | `/onu-monitoring` | `onuMonitor` | `monitoring.onu` |
 | POST | `/onu-monitoring/{olt}/refresh` | `refreshOnuMonitor` | `monitoring.onu.refresh` |
 
-**Hardware / port manager / detail**
+**Hardware / detail port**
 | Method | URI | Aksi | Nama |
 |--------|-----|------|------|
-| GET | `/smartolt/{olt}/detail` | `detail` (card/uplink) | `smartolt.detail` |
+| GET | `/smartolt/{olt}/detail` | `detail` (card/uplink + visualisasi chassis) | `smartolt.detail` |
 | POST | `/smartolt/{olt}/hardware/refresh` | `refreshHardware` | `smartolt.hardware.refresh` |
 | GET | `/smartolt/{olt}/gpon-ports` | `gponPorts` | `smartolt.gpon-ports` |
-| GET | `/smartolt/{olt}/port-manager` | `dashboard` | `smartolt.port-manager` |
-| POST | `/smartolt/{olt}/port-manager/refresh` | `refreshDashboard` | `smartolt.port-manager.refresh` |
-| POST | `/smartolt/{olt}/port-manager/interface/refresh` | `refreshDashboardInterface` | `smartolt.port-manager.interface.refresh` |
-| GET | `/smartolt/{olt}/port-manager/traffic` | `dashboardTraffic` (JSON) | `smartolt.port-manager.traffic` |
-| POST | `/smartolt/{olt}/port-manager/vlan` | `storeDashboardVlan` (JSON) | `smartolt.port-manager.vlan` |
+| GET | `/smartolt/{olt}/port-detail?interface=` | `portDetail` (GPON/uplink) | `smartolt.port.detail` |
+| POST | `/smartolt/{olt}/port-detail/refresh` | `refreshPortDetail` (CLI per-interface) | `smartolt.port.refresh` |
+| GET | `/smartolt/{olt}/port-detail/traffic` | `portTraffic` (JSON, uplink) | `smartolt.port.traffic` |
+| POST | `/smartolt/{olt}/port-detail/vlan` | `storePortVlan` (JSON) | `smartolt.port.vlan` |
+
+> Halaman **Port Manager** lama dihapus; navigasinya kini lewat **klik port di visualisasi chassis** (halaman Detail OLT) → halaman **Detail Port** (`PortDetail.vue`).
 
 **ONU per port**
 | Method | URI | Aksi | Nama |

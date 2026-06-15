@@ -34,8 +34,8 @@ Dashboard.vue                  ← DashboardController@index
 Welcome.vue                    ← landing publik (route '/')
 SmartOlt/
   Index, Create, Edit          ← CRUD OLT (+ Partials/OltForm.vue)
-  Detail                       ← hardware card/uplink
-  GponPorts, PortManager       ← port PON & manajemen port
+  Detail                       ← hardware card/uplink + visualisasi chassis (OltChassis.vue)
+  GponPorts, PortDetail        ← port PON & detail port per-interface (klik dari chassis)
   PortOnus, OnuDetail, ConfigureOnu   ← ONU per port + detail + reconfigure
   OnuMonitor                   ← ONU Monitoring lintas OLT
   RegisterOnu, Registrations   ← provisioning

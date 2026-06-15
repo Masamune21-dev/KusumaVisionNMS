@@ -41,11 +41,11 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
 - **Controller**: `gponPorts` · **Page**: `SmartOlt/GponPorts.vue`.
 - Daftar port PON dari snapshot (`ports[]` di `last_test_result`): status oper/admin, jumlah ONU.
 
-## 5. Port Manager
-- **Controller**: `dashboard` (port-manager), `refreshDashboard`, `refreshDashboardInterface`,
-  `dashboardTraffic` (JSON polling trafik), `storeDashboardVlan` (tambah/tag VLAN via CLI).
-- **Page**: `SmartOlt/PortManager.vue`.
-- `ZteCardUplinkService` menyediakan status interface, mapping VLAN, info optik, dan tambah VLAN.
+## 5. Detail Port (per-interface)
+- Navigasi: **klik port di visualisasi chassis** (komponen `Components/SmartOlt/OltChassis.vue` di halaman Detail OLT). Port GPON & uplink (XGEI/GEI) bisa diklik; kartu kontrol/power tidak.
+- **Controller**: `portDetail` (render), `refreshPortDetail` (refresh 1 interface via CLI — GPON `refreshGponInterface`, uplink `refreshUplinkInterface`), `portTraffic` (JSON polling trafik uplink), `storePortVlan` (tambah/tag VLAN via CLI).
+- **Page**: `SmartOlt/PortDetail.vue` — status link, trafik (chart live untuk uplink), optical/SFP (redaman RX/TX + threshold), VLAN tagged (uplink), ringkasan ONU + tombol ke daftar ONU (GPON).
+- `ZteCardUplinkService` menyediakan status interface, mapping VLAN, info optik, refresh per-interface, dan tambah VLAN.
 
 ## 6. ONU per Port
 - **Controller**: `portOnus`, `refreshPortOnus`, dan aksi per-ONU: `rebootOnu`, `setOnuState`

@@ -55,10 +55,21 @@ class SmartOltController extends Controller
 
     public function detail(SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
+        // Lean per-interface status (link/admin) so the chassis can colour uplink ports live.
+        $interfaces = collect($service->getStoredInterfaceDetails($olt))
+            ->map(fn (array $row) => [
+                'interface' => $row['interface'],
+                'link_status' => $row['link_status'] ?? null,
+                'admin_status' => $row['admin_status'] ?? null,
+            ])
+            ->values()
+            ->all();
+
         return Inertia::render('SmartOlt/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
             'cards' => $service->getCardStatus($olt),
+            'interfaces' => $interfaces,
         ]);
     }
 
@@ -95,72 +106,66 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function dashboard(SnmpOlt $olt, ZteCardUplinkService $service): Response
-    {
-        $interfaceDetails = $service->getStoredInterfaceDetails($olt);
-        $uplinkInterfaces = $service->getStoredUplinkInterfaces($olt);
-        $vlansByInterface = collect($interfaceDetails)
-            ->where('interface_type', 'uplink')
-            ->mapWithKeys(fn (array $row) => [$row['interface'] => $row['tagged_vlans'] ?? []])
-            ->all();
-
-        return Inertia::render('SmartOlt/PortManager', [
-            'olt' => $this->serializeOlt($olt),
-            'uplink_interfaces' => $uplinkInterfaces,
-            'vlans_by_interface' => $vlansByInterface,
-            'interface_details' => $interfaceDetails,
-        ]);
-    }
-
-    public function refreshDashboard(SnmpOlt $olt, ZteCardUplinkService $service, OltSnmpClient $snmpClient): RedirectResponse
-    {
-        try {
-            $cards = $service->refreshCardStatus($olt);
-            $interfaces = $service->refreshInterfaceDetails($olt, $cards);
-
-            // Refresh GPON port list from SNMP so Port Manager shows up-to-date GPON ports.
-            // Non-fatal: CLI data is already saved; SNMP failure just leaves the old snapshot.
-            try {
-                $ports = $snmpClient->gponPorts($olt);
-                $snapshot = $olt->last_test_result ?? [];
-                data_set($snapshot, 'ports', $ports);
-                $olt->forceFill(['last_test_result' => $snapshot])->save();
-                $gponCount = count($ports);
-            } catch (\Throwable) {
-                $gponCount = null;
-            }
-
-            $msg = sprintf('Data berhasil diperbarui. %s card, %s interface uplink', count($cards), count($interfaces));
-            if ($gponCount !== null) {
-                $msg .= sprintf(', %s GPON port', $gponCount);
-            }
-
-            return redirect()
-                ->route('smartolt.port-manager', $olt)
-                ->with('success', $msg.'.');
-        } catch (\Throwable $e) {
-            return redirect()
-                ->route('smartolt.port-manager', $olt)
-                ->with('error', 'Refresh gagal: '.$e->getMessage());
-        }
-    }
-
-    public function refreshDashboardInterface(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    public function portDetail(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
         $data = $request->validate([
-            'interface' => ['required', 'string', 'regex:/^gpon(?:-olt)?_\d+\/\d+\/\d+$/'],
+            'interface' => ['required', 'string', 'regex:/^(?:gpon(?:-olt)?|xgei|gei)_\d+\/\d+\/\d+$/'],
         ]);
 
-        try {
-            $service->refreshGponInterface($olt, $data['interface']);
+        $interface = $data['interface'];
+        $type = str_starts_with($interface, 'gpon') ? 'gpon' : 'uplink';
 
-            return redirect()
-                ->route('smartolt.port-manager', $olt)
-                ->with('success', "Detail {$data['interface']} berhasil diperbarui dari OLT.");
+        $detail = collect($service->getStoredInterfaceDetails($olt))
+            ->firstWhere('interface', $interface);
+
+        $slot = null;
+        $port = null;
+        $onuSummary = null;
+
+        if (preg_match('/_(\d+)\/(\d+)\/(\d+)$/', $interface, $m)) {
+            $slot = (int) $m[2];
+            $port = (int) $m[3];
+        }
+
+        if ($type === 'gpon' && $slot !== null) {
+            $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+            $onuSummary = [
+                'total' => is_array($onus) ? count($onus) : 0,
+                'online' => collect($onus)->where('online', true)->count(),
+            ];
+        }
+
+        return Inertia::render('SmartOlt/PortDetail', [
+            'olt' => $this->serializeOlt($olt),
+            'interface' => $interface,
+            'type' => $type,
+            'slot' => $slot,
+            'port' => $port,
+            'card_type' => $detail['card_type'] ?? null,
+            'detail' => $detail,
+            'onu_summary' => $onuSummary,
+        ]);
+    }
+
+    public function refreshPortDetail(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
+    {
+        $data = $request->validate([
+            'interface' => ['required', 'string', 'regex:/^(?:gpon(?:-olt)?|xgei|gei)_\d+\/\d+\/\d+$/'],
+        ]);
+
+        $interface = $data['interface'];
+        $back = redirect()->route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => $interface]);
+
+        try {
+            if (str_starts_with($interface, 'gpon')) {
+                $service->refreshGponInterface($olt, $interface);
+            } else {
+                $service->refreshUplinkInterface($olt, $interface);
+            }
+
+            return $back->with('success', "Detail {$interface} berhasil diperbarui dari OLT.");
         } catch (\Throwable $e) {
-            return redirect()
-                ->route('smartolt.port-manager', $olt)
-                ->with('error', "Refresh {$data['interface']} gagal: ".$e->getMessage());
+            return $back->with('error', "Refresh {$interface} gagal: ".$e->getMessage());
         }
     }
 
@@ -169,9 +174,23 @@ class SmartOltController extends Controller
         try {
             $cards = $service->refreshCardStatus($olt);
 
+            // Also refresh uplink interface status so the chassis can show per-port link up/down.
+            // Non-fatal: card data is already saved; skip silently if no uplink cards / CLI hiccup.
+            $uplinkCount = 0;
+            try {
+                $uplinkCount = count($service->refreshInterfaceDetails($olt, $cards));
+            } catch (\Throwable) {
+                //
+            }
+
+            $msg = sprintf('Status hardware berhasil diperbarui. %s card ditemukan.', count($cards));
+            if ($uplinkCount > 0) {
+                $msg .= sprintf(' %s interface uplink diperbarui.', $uplinkCount);
+            }
+
             return redirect()
                 ->route('smartolt.detail', $olt)
-                ->with('success', sprintf('Status hardware berhasil diperbarui. %s card ditemukan.', count($cards)));
+                ->with('success', $msg);
         } catch (\Throwable $e) {
             return redirect()
                 ->route('smartolt.detail', $olt)
@@ -179,7 +198,7 @@ class SmartOltController extends Controller
         }
     }
 
-    public function dashboardTraffic(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
+    public function portTraffic(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
     {
         $interface = $request->query('interface', '');
 
@@ -194,7 +213,7 @@ class SmartOltController extends Controller
         }
     }
 
-    public function storeDashboardVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
+    public function storePortVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
     {
         $data = $request->validate([
             'interface' => ['required', 'string', 'regex:/^(?:xgei|gei)_\d+\/\d+\/\d+$/'],

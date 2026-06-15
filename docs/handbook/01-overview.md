@@ -35,8 +35,8 @@ Pemilik: **PT BERKAH MEDIA KUSUMA VISION (BMKV)**. Locale aplikasi `id` (Bahasa 
 
 - **Dashboard** — kartu statistik, tren polling, inventory OLT per model, ringkasan provisioning,
   daftar OLT, alarm terbaru, aksi cepat ONU. (`DashboardController` + `DashboardStatsService`)
-- **SmartOLT** — CRUD OLT, test koneksi SNMP, refresh snapshot, detail hardware (card/uplink),
-  GPON ports, port manager, daftar ONU per port, ONU detail, reboot/enable/disable ONU,
+- **SmartOLT** — CRUD OLT, test koneksi SNMP, refresh snapshot, detail hardware (visualisasi chassis card/port),
+  GPON ports, detail port per-interface (trafik/SFP/VLAN), daftar ONU per port, ONU detail, reboot/enable/disable ONU,
   edit nama/deskripsi ONU, reconfigure ONU (diff CLI). (`SmartOltController`)
 - **Provisioning ONU** — form register ONU → generate script CLI → eksekusi telnet (opsional).
   Audit row di `smartolt_onu_registrations`. (`SmartOltController` + `ZteProvisioningScriptBuilder`)
