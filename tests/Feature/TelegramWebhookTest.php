@@ -6,7 +6,9 @@ use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TelegramWebhookTest extends TestCase
@@ -37,11 +39,54 @@ class TelegramWebhookTest extends TestCase
         ];
     }
 
+    private function callbackUpdate(string $chatId, string $data, int $messageId = 50): array
+    {
+        return [
+            'update_id' => 3,
+            'callback_query' => [
+                'id' => 'cbq-1',
+                'data' => $data,
+                'message' => [
+                    'message_id' => $messageId,
+                    'chat' => ['id' => $chatId, 'type' => 'private'],
+                ],
+            ],
+        ];
+    }
+
     private function postWebhook(array $payload, ?string $secret = 'super-secret-token')
     {
         $headers = $secret !== null ? ['X-Telegram-Bot-Api-Secret-Token' => $secret] : [];
 
         return $this->postJson(route('telegram.webhook'), $payload, $headers);
+    }
+
+    private function seedOltWithOnus(): SnmpOlt
+    {
+        return SnmpOlt::create([
+            'name' => 'OLT-C320-PATI', 'vendor' => 'ZTE C320', 'ip' => '10.0.0.7',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'ok' => true,
+                'port_onus' => ['1_1' => ['slot' => 1, 'port' => 1, 'count' => 3, 'onus' => [
+                    [
+                        'slot' => 1, 'port' => 1, 'onu_id' => 1, 'interface' => 'gpon-onu_1/1/1:1',
+                        'serial_number' => 'ZTEGOK000001', 'name' => 'Budi', 'online' => true,
+                        'phase_state' => 'Working', 'rx_power_dbm' => -21.3, 'rx_power_label' => '-21.300 dBm',
+                    ],
+                    [
+                        'slot' => 1, 'port' => 1, 'onu_id' => 2, 'interface' => 'gpon-onu_1/1/1:2',
+                        'serial_number' => 'ZTEGLOS00002', 'name' => 'Andi', 'online' => false,
+                        'phase_state' => 'LOS', 'last_down_cause' => 'LOS', 'rx_power_dbm' => null,
+                    ],
+                    [
+                        'slot' => 1, 'port' => 1, 'onu_id' => 3, 'interface' => 'gpon-onu_1/1/1:3',
+                        'serial_number' => 'ZTEGRX000003', 'name' => 'Citra', 'online' => true,
+                        'phase_state' => 'Working', 'rx_power_dbm' => -29.4, 'rx_power_label' => '-29.400 dBm',
+                    ],
+                ]]],
+            ],
+        ]);
     }
 
     public function test_missing_or_wrong_secret_is_rejected(): void
@@ -168,6 +213,160 @@ class TelegramWebhookTest extends TestCase
         $this->postWebhook(['update_id' => 2, 'edited_message' => ['text' => 'hi']])->assertOk();
 
         Http::assertNothingSent();
+    }
+
+    public function test_menu_command_sends_inline_keyboard(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        $this->postWebhook($this->update('111', '/menu'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'KusumaVision NMS')
+            && isset($request['reply_markup']['inline_keyboard']));
+    }
+
+    public function test_los_command_lists_offline_onus(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedOltWithOnus();
+
+        $this->postWebhook($this->update('111', '/los'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'ONU LOS')
+            && isset($request['reply_markup']['inline_keyboard']));
+    }
+
+    public function test_redaman_command_lists_high_attenuation(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedOltWithOnus();
+
+        $this->postWebhook($this->update('111', '/redaman'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'Redaman Tinggi'));
+    }
+
+    public function test_callback_navigates_and_edits_message_in_place(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedOltWithOnus();
+
+        $this->postWebhook($this->callbackUpdate('111', "o:{$olt->id}"))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'answerCallbackQuery')
+            && $request['callback_query_id'] === 'cbq-1');
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && $request['chat_id'] === '111'
+            && (int) $request['message_id'] === 50
+            && str_contains($request['text'], 'OLT-C320-PATI')
+            && isset($request['reply_markup']['inline_keyboard']));
+    }
+
+    public function test_callback_from_unauthorized_chat_is_denied(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedOltWithOnus();
+
+        $this->postWebhook($this->callbackUpdate('999', 'm'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request['text'] ?? '', 'Akses ditolak'));
+        Http::assertNotSent(fn ($request) => str_contains($request['text'] ?? '', 'KusumaVision NMS'));
+    }
+
+    public function test_noop_callback_only_acknowledges(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        $this->postWebhook($this->callbackUpdate('111', 'noop'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'answerCallbackQuery'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'editMessageText'));
+    }
+
+    private function seedManyOnus(int $count): SnmpOlt
+    {
+        $onus = [];
+        for ($i = 1; $i <= $count; $i++) {
+            $onus[] = [
+                'slot' => 1, 'port' => 1, 'onu_id' => $i, 'interface' => "gpon-onu_1/1/1:{$i}",
+                'serial_number' => sprintf('ZTEG%08d', $i), 'name' => "Pelanggan {$i}",
+                'online' => true, 'phase_state' => 'Working', 'rx_power_dbm' => -20.0,
+            ];
+        }
+
+        return SnmpOlt::create([
+            'name' => 'OLT-C320-PATI', 'vendor' => 'ZTE C320', 'ip' => '10.0.0.7',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+            'last_test_result' => ['ok' => true, 'port_onus' => ['1_1' => ['slot' => 1, 'port' => 1, 'count' => $count, 'onus' => $onus]]],
+        ]);
+    }
+
+    public function test_search_lists_matches_with_pager(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        Str::createRandomStringsUsing(fn () => 'TESTTOKEN0');
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedManyOnus(10);
+
+        $this->postWebhook($this->update('111', '/search pelanggan'))->assertOk();
+
+        Http::assertSent(function ($request) {
+            if (! str_contains($request->url(), 'sendMessage') || ! str_contains($request['text'], 'ONU cocok')) {
+                return false;
+            }
+            $flat = json_encode($request['reply_markup']['inline_keyboard'] ?? []);
+
+            return str_contains($flat, 'su:TESTTOKEN0:0:') && str_contains($flat, 'sr:TESTTOKEN0:1');
+        });
+
+        Str::createRandomStringsNormally();
+    }
+
+    public function test_search_pagination_and_detail_callbacks(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedManyOnus(10);
+        Cache::put('tg:search:TESTTOKEN0', 'pelanggan', 600);
+
+        $this->postWebhook($this->callbackUpdate('111', 'sr:TESTTOKEN0:1'))->assertOk();
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && str_contains($request['text'], 'ONU cocok'));
+
+        $this->postWebhook($this->callbackUpdate('111', "su:TESTTOKEN0:0:{$olt->id}:1:1:3"))->assertOk();
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && str_contains($request['text'], 'Pelanggan 3'));
+    }
+
+    public function test_expired_search_token_is_reported(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        $this->postWebhook($this->callbackUpdate('111', 'sr:GONE000000:0'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request['text'] ?? '', 'kedaluwarsa'));
+    }
+
+    public function test_register_webhook_allows_callback_query_updates(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => true], 200)]);
+        $admin = User::factory()->admin()->create();
+        $this->configureBot(['webhook_secret' => null, 'commands_enabled' => false]);
+
+        $this->actingAs($admin)->post(route('settings.telegram.webhook.register'));
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), '/setWebhook')
+            && in_array('callback_query', (array) $request['allowed_updates'], true));
     }
 
     public function test_register_webhook_route_calls_telegram(): void

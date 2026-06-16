@@ -2,6 +2,62 @@
 
 ## 2026-06-16
 
+### Bot Telegram interaktif — navigasi tombol LOS & redaman tinggi
+
+Bot Telegram tadinya **text-only** (`message.text` saja; `callback_query` dibuang). Operator minta
+navigasi tekan-tekan: buka OLT → pilih port → lihat daftar ONU (paginasi next/prev) → lihat siapa
+yang LOS dan siapa yang redamannya tinggi, plus perintah langsung untuk dua daftar itu.
+
+Created:
+
+- `app/Services/Telegram/TelegramReply.php` — DTO `{text, keyboard}` yang dipakai bersama jalur
+  command teks dan callback tombol (render layar sama → `sendMessage` baru atau `editMessageText`).
+- `app/Services/Telegram/TelegramKeyboard.php` — encode/parse `callback_data` ringkas (<64 byte,
+  mis. `on:5:1:2:1:3`), builder tombol/pager/back, konstanta `FILTER_ALL/LOS/RX`, `SRC_*`, `PAGE_SIZE`.
+- `app/Services/Telegram/TelegramOnuQueryService.php` — query read-only atas cache `port_onus`:
+  daftar OLT + ringkasan (online/offline/los/rx_alert), port per-OLT, ONU per-port, daftar LOS &
+  redaman tinggi (global/per-OLT, urut terparah), detail ONU, `allOnus()` untuk search. **Sumber
+  tunggal klasifikasi RX/LOS bot**: RX bertingkat `RX_WARN_DBM=-25`/`RX_CRIT_DBM=-28`/`RX_HIGH_DBM=-8`
+  (`rxSeverity/rxIsAlert/rxBars/statusIcon/rxLine`); LOS = `online=false` (🔴 bila `last_down_cause`/
+  `phase_state` ∈ {LOS,LOSi,DyingGasp}, selain itu ⚫). Customer pakai `SmartOltSupport` + fallback
+  registrasi (DB) hanya di detail (list pakai data cache, hemat query).
+
+Changed:
+
+- `app/Services/Telegram/TelegramWebhookManager.php` — `allowed_updates` jadi
+  `['message','callback_query']` (tombol tak terkirim Telegram tanpa ini → **wajib daftar-ulang
+  webhook setelah deploy**).
+- `app/Services/Telegram/TelegramNotifier.php` — `sendTo()` terima param `$keyboard` opsional
+  (`reply_markup` inline); tambah `editMessage()` (edit in-place; "not modified"=sukses, error
+  lain→fallback `sendTo`) + `answerCallback()` (matikan spinner, best-effort); refactor request ke
+  helper `apiCall()`.
+- `app/Services/Telegram/TelegramCommandHandler.php` — refactor besar: `handle()` balik `TelegramReply`
+  (bukan string) + `handleCallback()` baru; kumpulan "screen renderer" (mainMenu, status, oltList,
+  oltDetail, portList paginasi, portOnu paginasi+filter, onuDetail, losScreen, rxScreen, alarms
+  paginasi, provisioning, onuSearch dengan tombol). Command baru: `/menu` (`/start`), `/los [olt]`,
+  `/redaman` (`/rx`) `[olt]`, `/search` (`/cari`). Otorisasi allow-list berlaku juga untuk callback.
+- `app/Services/Telegram/TelegramCommandHandler.php` (search global) — `/search`/`/cari` (+`/onu`)
+  substring match lintas-OLT atas serial/nama/customer/interface (cap `SEARCH_LIMIT=60`), hasil >1
+  jadi daftar tombol **berpaginasi**. Query disimpan di `Cache` (`tg:search:{token}`, TTL 1 jam) di
+  balik token acak karena `callback_data` tak muat teks: tombol halaman `sr:{token}:{page}`, tombol
+  ONU `su:{token}:{page}:olt:slot:port:onu`. Tombol menu "🔎 Cari ONU" buka instruksi (`srh`).
+- `app/Http/Controllers/TelegramWebhookController.php` — cabang `handleMessage` vs `handleCallback`;
+  callback selalu `answerCallback` lalu `editMessage` (fallback `sendTo` bila tak ada message_id).
+- `docs/handbook/10-alarm-telegram.md` — dokumentasikan arsitektur handler, alur menu, command baru,
+  allowed_updates, dan catatan ambang RX khusus bot (AlarmEvaluator/Dashboard tak diubah).
+
+Notes:
+
+- Ambang RX bot sengaja terpisah dari `AlarmEvaluator` (−28/−8 + histeresis) & `DashboardStatsService`
+  (−25/−10) agar tak mengubah perilaku alarm/kartu dashboard. Keputusan produk: bertingkat −25/−28.
+- `rx_power_dbm` bisa `null` (RX polling belum jalan) → daftar redaman hanya cakup ONU dgn data RX,
+  detail tampil "RX belum terukur".
+- Tes: `tests/Feature/TelegramWebhookTest.php` (+10: /menu, /los, /redaman, navigasi callback+edit,
+  unauthorized callback, noop, allowed_updates, /search pager, paginasi+detail callback, token
+  kedaluwarsa), `tests/Feature/TelegramOnuQueryServiceTest.php` (LOS urut, RX terparah, ringkasan
+  count), `tests/Unit/TelegramKeyboardTest.php` (codec <64 byte, pager, rxSeverity). Full suite
+  **159 passed**. Belum diverifikasi ke bot/OLT live.
+
 ### Configure ONU — multi WAN-IP + ping/traceroute response
 
 Bagian **WAN** di halaman Configure ONU (CLI) tadinya hanya mendukung satu WAN-IP (`wan-ip 1`) dengan

@@ -66,11 +66,17 @@ kosong = semua dibisukan) dihormati apa adanya.
   raise & clear), hormati `notify_on_raise`/`notify_on_clear`. Format pesan `formatAlarm()`
   (escape MarkdownV2 via `escape()`).
 - `sendTest()` — tombol "Test" di Settings.
-- `sendTo($chatId,$text)` / `dispatch()` — kirim ke Telegram Bot API; simpan `last_sent_at`/
-  `last_error`.
+- `sendTo($chatId,$text,$keyboard=null)` / `dispatch()` — kirim ke Bot API (`reply_markup` inline
+  bila ada keyboard). `dispatch()` simpan `last_sent_at`/`last_error`; `sendTo()` tidak (itu khusus
+  balasan command).
+- `editMessage($chatId,$messageId,$text,$keyboard)` — `editMessageText` untuk navigasi tombol
+  in-place; "not modified" dianggap sukses, error lain → fallback `sendTo`. `answerCallback($id)`
+  — `answerCallbackQuery` (matikan spinner, best-effort).
 
-### Inbound command — webhook
-Aktif bila `commands_enabled` + token + `webhook_secret` (`commandsReady()`).
+### Inbound command + menu interaktif — webhook
+Aktif bila `commands_enabled` + token + `webhook_secret` (`commandsReady()`). Bot punya dua
+jenis interaksi: **slash command** (teks) dan **tombol inline** (`callback_query`) untuk
+navigasi tekan-tekan.
 
 **Daftarkan webhook** (`telegram:webhook` atau tombol di Settings):
 ```bash
@@ -79,21 +85,54 @@ php artisan telegram:webhook info    # lihat status webhook
 php artisan telegram:webhook delete  # hapus webhook
 ```
 `TelegramWebhookManager` (register/info/delete) memanggil Bot API `setWebhook` dengan URL
-`route('telegram.webhook')` + header secret token.
+`route('telegram.webhook')` + header secret token + `allowed_updates = ['message','callback_query']`
+(tombol tidak akan terkirim Telegram tanpa ini — **daftar-ulang webhook setelah upgrade**).
 
 **Terima update** — `TelegramWebhookController@handle` (route publik `POST /telegram/webhook`,
 no-auth, CSRF-exempt):
 1. Bandingkan header `X-Telegram-Bot-Api-Secret-Token` dengan `webhook_secret` (`hash_equals`) →
    403 bila salah.
 2. Bila `commandsReady()` false → terima & abaikan (200).
-3. Ambil `message.chat.id` + `message.text`; non-message diabaikan.
-4. `TelegramCommandHandler::handle()` proses command → balas via `sendTo()`.
+3. Update teks → `handleMessage()`: ambil `message.chat.id` + `message.text` →
+   `TelegramCommandHandler::handle()` → kirim via `sendTo()` (dgn inline keyboard).
+4. Update tombol → `handleCallback()`: ambil `callback_query.{id,data,message.*}` →
+   selalu `answerCallback()` (matikan spinner) → `handleCallback()` →
+   `editMessage()` (edit pesan yang sama; fallback `sendTo` bila pesan >48 jam) agar chat bersih.
 5. Selalu balas 200 (kecuali secret salah) agar Telegram tidak retry.
 
-**Command yang didukung** (`TelegramCommandHandler`): `/help`, `/ping`, `/status`, `/olt [nama]`,
-`/alarms`, `/onu <serial|nama>`, `/provisioning`, `/chatid`. Hanya chat di allow-list
-(`isChatAuthorized`) boleh menjalankan command data; selain itu `accessDenied`. Handler memakai
-`DashboardStatsService` untuk ringkasan.
+**Arsitektur handler** (`app/Services/Telegram/`):
+- `TelegramCommandHandler` — parse command/callback → panggil "screen renderer"; tiap layar
+  balikkan `TelegramReply` (text + keyboard) jadi command & tombol pakai render yang sama.
+- `TelegramReply` — DTO `{text, keyboard}`.
+- `TelegramKeyboard` — encode/parse `callback_data` (skema ringkas <64 byte, mis. `on:5:1:2:1:3`
+  = OLT5 slot1 PON2 filter LOS page3), builder tombol/pager/back. Konstanta filter (`FILTER_ALL/
+  LOS/RX`), sumber-balik (`SRC_*`), `PAGE_SIZE`.
+- `TelegramOnuQueryService` — query read-only atas cache `port_onus`: daftar OLT + ringkasan
+  (online/offline/los/rx_alert), port per-OLT, ONU per-port, daftar LOS & redaman tinggi
+  (global/per-OLT, urut terparah), detail ONU. **Sumber tunggal klasifikasi RX & LOS bot**:
+  RX bertingkat `RX_WARN_DBM=-25`, `RX_CRIT_DBM=-28`, `RX_HIGH_DBM=-8` (`rxSeverity/rxIsAlert/
+  rxBars/statusIcon`); LOS = `online=false` (ditandai 🔴 bila `last_down_cause`/`phase_state` ∈
+  {LOS,LOSi,DyingGasp}, selain itu ⚫ nonaktif/lain). Ambang ini khusus bot — `AlarmEvaluator`
+  & `DashboardStatsService` punya ambang sendiri (tak diubah).
+
+**Alur menu** (`/menu` atau `/start`): Menu → Status / Daftar OLT / ONU LOS / Redaman Tinggi /
+Cari ONU / Alarm. Daftar OLT → detail OLT → pilih Port PON (grid, paginasi) → daftar ONU per-port
+(paginasi ⬅️➡️ + filter Semua/🔴 LOS/📉 Redaman) → detail ONU. LOS & Redaman bisa global
+(semua OLT) atau per-OLT, paginasi, tiap baris bisa ditekan ke detail ONU.
+
+**Pencarian global** (`/search`/`/cari`, juga `/onu`/`/cek`): substring match lintas-OLT atas
+serial/nama/customer/interface (`runSearch`, cap `SEARCH_LIMIT=60`). 0 hasil → "tidak ditemukan",
+1 hasil → langsung detail, >1 → daftar tombol **berpaginasi**. Karena `callback_data` tak muat
+teks query, query disimpan di `Cache` (`tg:search:{token}`, TTL 1 jam) di balik token acak; tombol
+halaman = `sr:{token}:{page}`, tombol ONU = `su:{token}:{page}:olt:slot:port:onu` (back ke halaman
+hasil). Token kedaluwarsa → minta kirim ulang. Tombol "🔎 Cari ONU" di menu membuka instruksi
+(`srh`) karena pencarian butuh argumen teks yang tak bisa lewat tombol.
+
+**Command yang didukung** (`TelegramCommandHandler`): `/menu` (`/start`), `/help`, `/ping`,
+`/status`, `/olt [nama|id]`, `/los [olt]`, `/redaman` (`/rx`) `[olt]`, `/search` (`/cari`)
+`<nama|serial>`, `/alarm`, `/onu` (`/cek`) `<serial|nama>`, `/prov`, `/id`. Hanya chat di allow-list
+(`isChatAuthorized`) boleh menjalankan command/tombol data — termasuk `callback_query` (dicek ulang
+di `handleCallback`); selain itu `accessDenied`.
 
 ### Catatan keamanan
 - `bot_token` & `webhook_secret` terenkripsi + `$hidden`.

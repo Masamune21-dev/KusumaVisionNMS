@@ -125,28 +125,111 @@ class TelegramNotifier
      * Reply to a single chat (used by the inbound command webhook).
      *
      * Unlike dispatch(), this does not touch last_sent_at/last_error — those track
-     * outbound alarm delivery health, not command replies.
+     * outbound alarm delivery health, not command replies. An optional inline
+     * keyboard (list of button rows) drives the interactive menu.
      *
+     * @param  array<int, array<int, array<string, string>>>|null  $keyboard
      * @return array{ok: bool, error: ?string}
      */
-    public function sendTo(string $chatId, string $text): array
+    public function sendTo(string $chatId, string $text, ?array $keyboard = null): array
     {
-        $setting = TelegramSetting::instance();
-        $token = (string) $setting->bot_token;
+        $token = (string) TelegramSetting::instance()->bot_token;
 
         if ($token === '') {
             return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
         }
 
+        $payload = [
+            'chat_id' => $chatId,
+            'text' => $text,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($keyboard !== null) {
+            $payload['reply_markup'] = ['inline_keyboard' => $keyboard];
+        }
+
+        return $this->apiCall($token, 'sendMessage', $payload);
+    }
+
+    /**
+     * Edit an existing message in place (used to navigate the interactive menu
+     * without spamming new messages). Falls back to a fresh message when the
+     * original can no longer be edited (e.g. older than 48h, or unchanged).
+     *
+     * @param  array<int, array<int, array<string, string>>>|null  $keyboard
+     * @return array{ok: bool, error: ?string}
+     */
+    public function editMessage(string $chatId, int $messageId, string $text, ?array $keyboard = null): array
+    {
+        $token = (string) TelegramSetting::instance()->bot_token;
+
+        if ($token === '') {
+            return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
+        }
+
+        $payload = [
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $text,
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
+
+        if ($keyboard !== null) {
+            $payload['reply_markup'] = ['inline_keyboard' => $keyboard];
+        }
+
+        $result = $this->apiCall($token, 'editMessageText', $payload);
+
+        if ($result['ok']) {
+            return $result;
+        }
+
+        // "message is not modified" means the screen is already showing — treat as success.
+        if (str_contains(strtolower((string) $result['error']), 'not modified')) {
+            return ['ok' => true, 'error' => null];
+        }
+
+        // Anything else (message too old / deleted) — fall back to a new message.
+        return $this->sendTo($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Acknowledge a callback query so Telegram stops showing the button spinner.
+     * Best-effort: failures are swallowed (the reply itself already went out).
+     */
+    public function answerCallback(string $callbackId, ?string $text = null): void
+    {
+        $token = (string) TelegramSetting::instance()->bot_token;
+
+        if ($token === '') {
+            return;
+        }
+
+        $payload = ['callback_query_id' => $callbackId];
+        if ($text !== null) {
+            $payload['text'] = $text;
+        }
+
+        try {
+            Http::asJson()->timeout(10)->post(self::API_BASE."/bot{$token}/answerCallbackQuery", $payload);
+        } catch (Throwable) {
+            // The user already has their reply; a failed ack only leaves a brief spinner.
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{ok: bool, error: ?string}
+     */
+    private function apiCall(string $token, string $method, array $payload): array
+    {
         try {
             $response = Http::asJson()
                 ->timeout(10)
-                ->post(self::API_BASE."/bot{$token}/sendMessage", [
-                    'chat_id' => $chatId,
-                    'text' => $text,
-                    'parse_mode' => 'HTML',
-                    'disable_web_page_preview' => true,
-                ]);
+                ->post(self::API_BASE."/bot{$token}/{$method}", $payload);
         } catch (Throwable $exception) {
             return ['ok' => false, 'error' => $exception->getMessage()];
         }
