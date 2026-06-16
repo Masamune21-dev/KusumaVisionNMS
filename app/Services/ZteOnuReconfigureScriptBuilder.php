@@ -29,7 +29,7 @@ class ZteOnuReconfigureScriptBuilder
         $this->diffServices($baseline, $target, $mngLines, $changes);
         $this->diffVlanPorts($baseline, $target, $mngLines, $changes);
         $this->diffWanServices($baseline, $target, $mngLines, $changes);
-        $this->diffWanIp($baseline, $target, $mngLines, $changes);
+        $this->diffWanIps($baseline, $target, $mngLines, $changes);
         $this->diffTr069($baseline, $target, $mngLines, $changes);
         $this->diffRemoteOnt($baseline, $target, $mngLines, $changes);
 
@@ -229,89 +229,161 @@ class ZteOnuReconfigureScriptBuilder
         $next = $this->keyById($target['wan_services'] ?? []);
 
         foreach ($next as $id => $row) {
-            $prev = $base[$id] ?? null;
-            $desc = sprintf(
-                'ethuni %s ssid %s service %s mvlan %s host %s',
-                $this->str($row['ethuni'] ?? ''),
-                $this->str($row['ssid'] ?? ''),
-                $this->str($row['service'] ?? ''),
-                $this->str($row['mvlan'] ?? ''),
-                $this->str($row['host'] ?? ''),
-            );
+            $newLine = $this->wanServiceLine($id, $row);
+            if ($newLine === null) {
+                continue;
+            }
 
-            if ($prev === null || $this->fmtWanService($prev) !== $desc) {
-                $lines[] = "wan {$id} {$desc}";
-                $changes[] = $this->change("WAN binding {$id}", $this->fmtWanService($prev), $desc);
+            $prev = $base[$id] ?? null;
+            $oldLine = $prev !== null ? $this->wanServiceLine($id, $prev) : null;
+
+            if ($oldLine !== $newLine) {
+                $lines[] = $newLine;
+                $changes[] = $this->change("WAN binding {$id}", $oldLine ?? '', $newLine);
             }
         }
 
         foreach ($base as $id => $row) {
             if (! isset($next[$id])) {
                 $lines[] = "no wan {$id}";
-                $changes[] = $this->change("WAN binding {$id}", $this->fmtWanService($row), 'dihapus');
+                $changes[] = $this->change("WAN binding {$id}", $this->wanServiceLine($id, $row) ?? '', 'dihapus');
             }
-        }
-    }
-
-    private function diffWanIp(array $baseline, array $target, array &$lines, array &$changes): void
-    {
-        $fields = ['wan_mode', 'pppoe_username', 'pppoe_password', 'ip_profile', 'static_ip', 'static_mask_length', 'vlan_profile'];
-        $changed = false;
-
-        foreach ($fields as $field) {
-            if (! $this->same($this->str($baseline[$field] ?? null), $this->str($target[$field] ?? null))) {
-                $changed = true;
-                break;
-            }
-        }
-
-        $mode = strtolower($this->str($target['wan_mode'] ?? 'none'));
-        if (! $changed || $mode === 'none' || $mode === '') {
-            return;
-        }
-
-        $lines[] = $this->wanIpLine($target, $mode);
-        $changes[] = $this->change('WAN mode', $this->str($baseline['wan_mode'] ?? null), $mode);
-
-        if (! $this->same($this->str($baseline['vlan_profile'] ?? null), $this->str($target['vlan_profile'] ?? null))) {
-            $changes[] = $this->change('VLAN profile', $this->str($baseline['vlan_profile'] ?? null), $this->str($target['vlan_profile'] ?? null));
-        }
-
-        if ($mode === 'pppoe' && ! $this->same($this->str($baseline['pppoe_username'] ?? null), $this->str($target['pppoe_username'] ?? null))) {
-            $changes[] = $this->change('PPPoE user', $this->str($baseline['pppoe_username'] ?? null), $this->str($target['pppoe_username'] ?? null));
-        }
-
-        if ($mode === 'static' && ! $this->same($this->str($baseline['static_mask_length'] ?? null), $this->str($target['static_mask_length'] ?? null))) {
-            $changes[] = $this->change('IP subnet mask length', $this->str($baseline['static_mask_length'] ?? null), $this->str($target['static_mask_length'] ?? null));
         }
     }
 
     /**
-     * @param  array<string, mixed>  $target
+     * Build a `wan {id} service ...` line with only the tokens that are set.
+     * MVLAN is only meaningful when the `other` service type is selected.
+     *
+     * @param  array<string, mixed>  $row
      */
-    private function wanIpLine(array $target, string $mode): string
+    private function wanServiceLine(int $id, array $row): ?string
     {
-        if ($mode === 'dhcp') {
-            $line = 'wan-ip 1 mode dhcp';
-        } elseif ($mode === 'static') {
-            $line = sprintf(
-                'wan-ip 1 mode static ip-profile %s ip-address %s mask %s',
-                $this->str($target['ip_profile'] ?? ''),
-                $this->str($target['static_ip'] ?? ''),
-                $this->lengthToMask((int) ($target['static_mask_length'] ?? 24)),
-            );
-        } else {
-            $user = $this->str($target['pppoe_username'] ?? '');
-            $pass = $this->str($target['pppoe_password'] ?? '') ?: $user;
-            $line = "wan-ip 1 mode pppoe username {$user} password {$pass}";
+        $services = $this->normalizeServices($row['services'] ?? ($row['service'] ?? []));
+        if ($services === []) {
+            return null;
         }
 
-        $vlanProfile = $this->str($target['vlan_profile'] ?? '');
+        $line = "wan {$id} service ".implode(' ', $services);
+
+        $mvlan = $this->str($row['mvlan'] ?? '');
+        if (in_array('other', $services, true) && $mvlan !== '') {
+            $line .= " mvlan {$mvlan}";
+        }
+
+        foreach (['ethuni', 'ssid', 'host'] as $token) {
+            $value = $this->str($row[$token] ?? '');
+            if ($value !== '') {
+                $line .= " {$token} {$value}";
+            }
+        }
+
+        return $line;
+    }
+
+    /**
+     * @param  mixed  $value  array of types or a legacy space/comma string
+     * @return array<int, string>
+     */
+    private function normalizeServices(mixed $value): array
+    {
+        $allowed = ['internet', 'tr069', 'voip', 'other'];
+        $tokens = is_array($value)
+            ? $value
+            : (preg_split('/[\s,]+/', $this->str($value)) ?: []);
+
+        $tokens = array_map(static fn ($t): string => strtolower(trim((string) $t)), $tokens);
+
+        return array_values(array_filter($allowed, static fn (string $type): bool => in_array($type, $tokens, true)));
+    }
+
+    private function diffWanIps(array $baseline, array $target, array &$lines, array &$changes): void
+    {
+        $base = $this->keyById($baseline['wan_ips'] ?? []);
+        $next = $this->keyById($target['wan_ips'] ?? []);
+
+        foreach ($next as $id => $row) {
+            $mode = strtolower($this->str($row['mode'] ?? 'pppoe'));
+            if ($mode === '' || $mode === 'none') {
+                continue;
+            }
+
+            $prev = $base[$id] ?? null;
+
+            $newLine = $this->wanIpLine($row, $mode, $id);
+            $oldLine = $prev !== null ? $this->wanIpLine($prev, strtolower($this->str($prev['mode'] ?? 'pppoe')), $id) : null;
+
+            if ($oldLine !== $newLine) {
+                $lines[] = $newLine;
+                $changes[] = $this->change("WAN-IP {$id} mode", $prev !== null ? strtolower($this->str($prev['mode'] ?? '')) : '', $mode);
+            }
+
+            $newPing = (bool) ($row['ping_response'] ?? false);
+            $newTrace = (bool) ($row['traceroute_response'] ?? false);
+            $oldPing = $prev !== null && (bool) ($prev['ping_response'] ?? false);
+            $oldTrace = $prev !== null && (bool) ($prev['traceroute_response'] ?? false);
+
+            $probeChanged = $prev === null
+                ? ($newPing || $newTrace)
+                : ($newPing !== $oldPing || $newTrace !== $oldTrace);
+
+            if ($probeChanged) {
+                $lines[] = sprintf(
+                    'wan-ip %d ping-response %s traceroute-response %s',
+                    $id,
+                    $newPing ? 'enable' : 'disable',
+                    $newTrace ? 'enable' : 'disable',
+                );
+                $changes[] = $this->change(
+                    "WAN-IP {$id} probe",
+                    $prev !== null ? $this->fmtProbe($oldPing, $oldTrace) : '',
+                    $this->fmtProbe($newPing, $newTrace),
+                );
+            }
+        }
+
+        foreach ($base as $id => $row) {
+            if (! isset($next[$id])) {
+                $lines[] = "no wan-ip {$id}";
+                $changes[] = $this->change("WAN-IP {$id}", strtolower($this->str($row['mode'] ?? '')) ?: 'aktif', 'dihapus');
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function wanIpLine(array $row, string $mode, int $id): string
+    {
+        if ($mode === 'dhcp') {
+            $line = "wan-ip {$id} mode dhcp";
+        } elseif ($mode === 'static') {
+            $line = sprintf(
+                'wan-ip %d mode static ip-profile %s ip-address %s mask %s',
+                $id,
+                $this->str($row['ip_profile'] ?? ''),
+                $this->str($row['static_ip'] ?? ''),
+                $this->lengthToMask((int) ($row['static_mask_length'] ?? 24)),
+            );
+        } else {
+            $user = $this->str($row['pppoe_username'] ?? '');
+            $pass = $this->str($row['pppoe_password'] ?? '') ?: $user;
+            $line = "wan-ip {$id} mode pppoe username {$user} password {$pass}";
+        }
+
+        $vlanProfile = $this->str($row['vlan_profile'] ?? '');
         if ($vlanProfile !== '') {
             $line .= " vlan-profile {$vlanProfile}";
         }
 
-        return $line.' host 1';
+        $host = (int) ($row['host'] ?? 1);
+
+        return $line.' host '.($host > 0 ? $host : 1);
+    }
+
+    private function fmtProbe(bool $ping, bool $trace): string
+    {
+        return sprintf('ping %s / traceroute %s', $ping ? 'on' : 'off', $trace ? 'on' : 'off');
     }
 
     private function diffTr069(array $baseline, array $target, array &$lines, array &$changes): void
@@ -407,11 +479,16 @@ class ZteOnuReconfigureScriptBuilder
         if (($row['vlan'] ?? null) !== null && $row['vlan'] !== '') {
             $line .= ' vlan '.(int) $row['vlan'];
         }
-        if (($row['def_vlan'] ?? null) !== null && $row['def_vlan'] !== '') {
-            $line .= ' def-vlan '.(int) $row['def_vlan'];
-        }
-        if (($row['priority'] ?? null) !== null && $row['priority'] !== '') {
-            $line .= ' priority '.(int) $row['priority'];
+
+        // Def-VLAN & priority hanya relevan untuk mode bertag (tag/hybrid). Mode
+        // trunk & transparent tidak memetakan keduanya, jadi tidak di-emit.
+        if (! in_array(strtolower($mode), ['trunk', 'transparent'], true)) {
+            if (($row['def_vlan'] ?? null) !== null && $row['def_vlan'] !== '') {
+                $line .= ' def-vlan '.(int) $row['def_vlan'];
+            }
+            if (($row['priority'] ?? null) !== null && $row['priority'] !== '') {
+                $line .= ' priority '.(int) $row['priority'];
+            }
         }
 
         return $line;
@@ -446,18 +523,6 @@ class ZteOnuReconfigureScriptBuilder
         }
 
         return sprintf('gemport %d cos %d vlan %d', $gem, (int) ($row['cos'] ?? 0), (int) ($row['vlan'] ?? 0));
-    }
-
-    private function fmtWanService(?array $row): string
-    {
-        return $row ? sprintf(
-            'ethuni %s ssid %s service %s mvlan %s host %s',
-            $this->str($row['ethuni'] ?? ''),
-            $this->str($row['ssid'] ?? ''),
-            $this->str($row['service'] ?? ''),
-            $this->str($row['mvlan'] ?? ''),
-            $this->str($row['host'] ?? ''),
-        ) : '';
     }
 
     // --- generic helpers ---

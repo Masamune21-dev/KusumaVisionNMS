@@ -1,5 +1,106 @@
 # Worklog
 
+## 2026-06-16
+
+### Configure ONU — multi WAN-IP + ping/traceroute response
+
+Bagian **WAN** di halaman Configure ONU (CLI) tadinya hanya mendukung satu WAN-IP (`wan-ip 1`) dengan
+field flat (`wan_mode`, `vlan_profile`, `pppoe_*`, `ip_profile`, `static_*`). Operator butuh bisa
+membuat **lebih dari satu WAN-IP** (`wan-ip 1`, `wan-ip 2`, …) dan menyalakan **ping-response /
+traceroute-response** per WAN-IP — sesuai CLI ZTE:
+
+```
+wan-ip 1 mode pppoe username U password P vlan-profile X host 1
+wan-ip 1 ping-response enable traceroute-response enable
+```
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — parse WAN sekarang menghasilkan array `wan_ips`
+  (per index `id`, plus `host`, `ping_response`, `traceroute_response`) menggantikan field flat. Tambah
+  parsing baris `wan-ip {id} ping-response {enable|disable} traceroute-response {…}` + `host {n}`;
+  `ensureWanIp()` seed/merge entry by id (urutan baris bebas), `ksort`+`array_values` di akhir.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `diffWanIp` (single) → `diffWanIps` (iterasi
+  array, key by id): emit ulang baris `wan-ip {id} mode …` bila berubah, baris probe terpisah hanya bila
+  ping/trace berubah (mode tak ikut ter-emit), dan `no wan-ip {id}` untuk WAN-IP yang dihapus. `wanIpLine`
+  kini terima `(row, mode, id)` + suffix `host {n}`; helper `fmtProbe` untuk change-list.
+- `app/Http/Controllers/SmartOltController.php` — `validatedReconfigure` ganti rule flat WAN dengan
+  `config.wan_ips.*` (id 1-8, mode pppoe/dhcp/static, host 1-16, ping_response/traceroute_response
+  boolean). Audit row di `configureOnuApply` ambil field legacy (`wan_mode`, `vlan_profile`, dst.) dari
+  `wan_ips[0]`.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — section WAN jadi editor multi-kartu: tombol header
+  **Tambah WAN-IP** (`addWanIp`), tiap kartu punya badge WAN-IP {id} + hapus, selector Mode (PPPoE/DHCP/
+  Static), field Index/Host/VLAN Profile, field PPPoE (toggle lihat password per-baris via `pppoeShown`)
+  / Static, dan dua tombol toggle **Ping Response** & **Traceroute Response** (hijau saat aktif) + preview
+  baris CLI. `summary` panel kiri turunkan info WAN dari `wan_ips`.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` (fix dropdown) — VLAN/IP Profile yang dibaca dari running-config
+  live tapi belum ada di katalog profil ter-sync (mis. `vlan-profile VLAN1114-NEW`) dulu jatuh ke
+  "Tanpa profile" karena tak ada `<option>` yang cocok (berisiko nilainya hilang saat Apply). Sekarang nilai
+  live disisipkan sebagai option `{nama} (dari OLT)` via computed `vlanProfileNames`/`ipProfileNames` sehingga
+  tetap tampil & dipertahankan.
+- `app/Services/ZteOnuRunningConfigService.php` (fix wrap parse) — root cause `vlan-profile KSM-PPPOE-VLAN-125`
+  kebaca cuma `KSM`: ZTE membungkus baris config panjang pada lebar terminal dan **memotong nilai di tengah
+  token** (`KSM` + `-PPPOE-VLAN-125`). `normalizeLines` lama menyambung baris continuation dengan menambah
+  spasi → token pecah. Sekarang sambungan dilakukan **verbatim** (gabung potongan raw apa adanya): karena
+  device hanya menyisipkan newline ke stream asli (char-wrap, spasi batas tetap ada di fragmen, continuation
+  tak di-indent ulang, `CliOutputSanitizer` tak rtrim baris), penggabungan ulang merekonstruksi baris persis —
+  benar untuk wrap di tengah token maupun di batas spasi. Test: `test_parses_wan_ip_value_wrapped_mid_token`
+  & `test_parses_wan_ip_wrapped_at_space_boundary`.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` (UI) — kolom **Type** dihapus dari tabel PON-ONU-MNG /
+  Service (grid `cols.service` jadi 6 kolom, min-w 720→600); field `type` tetap di-parse tapi tak
+  ditampilkan/diedit — builder reconfigure memang tak pernah meng-emit `type` di baris `service …`.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` (UNI VLAN) — opsi Mode jadi **tag/hybrid/trunk/transparent**
+  (ganti `access`→`tag`, default baris baru `tag`); kolom **VLAN** dihapus (cukup Def VLAN) → grid
+  `cols.uniVlan` 6 kolom, min-w 760→680, `addVlanPort` tak lagi set `vlan`. Nilai `vlan` dari config
+  live tetap dipertahankan saat round-trip (tak terhapus diam-diam). Mode **trunk** & **transparent**:
+  input Def VLAN + Priority auto-disabled di UI, dan builder `vlanPortLine` skip emit `def-vlan`/`priority`
+  untuk kedua mode itu (hanya tag/hybrid yang memetakan). Test: `test_uni_vlan_trunk_and_transparent_omit_def_vlan_and_priority`.
+
+### WAN Service Binding — parser fleksibel + UI ala NetNumen
+
+Bug: baris device `wan 2 service other mvlan 1001` tak ke-load karena parser lama pakai regex strict
+`wan N ethuni X ssid Y service Z mvlan M host H` (semua field wajib, urutan tetap) — padahal NetNumen
+emit token opsional & longgar urutannya.
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — parse `wan {id}` fleksibel: tiap token (`service`,
+  `mvlan`, `ethuni`, `ssid`, `host`) dimatch independen via `parseWanService`. `service` boleh multi-tipe
+  (`internet tr069 voip other`) → `normalizeServiceTypes` jadi array kanonik (urutan internet/tr069/voip/
+  other, dedup, hanya tipe dikenal). Field model `service` (string) → `services` (array).
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `diffWanServices` diff per-baris via `wanServiceLine`
+  (bandingkan baris ter-render, bukan format kaku). Baris: `wan {id} service {tipe…} [mvlan] [ethuni]
+  [ssid] [host]`; **mvlan hanya di-emit bila `other` dipilih**; `no wan {id}` saat dihapus. `normalizeServices`
+  terima array/string (kanonik) → urutan service deterministik, tak ada delta palsu. Helper lama
+  `fmtWanService` dihapus.
+- `app/Http/Controllers/SmartOltController.php` — validasi `config.wan_services.*.services` array
+  (`Rule::in([internet,tr069,voip,other])`), hapus rule `service` string.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — section dari tabel → kartu per-WAN (konsisten WAN-IP).
+  Service Type = tombol multi-pilih (Internet/TR069/VoIP/Other) via `toggleWanServiceType`; field **MVLAN
+  muncul hanya saat Other dipilih**; WAN ID/Host/Ethuni/SSID; preview baris CLI live (`wanServicePreview`,
+  urutan token persis seperti builder). `cols.wanService` dihapus.
+- `tests/Unit/ZteOnuConfigureTest.php` — 3 test: parse fleksibel (`wan 2 service other mvlan 1001` +
+  multi-service), mvlan hanya untuk other, urutan service kanonik (tak ada delta palsu).
+
+Notes:
+
+- Urutan token CLI (`service … mvlan … ethuni … ssid … host`) sesuai satu-satunya sampel device nyata
+  (`wan 2 service other mvlan 1001`); **perlu verifikasi live** untuk kombinasi internet+ethuni+ssid+host.
+- Fix lanjutan (MVLAN kebaca `1001The`): baris trailing non-keyword setelah `wan …` (mis. teks/banner
+  device) ikut tergabung saat unwrap verbatim → mencemari nilai. `parseWanService` kini capture token
+  numerik/list dengan pola ketat (`mvlan/host` = `\d+`, `ethuni/ssid` = `[\d,\-]+`) jadi teks nyangkut
+  diabaikan. Test: `test_wan_binding_numeric_tokens_ignore_trailing_text`.
+- `tests/Unit/ZteOnuConfigureTest.php` — assertion WAN diubah ke shape `wan_ips`; tambah 4 test: parse
+  multi WAN-IP + probe, enable probe hanya emit baris probe, tambah WAN-IP kedua, hapus WAN-IP (`no wan-ip`).
+
+Notes:
+
+- `RegisterOnu.vue` + `ZteProvisioningScriptBuilder` (alur provisioning awal) **tidak diubah** — masih
+  pakai model WAN flat single; perubahan ini khusus alur reconfigure/Configure ONU.
+- Verifikasi: `php artisan test` (ZteOnuConfigureTest 13 + SmartOltInventory/RegistrationExecution 36
+  passed setelah `config:clear` — cached config sempat bikin 419 CSRF), Pint passed, `npm run build` OK.
+  Belum diuji ke OLT live.
+
 ## 2026-06-15
 
 ### Monitoring beban processor per-board (CPU/Mem/PhyMem) di chassis

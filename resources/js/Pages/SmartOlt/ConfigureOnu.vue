@@ -7,8 +7,8 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    AlertTriangle, ArrowLeft, Check, Cloud, Copy, Cpu, Eye, EyeOff, Globe,
-    ListChecks, Network, Plus, RefreshCw, Settings, ShieldCheck, Terminal, Trash2,
+    Activity, AlertTriangle, ArrowLeft, Check, Cloud, Copy, Cpu, Eye, EyeOff, Globe,
+    ListChecks, Network, Plus, RefreshCw, Settings, ShieldCheck, Terminal, Trash2, X,
 } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
@@ -33,6 +33,10 @@ const clone = (value) => JSON.parse(JSON.stringify(value ?? null));
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
+// Nama profil yang dikenal katalog; dipakai untuk mendeteksi nilai live OLT yang
+// belum tersinkron sehingga tetap bisa ditampilkan & dipertahankan di dropdown.
+const vlanProfileNames = computed(() => vlanProfiles.value.map((p) => p.name));
+const ipProfileNames = computed(() => ipProfiles.value.map((p) => p.name));
 
 const form = useForm({
     config: clone(props.config),
@@ -40,10 +44,13 @@ const form = useForm({
 });
 
 const cfg = form.config;
-const showPppoe = ref(false);
+// Visibilitas password PPPoE per-baris WAN-IP (key = index baris).
+const pppoeShown = ref({});
 
 const summary = computed(() => {
     const b = props.config;
+    const wans = b.wan_ips ?? [];
+    const firstWan = wans[0] ?? {};
     return [
         ['SN', props.meta.sn || '—'],
         ['ONU ID', `${props.onu_id} (immutable)`],
@@ -55,10 +62,10 @@ const summary = computed(() => {
         ['UNI VLAN', `${(b.vlan_ports ?? []).length} row`],
         ['WAN Binding', `${(b.wan_services ?? []).length} row`],
         ['Primary VLAN', b.primary_vlan ?? '—'],
-        ['WAN mode', b.wan_mode || '—'],
-        ['VLAN profile', b.vlan_profile || '—'],
-        ['IP profile', b.ip_profile || '—'],
-        ['PPPoE user', b.pppoe_username || '—'],
+        ['WAN-IP', `${wans.length} entry`],
+        ['WAN mode', firstWan.mode || '—'],
+        ['VLAN profile', firstWan.vlan_profile || '—'],
+        ['PPPoE user', firstWan.pppoe_username || '—'],
         ['TR069', b.tr069 ? 'on' : 'off'],
         ['Sec-mgmt', b.remote_ont ? 'enabled' : 'disabled'],
     ];
@@ -70,16 +77,66 @@ const addTcont = () => cfg.tconts.push({ id: nextId(cfg.tconts), name: '1', prof
 const addGemport = () => cfg.gemports.push({ id: nextId(cfg.gemports), name: '1', tcont: 1, traffic_up: '', traffic_down: '' });
 const addServicePort = () => cfg.service_ports.push({ id: nextId(cfg.service_ports), vport: 1, user_vlan: null, vlan: null });
 const addService = () => cfg.services.push({ name: '', type: null, mode: 'vlanpri', gem: 1, cos: 0, vlan: null });
-const addVlanPort = () => cfg.vlan_ports.push({ port_type: 'eth', port: 1, mode: 'hybrid', vlan: null, def_vlan: null, priority: null });
-const addWanService = () => cfg.wan_services.push({ id: nextId(cfg.wan_services), ethuni: '', ssid: '', service: '', mvlan: '', host: '' });
+const addVlanPort = () => cfg.vlan_ports.push({ port_type: 'eth', port: 1, mode: 'tag', def_vlan: null, priority: null });
+const addWanService = () => cfg.wan_services.push({ id: nextId(cfg.wan_services), services: [], mvlan: '', ethuni: '', ssid: '', host: '' });
+const addWanIp = () => cfg.wan_ips.push({
+    id: nextId(cfg.wan_ips),
+    mode: 'pppoe',
+    vlan_profile: null,
+    pppoe_username: '',
+    pppoe_password: '',
+    ip_profile: null,
+    static_ip: '',
+    static_mask_length: 24,
+    host: 1,
+    ping_response: false,
+    traceroute_response: false,
+});
 const removeRow = (rows, index) => rows.splice(index, 1);
 
-const wanModes = [
-    { value: 'none', label: 'No WAN-IP' },
+const wanIpModes = [
     { value: 'pppoe', label: 'PPPoE' },
     { value: 'dhcp', label: 'DHCP' },
     { value: 'static', label: 'Static IP' },
 ];
+
+// WAN Service Binding — service type bisa pilih lebih dari satu (mengikuti
+// dialog "New ONU WAN Configuration" NetNumen). MVLAN hanya relevan untuk Other.
+const wanServiceTypes = [
+    { value: 'internet', label: 'Internet' },
+    { value: 'tr069', label: 'TR069' },
+    { value: 'voip', label: 'VoIP' },
+    { value: 'other', label: 'Other' },
+];
+
+const toggleWanServiceType = (row, type) => {
+    if (!Array.isArray(row.services)) {
+        row.services = [];
+    }
+    const idx = row.services.indexOf(type);
+    if (idx === -1) {
+        row.services.push(type);
+    } else {
+        row.services.splice(idx, 1);
+    }
+};
+
+// Preview baris CLI persis seperti yang akan di-emit builder (urutan token sama).
+const wanServicePreview = (row) => {
+    const order = wanServiceTypes.map((t) => t.value);
+    const types = order.filter((t) => (row.services ?? []).includes(t));
+    if (!types.length) {
+        return `wan ${row.id} — pilih minimal 1 service type`;
+    }
+    let line = `wan ${row.id} service ${types.join(' ')}`;
+    if (types.includes('other') && row.mvlan) {
+        line += ` mvlan ${row.mvlan}`;
+    }
+    if (row.ethuni) line += ` ethuni ${row.ethuni}`;
+    if (row.ssid) line += ` ssid ${row.ssid}`;
+    if (row.host) line += ` host ${row.host}`;
+    return line;
+};
 
 // --- delta-live preview ---
 const preview = reactive({ script: '# Memuat...', changes: [], loading: false });
@@ -156,9 +213,8 @@ const cols = {
     tcont: '4rem minmax(8rem,1fr) minmax(8rem,1fr) minmax(6rem,1fr) 2.75rem',
     gemport: '4rem minmax(7rem,1fr) 6rem minmax(7rem,1fr) minmax(7rem,1fr) 2.75rem',
     servicePort: '4rem minmax(6rem,1fr) minmax(7rem,1fr) minmax(6rem,1fr) 2.75rem',
-    service: 'minmax(8rem,1.3fr) minmax(6rem,1fr) minmax(8rem,1fr) 4rem 4rem minmax(5rem,1fr) 2.75rem',
-    uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
-    wanService: '4rem minmax(6rem,1fr) minmax(6rem,1fr) minmax(7rem,1fr) minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
+    service: 'minmax(8rem,1.3fr) minmax(6rem,1fr) 4rem 4rem minmax(5rem,1fr) 2.75rem',
+    uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
 };
 
 const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 text-slate-100 shadow-sm focus:border-cyan-500 focus:ring-cyan-500';
@@ -353,9 +409,9 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="space-y-3 md:min-w-[720px] md:space-y-1.5">
+                                <div class="space-y-3 md:min-w-[600px] md:space-y-1.5">
                                     <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.service }">
-                                        <span>Name</span><span>Mode</span><span>Type</span><span>GEM</span><span>COS</span><span>VLAN</span><span></span>
+                                        <span>Name</span><span>Mode</span><span>GEM</span><span>COS</span><span>VLAN</span><span></span>
                                     </div>
                                     <div v-for="(row, i) in cfg.services" :key="`sv-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.service } : null">
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
@@ -365,7 +421,6 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                                 <option value="transparent">Transparent</option>
                                             </select>
                                         </div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Type</span><TextInput v-model="row.type" :class="fieldClass" placeholder="internet/iptv" /></div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">GEM</span><TextInput v-model.number="row.gem" type="number" :class="fieldClass" /></div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">COS</span><TextInput v-model.number="row.cos" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
@@ -385,9 +440,9 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <button type="button" class="kv-add" @click="addVlanPort"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
                             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="space-y-3 md:min-w-[760px] md:space-y-1.5">
+                                <div class="space-y-3 md:min-w-[680px] md:space-y-1.5">
                                     <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.uniVlan }">
-                                        <span>Port Type</span><span>Port</span><span>Mode</span><span>VLAN</span><span>Def VLAN</span><span>Priority</span><span></span>
+                                        <span>Port Type</span><span>Port</span><span>Mode</span><span>Def VLAN</span><span>Priority</span><span></span>
                                     </div>
                                     <div v-for="(row, i) in cfg.vlan_ports" :key="`uv-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.uniVlan } : null">
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Port Type</span>
@@ -399,15 +454,14 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Port</span><TextInput v-model.number="row.port" type="number" :class="fieldClass" /></div>
                                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Mode</span>
                                             <select v-model="row.mode" :class="fieldClass">
+                                                <option value="tag">tag</option>
                                                 <option value="hybrid">hybrid</option>
                                                 <option value="trunk">trunk</option>
-                                                <option value="access">access</option>
                                                 <option value="transparent">transparent</option>
                                             </select>
                                         </div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Def VLAN</span><TextInput v-model.number="row.def_vlan" type="number" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Priority</span><TextInput v-model.number="row.priority" type="number" :class="fieldClass" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Def VLAN</span><TextInput v-model.number="row.def_vlan" type="number" :class="fieldClass" :disabled="row.mode === 'trunk' || row.mode === 'transparent'" /></div>
+                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Priority</span><TextInput v-model.number="row.priority" type="number" :class="fieldClass" :disabled="row.mode === 'trunk' || row.mode === 'transparent'" /></div>
                                         <div class="kv-cell kv-action-cell">
                                             <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.vlan_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
                                         </div>
@@ -423,85 +477,189 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Network class="h-4 w-4 text-cyan-400" /> WAN Service Binding</h3>
                                 <button type="button" class="kv-add" @click="addWanService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
                             </header>
-                            <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                                <div class="space-y-3 md:min-w-[820px] md:space-y-1.5">
-                                    <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.wanService }">
-                                        <span>ID</span><span>ETHUNI</span><span>SSID</span><span>Service</span><span>MVLAN</span><span>Host</span><span></span>
+                            <div class="space-y-4 p-4 sm:p-6">
+                                <p v-if="!cfg.wan_services.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                                    Belum ada WAN binding. Klik <span class="font-semibold text-slate-300">Tambah</span>.
+                                </p>
+
+                                <div
+                                    v-for="(w, i) in cfg.wan_services" :key="`ws-${i}`"
+                                    class="space-y-4 rounded-lg border border-white/10 bg-slate-950/30 p-4"
+                                >
+                                    <div class="flex items-center justify-between">
+                                        <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
+                                            WAN {{ w.id }}
+                                        </span>
+                                        <button type="button" class="kv-del" title="Hapus WAN binding" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /></button>
                                     </div>
-                                    <div v-for="(row, i) in cfg.wan_services" :key="`ws-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.wanService } : null">
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ETHUNI</span><TextInput v-model="row.ethuni" :class="fieldClass" placeholder="1,2,3" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">SSID</span><TextInput v-model="row.ssid" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Service</span><TextInput v-model="row.service" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">MVLAN</span><TextInput v-model="row.mvlan" :class="fieldClass" /></div>
-                                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Host</span><TextInput v-model="row.host" :class="fieldClass" /></div>
-                                        <div class="kv-cell kv-action-cell">
-                                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+
+                                    <!-- Service Type (multi) -->
+                                    <div>
+                                        <InputLabel value="Service Type" />
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            <button
+                                                v-for="t in wanServiceTypes" :key="t.value" type="button"
+                                                class="rounded-lg border px-4 py-2 text-sm font-medium transition-all"
+                                                :class="(w.services ?? []).includes(t.value) ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
+                                                @click="toggleWanServiceType(w, t.value)"
+                                            >{{ t.label }}</button>
                                         </div>
                                     </div>
-                                    <p v-if="!cfg.wan_services.length" class="py-1 text-xs text-slate-500">Belum ada WAN binding.</p>
+
+                                    <!-- WAN ID / Host / Ethuni / SSID -->
+                                    <div class="grid gap-4 sm:grid-cols-4">
+                                        <div>
+                                            <InputLabel value="WAN ID" />
+                                            <TextInput v-model.number="w.id" type="number" min="1" class="mt-1 block w-full" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="Host (IP Host ID)" />
+                                            <TextInput v-model="w.host" class="mt-1 block w-full" placeholder="1" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="Ethernet UNI" />
+                                            <TextInput v-model="w.ethuni" class="mt-1 block w-full" placeholder="1,2,3" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="SSID" />
+                                            <TextInput v-model="w.ssid" class="mt-1 block w-full" placeholder="1,2" />
+                                        </div>
+                                    </div>
+
+                                    <!-- MVLAN: hanya untuk Other -->
+                                    <div v-if="(w.services ?? []).includes('other')" class="sm:max-w-xs">
+                                        <InputLabel value="MVLAN" />
+                                        <TextInput v-model="w.mvlan" class="mt-1 block w-full" placeholder="1001" />
+                                        <p class="mt-1 text-xs text-slate-500">Wajib untuk service <span class="font-semibold text-slate-300">Other</span>.</p>
+                                    </div>
+
+                                    <p class="text-xs text-slate-500">
+                                        CLI: <span class="font-mono text-slate-400">{{ wanServicePreview(w) }}</span>
+                                    </p>
                                 </div>
                             </div>
                         </section>
 
-                        <!-- WAN -->
+                        <!-- WAN (multi WAN-IP) -->
                         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                            <header class="flex items-center gap-2 border-b border-white/10 px-4 py-3 sm:px-6">
-                                <Globe class="h-4 w-4 text-cyan-400" />
-                                <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">WAN</h3>
+                            <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+                                <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200">
+                                    <Globe class="h-4 w-4 text-cyan-400" /> WAN
+                                </h3>
+                                <button type="button" class="kv-add" @click="addWanIp"><Plus class="h-3.5 w-3.5" /> Tambah WAN-IP</button>
                             </header>
-                            <div class="space-y-5 p-4 sm:p-6">
-                                <div>
-                                    <InputLabel value="Mode" />
-                                    <div class="mt-2 flex flex-wrap gap-2">
-                                        <button
-                                            v-for="m in wanModes" :key="m.value" type="button"
-                                            class="rounded-lg border px-4 py-2 text-sm font-medium transition-all"
-                                            :class="cfg.wan_mode === m.value ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
-                                            @click="cfg.wan_mode = m.value"
-                                        >{{ m.label }}</button>
-                                    </div>
-                                </div>
+                            <div class="space-y-4 p-4 sm:p-6">
+                                <p v-if="!cfg.wan_ips.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                                    Belum ada WAN-IP. Klik <span class="font-semibold text-slate-300">Tambah WAN-IP</span> untuk membuat koneksi WAN.
+                                </p>
 
-                                <div v-if="cfg.wan_mode !== 'none'">
-                                    <InputLabel for="vlan_profile" value="VLAN Profile (optional)" />
-                                    <select id="vlan_profile" v-model="cfg.vlan_profile" :class="fieldClass">
-                                        <option :value="null">Tanpa profile</option>
-                                        <option v-for="p in vlanProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
-                                    </select>
-                                </div>
-
-                                <div v-if="cfg.wan_mode === 'pppoe'" class="grid gap-5 md:grid-cols-2">
-                                    <div>
-                                        <InputLabel for="pppoe_username" value="PPPoE Username" />
-                                        <TextInput id="pppoe_username" v-model="cfg.pppoe_username" class="mt-1 block w-full" autocomplete="off" data-1p-ignore data-lpignore="true" />
+                                <div
+                                    v-for="(w, i) in cfg.wan_ips" :key="`wan-${i}`"
+                                    class="space-y-4 rounded-lg border border-white/10 bg-slate-950/30 p-4"
+                                >
+                                    <div class="flex items-center justify-between">
+                                        <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
+                                            WAN-IP {{ w.id }}
+                                        </span>
+                                        <button type="button" class="kv-del" title="Hapus WAN-IP" @click="removeRow(cfg.wan_ips, i)"><Trash2 class="h-4 w-4" /></button>
                                     </div>
+
+                                    <!-- Mode -->
                                     <div>
-                                        <InputLabel for="pppoe_password" value="PPPoE Password" />
-                                        <div class="relative mt-1">
-                                            <TextInput id="pppoe_password" v-model="cfg.pppoe_password" :type="showPppoe ? 'text' : 'password'" class="block w-full pr-10" placeholder="••••••••" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
-                                            <button type="button" class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-white" @click="showPppoe = !showPppoe">
-                                                <EyeOff v-if="showPppoe" class="h-4 w-4" /><Eye v-else class="h-4 w-4" />
-                                            </button>
+                                        <InputLabel value="Mode" />
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            <button
+                                                v-for="m in wanIpModes" :key="m.value" type="button"
+                                                class="rounded-lg border px-4 py-2 text-sm font-medium transition-all"
+                                                :class="w.mode === m.value ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
+                                                @click="w.mode = m.value"
+                                            >{{ m.label }}</button>
                                         </div>
                                     </div>
-                                </div>
 
-                                <div v-if="cfg.wan_mode === 'static'" class="grid gap-5 md:grid-cols-3">
-                                    <div>
-                                        <InputLabel for="ip_profile" value="IP Profile" />
-                                        <select id="ip_profile" v-model="cfg.ip_profile" :class="fieldClass">
-                                            <option :value="null">—</option>
-                                            <option v-for="p in ipProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
-                                        </select>
+                                    <!-- Index / Host / VLAN Profile -->
+                                    <div class="grid gap-4 sm:grid-cols-4">
+                                        <div>
+                                            <InputLabel value="Index" />
+                                            <TextInput v-model.number="w.id" type="number" min="1" max="8" class="mt-1 block w-full" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="Host" />
+                                            <TextInput v-model.number="w.host" type="number" min="1" max="16" class="mt-1 block w-full" />
+                                        </div>
+                                        <div class="sm:col-span-2">
+                                            <InputLabel value="VLAN Profile (optional)" />
+                                            <select v-model="w.vlan_profile" :class="fieldClass">
+                                                <option :value="null">Tanpa profile</option>
+                                                <option v-if="w.vlan_profile && !vlanProfileNames.includes(w.vlan_profile)" :value="w.vlan_profile">{{ w.vlan_profile }} (dari OLT)</option>
+                                                <option v-for="p in vlanProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <InputLabel for="static_ip" value="Static IP" />
-                                        <TextInput id="static_ip" v-model="cfg.static_ip" class="mt-1 block w-full font-mono" />
+
+                                    <!-- PPPoE -->
+                                    <div v-if="w.mode === 'pppoe'" class="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                            <InputLabel value="PPPoE Username" />
+                                            <TextInput v-model="w.pppoe_username" class="mt-1 block w-full" autocomplete="off" data-1p-ignore data-lpignore="true" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="PPPoE Password" />
+                                            <div class="relative mt-1">
+                                                <TextInput v-model="w.pppoe_password" :type="pppoeShown[i] ? 'text' : 'password'" class="block w-full pr-10" placeholder="••••••••" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
+                                                <button type="button" class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-white" @click="pppoeShown[i] = !pppoeShown[i]">
+                                                    <EyeOff v-if="pppoeShown[i]" class="h-4 w-4" /><Eye v-else class="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
+
+                                    <!-- Static -->
+                                    <div v-if="w.mode === 'static'" class="grid gap-4 md:grid-cols-3">
+                                        <div>
+                                            <InputLabel value="IP Profile" />
+                                            <select v-model="w.ip_profile" :class="fieldClass">
+                                                <option :value="null">—</option>
+                                                <option v-if="w.ip_profile && !ipProfileNames.includes(w.ip_profile)" :value="w.ip_profile">{{ w.ip_profile }} (dari OLT)</option>
+                                                <option v-for="p in ipProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <InputLabel value="Static IP" />
+                                            <TextInput v-model="w.static_ip" class="mt-1 block w-full font-mono" />
+                                        </div>
+                                        <div>
+                                            <InputLabel value="Subnet Prefix (/)" />
+                                            <TextInput v-model.number="w.static_mask_length" type="number" min="1" max="32" class="mt-1 block w-full" />
+                                        </div>
+                                    </div>
+
+                                    <!-- Probe response toggles -->
                                     <div>
-                                        <InputLabel for="static_mask_length" value="Subnet Prefix (/)" />
-                                        <TextInput id="static_mask_length" v-model.number="cfg.static_mask_length" type="number" min="1" max="32" class="mt-1 block w-full" />
+                                        <InputLabel value="Probe Response" />
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all"
+                                                :class="w.ping_response ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300' : 'border-white/10 bg-slate-900/40 text-slate-300 hover:border-emerald-500/40'"
+                                                @click="w.ping_response = !w.ping_response"
+                                            >
+                                                <Check v-if="w.ping_response" class="h-4 w-4" /><X v-else class="h-4 w-4" />
+                                                Ping Response
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all"
+                                                :class="w.traceroute_response ? 'border-emerald-500 bg-emerald-500/15 text-emerald-300' : 'border-white/10 bg-slate-900/40 text-slate-300 hover:border-emerald-500/40'"
+                                                @click="w.traceroute_response = !w.traceroute_response"
+                                            >
+                                                <Activity v-if="w.traceroute_response" class="h-4 w-4" /><X v-else class="h-4 w-4" />
+                                                Traceroute Response
+                                            </button>
+                                        </div>
+                                        <p class="mt-1.5 text-xs text-slate-500">
+                                            CLI: <span class="font-mono text-slate-400">wan-ip {{ w.id }} ping-response {{ w.ping_response ? 'enable' : 'disable' }} traceroute-response {{ w.traceroute_response ? 'enable' : 'disable' }}</span>
+                                        </p>
                                     </div>
                                 </div>
                             </div>

@@ -60,10 +60,14 @@ RAW;
         $this->assertNull($config['services'][0]['type']);
         $this->assertSame(22, $config['primary_vlan']);
 
-        $this->assertSame('pppoe', $config['wan_mode']);
-        $this->assertSame('serversemampir', $config['pppoe_username']);
-        $this->assertSame('rahasia', $config['pppoe_password']);
-        $this->assertSame('PPPOEPATI', $config['vlan_profile']);
+        $this->assertCount(1, $config['wan_ips']);
+        $this->assertSame(1, $config['wan_ips'][0]['id']);
+        $this->assertSame('pppoe', $config['wan_ips'][0]['mode']);
+        $this->assertSame('serversemampir', $config['wan_ips'][0]['pppoe_username']);
+        $this->assertSame('rahasia', $config['wan_ips'][0]['pppoe_password']);
+        $this->assertSame('PPPOEPATI', $config['wan_ips'][0]['vlan_profile']);
+        $this->assertFalse($config['wan_ips'][0]['ping_response']);
+        $this->assertFalse($config['wan_ips'][0]['traceroute_response']);
 
         $this->assertTrue($config['tr069']);
         $this->assertSame('cms', $config['acs_username']);
@@ -81,10 +85,133 @@ RAW;
             "  wan-ip 1 mode static ip-profile INTERNET ip-address 10.0.0.5 mask 255.255.255.0 host 1\n"
         );
 
-        $this->assertSame('static', $config['wan_mode']);
-        $this->assertSame('INTERNET', $config['ip_profile']);
-        $this->assertSame('10.0.0.5', $config['static_ip']);
-        $this->assertSame(24, $config['static_mask_length']);
+        $this->assertCount(1, $config['wan_ips']);
+        $this->assertSame('static', $config['wan_ips'][0]['mode']);
+        $this->assertSame('INTERNET', $config['wan_ips'][0]['ip_profile']);
+        $this->assertSame('10.0.0.5', $config['wan_ips'][0]['static_ip']);
+        $this->assertSame(24, $config['wan_ips'][0]['static_mask_length']);
+    }
+
+    public function test_parses_wan_ip_value_wrapped_mid_token(): void
+    {
+        // ZTE hard-wraps long config lines at the terminal width, splitting a
+        // value token mid-string ("KSM" + "-PPPOE-VLAN-125"). The parser must
+        // glue the fragments back without inserting a stray space.
+        $config = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/1:3\n".
+            "  wan-ip 1 mode pppoe username gudangkulon password \n".
+            "gudangkulon vlan-profile KSM\n".
+            "-PPPOE-VLAN-125 host 1\n"
+        );
+
+        $this->assertCount(1, $config['wan_ips']);
+        $this->assertSame('gudangkulon', $config['wan_ips'][0]['pppoe_username']);
+        $this->assertSame('gudangkulon', $config['wan_ips'][0]['pppoe_password']);
+        $this->assertSame('KSM-PPPOE-VLAN-125', $config['wan_ips'][0]['vlan_profile']);
+    }
+
+    public function test_parses_wan_ip_wrapped_at_space_boundary(): void
+    {
+        // Wrap that falls on a space: the device keeps the space character on the
+        // fragment, so verbatim concatenation still rebuilds separate tokens.
+        $config = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/1:3\n".
+            "  wan-ip 1 mode pppoe username ahmadkhoironketanen \n".
+            "password ahmadkhoironketanen \n".
+            "vlan-profile KSM-PPPOE-VLAN-125 host 1\n"
+        );
+
+        $this->assertSame('ahmadkhoironketanen', $config['wan_ips'][0]['pppoe_username']);
+        $this->assertSame('ahmadkhoironketanen', $config['wan_ips'][0]['pppoe_password']);
+        $this->assertSame('KSM-PPPOE-VLAN-125', $config['wan_ips'][0]['vlan_profile']);
+    }
+
+    public function test_parses_flexible_wan_binding(): void
+    {
+        // NetNumen emits sparse `wan` lines (optional, loosely-ordered tokens).
+        // The old rigid parser missed `wan 2 service other mvlan 1001`.
+        $config = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/3:3\n".
+            "  wan 1 service internet tr069 voip ethuni 1,2 ssid 1 host 1\n".
+            "  wan 2 service other mvlan 1001\n"
+        );
+
+        $this->assertCount(2, $config['wan_services']);
+
+        $this->assertSame(1, $config['wan_services'][0]['id']);
+        $this->assertSame(['internet', 'tr069', 'voip'], $config['wan_services'][0]['services']);
+        $this->assertSame('1,2', $config['wan_services'][0]['ethuni']);
+        $this->assertSame('1', $config['wan_services'][0]['host']);
+
+        $this->assertSame(2, $config['wan_services'][1]['id']);
+        $this->assertSame(['other'], $config['wan_services'][1]['services']);
+        $this->assertSame('1001', $config['wan_services'][1]['mvlan']);
+    }
+
+    public function test_wan_binding_numeric_tokens_ignore_trailing_text(): void
+    {
+        // Trailing device text yang ikut tergabung saat unwrap tidak boleh
+        // mencemari nilai numerik (mvlan/host) — "mvlan 1001The..." → 1001.
+        $config = $this->parser()->parse(
+            "pon-onu-mng x\n".
+            "  wan 2 service other mvlan 1001\n".
+            "The configuration is displayed\n"
+        );
+
+        $this->assertSame('1001', $config['wan_services'][0]['mvlan']);
+        $this->assertSame(['other'], $config['wan_services'][0]['services']);
+    }
+
+    public function test_wan_binding_builds_line_with_mvlan_only_for_other(): void
+    {
+        $base = $this->parser()->parse("pon-onu-mng x\n  wan 2 service other mvlan 1001\n");
+
+        // internet-only binding must NOT carry mvlan even if a stale value lingers.
+        $target = $base;
+        $target['wan_services'][] = ['id' => 1, 'services' => ['internet', 'tr069'], 'mvlan' => '99', 'ethuni' => '1', 'ssid' => '', 'host' => '1'];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/3:3']);
+
+        $this->assertStringContainsString('wan 1 service internet tr069 ethuni 1 host 1', $delta['script']);
+        $this->assertStringNotContainsString('wan 1 service internet tr069 mvlan', $delta['script']);
+        // Unchanged wan 2 must not be re-emitted.
+        $this->assertStringNotContainsString('wan 2 ', $delta['script']);
+    }
+
+    public function test_wan_binding_canonical_service_order_avoids_spurious_delta(): void
+    {
+        $base = $this->parser()->parse("pon-onu-mng x\n  wan 1 service internet voip other mvlan 10\n");
+        $target = $base;
+        // Same set, different input order → canonical order means no change.
+        $target['wan_services'][0]['services'] = ['other', 'internet', 'voip'];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/3:3']);
+
+        $this->assertSame('', $delta['script']);
+    }
+
+    public function test_parses_multiple_wan_ips_with_probe_responses(): void
+    {
+        $config = $this->parser()->parse(
+            "pon-onu-mng gpon-onu_1/2/1:3\n".
+            "  wan-ip 1 mode pppoe username userone password passone vlan-profile VLAN10 host 1\n".
+            "  wan-ip 1 ping-response enable traceroute-response enable\n".
+            "  wan-ip 2 mode dhcp host 2\n".
+            "  wan-ip 2 ping-response disable traceroute-response enable\n"
+        );
+
+        $this->assertCount(2, $config['wan_ips']);
+
+        $this->assertSame(1, $config['wan_ips'][0]['id']);
+        $this->assertSame('pppoe', $config['wan_ips'][0]['mode']);
+        $this->assertTrue($config['wan_ips'][0]['ping_response']);
+        $this->assertTrue($config['wan_ips'][0]['traceroute_response']);
+
+        $this->assertSame(2, $config['wan_ips'][1]['id']);
+        $this->assertSame('dhcp', $config['wan_ips'][1]['mode']);
+        $this->assertSame(2, $config['wan_ips'][1]['host']);
+        $this->assertFalse($config['wan_ips'][1]['ping_response']);
+        $this->assertTrue($config['wan_ips'][1]['traceroute_response']);
     }
 
     public function test_no_change_produces_empty_script(): void
@@ -135,7 +262,7 @@ RAW;
     {
         $base = $this->parser()->parse($this->sampleRaw());
         $target = $base;
-        $target['pppoe_username'] = 'pelanggan_baru';
+        $target['wan_ips'][0]['pppoe_username'] = 'pelanggan_baru';
         $target['tr069'] = false;
         $target['remote_ont'] = false;
 
@@ -145,6 +272,79 @@ RAW;
         $this->assertStringContainsString('vlan-profile PPPOEPATI', $delta['script']);
         $this->assertStringContainsString('tr069-mgmt 1 state lock', $delta['script']);
         $this->assertStringContainsString('security-mgmt 212 state disable', $delta['script']);
+    }
+
+    public function test_enabling_probe_response_emits_only_probe_line(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        // Hanya nyalakan ping/traceroute — baris mode wan-ip tidak boleh ikut ter-emit ulang.
+        $target['wan_ips'][0]['ping_response'] = true;
+        $target['wan_ips'][0]['traceroute_response'] = true;
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('wan-ip 1 ping-response enable traceroute-response enable', $delta['script']);
+        $this->assertStringNotContainsString('wan-ip 1 mode pppoe', $delta['script']);
+    }
+
+    public function test_adding_second_wan_ip_emits_new_lines(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        $target['wan_ips'][] = [
+            'id' => 2,
+            'mode' => 'dhcp',
+            'vlan_profile' => null,
+            'pppoe_username' => null,
+            'pppoe_password' => null,
+            'ip_profile' => null,
+            'static_ip' => null,
+            'static_mask_length' => null,
+            'host' => 2,
+            'ping_response' => true,
+            'traceroute_response' => false,
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('wan-ip 2 mode dhcp host 2', $delta['script']);
+        $this->assertStringContainsString('wan-ip 2 ping-response enable traceroute-response disable', $delta['script']);
+        // WAN-IP 1 tidak berubah → tidak ikut ter-emit.
+        $this->assertStringNotContainsString('wan-ip 1 mode', $delta['script']);
+    }
+
+    public function test_removing_wan_ip_emits_no_directive(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        $target['wan_ips'] = [];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('no wan-ip 1', $delta['script']);
+    }
+
+    public function test_uni_vlan_trunk_and_transparent_omit_def_vlan_and_priority(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        // tag → emit def-vlan + priority; trunk & transparent → keduanya di-skip.
+        $target['vlan_ports'] = [
+            ['port_type' => 'eth', 'port' => 1, 'mode' => 'tag', 'def_vlan' => 100, 'priority' => 3],
+            ['port_type' => 'eth', 'port' => 2, 'mode' => 'trunk', 'def_vlan' => 200, 'priority' => 5],
+            ['port_type' => 'eth', 'port' => 3, 'mode' => 'transparent', 'def_vlan' => 300, 'priority' => 7],
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('vlan port eth_0/1 mode tag def-vlan 100 priority 3', $delta['script']);
+        $this->assertStringContainsString('vlan port eth_0/2 mode trunk', $delta['script']);
+        $this->assertStringNotContainsString('mode trunk def-vlan', $delta['script']);
+        $this->assertStringContainsString('vlan port eth_0/3 mode transparent', $delta['script']);
+        $this->assertStringNotContainsString('mode transparent def-vlan', $delta['script']);
+        $this->assertStringNotContainsString('priority 5', $delta['script']);
+        $this->assertStringNotContainsString('priority 7', $delta['script']);
     }
 
     public function test_parses_service_mode_vlanpri_and_transparent(): void

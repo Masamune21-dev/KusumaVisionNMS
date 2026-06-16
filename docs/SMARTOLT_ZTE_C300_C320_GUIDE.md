@@ -402,7 +402,7 @@ Untuk ONU yang sudah terdaftar dan butuh ubah config, dipakai **delta script** (
 3. Emit hanya baris yang **berubah** (name, tcont row baru, gemport row baru, dst.)
 4. Untuk TR069: emit `state lock` bila dimatikan, `state unlock` + acs line bila dihidupkan
 5. Untuk Remote ONT (security-mgmt): emit `state enable` atau `state disable` sesuai toggle
-6. Untuk WAN-IP: emit ulang full `wan-ip 1 mode …` bila mode/credential/profile berubah
+6. Untuk WAN-IP (multi-index): per `wan-ip {id}` emit ulang full `wan-ip {id} mode …` bila mode/credential/profile berubah, baris `wan-ip {id} ping-response {enable|disable} traceroute-response {enable|disable}` hanya bila toggle probe berubah, dan `no wan-ip {id}` bila WAN-IP dihapus
 
 Output script delta selalu dibungkus:
 
@@ -698,7 +698,7 @@ Bila firmware tidak punya command kedua, output `%Error` di-skip silent.
 | `^service NAME type T gemport G cos C vlan V` | `services[]`, `service_name`, `vlan` |
 | `^vlan port PORT mode MODE ...` | `vlan_ports[]` (eth_0/N atau wifi_0/N) |
 | `^wan-ip N mode {pppoe\|dhcp\|static} ...` | `wan_mode`, `pppoe_*`, `static_*`, `ip_profile`, `vlan_profile` |
-| `^wan N ethuni X ssid Y service Z mvlan M host H` | `wan_services[]` |
+| `^wan N service {internet\|tr069\|voip\|other}+ [mvlan M] [ethuni X] [ssid Y] [host H]` | `wan_services[]` (token opsional & longgar urutannya, mis. `wan 2 service other mvlan 1001`; `services[]` multi-tipe, `mvlan` khusus `other`) |
 | `^tr069-mgmt N state {unlock\|lock}` | `tr069` (bool) |
 | `^tr069-mgmt N acs URL validate basic username U password P` | `acs_url`, `acs_username`, `acs_password` |
 | `^security-mgmt ID state {enable\|disable} mode MODE protocol PROTO` | `remote_ont`, `remote_ont_id/mode/protocol` |
@@ -955,7 +955,7 @@ Dari `routes/api.php` — middleware `auth:sanctum`:
      • Service Port (id, vport, user_vlan, vlan)
      • Service (name, type, gemport, cos, vlan)
      • UNI VLAN (Port Type {Ethernet|WiFi} + Port {1-4} → token eth_0/N atau wifi_0/N)
-     • WAN service (id, ethuni, ssid, service, mvlan, host)
+     • WAN service (id, services[] {internet/tr069/voip/other}, mvlan, ethuni, ssid, host)
    - Live preview button → POST /configure/preview
    - Apply button → POST /configure (butuh ketik ulang onu_id di field confirm)
 

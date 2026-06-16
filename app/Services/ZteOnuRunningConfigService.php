@@ -54,13 +54,7 @@ class ZteOnuRunningConfigService
             'services' => [],
             'vlan_ports' => [],
             'wan_services' => [],
-            'wan_mode' => 'none',
-            'vlan_profile' => null,
-            'pppoe_username' => null,
-            'pppoe_password' => null,
-            'ip_profile' => null,
-            'static_ip' => null,
-            'static_mask_length' => null,
+            'wan_ips' => [],
             'tr069' => false,
             'acs_url' => null,
             'acs_username' => null,
@@ -78,6 +72,8 @@ class ZteOnuRunningConfigService
 
         $config['tconts'] = array_values($config['tconts']);
         $config['gemports'] = array_values($config['gemports']);
+        ksort($config['wan_ips']);
+        $config['wan_ips'] = array_values($config['wan_ips']);
         $config['primary_vlan'] = $this->derivePrimaryVlan($config);
 
         return $config;
@@ -184,21 +180,22 @@ class ZteOnuRunningConfigService
             return;
         }
 
-        if (preg_match('/^wan\s+(\d+)\s+ethuni\s+(\S+)\s+ssid\s+(\S+)\s+service\s+(\S+)\s+mvlan\s+(\S+)\s+host\s+(\S+)/i', $line, $m)) {
-            $config['wan_services'][] = [
-                'id' => (int) $m[1],
-                'ethuni' => $m[2],
-                'ssid' => $m[3],
-                'service' => $m[4],
-                'mvlan' => $m[5],
-                'host' => $m[6],
-            ];
+        if (preg_match('/^wan\s+(\d+)\s+(.*)$/i', $line, $m)) {
+            $config['wan_services'][] = $this->parseWanService((int) $m[1], $m[2]);
 
             return;
         }
 
-        if (preg_match('/^wan-ip\s+\d+\s+mode\s+(pppoe|dhcp|static)(.*)$/i', $line, $m)) {
-            $this->applyWanIp($config, strtolower($m[1]), $m[2]);
+        if (preg_match('/^wan-ip\s+(\d+)\s+mode\s+(pppoe|dhcp|static)(.*)$/i', $line, $m)) {
+            $this->applyWanIpMode($config, (int) $m[1], strtolower($m[2]), $m[3]);
+
+            return;
+        }
+
+        if (preg_match('/^wan-ip\s+(\d+)\s+.*(?:ping-response|traceroute-response)/i', $line, $m)) {
+            $ping = preg_match('/ping-response\s+(enable|disable)/i', $line, $mm) && strtolower($mm[1]) === 'enable';
+            $trace = preg_match('/traceroute-response\s+(enable|disable)/i', $line, $mm) && strtolower($mm[1]) === 'enable';
+            $this->applyWanIpProbe($config, (int) $m[1], $ping, $trace);
 
             return;
         }
@@ -228,30 +225,118 @@ class ZteOnuRunningConfigService
     /**
      * @param  array<string, mixed>  $config
      */
-    private function applyWanIp(array &$config, string $mode, string $rest): void
+    private function applyWanIpMode(array &$config, int $id, string $mode, string $rest): void
     {
-        $config['wan_mode'] = $mode;
+        $entry = $this->ensureWanIp($config, $id);
+        $entry['mode'] = $mode;
 
         if ($mode === 'pppoe' && preg_match('/username\s+(\S+)\s+password\s+(\S+)/i', $rest, $m)) {
-            $config['pppoe_username'] = $m[1];
-            $config['pppoe_password'] = $m[2];
+            $entry['pppoe_username'] = $m[1];
+            $entry['pppoe_password'] = $m[2];
         }
 
         if ($mode === 'static') {
             if (preg_match('/ip-profile\s+(\S+)/i', $rest, $m)) {
-                $config['ip_profile'] = $m[1];
+                $entry['ip_profile'] = $m[1];
             }
             if (preg_match('/ip-address\s+(\S+)/i', $rest, $m)) {
-                $config['static_ip'] = $m[1];
+                $entry['static_ip'] = $m[1];
             }
             if (preg_match('/mask\s+(\S+)/i', $rest, $m)) {
-                $config['static_mask_length'] = $this->maskToLength($m[1]);
+                $entry['static_mask_length'] = $this->maskToLength($m[1]);
             }
         }
 
         if (preg_match('/vlan-profile\s+(\S+)/i', $rest, $m)) {
-            $config['vlan_profile'] = $m[1];
+            $entry['vlan_profile'] = $m[1];
         }
+
+        if (preg_match('/host\s+(\d+)/i', $rest, $m)) {
+            $entry['host'] = (int) $m[1];
+        }
+
+        $config['wan_ips'][$id] = $entry;
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function applyWanIpProbe(array &$config, int $id, bool $ping, bool $trace): void
+    {
+        $entry = $this->ensureWanIp($config, $id);
+        $entry['ping_response'] = $ping;
+        $entry['traceroute_response'] = $trace;
+
+        $config['wan_ips'][$id] = $entry;
+    }
+
+    /**
+     * Fetch the existing WAN-IP entry for an index or seed a fresh one with defaults.
+     *
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
+    private function ensureWanIp(array $config, int $id): array
+    {
+        return $config['wan_ips'][$id] ?? [
+            'id' => $id,
+            'mode' => 'pppoe',
+            'vlan_profile' => null,
+            'pppoe_username' => null,
+            'pppoe_password' => null,
+            'ip_profile' => null,
+            'static_ip' => null,
+            'static_mask_length' => null,
+            'host' => 1,
+            'ping_response' => false,
+            'traceroute_response' => false,
+        ];
+    }
+
+    /**
+     * Parse a `wan {id} ...` binding line. NetNumen emits these with optional,
+     * loosely-ordered tokens (e.g. `wan 2 service other mvlan 1001`), so each
+     * field is matched independently rather than with one rigid pattern.
+     *
+     * @return array<string, mixed>
+     */
+    private function parseWanService(int $id, string $rest): array
+    {
+        $service = '';
+        if (preg_match('/\bservice\s+(.+?)(?=\s+(?:ethuni|ssid|mvlan|host|max-frame-size|tag|cos|gemport)\b|$)/i', $rest, $m)) {
+            $service = trim($m[1]);
+        }
+
+        // mvlan/host = id numerik; ethuni/ssid = daftar UNI/SSID (angka, koma, range).
+        // Pola ketat ini mencegah teks lain (mis. baris trailing device yang ikut
+        // tergabung saat unwrap) mencemari nilai — "mvlan 1001The" → "1001".
+        return [
+            'id' => $id,
+            'services' => $this->normalizeServiceTypes($service),
+            'mvlan' => $this->matchToken($rest, '/\bmvlan\s+(\d+)/i'),
+            'ethuni' => $this->matchToken($rest, '/\bethuni\s+([\d,\-]+)/i'),
+            'ssid' => $this->matchToken($rest, '/\bssid\s+([\d,\-]+)/i'),
+            'host' => $this->matchToken($rest, '/\bhost\s+(\d+)/i'),
+        ];
+    }
+
+    private function matchToken(string $haystack, string $pattern): ?string
+    {
+        return preg_match($pattern, $haystack, $m) ? $m[1] : null;
+    }
+
+    /**
+     * Normalize a service-type string (`internet tr069 other`) into a canonical,
+     * de-duplicated list of known WAN service types.
+     *
+     * @return array<int, string>
+     */
+    private function normalizeServiceTypes(string $value): array
+    {
+        $allowed = ['internet', 'tr069', 'voip', 'other'];
+        $tokens = preg_split('/[\s,]+/', strtolower(trim($value))) ?: [];
+
+        return array_values(array_filter($allowed, static fn (string $type): bool => in_array($type, $tokens, true)));
     }
 
     /**
@@ -294,25 +379,32 @@ class ZteOnuRunningConfigService
         $lines = [];
 
         foreach (preg_split('/\r?\n/', $raw) ?: [] as $rawLine) {
-            $line = trim($rawLine);
+            $trimmed = trim($rawLine);
 
-            if ($line === '' || $this->isNoise($line)) {
+            if ($trimmed === '' || $this->isNoise($trimmed)) {
                 continue;
             }
 
-            $first = strtolower(strtok($line, ' '));
+            $first = strtolower(strtok($trimmed, ' '));
 
             if (! in_array($first, $keywords, true) && $lines !== []) {
-                // Continuation of the previous wrapped directive.
-                $lines[array_key_last($lines)] .= ' '.$line;
+                // Continuation of a wrapped directive. ZTE hard-wraps long config
+                // lines at the terminal width WITHOUT inserting a separator, so a
+                // value token can be split mid-string (e.g. "KSM" + "-PPPOE-VLAN-125").
+                // Concatenate the *raw* fragments verbatim: since the device only
+                // injected a newline into the original character stream, gluing the
+                // pieces back (no extra space) reconstructs the line exactly —
+                // boundary spaces that fell at the wrap are preserved on the
+                // fragments themselves. Continuation lines are not re-indented.
+                $lines[array_key_last($lines)] .= $rawLine;
 
                 continue;
             }
 
-            $lines[] = $line;
+            $lines[] = $rawLine;
         }
 
-        return $lines;
+        return array_map(static fn (string $line): string => trim($line), $lines);
     }
 
     private function isNoise(string $line): bool
