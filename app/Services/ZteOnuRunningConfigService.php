@@ -39,6 +39,89 @@ class ZteOnuRunningConfigService
     }
 
     /**
+     * Read several ONUs' running-config in a SINGLE telnet session, then split
+     * the combined output per interface and parse each. This is the "ringan"
+     * path behind batch copy: one login + one pager instead of one session per
+     * ONU (a 72-ONU read drops from 72 sessions to 1).
+     *
+     * @param  array<int, int>  $onuIds
+     * @return array{ok:bool, error:string|null, onus:array<int, array{ok:bool, config:array<string,mixed>, raw:string}>}
+     */
+    public function fetchMany(SnmpOlt $olt, int $slot, int $port, array $onuIds): array
+    {
+        $isC600 = SmartOltSupport::isC600($olt);
+        $ifaceById = [];
+        $script = ['terminal length 0'];
+
+        foreach ($onuIds as $id) {
+            $id = (int) $id;
+            $iface = SmartOltSupport::onuInterfaceId($slot, $port, $id, $isC600);
+            $ifaceById[$id] = strtolower($iface);
+            $script[] = "show running-config interface {$iface}";
+            $script[] = "show onu running config {$iface}";
+        }
+
+        $result = $this->executor->execute($olt, implode("\n", $script));
+        $raw = CliOutputSanitizer::clean($result['output']);
+        $rawByIface = $this->segmentByInterface($raw);
+
+        $onus = [];
+        foreach ($ifaceById as $id => $iface) {
+            $chunk = $rawByIface[$iface] ?? '';
+            $config = $this->parse($chunk);
+            $onus[$id] = [
+                'ok' => $result['ok'] && $this->looksConfigured($config),
+                'config' => $config,
+                'raw' => $chunk,
+            ];
+        }
+
+        return [
+            'ok' => $result['ok'],
+            'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
+            'onus' => $onus,
+        ];
+    }
+
+    /**
+     * Split a combined multi-ONU dump into per-interface chunks, keyed by the
+     * lowercased onu interface. Each `show running-config interface gpon-onu_…`
+     * command echo starts a new chunk; the following `show onu running config …`
+     * output falls into the same chunk (its command isn't a split point).
+     *
+     * @return array<string, string>
+     */
+    private function segmentByInterface(string $raw): array
+    {
+        $parts = preg_split(
+            '/show running-config interface (gpon-onu_\S+)/i',
+            $raw,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE,
+        ) ?: [];
+
+        $out = [];
+        for ($i = 1; $i < count($parts); $i += 2) {
+            $iface = strtolower(trim($parts[$i]));
+            $out[$iface] = ($out[$iface] ?? '')."\n".($parts[$i + 1] ?? '');
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function looksConfigured(array $config): bool
+    {
+        return ($config['name'] ?? null) !== null
+            || ($config['tconts'] ?? []) !== []
+            || ($config['service_ports'] ?? []) !== []
+            || ($config['services'] ?? []) !== []
+            || ($config['wan_ips'] ?? []) !== [];
+    }
+
+    /**
      * Parse raw CLI output into the structured config map.
      *
      * @return array<string, mixed>

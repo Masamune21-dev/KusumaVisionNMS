@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\SnmpOlt;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuReconfigureScriptBuilder;
 use App\Services\ZteOnuRunningConfigService;
@@ -375,6 +376,130 @@ RAW;
 
         $this->assertStringContainsString('service ServiceName gemport 1', $delta['script']);
         $this->assertStringNotContainsString('service ServiceName gemport 1 cos', $delta['script']);
+    }
+
+    public function test_build_for_copy_emits_full_registration_on_target_iface(): void
+    {
+        $config = $this->parser()->parse($this->sampleRaw());
+
+        $script = (new ZteOnuReconfigureScriptBuilder)->buildForCopy($config, [
+            'olt_iface' => 'gpon-olt_1/5/4',
+            'onu_iface' => 'gpon-onu_1/5/4:7',
+            'onu_id' => 7,
+            'sn' => 'zteg12345678',
+            'onu_type' => 'F660',
+            'is_c600' => false,
+        ]);
+
+        // OLT-side register block (SN uppercased).
+        $this->assertStringContainsString("interface gpon-olt_1/5/4\nonu 7 type F660 sn ZTEG12345678", $script);
+        // Full config replayed on the new ONU interface (empty baseline → everything emitted).
+        $this->assertStringContainsString('interface gpon-onu_1/5/4:7', $script);
+        $this->assertStringContainsString('name Server Semampir', $script);
+        $this->assertStringContainsString('description Server Semampir', $script);
+        $this->assertStringContainsString('tcont 1 name 1 profile SERVER', $script);
+        $this->assertStringContainsString('gemport 1 name 1 tcont 1', $script);
+        $this->assertStringContainsString('encrypt 1 enable downstream', $script);
+        $this->assertStringContainsString('service-port 1 vport 1 user-vlan 22 vlan 22', $script);
+        $this->assertStringContainsString('pon-onu-mng gpon-onu_1/5/4:7', $script);
+        $this->assertStringContainsString('service ServiceName gemport 1 cos 0 vlan 22', $script);
+        $this->assertStringContainsString('wan-ip 1 mode pppoe username serversemampir password rahasia vlan-profile PPPOEPATI host 1', $script);
+        $this->assertStringContainsString('tr069-mgmt 1 state unlock', $script);
+        $this->assertStringContainsString('security-mgmt 212 state enable mode forward protocol web', $script);
+    }
+
+    public function test_build_for_copy_omits_wan_service_binding_line(): void
+    {
+        // ZTE shows `wan N service …` in running-config but rejects it as input on
+        // C300 ("Invalid command key word"); buildForCopy must skip it and rely on
+        // `wan-ip N mode …` to create the WAN.
+        $config = $this->parser()->parse(
+            "interface gpon-onu_1/2/1:3\n".
+            "  name Cust\n".
+            "  tcont 1 name 1 profile SERVER\n".
+            "  gemport 1 name 1 tcont 1\n".
+            "pon-onu-mng gpon-onu_1/2/1:3\n".
+            "  service ServiceName gemport 1 cos 0 vlan 125\n".
+            "  wan 1 service internet tr069 host 1\n".
+            "  wan-ip 1 mode pppoe username parno password parno vlan-profile KSM host 1\n"
+        );
+
+        $script = (new ZteOnuReconfigureScriptBuilder)->buildForCopy($config, [
+            'olt_iface' => 'gpon-olt_1/4/9',
+            'onu_iface' => 'gpon-onu_1/4/9:1',
+            'onu_id' => 1,
+            'sn' => 'ZTEGC9140803',
+            'onu_type' => 'ALL-ONT',
+            'is_c600' => false,
+        ]);
+
+        $this->assertStringNotContainsString('wan 1 service', $script);
+        $this->assertStringContainsString('wan-ip 1 mode pppoe username parno', $script);
+    }
+
+    public function test_build_for_copy_defaults_type_and_omits_c600_description(): void
+    {
+        $config = $this->parser()->parse($this->sampleRaw());
+
+        $script = (new ZteOnuReconfigureScriptBuilder)->buildForCopy($config, [
+            'olt_iface' => 'gpon-olt_1/1/2/1',
+            'onu_iface' => 'gpon-onu_1/1/2/1:3',
+            'onu_id' => 3,
+            'sn' => 'ZTEGabcdef01',
+            'onu_type' => '',
+            'is_c600' => true,
+        ]);
+
+        // Empty type falls back to ALL-ONT.
+        $this->assertStringContainsString('onu 3 type ALL-ONT sn ZTEGABCDEF01', $script);
+        // C600 has no separate description OID.
+        $this->assertStringContainsString('name Server Semampir', $script);
+        $this->assertStringNotContainsString('description Server Semampir', $script);
+    }
+
+    public function test_fetch_many_segments_one_session_dump_per_interface(): void
+    {
+        // One telnet session reads several ONUs at once; fetchMany must split the
+        // combined dump back into per-interface configs (the "ringan" path).
+        $combined = implode("\n", [
+            '> show running-config interface gpon-onu_1/2/3:5',
+            'interface gpon-onu_1/2/3:5',
+            '  name Cust A',
+            '  tcont 1 name 1 profile SERVER',
+            '  service-port 1 vport 1 user-vlan 100 vlan 100',
+            '> show onu running config gpon-onu_1/2/3:5',
+            'pon-onu-mng gpon-onu_1/2/3:5',
+            '  service ServiceName gemport 1 cos 0 vlan 100',
+            '> show running-config interface gpon-onu_1/2/3:6',
+            'interface gpon-onu_1/2/3:6',
+            '  name Cust B',
+            '  tcont 1 name 1 profile SERVER',
+            '  service-port 1 vport 1 user-vlan 200 vlan 200',
+            '> show onu running config gpon-onu_1/2/3:6',
+            'pon-onu-mng gpon-onu_1/2/3:6',
+            '  service ServiceName gemport 1 cos 0 vlan 200',
+        ]);
+
+        $executor = new class($combined) extends ZteCliProvisioningExecutor
+        {
+            public function __construct(private string $out) {}
+
+            public function execute(SnmpOlt $olt, string $script): array
+            {
+                return ['ok' => true, 'error' => null, 'output' => $this->out];
+            }
+        };
+
+        $olt = new SnmpOlt(['vendor' => 'ZTE C300', 'name' => 'BMKV-C300']);
+        $result = (new ZteOnuRunningConfigService($executor))->fetchMany($olt, 2, 3, [5, 6]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertTrue($result['onus'][5]['ok']);
+        $this->assertSame('Cust A', $result['onus'][5]['config']['name']);
+        $this->assertSame(100, $result['onus'][5]['config']['primary_vlan']);
+        $this->assertTrue($result['onus'][6]['ok']);
+        $this->assertSame('Cust B', $result['onus'][6]['config']['name']);
+        $this->assertSame(200, $result['onus'][6]['config']['primary_vlan']);
     }
 
     public function test_provisioning_builder_emits_transparent_service_line(): void

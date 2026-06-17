@@ -48,7 +48,7 @@ class OltPollingTest extends TestCase
                 ];
             }
 
-            public function registeredOnus(SnmpOlt $olt, ?array $ports = null): array
+            public function registeredOnus(SnmpOlt $olt, ?array $ports = null, ?string $scope = null): array
             {
                 return [
                     [
@@ -62,7 +62,7 @@ class OltPollingTest extends TestCase
                 ];
             }
 
-            public function onuRxPowers(SnmpOlt $olt): array
+            public function onuRxPowers(SnmpOlt $olt, ?string $scope = null): array
             {
                 if ($this->rxError !== null) {
                     throw new RuntimeException($this->rxError);

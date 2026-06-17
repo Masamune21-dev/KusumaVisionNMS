@@ -251,14 +251,25 @@ class OltSnmpClient
         $startedAt = microtime(true);
 
         try {
-            $ports = $this->gponPorts($olt);
-            $portRow = collect($ports)->first(
-                fn (array $row) => (int) $row['slot'] === $slot && (int) $row['port'] === $port
-            );
+            // C300/C320: walk only this port's ONU-table subtree (scoped) — avoids
+            // walking the whole OLT (+ the heavy IF-MIB port walk) just to show one
+            // port. C600 keeps the legacy full-walk path (untested for scoping).
+            $scoped = ! SmartOltSupport::isC600($olt);
+            $scope = $scoped ? (string) $this->zteEncodeIfIndex($olt, $slot, $port) : null;
 
-            $allOnus = $this->registeredOnus($olt, $ports);
+            if ($scoped) {
+                $portRow = null;
+                $onus = $this->registeredOnus($olt, null, $scope);
+            } else {
+                $ports = $this->gponPorts($olt);
+                $portRow = collect($ports)->first(
+                    fn (array $row) => (int) $row['slot'] === $slot && (int) $row['port'] === $port
+                );
+                $onus = $this->registeredOnus($olt, $ports);
+            }
+
             $onus = array_values(array_filter(
-                $allOnus,
+                $onus,
                 fn (array $onu) => (int) $onu['slot'] === $slot && (int) $onu['port'] === $port
             ));
             $ifIndex = $onus[0]['if_index'] ?? $portRow['if_index'] ?? $this->zteEncodeIfIndex($olt, $slot, $port);
@@ -270,7 +281,7 @@ class OltSnmpClient
             ];
 
             try {
-                $onus = $this->mergeOnuRxPowers($onus, $this->onuRxPowers($olt));
+                $onus = $this->mergeOnuRxPowers($onus, $this->onuRxPowers($olt, $scope));
                 $rxPower['count'] = $this->countSnmpRxPowers($onus);
             } catch (Throwable $exception) {
                 $rxPower = [
@@ -348,23 +359,30 @@ class OltSnmpClient
      * @param  array<int, array<string, mixed>>|null  $ports
      * @return array<int, array<string, mixed>>
      */
-    public function registeredOnus(SnmpOlt $olt, ?array $ports = null): array
+    public function registeredOnus(SnmpOlt $olt, ?array $ports = null, ?string $scope = null): array
     {
         $isC600 = SmartOltSupport::isC600($olt);
         $oids = $this->onuOids($olt);
 
-        $types = $this->walk($olt, $oids['type']);
+        // When $scope (an ONU-table prefix index, e.g. zteEncodeIfIndex(slot,port))
+        // is given, walk only that port's subtree instead of the whole OLT — this
+        // is what keeps a single-port refresh light (tens of rows vs thousands).
+        $walk = fn (string $oid): array => $this->walk($olt, $scope === null ? $oid : $this->joinOid($oid, $scope));
+
+        $types = $walk($oids['type']);
         if ($types === []) {
             return [];
         }
 
-        $names = $this->walk($olt, $oids['name']);
-        $descriptions = $oids['description'] ? $this->walk($olt, $oids['description']) : [];
-        $serials = $this->walk($olt, $oids['sn']);
-        $adminStates = $this->walk($olt, $oids['admin_state']);
-        $phaseStates = $this->walk($olt, $oids['phase_state']);
-        $lastDownCauses = $this->walk($olt, $oids['last_down']);
-        $portMap = $this->buildPortMap($ports ?? $this->gponPorts($olt));
+        $names = $walk($oids['name']);
+        $descriptions = $oids['description'] ? $walk($oids['description']) : [];
+        $serials = $walk($oids['sn']);
+        $adminStates = $walk($oids['admin_state']);
+        $phaseStates = $walk($oids['phase_state']);
+        $lastDownCauses = $walk($oids['last_down']);
+        // Scoped walks don't need the (heavy) IF-MIB port map; C300/C320 derive
+        // slot/port from the ONU-table prefix via decodeIfIndex anyway.
+        $portMap = $this->buildPortMap($ports ?? ($scope === null ? $this->gponPorts($olt) : []));
         $onus = [];
 
         foreach ($types as $oid => $typeName) {
@@ -424,11 +442,11 @@ class OltSnmpClient
     /**
      * @return array<string, array<string, mixed>>
      */
-    public function onuRxPowers(SnmpOlt $olt): array
+    public function onuRxPowers(SnmpOlt $olt, ?string $scope = null): array
     {
         $isC600 = SmartOltSupport::isC600($olt);
         $rxOid = $isC600 ? self::C600_ONU_RX_POWER : self::ZTE_ONU_RX_POWER;
-        $rows = $this->walk($olt, $rxOid);
+        $rows = $this->walk($olt, $scope === null ? $rxOid : $this->joinOid($rxOid, $scope));
         $powers = [];
 
         foreach ($rows as $oid => $rawValue) {

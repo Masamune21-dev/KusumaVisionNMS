@@ -11,8 +11,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Wifi, X } from '@lucide/vue';
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
+import { ArrowLeft, Copy, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -68,6 +68,129 @@ const filteredOnus = computed(() => {
 
 const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || adminFilter.value !== 'all');
 const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; adminFilter.value = 'all'; };
+
+// --- batch copy konfigurasi ke port lain (OLT sama) ---
+const canCopy = computed(() => !!caps.value.supports_cli_onu_configure);
+const selected = ref(new Set());
+const isSelected = (onu) => selected.value.has(onu.onu_id);
+const toggleSelect = (onu) => {
+    const next = new Set(selected.value);
+    next.has(onu.onu_id) ? next.delete(onu.onu_id) : next.add(onu.onu_id);
+    selected.value = next;
+};
+const allFilteredSelected = computed(() =>
+    filteredOnus.value.length > 0 && filteredOnus.value.every((o) => selected.value.has(o.onu_id)),
+);
+const toggleSelectAll = () => {
+    const next = new Set(selected.value);
+    if (allFilteredSelected.value) {
+        filteredOnus.value.forEach((o) => next.delete(o.onu_id));
+    } else {
+        filteredOnus.value.forEach((o) => next.add(o.onu_id));
+    }
+    selected.value = next;
+};
+const selectedCount = computed(() => selected.value.size);
+const clearSelection = () => { selected.value = new Set(); };
+
+const availablePorts = computed(() =>
+    (props.olt.last_test_result?.ports ?? [])
+        .filter((p) => !(Number(p.slot) === props.slot && Number(p.port) === props.port))
+        .map((p) => ({ slot: Number(p.slot), port: Number(p.port), name: p.name })),
+);
+
+const copyModal = reactive({ open: false });
+const copyExecute = ref(false);
+const targetKey = ref('');
+const manualSlot = ref(props.slot);
+const manualPort = ref(props.port + 1);
+
+// Batch berjalan di background job → tampilkan progress (form → running → done).
+const copyPhase = ref('form');
+const copySubmitting = ref(false);
+const copyError = ref('');
+const copyStatusUrl = ref('');
+const copyRegistrationsUrl = ref(route('smartolt.registrations', props.olt.id));
+const blankProgress = () => ({ status: 'queued', execute: false, total: 0, processed: 0, created: 0, executed: 0, failed: 0, finished: false, items: [], error: null });
+const copyProgress = ref(blankProgress());
+let pollTimer = null;
+
+const copyPercent = computed(() => {
+    const total = copyProgress.value.total || 0;
+    return total > 0 ? Math.round((copyProgress.value.processed / total) * 100) : 0;
+});
+const copyFailedItems = computed(() => (copyProgress.value.items ?? []).filter((i) => !i.ok));
+
+const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+
+const closeCopy = () => {
+    stopPolling();
+    copyModal.open = false;
+    copyPhase.value = 'form';
+    copyError.value = '';
+};
+
+const openCopy = () => {
+    if (selectedCount.value === 0) return;
+    stopPolling();
+    copyPhase.value = 'form';
+    copyError.value = '';
+    copyExecute.value = false;
+    manualSlot.value = props.slot;
+    manualPort.value = props.port + 1;
+    targetKey.value = availablePorts.value.length ? `${availablePorts.value[0].slot}_${availablePorts.value[0].port}` : '';
+    copyModal.open = true;
+};
+
+const pollStatus = async () => {
+    try {
+        const { data } = await window.axios.get(copyStatusUrl.value);
+        copyProgress.value = data;
+        if (data.finished) {
+            stopPolling();
+            copyPhase.value = 'done';
+        }
+    } catch (e) {
+        // transient (worker belum sempat update) — biarkan polling lanjut
+    }
+};
+
+const submitCopy = async () => {
+    let dstSlot;
+    let dstPort;
+    if (availablePorts.value.length) {
+        [dstSlot, dstPort] = targetKey.value.split('_').map(Number);
+    } else {
+        dstSlot = Number(manualSlot.value);
+        dstPort = Number(manualPort.value);
+    }
+
+    copyError.value = '';
+    copySubmitting.value = true;
+    const total = selected.value.size;
+    try {
+        const { data } = await window.axios.post(route('smartolt.port-onus.copy', [props.olt.id, props.slot, props.port]), {
+            onu_ids: [...selected.value],
+            dst_slot: dstSlot,
+            dst_port: dstPort,
+            execute: copyExecute.value,
+        });
+        copyStatusUrl.value = data.status_url;
+        copyRegistrationsUrl.value = data.registrations_url;
+        copyProgress.value = { ...blankProgress(), total, execute: copyExecute.value };
+        clearSelection();
+        copyPhase.value = 'running';
+        await pollStatus();
+        pollTimer = setInterval(pollStatus, 1500);
+    } catch (e) {
+        const errors = e.response?.data?.errors;
+        copyError.value = errors ? Object.values(errors).flat()[0] : (e.response?.data?.message ?? e.message ?? 'Request gagal.');
+    } finally {
+        copySubmitting.value = false;
+    }
+};
+
+onUnmounted(stopPolling);
 
 const scrollToFocus = () => {
     if (!focusId.value) return;
@@ -134,6 +257,26 @@ const toggleOnu = async (onu) => {
         active,
         if_index: onu.if_index,
     }, {
+        preserveScroll: true,
+        onFinish: () => { busy[key] = false; },
+    });
+};
+
+const deleteOnu = async (onu) => {
+    const ok = await confirm({
+        title: 'Hapus ONU',
+        message: `Hapus ${onu.interface} dari OLT? Registrasi ONU akan dihapus permanen (no onu ${onu.onu_id}).`,
+        confirmLabel: 'Hapus',
+        variant: 'danger',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    const key = actionKey(onu);
+    busy[key] = true;
+    router.post(route('smartolt.onu.delete', [props.olt.id, props.slot, props.port, onu.onu_id]), {}, {
         preserveScroll: true,
         onFinish: () => { busy[key] = false; },
     });
@@ -325,6 +468,27 @@ const rxBadgeClass = (value) => {
                         </div>
                     </div>
 
+                    <!-- Selection / copy toolbar -->
+                    <div v-if="canCopy && snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <label class="inline-flex items-center gap-2 text-sm text-slate-300">
+                            <input
+                                type="checkbox"
+                                :checked="allFilteredSelected"
+                                class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
+                                @change="toggleSelectAll"
+                            />
+                            Pilih semua ({{ filteredOnus.length }})
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <span v-if="selectedCount" class="text-sm text-slate-400">{{ selectedCount }} dipilih</span>
+                            <button v-if="selectedCount" type="button" class="kv-filter-reset" @click="clearSelection">Batal pilih</button>
+                            <PrimaryButton type="button" :disabled="selectedCount === 0" @click="openCopy">
+                                <Copy class="mr-2 h-4 w-4" />
+                                Copy ke port lain
+                            </PrimaryButton>
+                        </div>
+                    </div>
+
                     <!-- Empty state -->
                     <div v-if="snapshot.onus.length === 0" class="px-6 py-14 text-center">
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
@@ -358,9 +522,18 @@ const rxBadgeClass = (value) => {
                                 :class="onu.onu_id === focusId ? 'ring-2 ring-cyan-500/60' : ''"
                             >
                                 <div class="kv-mobile-card-header">
-                                    <div class="min-w-0">
-                                        <h4 class="kv-mobile-card-title">{{ onu.interface }}</h4>
-                                        <p class="kv-mobile-card-subtitle">{{ onu.name || onu.description || '—' }}</p>
+                                    <div class="flex min-w-0 items-start gap-2.5">
+                                        <input
+                                            v-if="canCopy"
+                                            type="checkbox"
+                                            :checked="isSelected(onu)"
+                                            class="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
+                                            @change="toggleSelect(onu)"
+                                        />
+                                        <div class="min-w-0">
+                                            <h4 class="kv-mobile-card-title">{{ onu.interface }}</h4>
+                                            <p class="kv-mobile-card-subtitle">{{ onu.name || onu.description || '—' }}</p>
+                                        </div>
                                     </div>
                                     <span
                                         class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
@@ -444,6 +617,15 @@ const rxBadgeClass = (value) => {
                                     >
                                         <Power class="h-4 w-4" />
                                     </IconButton>
+                                    <IconButton
+                                        v-if="caps.supports_onu_delete"
+                                        variant="danger"
+                                        :disabled="busy[actionKey(onu)]"
+                                        title="Hapus ONU"
+                                        @click="deleteOnu(onu)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
                                 </div>
                             </article>
                         </div>
@@ -452,6 +634,14 @@ const rxBadgeClass = (value) => {
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
+                                    <th v-if="canCopy" class="w-px px-4 py-3.5 text-left">
+                                        <input
+                                            type="checkbox"
+                                            :checked="allFilteredSelected"
+                                            class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
+                                            @change="toggleSelectAll"
+                                        />
+                                    </th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ONU</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Serial</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Type</th>
@@ -470,6 +660,14 @@ const rxBadgeClass = (value) => {
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                     :class="onu.onu_id === focusId ? 'bg-cyan-500/10' : ''"
                                 >
+                                    <td v-if="canCopy" class="px-4 py-4">
+                                        <input
+                                            type="checkbox"
+                                            :checked="isSelected(onu)"
+                                            class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
+                                            @change="toggleSelect(onu)"
+                                        />
+                                    </td>
                                     <td class="px-6 py-4">
                                         <div class="font-semibold text-white">{{ onu.interface }}</div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ onu.name || onu.description || '—' }}</div>
@@ -558,6 +756,15 @@ const rxBadgeClass = (value) => {
                                             >
                                                 <Power class="h-4 w-4" />
                                             </IconButton>
+                                            <IconButton
+                                                v-if="caps.supports_onu_delete"
+                                                variant="danger"
+                                                :disabled="busy[actionKey(onu)]"
+                                                title="Hapus ONU"
+                                                @click="deleteOnu(onu)"
+                                            >
+                                                <Trash2 class="h-4 w-4" />
+                                            </IconButton>
                                         </div>
                                     </td>
                                 </tr>
@@ -591,6 +798,133 @@ const rxBadgeClass = (value) => {
                     <PrimaryButton type="submit" :disabled="editForm.processing">Simpan</PrimaryButton>
                 </div>
             </form>
+        </Modal>
+
+        <Modal :show="copyModal.open" max-width="lg" @close="closeCopy">
+            <!-- Fase 1: form -->
+            <div v-if="copyPhase === 'form'" class="p-6">
+                <h3 class="text-base font-semibold text-white">Copy konfigurasi ONU ke port lain</h3>
+                <p class="mt-1 text-sm text-slate-500">
+                    {{ selectedCount }} ONU dari Slot {{ slot }} Port {{ port }} akan dibuatkan script registrasi di port tujuan (OLT sama).
+                </p>
+
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <InputLabel value="Port tujuan" />
+                        <select
+                            v-if="availablePorts.length"
+                            v-model="targetKey"
+                            class="mt-1 block w-full rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500"
+                        >
+                            <option v-for="p in availablePorts" :key="`${p.slot}_${p.port}`" :value="`${p.slot}_${p.port}`">
+                                Slot {{ p.slot }} / Port {{ p.port }}<template v-if="p.name"> — {{ p.name }}</template>
+                            </option>
+                        </select>
+                        <div v-else class="mt-1 grid grid-cols-2 gap-3">
+                            <div>
+                                <InputLabel for="dst_slot" value="Slot" />
+                                <TextInput id="dst_slot" v-model="manualSlot" type="number" min="1" class="mt-1 block w-full" />
+                            </div>
+                            <div>
+                                <InputLabel for="dst_port" value="Port" />
+                                <TextInput id="dst_port" v-model="manualPort" type="number" min="1" class="mt-1 block w-full" />
+                            </div>
+                        </div>
+                        <p v-if="!availablePorts.length" class="mt-1 text-xs text-amber-300">
+                            Daftar port belum ter-refresh — isi slot/port tujuan manual.
+                        </p>
+                    </div>
+
+                    <label class="flex items-start gap-2.5 text-sm text-slate-300">
+                        <input v-model="copyExecute" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500" />
+                        <span>
+                            Langsung eksekusi ke OLT setelah generate
+                            <span class="text-slate-500">(tanpa ini, script disimpan berstatus <em>generated</em> untuk direview dulu).</span>
+                        </span>
+                    </label>
+
+                    <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                        onu-id di port tujuan dialokasikan otomatis (slot kosong terendah) — refresh port tujuan dulu agar akurat. SN GPON unik: pada eksekusi nyata pastikan ONU sudah dipindah fisik / dihapus dari port asal agar tidak ditolak OLT.
+                    </div>
+
+                    <p v-if="copyError" class="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ copyError }}</p>
+                </div>
+
+                <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
+                    <SecondaryButton type="button" @click="closeCopy">Batal</SecondaryButton>
+                    <PrimaryButton
+                        type="button"
+                        :disabled="copySubmitting || (!availablePorts.length && (!manualSlot || !manualPort))"
+                        @click="submitCopy"
+                    >
+                        <Copy class="mr-2 h-4 w-4" />
+                        {{ copySubmitting ? 'Memproses…' : (copyExecute ? 'Copy & eksekusi' : 'Generate script') }}
+                    </PrimaryButton>
+                </div>
+            </div>
+
+            <!-- Fase 2: berjalan -->
+            <div v-else-if="copyPhase === 'running'" class="p-6">
+                <div class="flex items-center gap-3">
+                    <RefreshCw class="h-5 w-5 animate-spin text-cyan-400" />
+                    <h3 class="text-base font-semibold text-white">
+                        {{ copyProgress.execute ? 'Copy & eksekusi berjalan…' : 'Generate script berjalan…' }}
+                    </h3>
+                </div>
+                <p class="mt-1 text-sm text-slate-500">
+                    Membaca config & menyiapkan {{ copyProgress.total }} ONU ke port tujuan. Proses jalan di latar — boleh ditutup, hasil tetap tersimpan di Registrations.
+                </p>
+
+                <div class="mt-4">
+                    <div class="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                        <span>{{ copyProgress.processed }} / {{ copyProgress.total }} diproses</span>
+                        <span>{{ copyPercent }}%</span>
+                    </div>
+                    <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div class="h-full rounded-full bg-cyan-500 transition-all duration-300" :style="{ width: `${copyPercent}%` }"></div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-white">{{ copyProgress.created }}</div>dibuat</div>
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-emerald-400">{{ copyProgress.executed }}</div>dieksekusi</div>
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-red-300">{{ copyProgress.failed }}</div>gagal</div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton type="button" @click="closeCopy">Tutup (tetap jalan)</SecondaryButton>
+                </div>
+            </div>
+
+            <!-- Fase 3: selesai -->
+            <div v-else class="p-6">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-full" :class="copyProgress.status === 'failed' || copyProgress.failed > 0 ? 'bg-amber-500/15' : 'bg-emerald-500/15'">
+                        <Copy class="h-5 w-5" :class="copyProgress.status === 'failed' || copyProgress.failed > 0 ? 'text-amber-300' : 'text-emerald-400'" />
+                    </span>
+                    <h3 class="text-base font-semibold text-white">
+                        {{ copyProgress.status === 'failed' ? 'Batch gagal' : 'Selesai' }}
+                    </h3>
+                </div>
+                <p class="mt-2 text-sm text-slate-300">
+                    {{ copyProgress.created }} script dibuat<span v-if="copyProgress.execute"> · {{ copyProgress.executed }} dieksekusi</span> · {{ copyProgress.failed }} gagal
+                    <span class="text-slate-500">(dari {{ copyProgress.total }} ONU).</span>
+                </p>
+                <p v-if="copyProgress.error" class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ copyProgress.error }}</p>
+
+                <div v-if="copyFailedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gagal</p>
+                    <div v-for="(item, idx) in copyFailedItems" :key="idx" class="text-xs text-slate-400">
+                        <span class="font-mono text-slate-300">ONU {{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}
+                    </div>
+                </div>
+
+                <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
+                    <SecondaryButton type="button" @click="closeCopy">Tutup</SecondaryButton>
+                    <Link :href="copyRegistrationsUrl">
+                        <PrimaryButton type="button" class="w-full sm:w-auto">Lihat Registrations</PrimaryButton>
+                    </Link>
+                </div>
+            </div>
         </Modal>
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />

@@ -1,5 +1,108 @@
 # Worklog
 
+## 2026-06-17
+
+### Refresh ONU per-port jauh lebih cepat (SNMP walk di-scope per-port)
+
+Tombol "Refresh ONU" di halaman ONU per-port sangat lambat. `portOnusSnapshot()` ternyata walk
+**seluruh tabel ONU OLT** (7 tabel) + **RX power seluruh OLT** + IF-MIB `gponPorts`, baru difilter
+ke satu port. Diukur di OLT live: OLT#2 SEKARJALAK (2.123 ONU) **~56 dtk**, OLT#1 PATI (164 ONU)
+**~11 dtk** per refresh.
+
+Fix: tabel ONU ZTE di-index `{prefixIndex}.{onuId}` dengan `prefixIndex = zteEncodeIfIndex(slot,port)`.
+Untuk C300/C320, walk hanya subtree `OID.{prefix}` (ONU port itu saja) + lewati `gponPorts`
+(`port_row` tak dipakai frontend). Hasil setelah fix: OLT#2 2/3 (119 ONU) **~3,75 dtk**, OLT#1 2/5
+(47 ONU) **~1,5 dtk** — sekitar **7–15× lebih cepat**, jumlah ONU & RX identik.
+
+- `app/Services/Snmp/OltSnmpClient.php` — `registeredOnus($olt, $ports=null, $scope=null)` &
+  `onuRxPowers($olt, $scope=null)`: bila `$scope` (prefix index) diberi, walk `joinOid(base,scope)`
+  saja; scoped walk tak butuh IF-MIB port map (slot/port dari prefix via `decodeIfIndex`).
+  `portOnusSnapshot()`: jalur scoped untuk non-C600 (skip `gponPorts`), C600 tetap full-walk.
+- `tests/Feature/OltPollingTest.php` — sesuaikan signature override anonim (`$scope` baru).
+- Poll terjadwal (`PollOltJob`, full OLT) tidak diubah. Deploy: reload php8.3-fpm.
+
+### Aksi Delete ONU (deregister di OLT)
+
+Tombol hapus ONU di halaman ONU per-port. CLI: di context `interface gpon-olt_x/y/z` →
+`no onu {id}` (guide §8 rollback). Diverifikasi di OLT live #2 (C300-SEKARJALAK):
+`no onu 1` pada `gpon-olt_1/4/9` → `.[Successful]` (menghapus ONU sisa uji copy).
+
+- `app/Support/SmartOltSupport.php` — capability baru `supports_onu_delete` (ZTE = true).
+- `app/Http/Controllers/SmartOltController.php` — `deleteOnu()` (gate `supports_onu_delete`):
+  eksekusi `conf t / interface gpon-olt_… / no onu {id} / exit` via `ZteCliProvisioningExecutor`,
+  lalu `removeCachedOnu()` membuang ONU dari cache `port_onus` (UI langsung update tanpa refresh
+  penuh). Sinkron (aksi 1 ONU, cepat).
+- `routes/web.php` — `POST …/onus/{onuId}/delete` → `smartolt.onu.delete`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — IconButton Trash2 (desktop + kartu mobile) dengan
+  konfirmasi danger; di-gate `supports_onu_delete`.
+- `tests/Feature/SmartOltDeleteOnuTest.php` — assert script `no onu 1` + `interface gpon-olt_1/4/9`
+  terkirim dan ONU dibuang dari cache (count ikut turun).
+
+### Copy konfigurasi ONU antar-port (batch) — pindah pelanggan tanpa register manual
+
+Operator butuh memindahkan banyak pelanggan dari satu PON port ke port lain (OLT sama) tanpa
+mengetik ulang registrasi satu per satu. Solusinya menumpang pipeline registrasi yang sudah ada:
+baca running-config tiap ONU sumber → bangun script registrasi penuh untuk interface tujuan
+(onu-id baru) → simpan sebagai baris `smartolt_onu_registrations` (status `generated`) → opsional
+langsung dieksekusi. ONU di port asal **tidak disentuh** (copy, bukan move).
+
+**Batch dijalankan di background job + progress bar** (bukan sinkron): batch 72 ONU + eksekusi =
+±144 sesi telnet, jauh melebihi timeout 1 request HTTP. Versi sinkron pertama juga gagal-diam saat
+operator pilih 72 ONU (cap lama 64 menolak validasi tanpa pesan). Untuk **ringan**: baca
+running-config semua ONU sumber dalam **satu sesi telnet** (bukan satu sesi per ONU).
+
+Created:
+
+- `app/Services/ZteOnuCopyService.php` — orchestrator batch. Pra-baca config semua ONU dalam 1 sesi
+  (`fetchMany`), lalu per ONU: alokasikan onu-id bebas terendah di port tujuan (anti-tabrakan dalam
+  batch + vs cache target), bangun script via `buildForCopy`, simpan registrasi, eksekusi bila
+  diminta. Callback `$onProgress` per ONU untuk update progres. Balikkan `{created, executed, failed, items[]}`.
+- `database/migrations/..._create_copy_onu_tasks_table.php` + `app/Models/CopyOnuTask.php` — record
+  progres batch (status queued/running/completed/failed, total/processed/created/executed/failed,
+  items[]); `progressPayload()` untuk endpoint polling.
+- `app/Jobs/CopyOnusToPortJob.php` — jalankan batch di queue (`$tries=1` — telnet tak idempoten,
+  `$timeout=3600`), update `CopyOnuTask` per ONU.
+- `tests/Feature/SmartOltCopyOnuTest.php` — endpoint antri task + dispatch job (Queue::fake), guard
+  tujuan==asal (422), job menghasilkan 2 registrasi di port tujuan (id 2 & 3), endpoint status.
+
+Changed:
+
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — tambah `buildForCopy(config, context)`: script
+  registrasi **penuh** (diff vs baseline kosong → semua direktif ter-emit) + prefiks baris OLT-side
+  `interface gpon-olt_…` / `onu N type T sn S` + `encrypt 1 enable downstream` (samakan dengan
+  `ZteProvisioningScriptBuilder`). C600 tanpa baris `description`. Reuse seluruh formatter privat
+  (multi T-CONT/gemport/service-port, service, UNI-VLAN, WAN binding, multi WAN-IP, TR069,
+  Remote ONT) sehingga ONU multi-WAN ikut tersalin utuh.
+- `app/Services/ZteOnuRunningConfigService.php` — `fetchMany(olt, slot, port, ids)`: baca banyak ONU
+  dalam 1 sesi telnet, lalu `segmentByInterface()` memecah dump gabungan per-interface (split di
+  echo `show running-config interface gpon-onu_…`) dan parse tiap segmen; `looksConfigured()` jadi
+  flag `ok` per ONU.
+- `app/Http/Controllers/SmartOltController.php` — `copyOnusToPort()` kini **JSON**: validasi
+  `onu_ids[≤256]` + tujuan + `execute`, buat `CopyOnuTask`, dispatch job, balikkan `{task_id, status_url}`.
+  Tambah `copyTaskStatus()` (polling progres). Gate `supports_cli_onu_configure`.
+- `routes/web.php` — `POST …/onus/copy` (`smartolt.port-onus.copy`) +
+  `GET …/copy-tasks/{task}` (`smartolt.copy-task.status`).
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — checkbox seleksi (desktop + kartu mobile + "pilih
+  semua" mengikuti filter), toolbar "Copy ke port lain", modal **3 fase**: form (pilih port tujuan
+  dropdown/manual + opsi eksekusi) → running (progress bar + counter dibuat/dieksekusi/gagal, boleh
+  ditutup, job tetap jalan, polling 1.5s via axios) → done (ringkasan + daftar gagal + link
+  Registrations). Semua di-gate `supports_cli_onu_configure`.
+- `tests/Unit/ZteOnuConfigureTest.php` — 3 test: 2× `buildForCopy` + 1× `fetchMany` segmentasi 1-sesi.
+
+Notes:
+
+- Baca running-config kini **1 sesi telnet untuk seluruh batch** (ringan). Eksekusi tetap per-ONU
+  (di background) agar status & progres akurat per ONU.
+- **Fix verifikasi OLT live**: baris `wan N service …` (mis. `wan 1 service internet tr069 host 1`)
+  ditolak C300 saat input (`%Error 20201: Invalid command key word`) walau muncul di running-config —
+  `buildForCopy` kini melewatinya; WAN dibuat penuh oleh `wan-ip N mode …` (selaras
+  `ZteProvisioningScriptBuilder`). Sisa script (register/name/tcont/gemport/service-port/vlan-port/
+  wan-ip/tr069/security-mgmt) sudah terbukti sukses di OLT live.
+- Butuh worker queue jalan (`kusumavision-worker`). Setelah ubah kode job → `php artisan queue:restart`.
+  Deploy: migrasi `copy_onu_tasks` dijalankan, worker di-restart.
+- SN GPON unik — pada eksekusi nyata pastikan ONU sudah dipindah fisik / dihapus dari port asal agar
+  tidak ditolak OLT. Default "generate dulu" memitigasi risiko. Belum diverifikasi di OLT live.
+
 ## 2026-06-16
 
 ### Bot Telegram interaktif — navigasi tombol LOS & redaman tinggi

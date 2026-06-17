@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CopyOnusToPortJob;
+use App\Models\CopyOnuTask;
 use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
@@ -822,6 +824,95 @@ class SmartOltController extends Controller
         }
     }
 
+    /**
+     * Queue a batch copy of registered ONUs from this port to another port on the
+     * same OLT. Returns JSON with a task id; the heavy work (CLI reads + optional
+     * execute, far too long for one HTTP request) runs in {@see CopyOnusToPortJob}
+     * and the client polls copyTaskStatus() for live progress. Source ONUs are
+     * left untouched.
+     */
+    public function copyOnusToPort(Request $request, SnmpOlt $olt, int $slot, int $port): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        $data = $request->validate([
+            'onu_ids' => ['required', 'array', 'min:1', 'max:256'],
+            'onu_ids.*' => ['integer', 'between:1,4096'],
+            'dst_slot' => ['required', 'integer', 'between:1,255'],
+            'dst_port' => ['required', 'integer', 'between:1,255'],
+            'execute' => ['boolean'],
+        ]);
+
+        $dstSlot = (int) $data['dst_slot'];
+        $dstPort = (int) $data['dst_port'];
+
+        if ($dstSlot === $slot && $dstPort === $port) {
+            return response()->json(['ok' => false, 'message' => 'Port tujuan harus berbeda dari port asal.'], 422);
+        }
+
+        $onuIds = array_values(array_unique(array_map('intval', $data['onu_ids'])));
+
+        $task = CopyOnuTask::create([
+            'snmp_olt_id' => $olt->id,
+            'created_by' => $request->user()?->id,
+            'src_slot' => $slot,
+            'src_port' => $port,
+            'dst_slot' => $dstSlot,
+            'dst_port' => $dstPort,
+            'execute' => (bool) ($data['execute'] ?? false),
+            'onu_ids' => $onuIds,
+            'total' => count($onuIds),
+            'status' => 'queued',
+        ]);
+
+        CopyOnusToPortJob::dispatch($task->id);
+
+        return response()->json([
+            'ok' => true,
+            'task_id' => $task->id,
+            'status_url' => route('smartolt.copy-task.status', [$olt, $task]),
+            'registrations_url' => route('smartolt.registrations', $olt),
+        ]);
+    }
+
+    public function copyTaskStatus(SnmpOlt $olt, CopyOnuTask $task): JsonResponse
+    {
+        abort_unless($task->snmp_olt_id === $olt->id, 404);
+
+        return response()->json($task->progressPayload());
+    }
+
+    /**
+     * Delete (deregister) an ONU on the OLT via `no onu {id}` under the GPON-OLT
+     * interface (guide §8 rollback). Destructive: removes the ONU registration.
+     */
+    public function deleteOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteCliProvisioningExecutor $executor): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_delete');
+
+        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $script = implode("\n", ['conf t', "interface {$iface}", "no onu {$onuId}", 'exit']);
+        $back = redirect()->route('smartolt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $executor->execute($olt, $script);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+
+            if ($result['ok']) {
+                $this->removeCachedOnu($olt, $slot, $port, $onuId);
+            }
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? "ONU {$onuId} berhasil dihapus dari {$iface}."
+                    : 'Hapus ONU selesai dengan indikasi error: '.$error,
+            );
+        } catch (\Throwable $exception) {
+            return $back->with('error', 'Hapus ONU gagal: '.CliOutputSanitizer::clean($exception->getMessage()));
+        }
+    }
+
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
     {
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
@@ -1313,6 +1404,30 @@ class SmartOltController extends Controller
         }
 
         data_set($snapshot, $path, $onus);
+
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
+    }
+
+    /**
+     * Drop a deleted ONU from the cached port snapshot so the UI reflects the
+     * removal immediately (without a full SNMP refresh).
+     */
+    private function removeCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $path = "port_onus.{$slot}_{$port}.onus";
+        $onus = data_get($snapshot, $path);
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        $onus = array_values(array_filter($onus, fn (array $onu): bool => (int) ($onu['onu_id'] ?? 0) !== $onuId));
+        data_set($snapshot, $path, $onus);
+
+        if (data_get($snapshot, "port_onus.{$slot}_{$port}.count") !== null) {
+            data_set($snapshot, "port_onus.{$slot}_{$port}.count", count($onus));
+        }
 
         $olt->forceFill(['last_test_result' => $snapshot])->save();
     }

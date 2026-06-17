@@ -58,6 +58,80 @@ class ZteOnuReconfigureScriptBuilder
     }
 
     /**
+     * Build a *complete* (non-delta) provisioning script that reproduces a parsed
+     * running-config onto a (possibly different) interface — backs the
+     * "copy ONU config to another port" batch feature.
+     *
+     * Unlike build(), this diffs the config against an empty baseline (so every
+     * directive is emitted) and prepends the OLT-side `onu N type T sn S`
+     * registration line, so the target port ends up with the same services as
+     * the source. `encrypt 1 enable downstream` is emitted to match the standard
+     * registration produced by {@see ZteProvisioningScriptBuilder}.
+     *
+     * @param  array<string, mixed>  $config  parsed source running-config
+     * @param  array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600?:bool}  $context
+     */
+    public function buildForCopy(array $config, array $context): string
+    {
+        $ifaceLines = [];
+        $mngLines = [];
+        $discard = [];
+
+        $this->diffName([], $config, $ifaceLines, $discard);
+
+        // C600 has no separate description OID (mirror ZteProvisioningScriptBuilder).
+        if ($context['is_c600'] ?? false) {
+            $ifaceLines = array_values(array_filter(
+                $ifaceLines,
+                static fn (string $line): bool => ! str_starts_with($line, 'description '),
+            ));
+        }
+
+        $this->diffTconts([], $config, $ifaceLines, $discard);
+        $this->diffGemports([], $config, $ifaceLines, $discard);
+        $ifaceLines[] = 'encrypt 1 enable downstream';
+        $this->diffServicePorts([], $config, $ifaceLines, $discard);
+
+        $this->diffServices([], $config, $mngLines, $discard);
+        $this->diffVlanPorts([], $config, $mngLines, $discard);
+        // NB: the `wan N service …` binding is intentionally NOT emitted. ZTE shows
+        // it in running-config but rejects it as an input command on C300
+        // ("Invalid command key word"); the WAN connection is fully created by
+        // `wan-ip N mode …` below — matching the verified ZteProvisioningScriptBuilder.
+        $this->diffWanIps([], $config, $mngLines, $discard);
+        $this->diffTr069([], $config, $mngLines, $discard);
+        $this->diffRemoteOnt([], $config, $mngLines, $discard);
+
+        $onuId = (int) $context['onu_id'];
+        $type = strtoupper($this->str($context['onu_type'] ?? '')) ?: 'ALL-ONT';
+        $sn = strtoupper($this->str($context['sn'] ?? ''));
+
+        $lines = [
+            'conf t',
+            '',
+            "interface {$context['olt_iface']}",
+            "onu {$onuId} type {$type} sn {$sn}",
+            'exit',
+        ];
+
+        if ($ifaceLines !== []) {
+            $lines[] = '';
+            $lines[] = "interface {$context['onu_iface']}";
+            $lines = array_merge($lines, $ifaceLines);
+            $lines[] = 'exit';
+        }
+
+        if ($mngLines !== []) {
+            $lines[] = '';
+            $lines[] = "pon-onu-mng {$context['onu_iface']}";
+            $lines = array_merge($lines, $mngLines);
+            $lines[] = 'exit';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * @param  array<int, string>  $lines
      * @param  array<int, array{label:string, from:string, to:string}>  $changes
      */

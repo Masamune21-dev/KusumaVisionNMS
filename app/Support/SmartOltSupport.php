@@ -93,6 +93,7 @@ class SmartOltSupport
             'supports_reboot' => true,
             'reboot_mode' => 'cli',
             'supports_provisioning' => true,
+            'supports_onu_delete' => true,
             'supports_separate_description' => ! $isC600,
             'supports_onu_info_write' => true,
             'description_mode' => 'snmp',
