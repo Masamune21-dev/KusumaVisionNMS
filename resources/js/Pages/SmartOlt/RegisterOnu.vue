@@ -1,13 +1,15 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Cpu, Globe, LayoutList, Settings, User } from '@lucide/vue';
-import { computed, watch } from 'vue';
+import { Check, Copy, Cpu, Globe, LayoutList, Settings, Terminal, User, Zap } from '@lucide/vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -29,12 +31,15 @@ const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
+const canExecute = computed(() => !!(props.olt.capabilities?.supports_cli_onu_configure));
 
 const serviceModes = [
     { value: 'vlanpri', label: 'VLAN + Priority' },
     { value: 'transparent', label: 'Transparent' },
 ];
 
+// VLAN profile hanya menyetel VLAN ID — Service Name dibiarkan independen
+// (input user / default 'ServiceName'), tidak ikut nama VLAN profile.
 watch(() => form.vlan_profile, (name) => {
     const profile = vlanProfiles.value.find((item) => item.name === name);
     if (!profile) {
@@ -42,13 +47,67 @@ watch(() => form.vlan_profile, (name) => {
     }
 
     form.vlan = profile.vlan;
-    form.service_name = profile.name;
 });
 
-const submit = () => {
-    form.post(route('smartolt.register.store', props.olt.id), {
-        preserveScroll: true,
-    });
+// --- live raw CLI preview (debounced, read-only ke server) ---
+const preview = reactive({ script: '# Mengisi form untuk melihat script…', loading: false });
+let debounceTimer = null;
+
+const runPreview = () => {
+    preview.loading = true;
+    window.axios
+        .post(route('smartolt.register.preview', props.olt.id), { ...form.data() })
+        .then(({ data }) => {
+            preview.script = data.script && data.script.trim() !== '' ? data.script : '# (script kosong)';
+        })
+        .catch(() => {
+            preview.script = '# Gagal memuat preview script.';
+        })
+        .finally(() => {
+            preview.loading = false;
+        });
+};
+
+const schedulePreview = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runPreview, 400);
+};
+
+watch(() => JSON.stringify(form.data()), schedulePreview);
+onMounted(runPreview);
+onUnmounted(() => clearTimeout(debounceTimer));
+
+const copied = ref(false);
+const copyScript = async () => {
+    try {
+        await navigator.clipboard.writeText(preview.script);
+        copied.value = true;
+        setTimeout(() => { copied.value = false; }, 1500);
+    } catch {
+        // clipboard tak tersedia — abaikan
+    }
+};
+
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+const submit = async (execute) => {
+    if (execute) {
+        const ok = await confirm({
+            title: 'Eksekusi ke OLT',
+            message: `Register & eksekusi ONU ${form.serial_number || ''} ke ${props.olt.name} sekarang? Script akan langsung dijalankan via CLI Telnet.`,
+            confirmLabel: 'Eksekusi',
+        });
+
+        if (!ok) {
+            return;
+        }
+    }
+
+    form
+        .transform((data) => ({ ...data, execute }))
+        .post(route('smartolt.register.store', props.olt.id), {
+            preserveScroll: true,
+        });
 };
 </script>
 
@@ -59,13 +118,50 @@ const submit = () => {
         <template #header>
             <div>
                 <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Register ONU</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · generate provisioning script</p>
+                <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · provisioning ONU + eksekusi langsung ke OLT</p>
             </div>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
-            <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                <form class="space-y-5" @submit.prevent="submit">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
+                <div class="grid gap-5 xl:grid-cols-[minmax(0,480px)_1fr]">
+
+                    <!-- Kolom kiri: Live Raw CLI -->
+                    <div class="order-2 xl:order-1 xl:sticky xl:top-6 xl:self-start">
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-950/60 shadow-lg shadow-black/30 backdrop-blur-xl">
+                            <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/30">
+                                        <Terminal class="h-4 w-4 text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <h3 class="flex items-center gap-2 text-sm font-semibold text-white">
+                                            Live Raw CLI
+                                            <span v-if="preview.loading" class="h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400"></span>
+                                        </h3>
+                                        <p class="text-xs text-slate-500">Script yang akan dieksekusi ke OLT</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+                                    title="Salin script"
+                                    @click="copyScript"
+                                >
+                                    <Check v-if="copied" class="h-3.5 w-3.5 text-emerald-400" />
+                                    <Copy v-else class="h-3.5 w-3.5" />
+                                    {{ copied ? 'Tersalin' : 'Salin' }}
+                                </button>
+                            </div>
+                            <pre class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ preview.script }}</pre>
+                        </div>
+                        <p class="mt-2 px-1 text-xs text-slate-500">
+                            Preview diperbarui otomatis tiap form berubah. Eksekusi nyata dijalankan saat menekan tombol <span class="text-slate-300">Eksekusi ke OLT</span>.
+                        </p>
+                    </div>
+
+                    <!-- Kolom kanan: form konfigurasi -->
+                    <form class="order-1 space-y-5 xl:order-2" @submit.prevent="submit(canExecute)">
 
                     <!-- Section 1: Identitas ONU -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
@@ -357,17 +453,29 @@ const submit = () => {
                     <input v-model="form.oid_index" type="hidden" />
 
                     <!-- Submit bar -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-                        <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
-                            <SecondaryButton type="button">Batal</SecondaryButton>
-                        </Link>
-                        <PrimaryButton :disabled="form.processing">
-                            <LayoutList class="mr-2 h-4 w-4" />
-                            Generate Script
-                        </PrimaryButton>
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6">
+                        <p v-if="!canExecute" class="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                            Driver OLT ini tidak mendukung eksekusi CLI otomatis — script hanya bisa di-generate & disimpan ke audit log.
+                        </p>
+                        <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
+                            <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
+                                <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
+                            </Link>
+                            <SecondaryButton type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(false)">
+                                <LayoutList class="mr-2 h-4 w-4" />
+                                Generate script saja
+                            </SecondaryButton>
+                            <PrimaryButton v-if="canExecute" type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(true)">
+                                <Zap class="mr-2 h-4 w-4" />
+                                {{ form.processing ? 'Mengeksekusi…' : 'Eksekusi ke OLT' }}
+                            </PrimaryButton>
+                        </div>
                     </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

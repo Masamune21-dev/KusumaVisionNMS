@@ -2088,3 +2088,19 @@ Notes:
 - Sumber data port dari `olt.last_test_result.ports` (sama dengan yang dipakai fitur "Copy ke port lain"), diurutkan numerik per slot lalu port. Port saat ini selalu disisipkan ke daftar walau belum ter-refresh; navigator hanya muncul bila ada >1 port.
 - Tombol prev/next otomatis disabled di port pertama/terakhir, tooltip menampilkan tujuan (mis. "Slot 1 / Port 3"). Responsif: dropdown mengisi lebar di mobile (grid 1 kolom), ringkas di desktop (`max-w-[12rem]`).
 - Verifikasi: `npx vite build` sukses.
+
+### Rombak halaman Register ONU: live raw CLI, layout 2 kolom, eksekusi langsung
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — (1) `storeOnu` kini terima flag `execute`: bila true eksekusi script langsung ke OLT via Telnet (`ZteCliProvisioningExecutor`), simpan registrasi status `executed`/`failed` + output eksekusi; bila false tetap simpan `generated` (audit-only) seperti dulu. (2) Method baru `registerOnuPreview` (+ helper `previewProvisioningInput`) build script lenient tanpa validasi untuk live preview (read-only, tak sentuh OLT). (3) Default `service_name` form jadi `'ServiceName'` (lepas dari nama VLAN profile). (4) `hydrateProvisioningProfiles` tak lagi override `service_name` — VLAN tetap ikut profile, service name independen.
+- `routes/web.php` — route baru `smartolt.register.preview` (POST).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — layout 2 kolom (`w-full`, full-width seperti halaman lain): kiri panel "Live Raw CLI" sticky (debounce 400ms POST ke preview, tombol Salin), kanan form. Tombol submit jadi dua: "Eksekusi ke OLT" (utama, ada confirm, gated `supports_cli_onu_configure`) dan "Generate script saja" (sekunder). Watcher VLAN profile cuma set VLAN ID, tak lagi sentuh service_name.
+- `tests/Feature/SmartOltInventoryTest.php` — `test_static_provisioning_...` diperbarui: kirim `service_name=ManualName` kini diharapkan jadi `service ManualName ... vlan 321` (service name independen), VLAN tetap 321 dari profile.
+
+Notes:
+
+- Atas permintaan user: (1) live view raw CLI langsung kelihatan, (2) UI 2 kolom kiri CLI kanan config, (3) Generate Script diganti eksekusi langsung ke OLT, (4) Service Name jangan ikut VLAN Profile.
+- Backward compatible: tanpa flag `execute` (mis. test lama / pemakaian audit-only) perilaku `generated` tetap. Eksekusi langsung mengikuti pola `configureOnuApply` (sanitasi output, mask password CLI, catat audit `smartolt_onu_registrations`).
+- Preview & script di Registrations menampilkan password PPPoE plaintext — data input user sendiri di sesi terautentikasi, konsisten dengan tampilan script existing.
+- Verifikasi: `php artisan test` → 168 passed; `npx vite build` sukses; Pint passed.

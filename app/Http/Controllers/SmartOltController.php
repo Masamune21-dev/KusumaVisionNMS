@@ -401,7 +401,7 @@ class SmartOltController extends Controller
                 'tcont_profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'),
                 'vlan' => 100,
                 'vlan_profile' => $this->firstProfileName($olt, 'vlan', 'ServiceName'),
-                'service_name' => $this->firstProfileName($olt, 'vlan', 'ServiceName'),
+                'service_name' => 'ServiceName',
                 'service_mode' => 'vlanpri',
                 'wan_mode' => 'pppoe',
                 'pppoe_username' => '',
@@ -913,13 +913,28 @@ class SmartOltController extends Controller
         }
     }
 
-    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): RedirectResponse
+    /**
+     * Build a live preview of the provisioning CLI script from the (possibly
+     * incomplete) register form, without strict validation, so the form's
+     * left-hand "live raw CLI" panel can update on every keystroke. Read-only:
+     * never touches the OLT.
+     */
+    public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): JsonResponse
+    {
+        $data = $this->hydrateProvisioningProfiles($olt, $this->previewProvisioningInput($request));
+        $data['is_c600'] = SmartOltSupport::isC600($olt);
+
+        return response()->json(['script' => $builder->build($data)]);
+    }
+
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
     {
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
         $data['is_c600'] = SmartOltSupport::isC600($olt);
         $script = $builder->build($data);
+        $execute = $request->boolean('execute');
 
-        SmartOltOnuRegistration::create([
+        $base = [
             ...$data,
             'snmp_olt_id' => $olt->id,
             'pon_port' => SmartOltSupport::onuInterfaceId(
@@ -929,13 +944,95 @@ class SmartOltController extends Controller
                 SmartOltSupport::isC600($olt),
             ),
             'cli_script' => $script,
-            'status' => 'generated',
             'created_by' => $request->user()?->id,
-        ]);
+        ];
 
-        return redirect()
-            ->route('smartolt.registrations', $olt)
-            ->with('success', 'Provisioning script berhasil digenerate dan disimpan ke audit log.');
+        // Hanya simpan script (audit) — tanpa menyentuh OLT.
+        if (! $execute) {
+            SmartOltOnuRegistration::create([...$base, 'status' => 'generated']);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('success', 'Provisioning script berhasil digenerate dan disimpan ke audit log.');
+        }
+
+        // Eksekusi langsung ke OLT via Telnet.
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        try {
+            $result = $executor->execute($olt, $script);
+            $output = CliOutputSanitizer::clean($result['output']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => $result['ok'] ? 'executed' : 'failed',
+                'execution_output' => $output,
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? 'ONU berhasil diregister & dieksekusi ke OLT.'
+                        : 'Eksekusi register selesai dengan indikasi error: '.$error,
+                );
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => 'failed',
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('error', 'Eksekusi register gagal: '.$error);
+        }
+    }
+
+    /**
+     * Lenient (non-validating) gather of register form inputs for live preview.
+     *
+     * @return array<string, mixed>
+     */
+    private function previewProvisioningInput(Request $request): array
+    {
+        return [
+            'serial_number' => (string) $request->input('serial_number', ''),
+            'slot' => (int) $request->input('slot', 0),
+            'port' => (int) $request->input('port', 0),
+            'onu_id' => (int) $request->input('onu_id', 0),
+            'oid_index' => (string) $request->input('oid_index', ''),
+            'customer_name' => (string) $request->input('customer_name', ''),
+            'onu_type' => (string) ($request->input('onu_type') ?: 'ALL-ONT'),
+            'tcont_profile' => (string) ($request->input('tcont_profile') ?: 'SERVER'),
+            'vlan' => (int) $request->input('vlan', 100),
+            'vlan_profile' => (string) $request->input('vlan_profile', ''),
+            'service_name' => (string) ($request->input('service_name') ?: 'ServiceName'),
+            'service_mode' => (string) ($request->input('service_mode') ?: 'vlanpri'),
+            'wan_mode' => (string) ($request->input('wan_mode') ?: 'pppoe'),
+            'pppoe_username' => (string) $request->input('pppoe_username', ''),
+            'pppoe_password' => (string) $request->input('pppoe_password', ''),
+            'ip_profile' => (string) $request->input('ip_profile', ''),
+            'static_ip' => (string) $request->input('static_ip', ''),
+            'static_netmask' => (string) ($request->input('static_netmask') ?: '24'),
+            'tr069_enabled' => $request->boolean('tr069_enabled'),
+            'acs_url' => (string) $request->input('acs_url', ''),
+            'acs_username' => (string) $request->input('acs_username', ''),
+            'acs_password' => (string) $request->input('acs_password', ''),
+            'remote_ont_enabled' => $request->boolean('remote_ont_enabled'),
+            'remote_ont_id' => (int) $request->input('remote_ont_id', 1),
+            'remote_ont_mode' => (string) ($request->input('remote_ont_mode') ?: 'forward'),
+            'remote_ont_protocol' => (string) ($request->input('remote_ont_protocol') ?: 'web'),
+        ];
     }
 
     public function registrations(SnmpOlt $olt): Response
@@ -1506,8 +1603,9 @@ class SmartOltController extends Controller
             ->first();
 
         if ($profile) {
+            // VLAN tetap mengikuti profile, tetapi service_name dibiarkan apa adanya
+            // (input user / default 'ServiceName') — tidak lagi dipaksa = nama profile.
             $data['vlan'] = $profile->vlan;
-            $data['service_name'] = $profile->name;
         }
 
         return $data;

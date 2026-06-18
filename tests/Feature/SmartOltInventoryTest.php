@@ -491,8 +491,9 @@ OUT,
             ->where('serial_number', 'ZTEG87654321')
             ->firstOrFail();
 
+        // VLAN tetap ikut profile (321), tetapi service_name independen — pakai input user.
         $this->assertSame(321, $registration->vlan);
-        $this->assertStringContainsString('service STATICBUS gemport 1 cos 0 vlan 321', $registration->cli_script);
+        $this->assertStringContainsString('service ManualName gemport 1 cos 0 vlan 321', $registration->cli_script);
         $this->assertStringContainsString('ip-profile INTERNET ip-address 192.0.2.10 mask 24', $registration->cli_script);
         $this->assertStringNotContainsString('255.255.255.0', $registration->cli_script);
     }
