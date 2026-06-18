@@ -2074,3 +2074,17 @@ Notes:
 - Atas permintaan user — UI lama terasa kosong/sparse. Header tetap pakai ikon polos (bukan `kv-circle`) supaya konsisten dengan kartu lain di halaman yang sama.
 - Helper baru: `isVlanRange()`, `formatVlan()` (en-dash), computed `totalVlanCount`. Tak ada perubahan backend (route/endpoint VLAN tetap).
 - Verifikasi: `npm run build` sukses.
+
+## 2026-06-18
+
+### Navigator pindah antar port di halaman Port ONUs
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tambah navigator port di header: tombol ◀/▶ (prev/next port) + dropdown pilih port, supaya bisa pindah-pindah antar port tanpa balik ke daftar GPON Port. Navigasi pakai `router.get(route('smartolt.port-onus', ...))` (Inertia visit, bukan full reload).
+
+Notes:
+
+- Sumber data port dari `olt.last_test_result.ports` (sama dengan yang dipakai fitur "Copy ke port lain"), diurutkan numerik per slot lalu port. Port saat ini selalu disisipkan ke daftar walau belum ter-refresh; navigator hanya muncul bila ada >1 port.
+- Tombol prev/next otomatis disabled di port pertama/terakhir, tooltip menampilkan tujuan (mis. "Slot 1 / Port 3"). Responsif: dropdown mengisi lebar di mobile (grid 1 kolom), ringkas di desktop (`max-w-[12rem]`).
+- Verifikasi: `npx vite build` sukses.

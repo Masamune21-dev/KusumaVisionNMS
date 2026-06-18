@@ -11,7 +11,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Copy, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -45,6 +45,34 @@ const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const caps = computed(() => props.olt.capabilities ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+// --- navigasi cepat antar port (OLT sama) ---
+const navPorts = computed(() => {
+    const list = (props.olt.last_test_result?.ports ?? [])
+        .map((p) => ({ slot: Number(p.slot), port: Number(p.port), name: p.name }));
+    if (!list.some((p) => p.slot === props.slot && p.port === props.port)) {
+        list.push({ slot: props.slot, port: props.port, name: null });
+    }
+    return list.sort((a, b) => a.slot - b.slot || a.port - b.port);
+});
+const currentPortIndex = computed(() =>
+    navPorts.value.findIndex((p) => p.slot === props.slot && p.port === props.port),
+);
+const currentPortKey = computed(() => `${props.slot}_${props.port}`);
+const prevPort = computed(() => (currentPortIndex.value > 0 ? navPorts.value[currentPortIndex.value - 1] : null));
+const nextPort = computed(() =>
+    currentPortIndex.value >= 0 && currentPortIndex.value < navPorts.value.length - 1
+        ? navPorts.value[currentPortIndex.value + 1]
+        : null,
+);
+const goToPort = (p) => {
+    if (!p || (p.slot === props.slot && p.port === props.port)) return;
+    router.get(route('smartolt.port-onus', [props.olt.id, p.slot, p.port]));
+};
+const onPortSelect = (event) => {
+    const [slot, port] = event.target.value.split('_').map(Number);
+    goToPort({ slot, port });
+};
 
 // --- search & filter ---
 const search = ref(props.initial_search ?? '');
@@ -347,7 +375,37 @@ const rxBadgeClass = (value) => {
                         {{ olt.name }} · {{ olt.ip }}
                     </p>
                 </div>
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
+                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:items-center sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
+                    <div v-if="navPorts.length > 1" class="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/40 p-1 backdrop-blur-xl">
+                        <button
+                            type="button"
+                            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors enabled:hover:bg-white/5 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                            :disabled="!prevPort"
+                            :title="prevPort ? `Slot ${prevPort.slot} / Port ${prevPort.port}` : 'Port pertama'"
+                            @click="goToPort(prevPort)"
+                        >
+                            <ChevronLeft class="h-4 w-4" />
+                        </button>
+                        <select
+                            :value="currentPortKey"
+                            class="min-h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent py-1.5 pl-2 pr-7 text-sm font-medium text-slate-100 focus:ring-1 focus:ring-cyan-500 sm:flex-none sm:max-w-[12rem]"
+                            title="Pindah ke port lain"
+                            @change="onPortSelect"
+                        >
+                            <option v-for="p in navPorts" :key="`${p.slot}_${p.port}`" :value="`${p.slot}_${p.port}`" class="bg-slate-900">
+                                Slot {{ p.slot }} / Port {{ p.port }}<template v-if="p.name"> — {{ p.name }}</template>
+                            </option>
+                        </select>
+                        <button
+                            type="button"
+                            class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors enabled:hover:bg-white/5 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                            :disabled="!nextPort"
+                            :title="nextPort ? `Slot ${nextPort.slot} / Port ${nextPort.port}` : 'Port terakhir'"
+                            @click="goToPort(nextPort)"
+                        >
+                            <ChevronRight class="h-4 w-4" />
+                        </button>
+                    </div>
                     <Link :href="route('smartolt.gpon-ports', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
