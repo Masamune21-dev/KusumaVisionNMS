@@ -14,6 +14,8 @@ C-Data dipasarkan dengan dua keluarga enterprise OID yang **berbeda dan tidak bo
 | **C-Data native GPON** | `1.3.6.1.4.1.34592` | `FD-ONU-MIB`, `FD-OLT-MIB`, `CDATA-GPON-MIB` | FD1608S, FD1216S, FD1616GS (FlashV2.x / FlashV3.x) | `CData34592SnmpService` + `CDataGponCliSessionService` |
 
 > **Penting:** `sysObjectID` adalah penentu family. EPON OEM C-Data mengembalikan `iso.3.6.1.4.1.17409`, GPON native C-Data mengembalikan `iso.3.6.1.4.1.34592`. Jangan asumsikan driver `17409` kompatibel dengan `34592` — index, naming, dan write path-nya beda total.
+>
+> ⚠️ **KOREKSI dari verifikasi lapangan BMKV (lihat §13):** asumsi di atas **tidak selalu benar**. OLT GPON **FD1608S** firmware **FlashV3.x** yang diuji justru mengembalikan `sysObjectID = .1.3.6.1.4.1.17409` (sama dengan EPON!), bukan `34592`. Karena itu BMKV **tidak** mengandalkan `sysObjectID` untuk menentukan family — dipakai string `vendor` yang diset operator (`SmartOltSupport::driverKey()` mencocokkan substring `17409`/`34592`/`cdata`/`epon`/`fd16…`), dan deteksi V3 dari keberadaan tabel `34592…18.12.1.1`. Tabel ONU family masih dibedakan dgn benar (EPON `17409.2.3.4.*` vs GPON `34592.*`), hanya identifier `sysObjectID`-nya yang tidak bisa dipercaya.
 
 ---
 
@@ -262,6 +264,8 @@ Index: `.1.0.<ifIndex>.<flow>.<onuId>`.
 
 > Pada V3, SNMP umumnya hanya mengembalikan 1 baris. **Inventory penuh, SN, MAC, optical, dan deskripsi yang benar-benar dipakai OLT hanya ada di CLI.** Treat SNMP V3 sebagai read terbatas; gunakan CLI sebagai sumber utama.
 
+**Tabel enumerasi `34592.1.5.1.1.2.18.26.1.<col>` (temuan lapangan, lihat §13).** Berbeda dengan tabel atribut `.18.12` yang hanya 1 baris, tabel `.18.26.1` di-walk **mengembalikan satu baris per ONU** (mis. 31 ONU = 31 baris pada FD1608S #277), tapi **nilai kolomnya `-1`** (tampaknya tabel statistik kosong). Gunanya: **hitung jumlah ONU V3 yang benar** lewat SNMP (`countRegisteredOnus` BMKV pakai col `.2`), karena `.18.12` selalu lapor 1. **Atribut (SN/nama/status/optical) tetap WAJIB dari CLI.** Tabel ONU legacy `34592.1.3.4.1.1.*` dan `…18.2.1.*` **tidak ada** di firmware V3 ini (walk gagal).
+
 ### 5.6 Voice / IAD (opsional, hanya ONU voice-capable)
 
 `onuIADMode`, `onuIADIpAddr`, `onuIADNetMask`, `onuIADDefaultGw`, `onuIADPppoeMode`, `onuIADPppoeUsrnm`, `onuIADPppoePw`, `onuIADVoiceCVlan`, `onuIADVoiceSVlan`, `onuIADVoicePriority` (subtree `FD-ONU-MIB` voice). Tampilkan hanya bila capability ONU mendukung voice.
@@ -420,18 +424,21 @@ Uji write terkontrol: rename ke string dummy → reboot 1 ONU non-produksi → e
 
 ## 11. File Driver di BMKV Repo (referensi implementasi)
 
+> **Status implementasi (v1 = monitoring read-only).** Nama file di bawah adalah yang **benar-benar dibangun** di repo (berbeda dari draf blueprint awal). Aksi write (rename/reboot/enable-disable/provisioning) belum ada — kontrak masih read-only.
+
 | File | Peran |
 | --- | --- |
-| [app/Services/CDataSnmpService.php](../app/Services/CDataSnmpService.php) | driver SNMP EPON `17409` (read inventory, Rx, decode device-index) |
-| [app/Services/CDataEponCliSessionService.php](../app/Services/CDataEponCliSessionService.php) | CLI write EPON (`ont reboot` / `ont description`) |
-| [app/Services/CData34592SnmpService.php](../app/Services/CData34592SnmpService.php) | driver SNMP GPON `34592` (legacy + v3 table + deteksi firmware V3) |
-| [app/Services/CDataGponCliSessionService.php](../app/Services/CDataGponCliSessionService.php) | CLI GPON (inventory/optical/MAC/version + write) |
-| [app/Services/ZteCliSessionService.php](../app/Services/ZteCliSessionService.php) | transport telnet/SSH bersama (punya `configureLoginPrompts()`) |
-| [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver vendor → driver |
-| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + format interface/port |
-| [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | kontrak interface driver |
+| [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | kontrak read driver C-Data (dipakai resolver) |
+| [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → driver C-Data konkret |
+| [app/Services/CData/CDataSnmp.php](../app/Services/CData/CDataSnmp.php) | koneksi SNMP low-level v1/v2c (output OID numerik), `get`/`walk` |
+| [app/Services/CData/CDataValue.php](../app/Services/CData/CDataValue.php) | helper parsing murni (MAC, Rx centi-dBm, decode device-index EPON, parse onuName, segmen OID) |
+| [app/Services/CData/CDataEponSnmpService.php](../app/Services/CData/CDataEponSnmpService.php) | driver SNMP EPON `17409` (inventory + Rx `2.3.4.2.1.4`) |
+| [app/Services/CData/CDataGponSnmpService.php](../app/Services/CData/CDataGponSnmpService.php) | driver SNMP GPON `34592` (legacy `slot.port.onuId` + deteksi V3 + count via `.18.26`) |
+| [app/Services/CData/CDataGponCliService.php](../app/Services/CData/CDataGponCliService.php) | CLI GPON V3 (inventory `show ont info all` + Rx `show ont optical-info`, baca berbasis prompt) |
+| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | `driverKey()` (family by vendor) + capability matrix + helper interface |
+| [app/Http/Controllers/CDataOltController.php](../app/Http/Controllers/CDataOltController.php) | halaman OLT C-Data (index/detail/portOnus/test/refresh/scan → cache `port_onus`) |
 
-Kontrak `SmartOltSnmpDriver` (method yang harus diimplementasikan tiap driver): `ping`, `getSystemInfo`, `getBoards`, `getGponPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `setOnuName`, `setOnuDescription`, `resetOnu`, `setOnuActiveState`, `countRegisteredOnus`, `getUnconfiguredOnus`, `getPortRxMap`.
+Kontrak `SmartOltSnmpDriver` v1 (read-only): `ping`, `getSystemInfo`, `getPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `getPortRxMap`, `countRegisteredOnus`, `getUnconfiguredOnus`. ZTE **tidak** memakai kontrak ini (punya `OltSnmpClient` sendiri).
 
 ---
 
@@ -450,3 +457,46 @@ Kontrak `SmartOltSnmpDriver` (method yang harus diimplementasikan tiap driver): 
 ### Standar
 - RFC 3418 SNMPv2-MIB — `https://datatracker.ietf.org/doc/html/rfc3418`
 - RFC 854 Telnet (CRLF strict) — `https://datatracker.ietf.org/doc/html/rfc854`
+
+---
+
+## 13. Verifikasi lapangan BMKV (OLT live, 21 Juni 2026)
+
+Diuji terhadap dua OLT produksi. **Yang tertulis di bawah adalah perilaku nyata**, mengoreksi beberapa asumsi blueprint.
+
+| OLT | Model / firmware | sysObjectID | Inventory | Jumlah | Waktu |
+| --- | --- | --- | --- | --- | --- |
+| EPON | OEM 17409 (sysName `OLT-CDATA-TAYU`) | `.1.3.6.1.4.1.17409` | **SNMP** `17409.2.3.4.*` | 258 ONU | ~0,7 s |
+| GPON | **FD1608S** `V3.3.86_260113` | `.1.3.6.1.4.1.17409` (**bukan 34592!**) | **CLI** `show ont info all` | 31 ONU | ~0,4 s |
+
+**Temuan kunci:**
+
+1. **sysObjectID tidak andal.** Kedua device melaporkan `17409`. Family ditentukan dari string `vendor` (operator set saat tambah OLT) + probe tabel V3 `34592…18.12.1.1`, **bukan** sysObjectID.
+2. **GPON V3 + SNMP = 1 ONU saja.** Tabel atribut `34592…18.12.1.*` hanya 1 baris; tabel legacy `34592.1.3.4.1.1.*` & `…18.2.1.*` **tidak ada**. Tabel `…18.26.1.*` punya 1 baris/ONU (enumerasi, nilai `-1`) → dipakai hanya untuk **hitung jumlah**. Maka inventory GPON V3 **wajib CLI**.
+3. **EPON serial ≈ MAC**, dikembalikan sbg Hex-STRING (`D0 5F AF …`) → dinormalisasi ke `D0:5F:AF:…`. Kolom model (`.26`) kadang ber-anotasi `25AR(0x32354152)` → ambil bagian ASCII saja.
+4. **CLI baca berbasis prompt, bukan jeda diam.** Berhenti begitu prompt (`#`/`>`) muncul → inventory+optical 31 ONU GPON ~0,4 s (kalau menunggu idle bisa ~10 s).
+
+**Format CLI terverifikasi (FD1608S V3):**
+
+```
+# show ont info all                       (di level enable)
+  F/S P  ONT_ID  SN            CONTROL  RUN     CONFIG   MATCH  LAST_DOWN   DESC
+  0/0 1  1       CDTCAFD296DB  Active   Online  success  match  --          SERVER-PENJAWI
+  ...
+  Total: 31,  online: 31, ...
+```
+- `F/S` = frame/slot (`0/0` → slot=0); `P` = port; index ONU di BMKV = `slot.port.ONT_ID`; interface = `gpon 0/{slot}/{port}:{ONT_ID}`.
+- `LAST_DOWN` `--` = null; DESC boleh mengandung spasi/slash.
+
+```
+# config
+(config)# interface gpon 0/0
+(config-if-gpon-0/0)# show ont optical-info 1 all     (arg = nomor PORT/P)
+  ONT_ID  Rx(dBm)  Tx(dBm)  OLT_Rx(dBm)  Temp(C)  Voltage(V)  Current(mA)
+  1       -18.83   1.56     -26.02       41.55    3.26        11.55
+  ...
+```
+- Rx ONU = kolom ke-2; `--` = N/A. BMKV mengambil optical **dalam sesi telnet yang sama** dgn `show ont info all` (grup per port) lalu enrich `rx_power_dbm`.
+- Perintah `show ont optical-info {port}` **gagal di level enable** (`% Unknown command`) — harus di submode `interface gpon 0/{slot}`.
+
+> Tindak lanjut: bila menemui firmware C-Data GPON **legacy/non-V3**, tabel SNMP `34592.1.3.4.1.1.*` semestinya terisi (jalur `legacyOnus` di `CDataGponSnmpService`) — uji ulang saat perangkat tersedia.

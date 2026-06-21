@@ -2,6 +2,15 @@
 
 ## 2026-06-21
 
+### Guide C-Data disinkronkan dengan temuan OLT live
+
+`docs/SMARTOLT_CDATA_GUIDE.md` diperbarui agar akurat dgn hardware nyata (sebelumnya blueprint):
+- §1: koreksi — FD1608S V3 melaporkan `sysObjectID 17409` (bukan 34592); family by `vendor`, bukan sysObjectID.
+- §5.5: tabel `…18.26.1` (enumerasi 1 baris/ONU, nilai `-1`) utk count; legacy `1.3.4.1.1.*`/`18.2.1.*` absen di V3.
+- §11: daftar file diganti ke implementasi nyata (`CData/CData*`, resolver, kontrak read-only v1).
+- §13 (baru): verifikasi lapangan — tabel device, format kolom asli `show ont info all` & `show ont
+  optical-info` (arg = port, harus di submode `interface gpon 0/{slot}`), CLI baca berbasis prompt.
+
 ### Halaman OLT C-Data — Rx per-ONU GPON via CLI (`show ont optical-info`)
 
 Melengkapi GPON V3: Rx per-ONU (sebelumnya kosong; SNMP tak punya per-ONU). Diambil via CLI
