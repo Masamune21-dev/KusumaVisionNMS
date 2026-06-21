@@ -2,6 +2,26 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — Fase 1: halaman inventori + Test/probe family
+
+Halaman baru **OLT C-Data** (menu nav sendiri, prefix `/cdata-olt`) untuk CRUD inventori OLT
+C-Data + Test koneksi. Belum ada read inventory ONU (itu Fase 2) — fokus identifikasi device.
+
+- `app/Http/Controllers/CDataOltController.php` — index (hanya OLT C-Data via `isCData`), create,
+  store, edit, update, destroy, test. `test()` pakai SNMP get generik (`OltSnmpClient::test`) untuk
+  sysDescr/sysObjectID → `driverKey`; untuk family GPON, walk `…18.12.1.1` → set `cdata.firmware_v3`
+  (deteksi FlashV3.x). SNMP dibatasi v1/v2c. Log `PollingEvent::KIND_OLT_TEST`.
+- `routes/web.php` — 7 route `cdata-olt.*` (index/create/store/edit/update/destroy/test).
+- `resources/js/Layouts/AuthenticatedLayout.vue` — menu nav "OLT C-Data" (ikon Server) setelah SmartOLT.
+- `resources/js/Pages/CDataOlt/{Index,Create,Edit}.vue` + `Partials/CDataOltForm.vue` — tema `kv-*`,
+  form dengan **Family select** (EPON 17409 / GPON 34592 → tulis ke kolom `vendor`), default CLI telnet
+  (untuk inventory GPON V3 nanti). Index: badge family + badge `FlashV3.x`, status Test, aksi
+  Test/Edit/Telnet/Hapus (Telnet reuse `smartolt.telnet.token`, vendor-neutral).
+- `tests/Feature/CDataOltInventoryTest.php` — index/create/edit render; OLT C-Data tersimpan & hanya
+  muncul di halaman C-Data (tidak bocor ke SmartOLT); OLT ZTE tidak muncul di halaman C-Data.
+- Verifikasi: `php artisan test` CDataOlt+SmartOlt = 25 passed; `npm run build` OK (3 halaman + form
+  ter-bundle); Pint bersih. Belum diverifikasi ke OLT C-Data live (menyusul saat probe perangkat).
+
 ### Halaman OLT C-Data — Fase 0: fondasi driver (non-ZTE)
 
 Awal fitur halaman baru **OLT C-Data** (OLT non-ZTE: C-Data EPON `17409` & GPON `34592`, vendor lain

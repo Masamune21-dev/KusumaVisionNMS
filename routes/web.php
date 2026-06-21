@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AlarmController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\NotificationsController;
@@ -60,6 +61,15 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/telegram/webhook/register', [SettingsController::class, 'registerWebhook'])->name('settings.telegram.webhook.register');
         Route::post('/settings/telegram/webhook/delete', [SettingsController::class, 'deleteWebhook'])->name('settings.telegram.webhook.delete');
     });
+
+    // OLT C-Data (non-ZTE: EPON 17409 & GPON 34592) — v1 read-only monitoring.
+    Route::get('/cdata-olt', [CDataOltController::class, 'index'])->name('cdata-olt.index');
+    Route::get('/cdata-olt/create', [CDataOltController::class, 'create'])->name('cdata-olt.create');
+    Route::post('/cdata-olt', [CDataOltController::class, 'store'])->name('cdata-olt.store');
+    Route::get('/cdata-olt/{olt}/edit', [CDataOltController::class, 'edit'])->name('cdata-olt.edit');
+    Route::put('/cdata-olt/{olt}', [CDataOltController::class, 'update'])->name('cdata-olt.update');
+    Route::delete('/cdata-olt/{olt}', [CDataOltController::class, 'destroy'])->name('cdata-olt.destroy');
+    Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->name('cdata-olt.test');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
