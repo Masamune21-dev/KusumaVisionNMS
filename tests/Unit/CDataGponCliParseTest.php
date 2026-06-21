@@ -57,4 +57,23 @@ TXT;
         $this->assertFalse($last['online']);
         $this->assertSame('disable', $last['admin_state']);
     }
+
+    public function test_parses_optical_rx_per_ont(): void
+    {
+        $sample = <<<'TXT'
+-------------------------------------------------------------------------------------
+ONT    Rx power     Tx power     OLT Rx ONT    Temperature    Voltage     Current
+ID     (dBm)        (dBm)         power(dBm)   (C)            (V)         (mA)
+-------------------------------------------------------------------------------------
+1      -18.83       1.56         -26.02        41.55          3.26        11.55
+2      -23.09       2.72         -25.09        55.66          3.26        21.45
+8      --           --           --            --             --          --
+TXT;
+
+        $rx = (new CDataGponCliService)->parseOpticalInfo($sample);
+
+        $this->assertSame(-18.83, $rx[1]);
+        $this->assertSame(-23.09, $rx[2]);
+        $this->assertArrayNotHasKey(8, $rx); // "--" = N/A
+    }
 }

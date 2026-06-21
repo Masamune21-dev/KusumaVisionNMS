@@ -32,17 +32,16 @@ class CDataGponCliService
 
     private const PROMPT_ENABLE = '/[\w\-.]+\s*#\s*$/';
 
+    // Prompt apa pun yg diakhiri `#` (enable `host#`, config `(config)#`, interface `(config-if-...)#`).
+    private const PROMPT_CMD = '/#\s*$/';
+
     /**
-     * Inventory penuh ONU lewat `show ont info all`.
+     * Inventory penuh ONU (`show ont info all`) + Rx optical per port (`show ont optical-info`),
+     * digabung dalam satu sesi telnet.
      *
      * @return array<int, array<string, mixed>>
      */
     public function getOnts(SnmpOlt $olt): array
-    {
-        return $this->parseOntInfo($this->runShow($olt, 'show ont info all'));
-    }
-
-    private function runShow(SnmpOlt $olt, string $command): string
     {
         if ($olt->cli_transport !== 'telnet') {
             throw new RuntimeException('CLI C-Data baru mendukung Telnet. Set CLI transport OLT ke telnet.');
@@ -59,18 +58,76 @@ class CDataGponCliService
         try {
             $this->login($connection, $olt);
             fwrite($connection, "enable\r\n");
-            $this->readUntil($connection, self::PROMPT_ENABLE, 6);
-            fwrite($connection, $command."\r\n");
-            $output = $this->readUntil($connection, self::PROMPT_ENABLE, 30, true);
+            $this->readUntil($connection, self::PROMPT_CMD, 6);
+
+            $info = $this->command($connection, 'show ont info all', 30);
+            if (($error = $this->detectError($info)) !== null) {
+                throw new RuntimeException("CLI menolak 'show ont info all': {$error}");
+            }
+            $onus = $this->parseOntInfo($info);
+
+            $rxByKey = $this->fetchOpticalMap($connection, $onus);
+            foreach ($onus as &$onu) {
+                $rx = $rxByKey["{$onu['slot']}.{$onu['port']}.{$onu['onu_id']}"] ?? null;
+                if ($rx !== null) {
+                    $onu['rx_power_dbm'] = $rx;
+                    $onu['rx_power_label'] = sprintf('%.2f dBm', $rx);
+                }
+            }
+
+            return $onus;
         } finally {
             fclose($connection);
         }
+    }
 
-        if (($error = $this->detectError($output)) !== null) {
-            throw new RuntimeException("CLI menolak '{$command}': {$error}");
+    /**
+     * Kirim satu command, baca sampai prompt CLI.
+     *
+     * @param  resource  $connection
+     */
+    private function command($connection, string $command, float $max): string
+    {
+        fwrite($connection, $command."\r\n");
+
+        return $this->readUntil($connection, self::PROMPT_CMD, $max, true);
+    }
+
+    /**
+     * Ambil Rx optical per ONU via `show ont optical-info {port} all` (submode interface gpon 0/{slot}).
+     *
+     * @param  resource  $connection
+     * @param  array<int, array<string, mixed>>  $onus
+     * @return array<string, float> di-key `slot.port.onuId`
+     */
+    private function fetchOpticalMap($connection, array $onus): array
+    {
+        $ports = [];
+        foreach ($onus as $onu) {
+            $ports["{$onu['slot']}.{$onu['port']}"] = ['slot' => (int) $onu['slot'], 'port' => (int) $onu['port']];
+        }
+        if ($ports === []) {
+            return [];
         }
 
-        return $output;
+        $map = [];
+        $this->command($connection, 'config', 5);
+        $currentSlot = null;
+
+        foreach ($ports as $p) {
+            if ($currentSlot !== $p['slot']) {
+                $this->command($connection, "interface gpon 0/{$p['slot']}", 5);
+                $currentSlot = $p['slot'];
+            }
+            $out = $this->command($connection, "show ont optical-info {$p['port']} all", 15);
+            foreach ($this->parseOpticalInfo($out) as $ontId => $rx) {
+                $map["{$p['slot']}.{$p['port']}.{$ontId}"] = $rx;
+            }
+        }
+
+        $this->command($connection, 'end', 4);
+
+        return $map;
     }
 
     /**
@@ -170,6 +227,30 @@ class CDataGponCliService
         usort($onus, fn ($a, $b) => [$a['slot'], $a['port'], $a['onu_id']] <=> [$b['slot'], $b['port'], $b['onu_id']]);
 
         return $onus;
+    }
+
+    /**
+     * Parse `show ont optical-info {port} all`:
+     *   ONT_ID  Rx(dBm)  Tx(dBm)  OLT_Rx(dBm)  Temp(C)  Voltage(V)  Current(mA)   (`--` = N/A)
+     * Public agar bisa diuji unit. Mengembalikan Rx ONU (dBm) di-key onuId.
+     *
+     * @return array<int, float>
+     */
+    public function parseOpticalInfo(string $output): array
+    {
+        $map = [];
+
+        foreach (preg_split('/\r\n|\n|\r/', $output) ?: [] as $line) {
+            if (! preg_match('/^\s*(\d+)\s+(-?[\d.]+|--)\s+(-?[\d.]+|--)\s+(-?[\d.]+|--)\s+([\d.]+|--)\s+([\d.]+|--)\s+([\d.]+|--)\s*$/', $line, $m)) {
+                continue;
+            }
+
+            if ($m[2] !== '--') {
+                $map[(int) $m[1]] = (float) $m[2];
+            }
+        }
+
+        return $map;
     }
 
     private function detectError(string $output): ?string

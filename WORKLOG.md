@@ -2,6 +2,19 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — Rx per-ONU GPON via CLI (`show ont optical-info`)
+
+Melengkapi GPON V3: Rx per-ONU (sebelumnya kosong; SNMP tak punya per-ONU). Diambil via CLI
+dalam **satu sesi** bersama inventory.
+
+- `app/Services/CData/CDataGponCliService.php` — `getOnts()` kini: `show ont info all` → grup per port →
+  (submode `config` → `interface gpon 0/{slot}` → `show ont optical-info {port} all`) → `parseOpticalInfo()`
+  (kolom `ONT_ID Rx Tx OLT_Rx Temp Volt Current`, `--`=N/A) → enrich `rx_power_dbm`/`rx_power_label`.
+  Helper `command()` + prompt `PROMPT_CMD` (`#` enable/config/interface). Format diparse dari output asli #277.
+- `tests/Unit/CDataGponCliParseTest.php` — +1 test `parseOpticalInfo` (Rx per ONT + `--`).
+- **Verifikasi live #277:** 31/31 ONU dapat Rx (mis. −18,83 / −23,09 dBm) dalam **~430 ms** (info+optical
+  satu sesi); cache `port_onus` terisi Rx → tampil berwarna di PortOnus & ONU Monitoring. Full suite 188 passed.
+
 ### Halaman OLT C-Data — Fase 2b: halaman Detail & PortOnus + integrasi ONU Monitoring/search
 
 UI read-only + integrasi cache, menampilkan inventory ONU C-Data di browser & lintas-OLT.
