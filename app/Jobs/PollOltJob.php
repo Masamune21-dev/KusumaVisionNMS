@@ -8,6 +8,7 @@ use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\Snmp\GoSnmpPoller;
 use App\Services\Snmp\OltSnmpClient;
+use App\Support\SmartOltSupport;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -39,6 +40,11 @@ class PollOltJob implements ShouldQueue
         $olt = SnmpOlt::find($this->oltId);
 
         if (! $olt || ! $olt->polling_enabled || ! $olt->isPollDue()) {
+            return;
+        }
+
+        // OLT C-Data di-refresh sinkron saat halaman dibuka (CDataOltController), bukan via poller ZTE ini.
+        if (SmartOltSupport::isCData(SmartOltSupport::driverKey($olt))) {
             return;
         }
 

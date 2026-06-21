@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\SmartOltSnmpServiceResolver;
 use App\Support\SmartOltSupport;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -11,6 +13,76 @@ use Tests\TestCase;
 class CDataOltInventoryTest extends TestCase
 {
     use RefreshDatabase;
+
+    /**
+     * Bind resolver C-Data palsu supaya scan (auto-refresh halaman & scan-on-create) deterministik
+     * dan cepat tanpa SNMP/CLI nyata. $serial menandai ONU hasil scan.
+     */
+    private function fakeScanDriver(string $serial = 'SCANNEDSN'): void
+    {
+        $driver = new class($serial) implements SmartOltSnmpDriver
+        {
+            public function __construct(private string $serial) {}
+
+            public function ping(SnmpOlt $olt): bool
+            {
+                return true;
+            }
+
+            public function getSystemInfo(SnmpOlt $olt): array
+            {
+                return ['sys_name' => 'CDATA-FAKE', 'firmware_v3' => true];
+            }
+
+            public function getPorts(SnmpOlt $olt): array
+            {
+                return [['slot' => 0, 'port' => 1, 'name' => 'gpon 0/0/1']];
+            }
+
+            public function getRegisteredOnus(SnmpOlt $olt): array
+            {
+                return [[
+                    'onu_key' => '0.1.5', 'slot' => 0, 'port' => 1, 'onu_id' => 5,
+                    'serial_number' => $this->serial, 'name' => 'Uji', 'interface' => 'gpon 0/0/1:5', 'online' => true,
+                ]];
+            }
+
+            public function getRegisteredOnusByPort(SnmpOlt $olt, int $slot, int $port): array
+            {
+                return array_values(array_filter(
+                    $this->getRegisteredOnus($olt),
+                    fn (array $o) => $o['slot'] === $slot && $o['port'] === $port,
+                ));
+            }
+
+            public function getPortRxMap(SnmpOlt $olt): array
+            {
+                return [];
+            }
+
+            public function countRegisteredOnus(SnmpOlt $olt): int
+            {
+                return 1;
+            }
+
+            public function getUnconfiguredOnus(SnmpOlt $olt): array
+            {
+                return [];
+            }
+        };
+
+        $resolver = new class($driver) extends SmartOltSnmpServiceResolver
+        {
+            public function __construct(private SmartOltSnmpDriver $driver) {}
+
+            public function resolve(SnmpOlt $olt): SmartOltSnmpDriver
+            {
+                return $this->driver;
+            }
+        };
+
+        $this->app->instance(SmartOltSnmpServiceResolver::class, $resolver);
+    }
 
     public function test_cdata_olt_index_can_be_rendered(): void
     {
@@ -42,6 +114,7 @@ class CDataOltInventoryTest extends TestCase
     public function test_stored_cdata_olt_appears_only_in_cdata_index_not_smartolt(): void
     {
         $user = User::factory()->create();
+        $this->fakeScanDriver();
 
         $this->actingAs($user)
             ->post(route('cdata-olt.store'), [
@@ -76,6 +149,7 @@ class CDataOltInventoryTest extends TestCase
     public function test_detail_and_port_onus_pages_render(): void
     {
         $user = User::factory()->create();
+        $this->fakeScanDriver();
         $olt = SnmpOlt::create([
             'name' => 'CDATA-GPON-2',
             'vendor' => 'C-Data GPON 34592',
@@ -95,6 +169,83 @@ class CDataOltInventoryTest extends TestCase
             ->get(route('cdata-olt.port-onus', [$olt, 0, 1]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('CDataOlt/PortOnus'));
+    }
+
+    public function test_store_runs_initial_scan_so_onu_is_searchable(): void
+    {
+        $user = User::factory()->create();
+        $this->fakeScanDriver('INITSCAN1');
+
+        $this->actingAs($user)
+            ->post(route('cdata-olt.store'), [
+                'name' => 'CDATA-EPON-SCAN',
+                'vendor' => 'C-Data EPON 17409',
+                'ip' => '10.20.0.20',
+                'snmp_port' => 161,
+                'snmp_read_community' => 'public',
+                'snmp_version' => 'v2c',
+            ])
+            ->assertRedirect(route('cdata-olt.index'));
+
+        $olt = SnmpOlt::where('ip', '10.20.0.20')->firstOrFail();
+        $this->assertSame('INITSCAN1', data_get($olt->last_test_result, 'port_onus.0_1.onus.0.serial_number'));
+
+        // Langsung muncul di global search tanpa pernah membuka halaman OLT.
+        $this->actingAs($user)
+            ->getJson(route('dashboard.search', ['q' => 'INITSCAN1']))
+            ->assertOk()
+            ->assertJsonPath('results.0.label', 'INITSCAN1');
+    }
+
+    public function test_detail_auto_scans_when_cache_is_stale(): void
+    {
+        $user = User::factory()->create();
+        $this->fakeScanDriver('FRESHSCAN1');
+
+        $olt = SnmpOlt::create([
+            'name' => 'CDATA-GPON-STALE',
+            'vendor' => 'C-Data GPON 34592',
+            'ip' => '10.20.0.21',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => ['onu_scanned_at' => now()->subMinutes(10)->toIso8601String()],
+        ]);
+
+        $this->actingAs($user)->get(route('cdata-olt.detail', $olt))->assertOk();
+
+        $olt->refresh();
+        $this->assertSame('FRESHSCAN1', data_get($olt->last_test_result, 'port_onus.0_1.onus.0.serial_number'));
+    }
+
+    public function test_detail_skips_scan_when_cache_is_fresh(): void
+    {
+        $user = User::factory()->create();
+        $this->fakeScanDriver('SHOULDNOTAPPEAR');
+
+        $olt = SnmpOlt::create([
+            'name' => 'CDATA-GPON-FRESH',
+            'vendor' => 'C-Data GPON 34592',
+            'ip' => '10.20.0.22',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'onu_scanned_at' => now()->subMinutes(1)->toIso8601String(),
+                'port_onus' => [
+                    '0_1' => [
+                        'slot' => 0, 'port' => 1,
+                        'onus' => [['onu_id' => 9, 'slot' => 0, 'port' => 1, 'serial_number' => 'CACHEDSN']],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($user)->get(route('cdata-olt.detail', $olt))->assertOk();
+
+        $olt->refresh();
+        // Cache masih dalam jendela TTL → tidak re-scan, data lama dipertahankan.
+        $this->assertSame('CACHEDSN', data_get($olt->last_test_result, 'port_onus.0_1.onus.0.serial_number'));
     }
 
     public function test_global_search_links_cdata_onu_to_cdata_route(): void

@@ -89,6 +89,33 @@ class OltPollingTest extends TestCase
         Queue::assertNotPushed(fn (PollOltJob $job) => $job->oltId === $disabled->id);
     }
 
+    public function test_poll_command_skips_cdata_olts_even_when_enabled(): void
+    {
+        Queue::fake();
+
+        $zte = $this->makeOlt(['polling_enabled' => true]);
+        $cdata = $this->makeOlt(['polling_enabled' => true, 'vendor' => 'C-Data EPON 17409', 'name' => 'CDATA-EPON']);
+
+        $this->artisan('olts:poll')->assertSuccessful();
+
+        // Hanya OLT ZTE yang di-dispatch; C-Data di-refresh saat halaman dibuka, bukan via poller.
+        Queue::assertPushed(PollOltJob::class, 1);
+        Queue::assertPushed(fn (PollOltJob $job) => $job->oltId === $zte->id);
+        Queue::assertNotPushed(fn (PollOltJob $job) => $job->oltId === $cdata->id);
+    }
+
+    public function test_poll_job_skips_cdata_olt(): void
+    {
+        $olt = $this->makeOlt(['polling_enabled' => true, 'vendor' => 'C-Data EPON 17409', 'name' => 'CDATA-EPON']);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        $olt->refresh();
+
+        $this->assertNull($olt->last_polled_at);
+        $this->assertNull($olt->last_test_result);
+    }
+
     public function test_poll_command_skips_enabled_olts_that_are_not_due(): void
     {
         Queue::fake();

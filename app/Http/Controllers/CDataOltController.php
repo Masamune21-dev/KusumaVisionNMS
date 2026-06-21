@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
+use App\Services\CData\CDataOltScanner;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,10 +29,13 @@ class CDataOltController extends Controller
     /** Kolom status tabel ONU v3 — walk berisi data = firmware FlashV3.x (guide §3.3 & §5.5). */
     private const CDATA_GPON_V3_STATUS_OID = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.1';
 
+    /** TTL cache auto-refresh: scan ulang saat halaman dibuka hanya bila cache lebih tua dari ini. */
+    private const CACHE_TTL_MINUTES = 5;
+
     public function index(): Response
     {
         $olts = SnmpOlt::query()
-            ->latest()
+            ->orderBy('name')
             ->get()
             ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
             ->filter(fn (array $row) => SmartOltSupport::isCData($row['driver']))
@@ -50,19 +55,23 @@ class CDataOltController extends Controller
                 'snmp_version' => 'v2c',
                 'cli_transport' => 'telnet',
                 'cli_port' => 23,
-                'poll_interval_minutes' => 5,
-                'rx_poll_interval_minutes' => 5,
             ],
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, CDataOltScanner $scanner): RedirectResponse
     {
-        SnmpOlt::create($this->validated($request));
+        $olt = SnmpOlt::create($this->validated($request));
+        $redirect = redirect()->route('cdata-olt.index');
 
-        return redirect()
-            ->route('cdata-olt.index')
-            ->with('success', 'OLT C-Data berhasil ditambahkan.');
+        // Scan awal sekali supaya ONU langsung searchable di global search tanpa perlu buka halaman OLT.
+        try {
+            $count = $scanner->scan($olt);
+
+            return $redirect->with('success', sprintf('OLT C-Data ditambahkan. Scan awal: %s ONU.', $count));
+        } catch (Throwable $exception) {
+            return $redirect->with('success', 'OLT C-Data ditambahkan. Scan awal gagal ('.$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
+        }
     }
 
     public function edit(SnmpOlt $olt): Response
@@ -135,16 +144,20 @@ class CDataOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function detail(SnmpOlt $olt): Response
+    public function detail(SnmpOlt $olt, CDataOltScanner $scanner): Response
     {
+        $this->ensureFreshScan($olt, $scanner);
+
         return Inertia::render('CDataOlt/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
         ]);
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner): Response
     {
+        $this->ensureFreshScan($olt, $scanner);
+
         return Inertia::render('CDataOlt/PortOnus', [
             'olt' => $this->serializeOlt($olt),
             'slot' => $slot,
@@ -159,53 +172,37 @@ class CDataOltController extends Controller
      * Scan penuh: baca system + ports + seluruh ONU (SNMP utk EPON, CLI utk GPON V3), tulis cache
      * `port_onus` dlm bentuk sama dgn ZTE supaya muncul di ONU Monitoring + global search.
      */
-    public function refresh(SnmpOlt $olt, SmartOltSnmpServiceResolver $resolver): RedirectResponse
+    public function refresh(SnmpOlt $olt, CDataOltScanner $scanner): RedirectResponse
     {
         $back = redirect()->route('cdata-olt.detail', $olt);
 
         try {
-            $driver = $resolver->resolve($olt);
-            $system = $driver->getSystemInfo($olt);
-            $ports = $driver->getPorts($olt);
-            $onus = $driver->getRegisteredOnus($olt);
+            $count = $scanner->scan($olt);
 
-            $now = now()->toIso8601String();
-            $byPort = [];
-            foreach ($onus as $onu) {
-                $byPort["{$onu['slot']}_{$onu['port']}"][] = $onu;
-            }
-            $portRows = [];
-            foreach ($ports as $portRow) {
-                $portRows["{$portRow['slot']}_{$portRow['port']}"] = $portRow;
-            }
-
-            $snapshot = $olt->last_test_result ?? [];
-            data_set($snapshot, 'system', $system);
-            data_set($snapshot, 'ports', $ports);
-            data_set($snapshot, 'cdata.firmware_v3', (bool) data_get($system, 'firmware_v3', data_get($snapshot, 'cdata.firmware_v3', false)));
-            data_set($snapshot, 'onu_scanned_at', $now);
-            $snapshot['port_onus'] = [];
-
-            foreach (array_keys($byPort + $portRows) as $key) {
-                $portOnus = $byPort[$key] ?? [];
-                $portRow = $portRows[$key] ?? null;
-                data_set($snapshot, "port_onus.{$key}", [
-                    'ok' => true,
-                    'slot' => (int) ($portOnus[0]['slot'] ?? $portRow['slot'] ?? 0),
-                    'port' => (int) ($portOnus[0]['port'] ?? $portRow['port'] ?? 0),
-                    'port_row' => $portRow,
-                    'onus' => $portOnus,
-                    'count' => count($portOnus),
-                    'error' => null,
-                    'refreshed_at' => $now,
-                ]);
-            }
-
-            $olt->forceFill(['last_test_result' => $snapshot, 'last_polled_at' => now()])->save();
-
-            return $back->with('success', sprintf('Scan ONU OK. %s ONU ditemukan di %s.', count($onus), $olt->name));
+            return $back->with('success', sprintf('Scan ONU OK. %s ONU ditemukan di %s.', $count, $olt->name));
         } catch (Throwable $exception) {
             return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    /**
+     * Auto-refresh saat halaman Detail/PortOnus dibuka: re-scan penuh hanya bila cache lebih tua dari
+     * {@see self::CACHE_TTL_MINUTES} atau belum pernah di-scan. Sinkron — menunggu scan selesai sebelum
+     * render (EPON via SNMP cepat, GPON V3 via CLI ~10 detik). Kegagalan diabaikan agar halaman tetap
+     * tampil dari cache terakhir; tombol refresh manual yang akan memunculkan pesan error.
+     */
+    private function ensureFreshScan(SnmpOlt $olt, CDataOltScanner $scanner): void
+    {
+        $scannedAt = data_get($olt->last_test_result, 'onu_scanned_at');
+
+        if (is_string($scannedAt) && Carbon::parse($scannedAt)->gt(now()->subMinutes(self::CACHE_TTL_MINUTES))) {
+            return; // cache masih segar dalam jendela TTL
+        }
+
+        try {
+            $scanner->scan($olt);
+        } catch (Throwable) {
+            // biarkan halaman tampil dari cache terakhir
         }
     }
 

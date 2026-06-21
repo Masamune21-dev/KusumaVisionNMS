@@ -5,7 +5,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm } from '@inertiajs/vue3';
-import { Activity, Cpu, KeyRound, Network } from '@lucide/vue';
+import { Cpu, KeyRound, Network } from '@lucide/vue';
 
 const props = defineProps({
     olt: {
@@ -34,9 +34,6 @@ const form = useForm({
     cli_port: props.olt?.cli_port ?? props.defaults.cli_port ?? 23,
     cli_username: props.olt?.cli_username ?? '',
     cli_password: '',
-    polling_enabled: props.olt?.polling_enabled ?? true,
-    poll_interval_minutes: props.olt?.poll_interval_minutes ?? props.defaults.poll_interval_minutes ?? 5,
-    rx_poll_interval_minutes: props.olt?.rx_poll_interval_minutes ?? props.defaults.rx_poll_interval_minutes ?? 5,
 });
 
 const submit = () => {
@@ -246,57 +243,6 @@ const submit = () => {
                         Kosongkan untuk mempertahankan password lama.
                     </p>
                     <InputError class="mt-2" :message="form.errors.cli_password" />
-                </div>
-            </div>
-        </div>
-
-        <!-- Section: Polling -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
-                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
-                    <Activity class="h-4 w-4 text-cyan-400" />
-                </div>
-                <div>
-                    <h3 class="text-sm font-semibold text-white">Auto-Poll SNMP</h3>
-                    <p class="text-xs text-slate-500">Interval polling otomatis untuk data SNMP dan RX ONU</p>
-                </div>
-            </div>
-            <div class="p-6">
-                <label class="inline-flex items-center gap-2 text-sm text-slate-200">
-                    <input
-                        v-model="form.polling_enabled"
-                        type="checkbox"
-                        class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500"
-                    />
-                    Aktifkan auto-poll SNMP
-                </label>
-                <div class="mt-4 grid gap-5 md:grid-cols-2">
-                    <div>
-                        <InputLabel for="poll_interval_minutes" value="Interval Polling (menit)" />
-                        <TextInput
-                            id="poll_interval_minutes"
-                            v-model="form.poll_interval_minutes"
-                            class="mt-1 block w-full"
-                            type="number"
-                            min="1"
-                            max="1440"
-                            required
-                        />
-                        <InputError class="mt-2" :message="form.errors.poll_interval_minutes" />
-                    </div>
-                    <div>
-                        <InputLabel for="rx_poll_interval_minutes" value="Interval RX ONU (menit)" />
-                        <TextInput
-                            id="rx_poll_interval_minutes"
-                            v-model="form.rx_poll_interval_minutes"
-                            class="mt-1 block w-full"
-                            type="number"
-                            min="1"
-                            max="1440"
-                            required
-                        />
-                        <InputError class="mt-2" :message="form.errors.rx_poll_interval_minutes" />
-                    </div>
                 </div>
             </div>
         </div>

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use App\Models\User;
+use App\Services\CData\CDataOltScanner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -203,6 +204,73 @@ class TelegramWebhookTest extends TestCase
         $this->postWebhook($this->update('111', '/onu NOPE000'))->assertOk();
 
         Http::assertSent(fn ($request) => str_contains($request['text'], 'tidak ditemukan'));
+    }
+
+    public function test_help_lists_commands_and_is_public(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        // /help publik — chat tak terdaftar (999) tetap dilayani.
+        $this->postWebhook($this->update('999', '/help'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'KusumaVision NMS')
+            && str_contains($request['text'], '/refresh')
+            && str_contains($request['text'], '/search')
+            && str_contains($request['text'], '/status')
+            && isset($request['reply_markup']['inline_keyboard']));
+    }
+
+    public function test_refresh_command_scans_cdata_olts_and_reports(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        SnmpOlt::create([
+            'name' => 'CDATA-EPON-1', 'vendor' => 'C-Data EPON 17409', 'ip' => '10.0.0.50',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+        ]);
+
+        // Scanner palsu: tidak menyentuh jaringan, melaporkan jumlah ONU tetap.
+        $this->app->instance(CDataOltScanner::class, new class extends CDataOltScanner
+        {
+            public function __construct() {}
+
+            public function scan(SnmpOlt $olt): int
+            {
+                return 258;
+            }
+        });
+
+        $this->postWebhook($this->update('111', '/refresh'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'Refresh OLT C-Data')
+            && str_contains($request['text'], 'CDATA-EPON-1')
+            && str_contains($request['text'], '258 ONU'));
+    }
+
+    public function test_refresh_command_ignores_zte_olts(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedOltWithOnus(); // ZTE saja
+
+        // Scanner palsu yang menggagalkan test bila (keliru) dipanggil untuk OLT ZTE.
+        $this->app->instance(CDataOltScanner::class, new class extends CDataOltScanner
+        {
+            public function __construct() {}
+
+            public function scan(SnmpOlt $olt): int
+            {
+                throw new \RuntimeException('OLT ZTE tidak boleh di-scan oleh /refresh C-Data');
+            }
+        });
+
+        $this->postWebhook($this->update('111', '/refresh'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request['text'] ?? '', 'Belum ada OLT C-Data'));
     }
 
     public function test_non_message_update_is_ignored(): void

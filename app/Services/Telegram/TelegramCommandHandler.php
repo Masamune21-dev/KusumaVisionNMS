@@ -5,18 +5,22 @@ namespace App\Services\Telegram;
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
+use App\Services\CData\CDataOltScanner;
 use App\Services\Dashboard\DashboardStatsService;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Builds replies for inbound Telegram bot messages (slash commands) and callback
  * queries (inline-button presses).
  *
- * All actions are READ-ONLY: they query the same cached/persisted data the web UI
- * reads (snmp_olts.last_test_result, alarm_events) so the bot stays consistent with the
- * dashboard. No action writes to an OLT.
+ * Actions are READ-ONLY (query the same cached/persisted data the web UI reads —
+ * snmp_olts.last_test_result, alarm_events) so the bot stays consistent with the dashboard.
+ * Satu-satunya pengecualian: /refresh men-scan ulang OLT C-Data (via {@see CDataOltScanner})
+ * untuk menyegarkan cache sebelum menu/port ditampilkan — tetap tidak mengubah konfigurasi OLT.
  *
  * Every reply is a {@see TelegramReply} (text + optional inline keyboard), so the same
  * screen renderers feed either a fresh sendMessage (command) or an in-place
@@ -33,6 +37,7 @@ class TelegramCommandHandler
     public function __construct(
         private readonly DashboardStatsService $stats,
         private readonly TelegramOnuQueryService $onus,
+        private readonly CDataOltScanner $scanner,
     ) {}
 
     /**
@@ -79,6 +84,7 @@ class TelegramCommandHandler
             'los' => $this->losScreen($this->resolveScope($argument), 0),
             'redaman', 'rx' => $this->rxScreen($this->resolveScope($argument), 0),
             'prov', 'provisioning' => $this->provisioningScreen(),
+            'refresh', 'segarkan' => $this->refreshCdataScreen($argument),
             default => $this->unknown(),
         };
     }
@@ -127,19 +133,37 @@ class TelegramCommandHandler
 
     private function help(): TelegramReply
     {
-        $text = "🤖 <b>KusumaVision NMS Bot</b>\n\n"
-            ."Tekan tombol di menu untuk navigasi, atau pakai perintah:\n"
-            ."/menu — Menu interaktif (tombol)\n"
-            ."/status — Ringkasan jaringan\n"
-            ."/olt <i>[nama|id]</i> — Daftar / detail OLT\n"
-            ."/los <i>[olt]</i> — ONU yang LOS / putus\n"
-            ."/redaman <i>[olt]</i> — ONU redaman tinggi\n"
-            ."/alarm — Alarm aktif terbaru\n"
-            ."/search <i>&lt;nama|serial&gt;</i> — Cari ONU global (semua OLT)\n"
-            ."/onu <i>&lt;serial|nama&gt;</i> — Cari status ONU\n"
-            ."/prov — Antrian provisioning\n"
-            ."/id — Tampilkan chat ID Anda\n"
-            .'/ping — Cek koneksi bot';
+        $text = "🤖 <b>KusumaVision NMS — Bot Telegram</b>\n\n"
+            ."Pantau OLT &amp; ONU FTTH langsung dari Telegram: status jaringan, ONU LOS, redaman, cari pelanggan, alarm, sampai refresh OLT C-Data. Cara termudah: tekan tombol di /menu.\n\n"
+
+            ."📊 <b>Pantau jaringan</b>\n"
+            ."/menu — Menu interaktif (tombol navigasi)\n"
+            ."/status — Ringkasan: OLT &amp; ONU online/offline, redaman, alarm\n"
+            ."/alarm — Alarm aktif terbaru (bisa di-scroll)\n\n"
+
+            ."🖥️ <b>OLT &amp; port</b>\n"
+            ."/olt — Daftar semua OLT\n"
+            ."/olt <i>&lt;nama|id&gt;</i> — Detail 1 OLT + ringkasan port PON\n"
+            ."   contoh: <code>/olt pati</code>\n\n"
+
+            ."📶 <b>ONU &amp; pelanggan</b>\n"
+            ."/search <i>&lt;nama|serial&gt;</i> — Cari ONU di semua OLT (alias: /onu, /cari, /cek)\n"
+            ."   contoh: <code>/search budi</code> · <code>/onu ZTEGC12</code>\n"
+            ."/los <i>[nama OLT]</i> — ONU yang LOS/putus (kosong = semua OLT)\n"
+            ."/redaman <i>[nama OLT]</i> — ONU redaman tinggi (alias: /rx)\n"
+            ."   contoh: <code>/redaman pati</code>\n\n"
+
+            ."🔄 <b>Aksi</b>\n"
+            ."/refresh <i>[nama OLT]</i> — Scan ulang OLT C-Data agar menu/port tampil terbaru (alias: /segarkan). Kosong = semua OLT C-Data.\n"
+            ."   contoh: <code>/refresh</code> · <code>/refresh fd1608</code>\n\n"
+
+            ."📦 <b>Lainnya</b>\n"
+            ."/prov — Ringkasan antrian provisioning\n"
+            ."/id — Tampilkan chat ID Anda (untuk didaftarkan admin)\n"
+            ."/ping — Cek bot aktif\n"
+            ."/help — Bantuan ini\n\n"
+
+            .'ℹ️ Perintah data hanya untuk chat terdaftar (admin: Pengaturan → Bot Telegram). Angka diambil dari cache polling — pakai /refresh untuk OLT C-Data agar terkini.';
 
         return TelegramReply::make($text, [[TelegramKeyboard::button('🏠 Buka Menu', TelegramKeyboard::menu())]]);
     }
@@ -515,6 +539,56 @@ class TelegramCommandHandler
             .'❌ Gagal: '.($summary['failed']['count'] ?? 0);
 
         return TelegramReply::make($text, [TelegramKeyboard::backRow(null)]);
+    }
+
+    /**
+     * Scan ulang OLT C-Data lalu laporkan hasilnya supaya menu & daftar port menampilkan data terbaru.
+     * `/refresh` (atau `/refresh oltcdata`) menyegarkan semua OLT C-Data; `/refresh <nama|id>`
+     * menyegarkan satu OLT C-Data. Sinkron — EPON via SNMP cepat, GPON V3 via CLI ~10 detik/OLT.
+     */
+    private function refreshCdataScreen(string $argument): TelegramReply
+    {
+        $argument = trim($argument);
+        $generic = $argument === '' || in_array(strtolower($argument), ['oltcdata', 'olt-cdata', 'cdata', 'c-data', 'all', 'semua'], true);
+
+        $olts = SnmpOlt::query()->orderBy('name')->get()
+            ->filter(fn (SnmpOlt $olt) => SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)));
+
+        if (! $generic) {
+            $needle = strtolower($argument);
+            $olts = $olts->filter(fn (SnmpOlt $olt) => ctype_digit($argument)
+                ? $olt->id === (int) $argument
+                : str_contains(strtolower((string) $olt->name), $needle));
+        }
+
+        $olts = $olts->values();
+
+        if ($olts->isEmpty()) {
+            return TelegramReply::make(
+                $generic
+                    ? 'Belum ada OLT C-Data terdaftar untuk di-refresh.'
+                    : 'OLT C-Data "<b>'.$this->escape($argument).'</b>" tidak ditemukan.',
+                [TelegramKeyboard::backRow(null)],
+            );
+        }
+
+        $lines = ['🔄 <b>Refresh OLT C-Data</b>', ''];
+        foreach ($olts as $olt) {
+            try {
+                $count = $this->scanner->scan($olt);
+                $lines[] = '✅ '.$this->escape((string) $olt->name).' — '.$count.' ONU';
+            } catch (Throwable $e) {
+                $lines[] = '❌ '.$this->escape((string) $olt->name).' — gagal: '.$this->escape($this->truncate($e->getMessage(), 80));
+            }
+        }
+        $lines[] = "\n🕒 ".$this->now();
+
+        $keyboard = [
+            [TelegramKeyboard::button('🖥️ Daftar OLT', TelegramKeyboard::oltList())],
+            TelegramKeyboard::backRow(null),
+        ];
+
+        return TelegramReply::make(implode("\n", $lines), $keyboard);
     }
 
     private function searchHelpScreen(): TelegramReply

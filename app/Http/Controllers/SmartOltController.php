@@ -33,7 +33,7 @@ class SmartOltController extends Controller
     public function index(): Response
     {
         $olts = SnmpOlt::query()
-            ->latest()
+            ->orderBy('name')
             ->get()
             ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
             // OLT C-Data punya halaman sendiri (OLT C-Data); ZTE + unknown tetap di sini.

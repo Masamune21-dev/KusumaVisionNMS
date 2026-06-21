@@ -166,6 +166,49 @@ ZTE sengaja **tidak** di-refactor agar tetap stabil.
 - Verifikasi: klasifikasi `driverKey` 9 kasus benar; `php artisan test` SmartOLT/Demo = 25 passed.
   Belum ada verifikasi OLT live (Fase 0 tanpa koneksi perangkat) — akan dilakukan mulai Fase 2.
 
+### OLT C-Data: lepas dari polling background → auto-refresh saat halaman dibuka + command Telegram /refresh
+
+Model refresh OLT C-Data dirombak (disetujui user): C-Data **tidak ikut polling background** (sekaligus
+menambal bug lama — C-Data default `polling_enabled=true` sempat terpoll pakai driver ZTE), diganti
+auto-refresh sinkron saat halaman dibuka (TTL 5 menit) + scan sekali saat OLT dibuat, dan bisa
+disegarkan dari bot Telegram.
+
+Created:
+
+- `app/Services/CData/CDataOltScanner.php` — service `scan(SnmpOlt): int`: scan penuh (system + ports +
+  seluruh ONU) lalu tulis cache `last_test_result.port_onus` bentuk sama dgn ZTE. Logika dipindah dari
+  controller agar dipakai bersama controller + bot Telegram.
+
+Changed:
+
+- `app/Console/Commands/PollOltsCommand.php` & `app/Jobs/PollOltJob.php` — guard `SmartOltSupport::isCData`
+  → OLT C-Data di-skip dari polling background (job juga early-return defensif bila ada dispatch nyasar).
+- `app/Http/Controllers/CDataOltController.php` — `detail()`/`portOnus()` panggil `ensureFreshScan()`
+  (re-scan via `CDataOltScanner` hanya bila cache > `CACHE_TTL_MINUTES` = 5m; sinkron); `store()` scan
+  sekali saat OLT dibuat (tutup celah global search); `refresh()` delegasi ke scanner; `index()`
+  `latest()` → `orderBy('name')`.
+- `app/Http/Controllers/SmartOltController.php` — `index()` `latest()` → `orderBy('name')` (urut nama).
+- `app/Services/Telegram/TelegramCommandHandler.php` — command baru `/refresh [nama|id]` (alias
+  `/segarkan`): scan ulang OLT C-Data via `CDataOltScanner` lalu lapor per-OLT (handler yg tadinya
+  read-only kini punya 1 pengecualian ini, OLT ZTE diabaikan); `/help` ditulis ulang jadi detail &
+  terkelompok (Pantau jaringan / OLT & port / ONU & pelanggan / Aksi / Lainnya) lengkap alias & contoh.
+- `resources/js/Pages/CDataOlt/Partials/CDataOltForm.vue` — hapus section form **Auto-Poll SNMP**
+  (checkbox `polling_enabled` + interval poll/RX) di Add/Edit; tak relevan untuk C-Data.
+- `resources/js/Pages/CDataOlt/Index.vue` — buang badge status polling (mobile + desktop).
+- `tests/Feature/{CDataOltInventoryTest,OltPollingTest,TelegramWebhookTest}.php` — test baru:
+  poll skip C-Data, scan-on-create searchable, auto-scan stale vs skip fresh, `/refresh` scan C-Data +
+  abaikan ZTE, `/help` publik & memuat perintah.
+
+Notes:
+
+- TTL auto-refresh = konstanta `CACHE_TTL_MINUTES` (5m), bukan lagi `poll_interval_minutes` (field form
+  dihapus). Cache `port_onus` persisten di DB → global search ONU tetap muncul untuk OLT yang pernah
+  di-scan walau halamannya tak dibuka.
+- `/refresh` sinkron di webhook: EPON via SNMP cepat, GPON V3 via CLI ~10 detik/OLT — pakai
+  `/refresh <nama>` untuk satu OLT bila mau cepat; kegagalan per-OLT ditangkap (tak bikin Telegram retry).
+- Verifikasi: `php artisan test` → 197 passed; `npm run build` sukses; Pint passed. Belum diverifikasi
+  di OLT live sesi ini (perubahan alur refresh/command, bukan parsing baru).
+
 ## 2026-06-17
 
 ### Refresh ONU per-port jauh lebih cepat (SNMP walk di-scope per-port)
