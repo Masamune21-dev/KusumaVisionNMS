@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +25,7 @@ class DashboardSearchController extends Controller
                     ->orWhere('ip', 'like', "%{$query}%");
             })
             ->limit(5)
-            ->get(['id', 'name', 'ip']);
+            ->get(['id', 'name', 'ip', 'vendor']);
 
         foreach ($oltMatches as $olt) {
             $results[] = [
@@ -32,7 +33,7 @@ class DashboardSearchController extends Controller
                 'id' => $olt->id,
                 'label' => $olt->name,
                 'sublabel' => $olt->ip,
-                'url' => route('smartolt.detail', $olt->id),
+                'url' => route(SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.detail' : 'smartolt.detail', $olt->id),
             ];
         }
 
@@ -54,8 +55,9 @@ class DashboardSearchController extends Controller
         $needle = strtolower($query);
         $matches = [];
 
-        $olts = SnmpOlt::query()->get(['id', 'name', 'last_test_result']);
+        $olts = SnmpOlt::query()->get(['id', 'name', 'vendor', 'last_test_result']);
         foreach ($olts as $olt) {
+            $portRouteName = SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.port-onus' : 'smartolt.port-onus';
             $portOnus = collect($olt->last_test_result['port_onus'] ?? []);
             foreach ($portOnus as $port) {
                 foreach (($port['onus'] ?? []) as $onu) {
@@ -74,8 +76,9 @@ class DashboardSearchController extends Controller
                     $portNo = $port['port'] ?? null;
                     $label = $serialValue !== '' ? $serialValue : ($onu['name'] ?? $onu['interface'] ?? 'ONU');
 
+                    $hasPort = $slot !== null && $portNo !== null;
                     $sublabelParts = [$olt->name];
-                    if ($slot && $portNo) {
+                    if ($hasPort) {
                         $sublabelParts[] = "{$slot}/{$portNo}";
                     }
                     if (($onu['name'] ?? '') !== '') {
@@ -87,15 +90,15 @@ class DashboardSearchController extends Controller
                         'id' => $olt->id.'-'.$slot.'-'.$portNo.'-'.($onu['onu_id'] ?? $onu['id'] ?? ''),
                         'label' => $label,
                         'sublabel' => implode(' · ', $sublabelParts),
-                        'url' => $slot && $portNo
-                            ? route('smartolt.port-onus', [
+                        'url' => $hasPort
+                            ? route($portRouteName, [
                                 'olt' => $olt->id,
                                 'slot' => $slot,
                                 'port' => $portNo,
                                 'q' => $serialValue !== '' ? $serialValue : ($onu['name'] ?? ''),
                                 'focus' => $onu['onu_id'] ?? $onu['id'] ?? null,
                             ])
-                            : route('smartolt.detail', $olt->id),
+                            : route(SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.detail' : 'smartolt.detail', $olt->id),
                     ];
 
                     if (count($matches) >= $limit) {

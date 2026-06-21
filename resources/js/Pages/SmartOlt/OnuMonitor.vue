@@ -148,7 +148,10 @@ const scanOlt = () => {
     );
 };
 
-const portOnuHref = (onu) => `${route('smartolt.port-onus', [onu.olt_id, onu.slot, onu.port])}?focus=${onu.onu_id}`;
+const portOnuHref = (onu) => {
+    const name = onu.olt_cdata ? 'cdata-olt.port-onus' : 'smartolt.port-onus';
+    return `${route(name, [onu.olt_id, onu.slot, onu.port])}?focus=${onu.onu_id}`;
+};
 
 const formatDate = (value) => formatDateTime(value);
 

@@ -73,6 +73,61 @@ class CDataOltInventoryTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')->has('olts', 0));
     }
 
+    public function test_detail_and_port_onus_pages_render(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'CDATA-GPON-2',
+            'vendor' => 'C-Data GPON 34592',
+            'ip' => '10.20.0.7',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('cdata-olt.detail', $olt))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('CDataOlt/Detail'));
+
+        // slot 0 valid untuk GPON C-Data.
+        $this->actingAs($user)
+            ->get(route('cdata-olt.port-onus', [$olt, 0, 1]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('CDataOlt/PortOnus'));
+    }
+
+    public function test_global_search_links_cdata_onu_to_cdata_route(): void
+    {
+        $user = User::factory()->create();
+        SnmpOlt::create([
+            'name' => 'CDATA-GPON-3',
+            'vendor' => 'C-Data GPON 34592',
+            'ip' => '10.20.0.8',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'last_test_result' => [
+                'port_onus' => [
+                    '0_1' => [
+                        'slot' => 0,
+                        'port' => 1,
+                        'onus' => [
+                            ['onu_key' => '0.1.5', 'slot' => 0, 'port' => 1, 'onu_id' => 5, 'serial_number' => 'TESTSN12345', 'name' => 'Pelanggan Uji', 'interface' => 'gpon 0/0/1:5'],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)->getJson(route('dashboard.search', ['q' => 'TESTSN12345']));
+
+        $response->assertOk();
+        $url = $response->json('results.0.url');
+        $this->assertStringContainsString('cdata-olt', $url);
+        $this->assertStringContainsString('ports/0/1', $url); // slot 0 tetap terlink
+    }
+
     public function test_zte_olt_is_not_listed_in_cdata_index(): void
     {
         $user = User::factory()->create();

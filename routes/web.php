@@ -70,6 +70,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/cdata-olt/{olt}', [CDataOltController::class, 'update'])->name('cdata-olt.update');
     Route::delete('/cdata-olt/{olt}', [CDataOltController::class, 'destroy'])->name('cdata-olt.destroy');
     Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->name('cdata-olt.test');
+    Route::get('/cdata-olt/{olt}/detail', [CDataOltController::class, 'detail'])->name('cdata-olt.detail');
+    Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->name('cdata-olt.refresh');
+    Route::get('/cdata-olt/{olt}/ports/{slot}/{port}/onus', [CDataOltController::class, 'portOnus'])->name('cdata-olt.port-onus');
+    Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/refresh', [CDataOltController::class, 'refreshPortOnus'])->name('cdata-olt.port-onus.refresh');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');

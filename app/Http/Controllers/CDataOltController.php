@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
+use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
@@ -131,6 +132,131 @@ class CDataOltController extends Controller
         return redirect()
             ->route('cdata-olt.index')
             ->with($result['ok'] ? 'success' : 'error', $message);
+    }
+
+    public function detail(SnmpOlt $olt): Response
+    {
+        return Inertia::render('CDataOlt/Detail', [
+            'olt' => $this->serializeOlt($olt),
+            'snapshot' => $this->serializeSnapshot($olt),
+        ]);
+    }
+
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port): Response
+    {
+        return Inertia::render('CDataOlt/PortOnus', [
+            'olt' => $this->serializeOlt($olt),
+            'slot' => $slot,
+            'port' => $port,
+            'snapshot' => data_get($olt->last_test_result, "port_onus.{$slot}_{$port}"),
+            'focus' => $request->query('focus'),
+            'q' => $request->query('q'),
+        ]);
+    }
+
+    /**
+     * Scan penuh: baca system + ports + seluruh ONU (SNMP utk EPON, CLI utk GPON V3), tulis cache
+     * `port_onus` dlm bentuk sama dgn ZTE supaya muncul di ONU Monitoring + global search.
+     */
+    public function refresh(SnmpOlt $olt, SmartOltSnmpServiceResolver $resolver): RedirectResponse
+    {
+        $back = redirect()->route('cdata-olt.detail', $olt);
+
+        try {
+            $driver = $resolver->resolve($olt);
+            $system = $driver->getSystemInfo($olt);
+            $ports = $driver->getPorts($olt);
+            $onus = $driver->getRegisteredOnus($olt);
+
+            $now = now()->toIso8601String();
+            $byPort = [];
+            foreach ($onus as $onu) {
+                $byPort["{$onu['slot']}_{$onu['port']}"][] = $onu;
+            }
+            $portRows = [];
+            foreach ($ports as $portRow) {
+                $portRows["{$portRow['slot']}_{$portRow['port']}"] = $portRow;
+            }
+
+            $snapshot = $olt->last_test_result ?? [];
+            data_set($snapshot, 'system', $system);
+            data_set($snapshot, 'ports', $ports);
+            data_set($snapshot, 'cdata.firmware_v3', (bool) data_get($system, 'firmware_v3', data_get($snapshot, 'cdata.firmware_v3', false)));
+            data_set($snapshot, 'onu_scanned_at', $now);
+            $snapshot['port_onus'] = [];
+
+            foreach (array_keys($byPort + $portRows) as $key) {
+                $portOnus = $byPort[$key] ?? [];
+                $portRow = $portRows[$key] ?? null;
+                data_set($snapshot, "port_onus.{$key}", [
+                    'ok' => true,
+                    'slot' => (int) ($portOnus[0]['slot'] ?? $portRow['slot'] ?? 0),
+                    'port' => (int) ($portOnus[0]['port'] ?? $portRow['port'] ?? 0),
+                    'port_row' => $portRow,
+                    'onus' => $portOnus,
+                    'count' => count($portOnus),
+                    'error' => null,
+                    'refreshed_at' => $now,
+                ]);
+            }
+
+            $olt->forceFill(['last_test_result' => $snapshot, 'last_polled_at' => now()])->save();
+
+            return $back->with('success', sprintf('Scan ONU OK. %s ONU ditemukan di %s.', count($onus), $olt->name));
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, SmartOltSnmpServiceResolver $resolver): RedirectResponse
+    {
+        $back = redirect()->route('cdata-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $onus = $resolver->resolve($olt)->getRegisteredOnusByPort($olt, $slot, $port);
+
+            $snapshot = $olt->last_test_result ?? [];
+            data_set($snapshot, "port_onus.{$slot}_{$port}", [
+                'ok' => true,
+                'slot' => $slot,
+                'port' => $port,
+                'onus' => $onus,
+                'count' => count($onus),
+                'error' => null,
+                'refreshed_at' => now()->toIso8601String(),
+            ]);
+            $olt->forceFill(['last_test_result' => $snapshot])->save();
+
+            return $back->with('success', sprintf('Refresh ONU OK. %s ONU di slot %s port %s.', count($onus), $slot, $port));
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Refresh ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeSnapshot(SnmpOlt $olt): array
+    {
+        $result = $olt->last_test_result ?? [];
+        $counts = [];
+
+        foreach (data_get($result, 'port_onus', []) as $key => $entry) {
+            $onus = $entry['onus'] ?? [];
+            $counts[$key] = [
+                'count' => (int) ($entry['count'] ?? count($onus)),
+                'online' => collect($onus)->where('online', true)->count(),
+                'refreshed_at' => $entry['refreshed_at'] ?? null,
+            ];
+        }
+
+        return [
+            'system' => data_get($result, 'system'),
+            'ports' => data_get($result, 'ports', []),
+            'port_counts' => $counts,
+            'firmware_v3' => (bool) data_get($result, 'cdata.firmware_v3', false),
+            'scanned_at' => data_get($result, 'onu_scanned_at'),
+        ];
     }
 
     /**

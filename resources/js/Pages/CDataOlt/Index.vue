@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Pencil, Plus, RefreshCw, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Eye, Pencil, Plus, RefreshCw, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
@@ -166,6 +166,9 @@ const formatDate = (value) => formatDateTime(value);
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                        <Eye class="h-4 w-4" />
+                                    </IconButton>
                                     <IconButton title="Test SNMP" @click="testOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
@@ -255,6 +258,9 @@ const formatDate = (value) => formatDateTime(value);
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex justify-center gap-1.5">
+                                            <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                                <Eye class="h-4 w-4" />
+                                            </IconButton>
                                             <IconButton title="Test SNMP" @click="testOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
                                             </IconButton>

@@ -2,6 +2,26 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — Fase 2b: halaman Detail & PortOnus + integrasi ONU Monitoring/search
+
+UI read-only + integrasi cache, menampilkan inventory ONU C-Data di browser & lintas-OLT.
+
+- `app/Http/Controllers/CDataOltController.php` — `detail()` (system + ports + jumlah ONU/port),
+  `portOnus()` (ONU per port dari cache + filter + highlight `focus`), `refresh()` (scan penuh via
+  driver → tulis cache `port_onus` bentuk sama ZTE: system, ports, onus/slot_port), `refreshPortOnus()`
+  (scan 1 port). Helper `serializeSnapshot()`.
+- `routes/web.php` — `cdata-olt.{detail,refresh,port-onus,port-onus.refresh}`.
+- `resources/js/Pages/CDataOlt/{Detail,PortOnus}.vue` (baru) + Index.vue dapat tombol Detail (Eye).
+  PortOnus: klasifikasi redaman Rx (Good/Warning/Critical), status online/offline, last-down-cause.
+- **Integrasi lintas-OLT:** `SmartOltController::refreshOnuMonitor()` kini driver-aware (C-Data lewat
+  resolver, `refreshCdataMonitor()`); `onuMonitor()` menyertakan `olt_cdata` per ONU; `OnuMonitor.vue`
+  `portOnuHref` & `DashboardSearchController` (OLT + ONU) memilih route `cdata-olt.*` vs `smartolt.*`.
+- Fix: search/link slot **0** (GPON C-Data F/S `0/0`) — `$slot && $portNo` falsy utk slot 0 → diganti
+  `!== null` supaya tetap nge-link ke port, bukan jatuh ke detail.
+- `tests/Feature/CDataOltInventoryTest.php` — +3 test (Detail/PortOnus render, search link cdata + slot 0).
+- **Verifikasi live:** scan #276 → 258 ONU (707ms), #277 → 31 ONU (346ms); ONU Monitoring lintas-OLT kini
+  memuat **289 ONU C-Data**; global search ONU GPON → `cdata-olt/277/ports/0/1/onus`. Full suite 187 passed.
+
 ### Halaman OLT C-Data — Fase 2c: inventory penuh GPON via CLI (`show ont info all`)
 
 Fix lanjutan setelah verifikasi: GPON FD1608S (#277, FlashV3) lewat SNMP cuma balas **1 ONU**,

@@ -1,0 +1,156 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { formatDateTime } from '@/lib/datetime';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, RefreshCw, Search, Wifi, WifiOff } from '@lucide/vue';
+import { computed, ref } from 'vue';
+
+const props = defineProps({
+    olt: { type: Object, required: true },
+    slot: { type: Number, required: true },
+    port: { type: Number, required: true },
+    snapshot: { type: Object, default: null },
+    focus: { type: [String, Number], default: null },
+    q: { type: String, default: '' },
+});
+
+const page = usePage();
+const flash = computed(() => page.props.flash ?? {});
+const search = ref(props.q ?? '');
+
+const onus = computed(() => props.snapshot?.onus ?? []);
+const filtered = computed(() => {
+    const needle = search.value.trim().toLowerCase();
+    if (!needle) return onus.value;
+    return onus.value.filter((o) =>
+        [o.serial_number, o.name, o.interface, o.mac].some((v) => String(v ?? '').toLowerCase().includes(needle)),
+    );
+});
+
+const rxClass = (dbm) => {
+    if (dbm === null || dbm === undefined) return 'text-slate-500';
+    if (dbm >= -25) return 'text-emerald-300';
+    if (dbm >= -28) return 'text-amber-300';
+    return 'text-red-300';
+};
+const isFocus = (o) => props.focus != null && String(o.onu_id) === String(props.focus);
+
+const refresh = () => router.post(route('cdata-olt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, { preserveScroll: true });
+const fmt = (v) => formatDateTime(v);
+</script>
+
+<template>
+    <Head :title="`Port ${slot}/${port} · ${olt.name}`" />
+
+    <AuthenticatedLayout>
+        <template #header>
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-3">
+                    <Link :href="route('cdata-olt.detail', olt.id)" class="text-slate-400 hover:text-white">
+                        <ArrowLeft class="h-5 w-5" />
+                    </Link>
+                    <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
+                        {{ olt.name }} · {{ olt.capabilities.pon_label }} 0/{{ slot }}/{{ port }}
+                    </h2>
+                </div>
+                <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
+                    <RefreshCw class="mr-2 h-4 w-4" /> Refresh
+                </SecondaryButton>
+            </div>
+        </template>
+
+        <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
+                <div v-if="flash.success" class="kv-alert-success">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400"></span>{{ flash.success }}
+                </div>
+                <div v-if="flash.error" class="kv-alert-danger">
+                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>{{ flash.error }}
+                </div>
+
+                <div class="kv-glass-panel">
+                    <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <div>
+                            <h3 class="text-base font-semibold text-white">ONU pada port {{ slot }}/{{ port }}</h3>
+                            <p class="text-xs text-slate-400">
+                                {{ onus.length }} ONU
+                                <span v-if="snapshot?.refreshed_at"> · diperbarui {{ fmt(snapshot.refreshed_at) }}</span>
+                            </p>
+                        </div>
+                        <div class="relative sm:w-64">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                v-model="search"
+                                type="text"
+                                placeholder="Cari SN / nama / interface"
+                                class="w-full rounded-lg border-white/10 bg-slate-950/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
+                            />
+                        </div>
+                    </div>
+
+                    <div v-if="onus.length === 0" class="px-6 py-16 text-center">
+                        <p class="text-sm font-semibold text-slate-200">Belum ada data ONU</p>
+                        <p class="mt-1 text-sm text-slate-500">Klik Refresh untuk memindai port ini.</p>
+                    </div>
+
+                    <template v-else>
+                        <div class="kv-table-desktop">
+                            <table class="w-full min-w-[820px]">
+                                <thead>
+                                    <tr class="border-b border-white/10 bg-slate-950/40">
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Serial / MAC</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Nama</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Rx</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-white/5">
+                                    <tr v-for="o in filtered" :key="o.onu_key" class="transition-colors hover:bg-white/[0.03]" :class="{ 'bg-cyan-500/10': isFocus(o) }">
+                                        <td class="px-4 py-4">
+                                            <div class="font-mono text-xs text-white">{{ o.interface }}</div>
+                                            <div class="mt-0.5 text-xs text-slate-500">{{ o.type_name || o.vendor_id || '—' }}</div>
+                                        </td>
+                                        <td class="px-4 py-4">
+                                            <div class="font-mono text-xs text-slate-200">{{ o.serial_number || '—' }}</div>
+                                            <div v-if="o.mac" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
+                                        </td>
+                                        <td class="px-4 py-4 text-sm text-slate-200">{{ o.name || '—' }}</td>
+                                        <td class="px-4 py-4">
+                                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
+                                                <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
+                                                {{ o.phase_state || (o.online ? 'Online' : 'Offline') }}
+                                            </span>
+                                            <div v-if="o.last_down_cause" class="mt-0.5 text-xs text-slate-500">{{ o.last_down_cause }}</div>
+                                        </td>
+                                        <td class="px-4 py-4 font-mono text-sm" :class="rxClass(o.rx_power_dbm)">
+                                            {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="kv-mobile-list">
+                            <article v-for="o in filtered" :key="o.onu_key" class="kv-mobile-card" :class="{ 'ring-1 ring-cyan-500/50': isFocus(o) }">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-xs text-white">{{ o.interface }}</span>
+                                    <span class="inline-flex items-center gap-1 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
+                                        <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
+                                        {{ o.online ? 'Online' : 'Offline' }}
+                                    </span>
+                                </div>
+                                <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
+                                <div class="mt-2 flex items-center justify-between text-xs">
+                                    <span class="font-mono text-slate-400">{{ o.serial_number || '—' }}</span>
+                                    <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
+                                </div>
+                            </article>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </AuthenticatedLayout>
+</template>
