@@ -22,8 +22,7 @@ kedua family (terverifikasi via help CLI `?` di #276 & #277, read-only) — beda
   gerbang `auth.can.manage_olt` + capability.
 - `tests/Feature/CDataOltWriteTest.php` (baru) — rename memanggil CLI + update cache; reboot pakai
   keyword `epon`. Full suite 190 passed.
-- **Belum diuji eksekusi ke ONU live** (aksi tulis ke OLT produksi/pelanggan) — sintaks sudah
-  diverifikasi via help CLI; eksekusi nyata menunggu ONU uji yang ditunjuk operator.
+- **Terverifikasi operator (2026-06-21):** tombol Rename & Reboot berfungsi nyata di OLT live.
 
 ### Guide C-Data disinkronkan dengan temuan OLT live
 
