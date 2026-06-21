@@ -34,7 +34,10 @@ class SmartOltController extends Controller
         $olts = SnmpOlt::query()
             ->latest()
             ->get()
-            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt));
+            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
+            // OLT C-Data punya halaman sendiri (OLT C-Data); ZTE + unknown tetap di sini.
+            ->reject(fn (array $row) => SmartOltSupport::isCData($row['driver']))
+            ->values();
 
         return Inertia::render('SmartOlt/Index', [
             'olts' => $olts,

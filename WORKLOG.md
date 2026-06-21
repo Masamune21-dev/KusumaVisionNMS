@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-06-21
+
+### Halaman OLT C-Data — Fase 0: fondasi driver (non-ZTE)
+
+Awal fitur halaman baru **OLT C-Data** (OLT non-ZTE: C-Data EPON `17409` & GPON `34592`, vendor lain
+menyusul). Blueprint: `docs/SMARTOLT_CDATA_GUIDE.md`. Scope v1 disepakati = **monitoring read-only**
+dan **terintegrasi** ke ONU Monitoring + global search. Fase 0 ini hanya fondasi (belum ada UI),
+ZTE sengaja **tidak** di-refactor agar tetap stabil.
+
+- `app/Support/SmartOltSupport.php` — konstanta `DRIVER_CDATA_EPON` / `DRIVER_CDATA_GPON`;
+  `driverKey()` diperluas (ZTE prioritas → GPON 34592 hint spesifik → EPON 17409 → `cdata` polos
+  default EPON; sysObjectID mengoreksi saat Test). Helper `isCData()`, `isCDataGponV3()`, dan
+  capability matrix C-Data EPON/GPON (semua write = false, `read_only` = true; GPON V3 → Rx via CLI).
+- `app/Contracts/SmartOltSnmpDriver.php` — kontrak read driver C-Data (ping, getSystemInfo, getPorts,
+  getRegisteredOnus[ByPort], getPortRxMap, countRegisteredOnus, getUnconfiguredOnus). ONU dipaksa
+  bentuk cache yang sama dengan ZTE (`onu_key`, interface, status, rx) agar konsisten lintas-OLT.
+- `app/Services/SmartOltSnmpServiceResolver.php` — resolver family → driver C-Data; Fase 0 melempar
+  exception deskriptif (driver konkret di-wire Fase 2). ZTE tetap pakai `OltSnmpClient` langsung.
+- `app/Http/Controllers/SmartOltController.php` — `index()` mem-filter C-Data keluar (`isCData`)
+  supaya tidak bocor ke halaman SmartOLT (ZTE); ZTE + unknown tetap tampil.
+- Verifikasi: klasifikasi `driverKey` 9 kasus benar; `php artisan test` SmartOLT/Demo = 25 passed.
+  Belum ada verifikasi OLT live (Fase 0 tanpa koneksi perangkat) — akan dilakukan mulai Fase 2.
+
 ## 2026-06-17
 
 ### Refresh ONU per-port jauh lebih cepat (SNMP walk di-scope per-port)
