@@ -24,6 +24,9 @@ padahal nyatanya **31 ONU**. Solusi: baca inventory via CLI telnet.
   `17409.*` & FD-ONU legacy `1.3.4.1.1.*`/`18.2.1.*` tidak ada. ⇒ CLI memang satu-satunya sumber atribut.
 - Fix turunan: `countRegisteredOnus()` V3 dulu pakai `.18.12` → keliru lapor 1; kini pakai enumerasi
   `.18.26.1.2` → benar **31** (terverifikasi live). Atribut tetap via CLI.
+- **Optimasi baca CLI:** read loop diubah dari "tunggu jeda diam X detik" → **berbasis prompt** (`readUntil`
+  berhenti begitu prompt `#`/`>` muncul di ekor buffer). Inventory GPON #277 turun dari **~10,6 s → ~0,25 s**
+  (3× konsisten), sama cepat dengan app lama. Login juga prompt-aware (`User name:`/`Password:`).
 - Sisa: Rx per-ONU GPON (`show ont optical-info {port} all`) belum di-enrich — kandidat berikutnya.
 
 ### Halaman OLT C-Data — Fase 2a: layer driver SNMP (EPON + GPON) + wiring resolver

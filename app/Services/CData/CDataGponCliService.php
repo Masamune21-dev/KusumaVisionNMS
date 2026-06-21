@@ -24,6 +24,14 @@ class CDataGponCliService
         '% bad', '% invalid', '% command', '% there is no',
     ];
 
+    private const PROMPT_LOGIN = '/(user ?name|login|username)\s*:\s*$/i';
+
+    private const PROMPT_PASSWORD = '/(password|passwd)\s*:\s*$/i';
+
+    private const PROMPT_ANY = '/[\w\-.]+\s*[>#]\s*$/';
+
+    private const PROMPT_ENABLE = '/[\w\-.]+\s*#\s*$/';
+
     /**
      * Inventory penuh ONU lewat `show ont info all`.
      *
@@ -51,9 +59,9 @@ class CDataGponCliService
         try {
             $this->login($connection, $olt);
             fwrite($connection, "enable\r\n");
-            $this->read($connection, 1.5, 4);
+            $this->readUntil($connection, self::PROMPT_ENABLE, 6);
             fwrite($connection, $command."\r\n");
-            $output = $this->read($connection, 3.0, 45, true);
+            $output = $this->readUntil($connection, self::PROMPT_ENABLE, 30, true);
         } finally {
             fclose($connection);
         }
@@ -70,44 +78,42 @@ class CDataGponCliService
      */
     private function login($connection, SnmpOlt $olt): void
     {
-        $banner = $this->read($connection, 2.0, 5);
-
-        // Kirim username saat prompt muncul (CRLF strict); fallback kirim langsung bila prompt tak terdeteksi.
+        $this->readUntil($connection, self::PROMPT_LOGIN, 8);
         fwrite($connection, $olt->cli_username."\r\n");
-        $this->read($connection, 1.5, 5);
+        $this->readUntil($connection, self::PROMPT_PASSWORD, 8);
         fwrite($connection, ((string) $olt->cli_password)."\r\n");
-        $this->read($connection, 2.0, 6);
-
-        unset($banner);
+        $this->readUntil($connection, self::PROMPT_ANY, 8);
     }
 
     /**
-     * Baca sampai jeda data >= $idle detik (atau total > $max). Auto-jawab spasi untuk pager.
+     * Baca sampai prompt CLI ($promptRegex) muncul di ekor buffer — bukan menunggu jeda diam — sehingga
+     * cepat (kembali begitu OLT selesai, ~detik). Auto-jawab spasi untuk pager. $max = batas aman.
      *
      * @param  resource  $connection
      */
-    private function read($connection, float $idle, float $max, bool $answerPager = false): string
+    private function readUntil($connection, string $promptRegex, float $max, bool $answerPager = false): string
     {
         $buffer = '';
         $start = microtime(true);
-        $last = $start;
 
-        while (true) {
+        while (microtime(true) - $start < $max) {
             $chunk = fread($connection, 8192);
 
-            if ($chunk !== '' && $chunk !== false) {
-                $buffer .= $chunk;
-                $last = microtime(true);
+            if ($chunk === '' || $chunk === false) {
+                usleep(30_000);
 
-                if ($answerPager && preg_match('/--\s*more\s*--|press any key|\(more\)|next page/i', $chunk)) {
-                    fwrite($connection, ' ');
-                }
-            } else {
-                usleep(80_000);
+                continue;
             }
 
-            $now = microtime(true);
-            if ($now - $last >= $idle || $now - $start >= $max) {
+            $buffer .= $chunk;
+
+            if ($answerPager && preg_match('/--\s*more\s*--|press any key|\(more\)|next page/i', $chunk)) {
+                fwrite($connection, ' ');
+
+                continue;
+            }
+
+            if (preg_match($promptRegex, substr($buffer, -160))) {
                 break;
             }
         }
