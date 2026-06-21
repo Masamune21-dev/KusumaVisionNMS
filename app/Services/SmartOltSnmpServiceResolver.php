@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
+use App\Services\CData\CDataEponSnmpService;
+use App\Services\CData\CDataGponSnmpService;
+use App\Services\CData\CDataSnmp;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
 use RuntimeException;
@@ -14,12 +17,14 @@ use RuntimeException;
  *
  * ZTE sengaja tidak melewati resolver ini — pakai {@see OltSnmpClient} langsung.
  *
- * Fase 0: kerangka resolver + deteksi family. Driver C-Data konkret (CDataEponSnmpService /
- * CDataGponSnmpService) di-inject & di-return pada Fase 2; untuk sekarang melempar exception
- * deskriptif agar caller jelas mengapa belum tersedia.
+ * Mengembalikan {@see CDataEponSnmpService} (EPON 17409) atau {@see CDataGponSnmpService}
+ * (GPON 34592, legacy + deteksi FlashV3.x). Family yang belum dikenali / ZTE → exception
+ * deskriptif. GPON V3 inventory penuh (SN/MAC/optical) di-enrich via CLI pada fase berikutnya.
  */
 class SmartOltSnmpServiceResolver
 {
+    public function __construct(private readonly CDataSnmp $snmp) {}
+
     public function driverKey(SnmpOlt $olt): string
     {
         return SmartOltSupport::driverKey(
@@ -39,11 +44,8 @@ class SmartOltSnmpServiceResolver
         $driver = $this->driverKey($olt);
 
         return match ($driver) {
-            // Fase 2: return $this->cdataEpon / $this->cdataGpon
-            SmartOltSupport::DRIVER_CDATA_EPON,
-            SmartOltSupport::DRIVER_CDATA_GPON => throw new RuntimeException(
-                "Driver C-Data ({$driver}) untuk OLT '{$olt->name}' belum diimplementasikan (Fase 2)."
-            ),
+            SmartOltSupport::DRIVER_CDATA_EPON => new CDataEponSnmpService($this->snmp),
+            SmartOltSupport::DRIVER_CDATA_GPON => new CDataGponSnmpService($this->snmp),
             SmartOltSupport::DRIVER_ZTE => throw new RuntimeException(
                 "OLT ZTE '{$olt->name}' memakai OltSnmpClient langsung, bukan resolver C-Data."
             ),

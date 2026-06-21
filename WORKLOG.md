@@ -2,6 +2,29 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — Fase 2a: layer driver SNMP (EPON + GPON) + wiring resolver
+
+Driver SNMP read C-Data konkret (implements `SmartOltSnmpDriver`). Belum ada UI — fokus parsing
+inventory yang teruji unit (data walk sintetis, tanpa perangkat). Bentuk array ONU disamakan dengan
+cache `port_onus` ZTE (slot/port/onu_id/interface/serial_number/name/online/rx_power_dbm/…) supaya
+nanti otomatis muncul di ONU Monitoring + search (integrasi cache = Fase 2b).
+
+- `app/Services/CData/CDataValue.php` — helper parsing murni: clean, toInt, macFromHex (spaced/plain),
+  eponRxDbm (centi-dBm `/100`, raw 0 = no signal), oidLastSegments, eponDecodeDeviceIndex (bitwise §3.1),
+  parseEponOnuName (`epon 0/s/p onu id desc`).
+- `app/Services/CData/CDataSnmp.php` — koneksi SNMP low-level (v1/v2c, output OID numerik untuk
+  suffix-matching); `get()`/`walk()` overridable (di-stub saat test).
+- `app/Services/CData/CDataEponSnmpService.php` — EPON 17409: inventory (name/mac/status/vendor/model/
+  serial), Rx `2.3.4.2.1.4` (index `.deviceIndex.x.y`); slot/port/onuId dari onuName, fallback decode.
+- `app/Services/CData/CDataGponSnmpService.php` — GPON 34592: legacy (index `slot.port.onuId`) + deteksi
+  V3 (`…18.12.1.1`) → tabel v3 (index `.1.0.ifIndex.flow.onuId`, map slot/port via ifDescr `gpon X/Y/Z`).
+  Rx per-ONU belum tersedia via SNMP (DDM hanya per-port; V3 → CLI di 2c).
+- `app/Services/SmartOltSnmpServiceResolver.php` — kini me-return driver konkret (EPON/GPON); ZTE &
+  unknown tetap exception. Inject `CDataSnmp`.
+- `tests/Unit/CDataValueTest.php` + `tests/Unit/CDataSnmpDriverTest.php` — 10 test (helper + 3 driver
+  end-to-end dgn stub SNMP + resolver per-family). `php artisan test` = 182 passed, nol regresi.
+- Belum diverifikasi ke OLT C-Data live (parsing dari guide sbg blueprint; verifikasi saat 2b/probe).
+
 ### Halaman OLT C-Data — Fase 1: halaman inventori + Test/probe family
 
 Halaman baru **OLT C-Data** (menu nav sendiri, prefix `/cdata-olt`) untuk CRUD inventori OLT
