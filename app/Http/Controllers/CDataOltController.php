@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
+use App\Services\CData\CDataCliWriteService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
@@ -231,6 +232,94 @@ class CDataOltController extends Controller
         } catch (Throwable $exception) {
             return $back->with('error', 'Refresh ONU gagal: '.$exception->getMessage());
         }
+    }
+
+    public function rebootOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, CDataCliWriteService $writer): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_reboot');
+        $back = redirect()->route('cdata-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $writer->reboot($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? sprintf('Perintah reboot ONU %d/%d/%d terkirim. ONU restart ~30–60 detik.', $slot, $port, $onuId)
+                    : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
+            );
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Reboot ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, CDataCliWriteService $writer): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_info_write');
+        $data = $request->validate(['name' => ['nullable', 'string', 'max:128']]);
+        $name = trim((string) ($data['name'] ?? ''));
+        $back = redirect()->route('cdata-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $writer->setDescription($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId, $name);
+            if (! $result['ok']) {
+                return $back->with('error', 'Ubah nama ONU gagal: '.$result['error']);
+            }
+
+            $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($name) {
+                $onu['name'] = $name !== '' ? $name : null;
+                $onu['description'] = $onu['name'];
+
+                return $onu;
+            });
+
+            return $back->with('success', $name !== '' ? 'Nama ONU berhasil diperbarui.' : 'Nama ONU berhasil dihapus.');
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Ubah nama ONU gagal: '.$exception->getMessage());
+        }
+    }
+
+    private function ifaceKeyword(SnmpOlt $olt): string
+    {
+        return $this->driverOf($olt) === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';
+    }
+
+    private function driverOf(SnmpOlt $olt): string
+    {
+        return SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        );
+    }
+
+    private function assertCapability(SnmpOlt $olt, string $capability): void
+    {
+        abort_unless(
+            (bool) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)[$capability] ?? false),
+            403,
+            'Aksi ini tidak didukung untuk OLT ini.',
+        );
+    }
+
+    private function mutateCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, callable $mutator): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $path = "port_onus.{$slot}_{$port}.onus";
+        $onus = data_get($snapshot, $path);
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        foreach ($onus as $index => $onu) {
+            if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
+                $onus[$index] = $mutator($onu);
+            }
+        }
+
+        data_set($snapshot, $path, $onus);
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
     }
 
     /**

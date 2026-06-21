@@ -1,9 +1,15 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import IconButton from '@/Components/IconButton.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, RefreshCw, Search, Wifi, WifiOff } from '@lucide/vue';
+import { ArrowLeft, Pencil, Power, RefreshCw, Search, Wifi, WifiOff } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -38,6 +44,36 @@ const isFocus = (o) => props.focus != null && String(o.onu_id) === String(props.
 
 const refresh = () => router.post(route('cdata-olt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, { preserveScroll: true });
 const fmt = (v) => formatDateTime(v);
+
+const caps = computed(() => props.olt.capabilities ?? {});
+const canManage = computed(() => Boolean(page.props.auth?.can?.manage_olt));
+const canReboot = computed(() => canManage.value && caps.value.supports_reboot);
+const canRename = computed(() => canManage.value && caps.value.supports_onu_info_write);
+const hasActions = computed(() => canReboot.value || canRename.value);
+
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+const renameOnu = ref(null);
+const renameValue = ref('');
+const openRename = (onu) => {
+    renameOnu.value = onu;
+    renameValue.value = onu.name ?? '';
+};
+const submitRename = () => {
+    const onu = renameOnu.value;
+    renameOnu.value = null;
+    router.post(route('cdata-olt.onu.info', [props.olt.id, props.slot, props.port, onu.onu_id]), { name: renameValue.value }, { preserveScroll: true });
+};
+
+const rebootOnu = async (onu) => {
+    const ok = await confirm({
+        title: 'Reboot ONU',
+        message: `Reboot ONU ${onu.interface}${onu.name ? ` (${onu.name})` : ''}? Layanan pelanggan terputus ~30–60 detik.`,
+        confirmLabel: 'Reboot',
+    });
+    if (!ok) return;
+    router.post(route('cdata-olt.onu.reboot', [props.olt.id, props.slot, props.port, onu.onu_id]), {}, { preserveScroll: true });
+};
 </script>
 
 <template>
@@ -104,6 +140,7 @@ const fmt = (v) => formatDateTime(v);
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Nama</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Rx</th>
+                                        <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
@@ -127,6 +164,16 @@ const fmt = (v) => formatDateTime(v);
                                         <td class="px-4 py-4 font-mono text-sm" :class="rxClass(o.rx_power_dbm)">
                                             {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
                                         </td>
+                                        <td v-if="hasActions" class="px-4 py-4">
+                                            <div class="flex justify-center gap-1.5">
+                                                <IconButton v-if="canRename" title="Ubah nama" @click="openRename(o)">
+                                                    <Pencil class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
+                                                    <Power class="h-4 w-4" />
+                                                </IconButton>
+                                            </div>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -146,10 +193,37 @@ const fmt = (v) => formatDateTime(v);
                                     <span class="font-mono text-slate-400">{{ o.serial_number || '—' }}</span>
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
                                 </div>
+                                <div v-if="hasActions" class="mt-3 flex gap-2">
+                                    <IconButton v-if="canRename" title="Ubah nama" @click="openRename(o)">
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
+                                        <Power class="h-4 w-4" />
+                                    </IconButton>
+                                </div>
                             </article>
                         </div>
                     </template>
                 </div>
+            </div>
+        </div>
+
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
+
+        <!-- Modal ubah nama -->
+        <div v-if="renameOnu" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="renameOnu = null"></div>
+            <div class="relative w-full max-w-md rounded-xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-xl">
+                <h3 class="text-base font-semibold text-white">Ubah nama ONU</h3>
+                <p class="mt-1 font-mono text-xs text-slate-400">{{ renameOnu.interface }}</p>
+                <form class="mt-4" @submit.prevent="submitRename">
+                    <InputLabel for="rename" value="Nama / deskripsi (maks 128, kosongkan untuk hapus)" />
+                    <TextInput id="rename" v-model="renameValue" class="mt-1 block w-full" maxlength="128" autocomplete="off" />
+                    <div class="mt-5 flex justify-end gap-3">
+                        <SecondaryButton type="button" @click="renameOnu = null">Batal</SecondaryButton>
+                        <PrimaryButton type="submit">Simpan</PrimaryButton>
+                    </div>
+                </form>
             </div>
         </div>
     </AuthenticatedLayout>

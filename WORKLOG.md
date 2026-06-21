@@ -2,6 +2,29 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — aksi write: rename & reboot ONU (CLI)
+
+Aksi tulis pertama untuk C-Data (rename/deskripsi + reboot), EPON & GPON. **Sintaks `ont` identik**
+kedua family (terverifikasi via help CLI `?` di #276 & #277, read-only) — beda hanya keyword interface.
+
+- `app/Services/CData/Concerns/InteractsWithCDataCli.php` (baru) — trait plumbing telnet (login/enable,
+  baca berbasis prompt, pager, konfirmasi y/n). `CDataGponCliService` di-refactor pakai trait ini.
+- `app/Services/CData/CDataCliWriteService.php` (baru) — `setDescription()` (`ont description {port}
+  {onuId} <teks>` / `no ont description …`, sanitasi max 128, kosong→hapus) & `reboot()` (`ont reboot
+  {port} {onuId}`, auto-jawab konfirmasi); submode `interface {epon|gpon} 0/{slot}`; mask password.
+- `app/Support/SmartOltSupport.php` — capability C-Data EPON & GPON: `supports_reboot` &
+  `supports_onu_info_write` = true (`*_mode = cli_cdata`), `read_only=false`. `supports_onu_toggle`
+  tetap false (enable/disable belum diminta).
+- `app/Http/Controllers/CDataOltController.php` — `rebootOnu()` & `updateOnuInfo()` (gate capability,
+  `mutateCachedOnu` utk update nama di cache, flash). Helper `ifaceKeyword()` (epon/gpon dari driver).
+- `routes/web.php` — `cdata-olt.onu.reboot` & `cdata-olt.onu.info`.
+- `resources/js/Pages/CDataOlt/PortOnus.vue` — tombol Ubah nama (modal) & Reboot (ConfirmModal danger),
+  gerbang `auth.can.manage_olt` + capability.
+- `tests/Feature/CDataOltWriteTest.php` (baru) — rename memanggil CLI + update cache; reboot pakai
+  keyword `epon`. Full suite 190 passed.
+- **Belum diuji eksekusi ke ONU live** (aksi tulis ke OLT produksi/pelanggan) — sintaks sudah
+  diverifikasi via help CLI; eksekusi nyata menunggu ONU uji yang ditunjuk operator.
+
 ### Guide C-Data disinkronkan dengan temuan OLT live
 
 `docs/SMARTOLT_CDATA_GUIDE.md` diperbarui agar akurat dgn hardware nyata (sebelumnya blueprint):
