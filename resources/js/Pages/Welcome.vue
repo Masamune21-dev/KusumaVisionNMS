@@ -22,6 +22,7 @@ import {
     Play,
     Radar,
     RadioTower,
+    Router,
     ScrollText,
     Search,
     Send,
@@ -162,6 +163,7 @@ const navLinks = [
 
 const heroPills = [
     { icon: Cable, label: 'ZTE C300/C320/C600' },
+    { icon: Router, label: 'C-Data EPON/GPON' },
     { icon: RadioTower, label: 'SNMP Polling' },
     { icon: BellRing, label: 'Alarm Engine' },
     { icon: Wifi, label: 'ONU Provisioning' },
@@ -204,6 +206,13 @@ const steps = [
 ];
 
 const features = [
+    {
+        icon: Router,
+        accent: 'kv-circle-cyan',
+        badge: 'Baru',
+        title: 'OLT C-Data EPON/GPON',
+        body: 'Dukungan multi-vendor: kelola OLT C-Data EPON & GPON berdampingan dengan ZTE — monitoring ONU lintas-OLT, plus rename & reboot ONU langsung dari dashboard.',
+    },
     {
         icon: Database,
         accent: 'kv-circle-sky',
@@ -262,7 +271,7 @@ const features = [
         icon: Send,
         accent: 'kv-circle-cyan',
         title: 'Notifikasi Telegram',
-        body: 'Alarm penting dikirim langsung ke grup/chat Telegram, plus bot read-only untuk cek status OLT & ONU dari mana saja.',
+        body: 'Alarm penting dikirim ke grup/chat Telegram, plus bot interaktif (menu tombol): cek status OLT & ONU, cari pelanggan, sampai refresh OLT C-Data dari mana saja.',
     },
     {
         icon: ScrollText,
@@ -288,6 +297,8 @@ const benefits = [
 
 // Kapabilitas untuk marquee berjalan (infinite scroll antar-section)
 const marqueeItems = [
+    'OLT C-Data EPON/GPON',
+    'Multi-Vendor OLT',
     'GPON Monitoring',
     'SNMP Polling',
     'ONU Provisioning',
@@ -314,6 +325,7 @@ const techStack = [
 const modules = [
     { icon: LayoutDashboard, title: 'Dashboard', sub: 'Tampilan ringkas seluruh jaringan FTTH' },
     { icon: Server, title: 'OLT Inventory', sub: 'Detail perangkat & kartu line card' },
+    { icon: Router, title: 'OLT C-Data', sub: 'Monitoring EPON/GPON non-ZTE' },
     { icon: BellRing, title: 'Alarm Center', sub: 'Pusat notifikasi & histori alarm' },
     { icon: Workflow, title: 'Provisioning', sub: 'Wizard registrasi ONU otomatis' },
     { icon: Radar, title: 'ONU Monitoring', sub: 'Pantau ONU lintas OLT & port' },
@@ -812,15 +824,17 @@ onBeforeUnmount(() => {
                         <div class="pointer-events-none absolute -bottom-20 left-1/3 h-56 w-56 rounded-full bg-purple-500/10 blur-3xl" />
                         <div class="grid items-center gap-8 p-6 md:grid-cols-[1fr_auto] md:gap-12 md:p-10">
                             <div>
-                                <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Hardware Compatible</p>
-                                <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">Mendukung lini OLT ZTE C-series</h2>
+                                <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Multi-Vendor Hardware</p>
+                                <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">ZTE C-series + C-Data EPON/GPON</h2>
                                 <p class="mt-3 max-w-xl text-sm text-slate-400">
-                                    Driver SNMP & CLI matang untuk ZTE C300, C320, dan C600 — battle-tested di OLT produksi ISP Indonesia.
+                                    Driver SNMP & CLI matang untuk ZTE C300, C320, dan C600 — kini diperluas ke OLT C-Data EPON (17409) & GPON (34592). Battle-tested di OLT produksi ISP Indonesia.
                                 </p>
                                 <div class="mt-5 flex flex-wrap gap-2">
                                     <span class="kv-pill-info">ZTE C300</span>
                                     <span class="kv-pill-info">ZTE C320</span>
                                     <span class="kv-pill-info">ZTE C600</span>
+                                    <span class="kv-pill-info">C-Data EPON</span>
+                                    <span class="kv-pill-info">C-Data GPON</span>
                                 </div>
                             </div>
                             <img
@@ -873,7 +887,13 @@ onBeforeUnmount(() => {
                         <span :class="f.accent" class="mx-auto !h-12 !w-12 transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5">
                             <component :is="f.icon" class="h-5 w-5" />
                         </span>
-                        <h3 class="mt-4 text-base font-semibold text-white transition-colors group-hover:text-cyan-300">{{ f.title }}</h3>
+                        <h3 class="mt-4 flex items-center justify-center gap-2 text-base font-semibold text-white transition-colors group-hover:text-cyan-300">
+                            <span>{{ f.title }}</span>
+                            <span
+                                v-if="f.badge"
+                                class="rounded-full border border-cyan-400/40 bg-cyan-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-300"
+                            >{{ f.badge }}</span>
+                        </h3>
                         <p class="mt-2 text-sm leading-6 text-slate-400">{{ f.body }}</p>
                     </div>
                 </div>

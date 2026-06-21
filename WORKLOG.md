@@ -209,6 +209,26 @@ Notes:
 - Verifikasi: `php artisan test` → 197 passed; `npm run build` sukses; Pint passed. Belum diverifikasi
   di OLT live sesi ini (perubahan alur refresh/command, bukan parsing baru).
 
+### Landing page: tonjolkan fitur terbaru (multi-vendor OLT C-Data + bot Telegram interaktif)
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — (1) kartu fitur baru **"OLT C-Data EPON/GPON"** jadi entri pertama
+  grid Fitur dengan badge **"Baru"** (multi-vendor, monitoring lintas-OLT, rename & reboot ONU); tambah
+  dukungan render `f.badge` inline di judul kartu. (2) Hero pill `C-Data EPON/GPON`. (3) Hardware strip
+  dari "ZTE C-series" → **"ZTE C-series + C-Data EPON/GPON"** (label "Multi-Vendor Hardware") + pill
+  `C-Data EPON`/`C-Data GPON`. (4) Fitur Telegram: "bot read-only" → **bot interaktif** (menu tombol,
+  cari pelanggan, refresh OLT C-Data). (5) Marquee tambah `OLT C-Data EPON/GPON` & `Multi-Vendor OLT`.
+  (6) Modul tambah kartu **"OLT C-Data"**. (7) Import ikon `Router`.
+
+Notes:
+
+- Badge "Baru" dirender inline (flex di `<h3>`), bukan `absolute`, karena `.kv-spotlight > *` memaksa
+  `position: relative` pada anak langsung kartu → badge absolut akan salah posisi.
+- Klaim dijaga akurat dgn scope nyata (C-Data = monitoring + rename/reboot; tidak overclaim provisioning).
+  Galeri "Tampilan Aplikasi" tetap pakai screenshot ZTE asli (belum ada capture halaman C-Data).
+- Verifikasi: `npm run build` sukses.
+
 ## 2026-06-17
 
 ### Refresh ONU per-port jauh lebih cepat (SNMP walk di-scope per-port)
