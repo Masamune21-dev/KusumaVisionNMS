@@ -43,7 +43,10 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
 
     private const V3_DESC = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.11';
 
-    public function __construct(private readonly CDataSnmp $snmp) {}
+    public function __construct(
+        private readonly CDataSnmp $snmp,
+        private readonly CDataGponCliService $cli,
+    ) {}
 
     public function ping(SnmpOlt $olt): bool
     {
@@ -107,7 +110,24 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
 
     public function getRegisteredOnus(SnmpOlt $olt): array
     {
-        return $this->isV3($olt) ? $this->v3Onus($olt) : $this->legacyOnus($olt);
+        if (! $this->isV3($olt)) {
+            return $this->legacyOnus($olt);
+        }
+
+        // V3: SNMP hanya balas 1 baris → inventory penuh via CLI `show ont info all`
+        // bila kredensial telnet tersedia; fallback ke SNMP v3 (parsial) jika CLI gagal.
+        if ($olt->cli_transport === 'telnet' && filled($olt->cli_username)) {
+            try {
+                $onus = $this->cli->getOnts($olt);
+                if ($onus !== []) {
+                    return $onus;
+                }
+            } catch (Throwable) {
+                // diabaikan — jatuh ke jalur SNMP v3 di bawah
+            }
+        }
+
+        return $this->v3Onus($olt);
     }
 
     public function getRegisteredOnusByPort(SnmpOlt $olt, int $slot, int $port): array

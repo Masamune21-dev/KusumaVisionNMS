@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataEponSnmpService;
+use App\Services\CData\CDataGponCliService;
 use App\Services\CData\CDataGponSnmpService;
 use App\Services\CData\CDataSnmp;
 use App\Services\Snmp\OltSnmpClient;
@@ -23,7 +24,10 @@ use RuntimeException;
  */
 class SmartOltSnmpServiceResolver
 {
-    public function __construct(private readonly CDataSnmp $snmp) {}
+    public function __construct(
+        private readonly CDataSnmp $snmp,
+        private readonly CDataGponCliService $cli,
+    ) {}
 
     public function driverKey(SnmpOlt $olt): string
     {
@@ -45,7 +49,7 @@ class SmartOltSnmpServiceResolver
 
         return match ($driver) {
             SmartOltSupport::DRIVER_CDATA_EPON => new CDataEponSnmpService($this->snmp),
-            SmartOltSupport::DRIVER_CDATA_GPON => new CDataGponSnmpService($this->snmp),
+            SmartOltSupport::DRIVER_CDATA_GPON => new CDataGponSnmpService($this->snmp, $this->cli),
             SmartOltSupport::DRIVER_ZTE => throw new RuntimeException(
                 "OLT ZTE '{$olt->name}' memakai OltSnmpClient langsung, bukan resolver C-Data."
             ),

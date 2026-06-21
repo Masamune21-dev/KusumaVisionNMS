@@ -2,6 +2,24 @@
 
 ## 2026-06-21
 
+### Halaman OLT C-Data — Fase 2c: inventory penuh GPON via CLI (`show ont info all`)
+
+Fix lanjutan setelah verifikasi: GPON FD1608S (#277, FlashV3) lewat SNMP cuma balas **1 ONU**,
+padahal nyatanya **31 ONU**. Solusi: baca inventory via CLI telnet.
+
+- `app/Services/CData/CDataGponCliService.php` (baru) — sesi telnet (login `User name:`/`Password:`
+  CRLF strict, `enable`, auto-jawab pager), `show ont info all` → parse tabel
+  `F/S P ONT_ID SN CONTROL RUN CONFIG MATCH LAST_DOWN DESC` (DESC boleh spasi/slash). Output bentuk
+  cache sama dgn driver SNMP (+`source=cli`). Format diparse dari output asli #277, bukan tebakan.
+- `app/Services/CData/CDataGponSnmpService.php` — `getRegisteredOnus()`: bila V3 **dan** kredensial
+  telnet ada → pakai CLI; fallback ke SNMP v3 (parsial) bila CLI gagal/ kosong. Inject `CDataGponCliService`.
+- `app/Services/SmartOltSnmpServiceResolver.php` — inject + teruskan `CDataGponCliService` ke driver GPON.
+- `tests/Unit/CDataGponCliParseTest.php` (baru) — 3 test parser pakai sampel `show ont info all` asli
+  (desc berspasi/slash, `--`→null, Deactive/Offline). Test lain disesuaikan (constructor +CLI).
+- **Verifikasi live #277:** driver GPON kini balas **31 ONU** (`source=cli`, ~10,6 s) — interface, SN,
+  online, admin, last-down-cause, deskripsi semua benar. `php artisan test` = 185 passed.
+- Sisa: Rx per-ONU GPON (`show ont optical-info {port} all`) belum di-enrich — kandidat berikutnya.
+
 ### Halaman OLT C-Data — Fase 2a: layer driver SNMP (EPON + GPON) + wiring resolver
 
 Driver SNMP read C-Data konkret (implements `SmartOltSnmpDriver`). Belum ada UI — fokus parsing

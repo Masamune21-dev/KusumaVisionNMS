@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataEponSnmpService;
+use App\Services\CData\CDataGponCliService;
 use App\Services\CData\CDataGponSnmpService;
 use App\Services\CData\CDataSnmp;
 use App\Services\SmartOltSnmpServiceResolver;
@@ -76,7 +77,7 @@ class CDataSnmpDriverTest extends TestCase
             '1.3.6.1.4.1.34592.1.5.1.1.2.18.2.1.5' => [],
         ]);
 
-        $driver = new CDataGponSnmpService($snmp);
+        $driver = new CDataGponSnmpService($snmp, new CDataGponCliService);
         $this->assertFalse($driver->isV3($this->olt()));
 
         $onus = $driver->getRegisteredOnus($this->olt());
@@ -98,7 +99,7 @@ class CDataSnmpDriverTest extends TestCase
             '1.3.6.1.2.1.2.2.1.2' => ['1.3.6.1.2.1.2.2.1.2.18' => 'gpon 0/1/3'],
         ]);
 
-        $driver = new CDataGponSnmpService($snmp);
+        $driver = new CDataGponSnmpService($snmp, new CDataGponCliService);
         $this->assertTrue($driver->isV3($this->olt()));
 
         $onus = $driver->getRegisteredOnus($this->olt());
@@ -112,7 +113,7 @@ class CDataSnmpDriverTest extends TestCase
 
     public function test_resolver_returns_correct_driver_per_family(): void
     {
-        $resolver = new SmartOltSnmpServiceResolver(new CDataSnmp);
+        $resolver = new SmartOltSnmpServiceResolver(new CDataSnmp, new CDataGponCliService);
 
         $this->assertInstanceOf(
             CDataEponSnmpService::class,
