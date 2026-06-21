@@ -43,6 +43,10 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
 
     private const V3_DESC = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.11';
 
+    // Tabel statistik per-ONU `.18.26.1` — nilainya `-1` (tak berguna utk atribut), TAPI meng-enumerasi
+    // seluruh ONU (1 baris/ONU). Dipakai utk hitung jumlah ONU V3 yang benar; atribut tetap dari CLI.
+    private const V3_ONU_ENUM = '1.3.6.1.4.1.34592.1.5.1.1.2.18.26.1.2';
+
     public function __construct(
         private readonly CDataSnmp $snmp,
         private readonly CDataGponCliService $cli,
@@ -147,7 +151,14 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
     public function countRegisteredOnus(SnmpOlt $olt): int
     {
         try {
-            return count($this->snmp->walk($olt, $this->isV3($olt) ? self::V3_STATUS : self::FD_ONLINE));
+            if (! $this->isV3($olt)) {
+                return count($this->snmp->walk($olt, self::FD_ONLINE));
+            }
+
+            // Tabel atribut V3 (.18.12) cuma 1 baris → pakai enumerasi penuh (.18.26).
+            $count = count($this->snmp->walk($olt, self::V3_ONU_ENUM));
+
+            return $count > 0 ? $count : count($this->snmp->walk($olt, self::V3_STATUS));
         } catch (Throwable) {
             return 0;
         }

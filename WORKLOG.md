@@ -18,6 +18,12 @@ padahal nyatanya **31 ONU**. Solusi: baca inventory via CLI telnet.
   (desc berspasi/slash, `--`→null, Deactive/Offline). Test lain disesuaikan (constructor +CLI).
 - **Verifikasi live #277:** driver GPON kini balas **31 ONU** (`source=cli`, ~10,6 s) — interface, SN,
   online, admin, last-down-cause, deskripsi semua benar. `php artisan test` = 185 passed.
+- **Pemetaan ulang OID #277 (walk langsung device):** dikonfirmasi tak ada jalur SNMP untuk atribut
+  31 ONU. Tabel atribut V3 `.18.12.*` = 1 baris; `.18.26.1.{2..6}` meng-enumerasi 31 ONU tapi nilai
+  `-1` (statistik kosong); `34592.1.3.100.*` = tabel sistem/counter (bukan inventory); tabel EPON
+  `17409.*` & FD-ONU legacy `1.3.4.1.1.*`/`18.2.1.*` tidak ada. ⇒ CLI memang satu-satunya sumber atribut.
+- Fix turunan: `countRegisteredOnus()` V3 dulu pakai `.18.12` → keliru lapor 1; kini pakai enumerasi
+  `.18.26.1.2` → benar **31** (terverifikasi live). Atribut tetap via CLI.
 - Sisa: Rx per-ONU GPON (`show ont optical-info {port} all`) belum di-enrich — kandidat berikutnya.
 
 ### Halaman OLT C-Data — Fase 2a: layer driver SNMP (EPON + GPON) + wiring resolver
