@@ -49,8 +49,13 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
     {
         try {
             $oid = $this->snmp->get($olt, self::SYS_OBJECT_ID);
+            if ($oid !== null && str_contains($oid, '34592')) {
+                return true;
+            }
 
-            return $oid !== null && str_contains($oid, '34592');
+            // FD1608S/FD1216S sering laporkan sysObjectID 17409 walau GPON — konfirmasi via tabel
+            // V3 atau tabel ONU legacy yang merespons.
+            return $this->isV3($olt) || $this->snmp->walk($olt, self::FD_ONLINE) !== [];
         } catch (Throwable) {
             return false;
         }

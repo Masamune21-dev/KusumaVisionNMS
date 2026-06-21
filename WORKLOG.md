@@ -23,7 +23,16 @@ nanti otomatis muncul di ONU Monitoring + search (integrasi cache = Fase 2b).
   unknown tetap exception. Inject `CDataSnmp`.
 - `tests/Unit/CDataValueTest.php` + `tests/Unit/CDataSnmpDriverTest.php` — 10 test (helper + 3 driver
   end-to-end dgn stub SNMP + resolver per-family). `php artisan test` = 182 passed, nol regresi.
-- Belum diverifikasi ke OLT C-Data live (parsing dari guide sbg blueprint; verifikasi saat 2b/probe).
+
+**Verifikasi OLT live** (#276 EPON `172.27.10.103`, #277 GPON FD1608S `172.27.10.105`):
+- EPON #276: **258 ONU dalam ~650 ms**, slot/port/onuId dari onuName, online, MAC, Rx (mis. -17.14 dBm),
+  nama pelanggan — semua benar.
+- GPON #277: V3 terdeteksi, parsing slot/port benar, **tetapi SNMP hanya balas 1 ONU** (batasan
+  firmware FlashV3 — guide §3.3). Inventory penuh menunggu CLI (Fase 2c).
+- **Temuan penting:** kedua device melaporkan `sysObjectID = .1.3.6.1.4.1.17409` (GPON sekalipun) →
+  auto-deteksi via sysObjectID saja salah; klasifikasi berbasis string `vendor` benar. Akibat ini:
+  fix kosmetik dari verifikasi — `clean()` buang anotasi net-snmp `(0x..)`, serial EPON dinormalisasi
+  ke MAC ber-":", dan `ping()` GPON dibuat sadar-V3 (jangan andalkan 34592 di sysObjectID).
 
 ### Halaman OLT C-Data — Fase 1: halaman inventori + Test/probe family
 

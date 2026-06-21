@@ -20,7 +20,10 @@ class CDataValue
         }
 
         $value = trim($value);
-        $value = preg_replace('/^[A-Z][A-Za-z0-9\- ]+:\s*/', '', $value) ?? $value;
+        // Buang prefix tipe SNMP textual bila ada (ketat — jangan memangkas nama pelanggan ber-":").
+        $value = preg_replace('/^(?:STRING|Hex-STRING|INTEGER|Gauge32|Counter(?:32|64)?|Timeticks|IpAddress|OID|OBJECT IDENTIFIER|BITS):\s*/', '', $value) ?? $value;
+        // net-snmp kadang menambah anotasi hex octet-string, mis. `25AR(0x32354152)` → `25AR`.
+        $value = preg_replace('/\s*\(0x[0-9A-Fa-f]+\)\s*$/', '', $value) ?? $value;
         $value = trim($value, "\" \t\n\r\0\x0B");
 
         return $value === '' ? null : $value;

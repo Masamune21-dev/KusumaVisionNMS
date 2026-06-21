@@ -47,11 +47,26 @@ class CDataEponSnmpService implements SmartOltSnmpDriver
     {
         try {
             $oid = $this->snmp->get($olt, self::SYS_OBJECT_ID);
+            if ($oid !== null && str_contains($oid, '17409')) {
+                return true;
+            }
 
-            return $oid !== null && str_contains($oid, '17409');
+            // Sebagian firmware C-Data tak konsisten di sysObjectID; konfirmasi via tabel ONU EPON.
+            return $this->snmp->walk($olt, self::ONU_NAME) !== [];
         } catch (Throwable) {
             return false;
         }
+    }
+
+    private function normalizeSerial(?string $raw): ?string
+    {
+        $clean = CDataValue::clean($raw);
+        if ($clean === null) {
+            return null;
+        }
+
+        // Pada banyak ONU EPON, serial identik MAC (Hex-STRING) — tampilkan sebagai MAC ber-":".
+        return CDataValue::macFromHex($clean) ?? strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $clean) ?? '');
     }
 
     public function getSystemInfo(SnmpOlt $olt): array
@@ -123,8 +138,8 @@ class CDataEponSnmpService implements SmartOltSnmpDriver
             $parsed = CDataValue::parseEponOnuName($nameVal) ?? CDataValue::eponDecodeDeviceIndex($deviceIndex) + ['label' => null];
             $online = CDataValue::toInt($statuses[self::ONU_STATUS.'.'.$deviceIndex] ?? null) === 1;
 
-            $serial = CDataValue::clean($serials[self::ONU_SERIAL.'.'.$deviceIndex] ?? null);
             $mac = CDataValue::macFromHex($macs[self::ONU_MAC.'.'.$deviceIndex] ?? null);
+            $serial = $this->normalizeSerial($serials[self::ONU_SERIAL.'.'.$deviceIndex] ?? null) ?? $mac;
             $rx = $rxMap[$deviceIndex] ?? null;
 
             $onus[] = [
@@ -138,7 +153,7 @@ class CDataEponSnmpService implements SmartOltSnmpDriver
                 'type_name' => CDataValue::clean($models[self::ONU_MODEL_ID.'.'.$deviceIndex] ?? null),
                 'name' => $parsed['label'] ?? null,
                 'description' => null,
-                'serial_number' => $serial !== null ? strtoupper($serial) : $mac,
+                'serial_number' => $serial,
                 'mac' => $mac,
                 'vendor_id' => CDataValue::clean($vendors[self::ONU_VENDOR_ID.'.'.$deviceIndex] ?? null),
                 'admin_state' => 'unknown',
