@@ -2,6 +2,15 @@
 
 ## 2026-06-23
 
+### OLT C-Data — tombol Refresh ONU (scan penuh) di halaman index
+
+Changed:
+
+- `resources/js/Pages/CDataOlt/Index.vue` — tombol Refresh ONU per-OLT (desktop & mobile) memanggil
+  `cdata-olt.refresh` (scan penuh system + ports + seluruh ONU; lebih berat dari Test SNMP), ikon
+  RotateCw berputar selama proses (`refreshingId`). Melengkapi auto-refresh-saat-buka & command
+  `/refresh` Telegram (commit aa48377).
+
 ### Peta ONU — pemolesan UI marker/kartu + tombol kontekstual "Lihat di Peta"
 
 Lanjutan halaman Peta ONU (lihat entri 2026-06-22): perbaikan tampilan & UX dari masukan operator.

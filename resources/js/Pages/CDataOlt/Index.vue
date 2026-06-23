@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Eye, Pencil, Plus, RefreshCw, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Eye, Pencil, Plus, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
@@ -48,6 +48,16 @@ const destroyOlt = async (olt) => {
 const testOlt = (olt) => {
     router.post(route('cdata-olt.test', olt.id), {}, {
         preserveScroll: true,
+    });
+};
+
+// Scan penuh: baca system + ports + seluruh ONU dan tulis cache (lebih berat dari Test SNMP).
+const refreshingId = ref(null);
+const refreshOlt = (olt) => {
+    router.post(route('cdata-olt.refresh', olt.id), {}, {
+        preserveScroll: true,
+        onStart: () => { refreshingId.value = olt.id; },
+        onFinish: () => { refreshingId.value = null; },
     });
 };
 
@@ -163,6 +173,13 @@ const formatDate = (value) => formatDateTime(value);
                                     <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
                                         <Eye class="h-4 w-4" />
                                     </IconButton>
+                                    <IconButton
+                                        title="Refresh ONU (scan penuh)"
+                                        :disabled="refreshingId === olt.id"
+                                        @click="refreshOlt(olt)"
+                                    >
+                                        <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
+                                    </IconButton>
                                     <IconButton title="Test SNMP" @click="testOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
@@ -242,6 +259,13 @@ const formatDate = (value) => formatDateTime(value);
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
                                                 <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                title="Refresh ONU (scan penuh)"
+                                                :disabled="refreshingId === olt.id"
+                                                @click="refreshOlt(olt)"
+                                            >
+                                                <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
                                             </IconButton>
                                             <IconButton title="Test SNMP" @click="testOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
