@@ -33,6 +33,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 | 13 | [Troubleshooting & Maintenance](13-troubleshooting-maintenance.md) | Gejala → penyebab → solusi |
 | 14 | [Panduan Menambah Fitur](14-panduan-tambah-fitur.md) | Resep langkah demi langkah |
 | 15 | [UI & Tema Dashboard](15-ui-tema-dashboard.md) | Design token, kelas `kv-*`, aturan halaman/komponen baru |
+| 16 | [Peta ONU](16-peta-onu.md) | Peta Leaflet pin ONU lintas-OLT, tile Google keyless, tambah pin & aksi |
 
 ---
 

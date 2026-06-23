@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Jobs\CopyOnusToPortJob;
 use App\Models\CopyOnuTask;
+use App\Models\OnuMapPin;
 use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
+use App\Services\OnuInventoryService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCardUplinkService;
@@ -92,7 +94,10 @@ class SmartOltController extends Controller
         $olts = SnmpOlt::query()
             ->orderBy('name')
             ->get()
-            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt));
+            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
+            // OLT C-Data tidak punya alur provisioning di sini; hanya ZTE + unknown yang tampil.
+            ->reject(fn (array $row) => SmartOltSupport::isCData($row['driver']))
+            ->values();
 
         $selectedOlt = null;
         $snapshot = null;
@@ -249,63 +254,19 @@ class SmartOltController extends Controller
             'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
             'initial_search' => (string) $request->query('q', ''),
             'focus_onu_id' => $request->query('focus') !== null ? (int) $request->query('focus') : null,
+            'pinned_onu_ids' => OnuMapPin::query()
+                ->where('snmp_olt_id', $olt->id)
+                ->where('slot', $slot)
+                ->where('port', $port)
+                ->pluck('onu_id')
+                ->all(),
         ]);
     }
 
-    public function onuMonitor(): Response
+    public function onuMonitor(OnuInventoryService $inventory): Response
     {
         $olts = SnmpOlt::query()->orderBy('name')->get();
-
-        $onus = [];
-        $refreshedAt = [];
-
-        foreach ($olts as $olt) {
-            $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
-            if (! is_array($portOnus)) {
-                continue;
-            }
-
-            $oltIsCdata = SmartOltSupport::isCData(SmartOltSupport::driverKey(
-                $olt,
-                data_get($olt->last_test_result, 'system.sys_descr'),
-                data_get($olt->last_test_result, 'system.sys_object_id'),
-            ));
-
-            foreach ($portOnus as $entry) {
-                $entryRefreshed = data_get($entry, 'refreshed_at');
-                if ($entryRefreshed && (! isset($refreshedAt[$olt->id]) || $entryRefreshed > $refreshedAt[$olt->id])) {
-                    $refreshedAt[$olt->id] = $entryRefreshed;
-                }
-
-                foreach (data_get($entry, 'onus', []) as $onu) {
-                    $onus[] = [
-                        'olt_id' => $olt->id,
-                        'olt_name' => $olt->name,
-                        'olt_cdata' => $oltIsCdata,
-                        'slot' => (int) ($onu['slot'] ?? 0),
-                        'port' => (int) ($onu['port'] ?? 0),
-                        'onu_id' => (int) ($onu['onu_id'] ?? 0),
-                        'interface' => $onu['interface'] ?? null,
-                        'serial_number' => $onu['serial_number'] ?? null,
-                        'type_name' => $onu['type_name'] ?? null,
-                        'name' => $onu['name'] ?? null,
-                        'description' => $onu['description'] ?? null,
-                        'admin_state' => $onu['admin_state'] ?? 'unknown',
-                        'phase_state' => $onu['phase_state'] ?? 'Unknown',
-                        'online' => (bool) ($onu['online'] ?? false),
-                        'last_down_cause' => $onu['last_down_cause'] ?? null,
-                        'rx_power_dbm' => $onu['rx_power_dbm'] ?? null,
-                        'rx_power_label' => $onu['rx_power_label'] ?? null,
-                    ];
-                }
-            }
-        }
-
-        usort(
-            $onus,
-            fn (array $a, array $b) => [$a['olt_name'], $a['slot'], $a['port'], $a['onu_id']]
-                <=> [$b['olt_name'], $b['slot'], $b['port'], $b['onu_id']],
-        );
+        $aggregated = $inventory->collect($olts);
 
         return Inertia::render('SmartOlt/OnuMonitor', [
             'olts' => $olts->map(fn (SnmpOlt $olt) => [
@@ -313,8 +274,8 @@ class SmartOltController extends Controller
                 'name' => $olt->name,
                 'ip' => $olt->ip,
             ])->values(),
-            'onus' => $onus,
-            'refreshed_at' => $refreshedAt,
+            'onus' => $aggregated['onus'],
+            'refreshed_at' => $aggregated['refreshed_at'],
         ]);
     }
 

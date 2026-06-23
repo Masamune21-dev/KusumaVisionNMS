@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OnuMapPin;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
@@ -165,6 +166,12 @@ class CDataOltController extends Controller
             'snapshot' => data_get($olt->last_test_result, "port_onus.{$slot}_{$port}"),
             'focus' => $request->query('focus'),
             'q' => $request->query('q'),
+            'pinned_onu_ids' => OnuMapPin::query()
+                ->where('snmp_olt_id', $olt->id)
+                ->where('slot', $slot)
+                ->where('port', $port)
+                ->pluck('onu_id')
+                ->all(),
         ]);
     }
 
@@ -174,7 +181,8 @@ class CDataOltController extends Controller
      */
     public function refresh(SnmpOlt $olt, CDataOltScanner $scanner): RedirectResponse
     {
-        $back = redirect()->route('cdata-olt.detail', $olt);
+        // Kembali ke halaman pemicu (Index atau Detail); fallback ke Detail bila tak ada referer.
+        $back = back(fallback: route('cdata-olt.detail', $olt));
 
         try {
             $count = $scanner->scan($olt);

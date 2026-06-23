@@ -11,7 +11,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Info, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -38,6 +38,10 @@ const props = defineProps({
     focus_onu_id: {
         type: Number,
         default: null,
+    },
+    pinned_onu_ids: {
+        type: Array,
+        default: () => [],
     },
 });
 
@@ -333,6 +337,79 @@ const submitEdit = () => {
         preserveScroll: true,
         onSuccess: () => { editing.open = false; },
     });
+};
+
+// --- Add Map (tempel ONU sebagai pin di Peta) ---
+const addMap = reactive({ open: false, onu: null, url: '', loading: false, error: '' });
+
+const openAddMap = (onu) => {
+    addMap.onu = onu;
+    addMap.url = '';
+    addMap.error = '';
+    addMap.loading = false;
+    addMap.open = true;
+};
+
+// Opsi 1: paste link Google Maps → resolve koordinat → langsung pasang pin.
+const pinFromLink = async () => {
+    if (!addMap.url.trim() || addMap.loading) return;
+    addMap.loading = true;
+    addMap.error = '';
+    try {
+        const { data } = await window.axios.post(route('map.resolve-link'), { url: addMap.url.trim() });
+        if (!data.ok) {
+            addMap.error = data.error ?? 'Koordinat tidak ditemukan di link.';
+            addMap.loading = false;
+            return;
+        }
+        router.post(
+            route('map.pins.store'),
+            {
+                snmp_olt_id: props.olt.id,
+                slot: props.slot,
+                port: props.port,
+                onu_id: addMap.onu.onu_id,
+                serial_number: addMap.onu.serial_number ?? null,
+                latitude: data.latitude,
+                longitude: data.longitude,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => { addMap.open = false; },
+                onFinish: () => { addMap.loading = false; },
+            },
+        );
+    } catch (e) {
+        addMap.error = e?.response?.data?.error ?? 'Gagal memproses link Google Maps.';
+        addMap.loading = false;
+    }
+};
+
+// Opsi 2: buka Peta dalam mode placement, ONU ini sudah pra-terpilih.
+const placeOnMap = () => {
+    router.get(
+        route('map.index', {
+            place_olt: props.olt.id,
+            place_slot: props.slot,
+            place_port: props.port,
+            place_onu: addMap.onu.onu_id,
+        }),
+    );
+};
+
+// ONU yang sudah punya pin di peta → tombol berubah jadi "Lihat di Peta".
+const pinnedSet = computed(() => new Set(props.pinned_onu_ids));
+const isPinned = (onu) => pinnedSet.value.has(onu.onu_id);
+
+const viewOnMap = (onu) => {
+    router.get(
+        route('map.index', {
+            focus_olt: props.olt.id,
+            focus_slot: props.slot,
+            focus_port: props.port,
+            focus_onu: onu.onu_id,
+        }),
+    );
 };
 
 const formatDate = (value) => formatDateTime(value);
@@ -657,6 +734,14 @@ const rxBadgeClass = (value) => {
                                         <Settings class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
+                                        :variant="isPinned(onu) ? 'success' : 'primary'"
+                                        :title="isPinned(onu) ? 'Lihat di Peta' : 'Tambah ke Peta'"
+                                        @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
+                                    >
+                                        <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
+                                        <MapPin v-else class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
                                         v-if="caps.supports_onu_toggle"
                                         :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
                                         :disabled="busy[actionKey(onu)]"
@@ -796,6 +881,14 @@ const rxBadgeClass = (value) => {
                                                 <Settings class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
+                                                :variant="isPinned(onu) ? 'success' : 'primary'"
+                                                :title="isPinned(onu) ? 'Lihat di Peta' : 'Tambah ke Peta'"
+                                                @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
+                                            >
+                                                <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
+                                                <MapPin v-else class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
                                                 v-if="caps.supports_onu_toggle"
                                                 :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
                                                 :disabled="busy[actionKey(onu)]"
@@ -856,6 +949,51 @@ const rxBadgeClass = (value) => {
                     <PrimaryButton type="submit" :disabled="editForm.processing">Simpan</PrimaryButton>
                 </div>
             </form>
+        </Modal>
+
+        <!-- Add Map: pasang ONU sebagai pin di Peta -->
+        <Modal :show="addMap.open" max-width="md" @close="addMap.open = false">
+            <div class="p-6">
+                <div class="flex items-center gap-2">
+                    <MapPin class="h-5 w-5 text-cyan-400" />
+                    <h3 class="text-base font-semibold text-white">Tambah ke Peta</h3>
+                </div>
+                <p v-if="addMap.onu" class="mt-1 text-sm text-slate-500">{{ addMap.onu.interface }} · {{ addMap.onu.name || addMap.onu.serial_number || 'ONU' }}</p>
+
+                <!-- Opsi 1: paste link Google Maps -->
+                <div class="mt-5 rounded-lg border border-white/10 bg-white/5 p-4">
+                    <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
+                        <Link2 class="h-4 w-4 text-cyan-400" /> Paste link Google Maps
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">Pin otomatis terpasang di koordinat link tersebut.</p>
+                    <div class="mt-3 flex gap-2">
+                        <TextInput
+                            v-model="addMap.url"
+                            type="text"
+                            class="block w-full"
+                            placeholder="https://maps.app.goo.gl/... atau https://www.google.com/maps/@-6.7,111.0,17z"
+                            @keyup.enter="pinFromLink"
+                        />
+                        <PrimaryButton type="button" :disabled="!addMap.url.trim() || addMap.loading" @click="pinFromLink">
+                            {{ addMap.loading ? '...' : 'Pasang' }}
+                        </PrimaryButton>
+                    </div>
+                    <p v-if="addMap.error" class="mt-2 text-xs text-red-300">{{ addMap.error }}</p>
+                </div>
+
+                <!-- Opsi 2: klik langsung di peta -->
+                <div class="mt-3 rounded-lg border border-white/10 bg-white/5 p-4">
+                    <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
+                        <MapPin class="h-4 w-4 text-cyan-400" /> Klik langsung di peta
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">Buka Peta ONU, lalu klik lokasi untuk menempatkan pin.</p>
+                    <SecondaryButton type="button" class="mt-3" @click="placeOnMap">Buka Peta &amp; tempel pin</SecondaryButton>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton type="button" @click="addMap.open = false">Tutup</SecondaryButton>
+                </div>
+            </div>
         </Modal>
 
         <Modal :show="copyModal.open" max-width="lg" @close="closeCopy">

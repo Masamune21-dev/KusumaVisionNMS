@@ -6,6 +6,7 @@ use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
@@ -83,6 +84,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/unconfigured', [SmartOltController::class, 'unconfiguredGlobal'])->name('smartolt.unconfigured-all');
     Route::get('/onu-monitoring', [SmartOltController::class, 'onuMonitor'])->name('monitoring.onu');
     Route::post('/onu-monitoring/{olt}/refresh', [SmartOltController::class, 'refreshOnuMonitor'])->name('monitoring.onu.refresh');
+
+    // Peta ONU — sebaran pin ONU pelanggan lintas-OLT (Leaflet + tile Google keyless).
+    Route::get('/map', [OnuMapController::class, 'index'])->name('map.index');
+    Route::post('/map/resolve-link', [OnuMapController::class, 'resolveLink'])->name('map.resolve-link');
+    Route::post('/map/pins', [OnuMapController::class, 'store'])->name('map.pins.store');
+    Route::put('/map/pins/{pin}', [OnuMapController::class, 'update'])->name('map.pins.update');
+    Route::delete('/map/pins/{pin}', [OnuMapController::class, 'destroy'])->name('map.pins.destroy');
+    Route::post('/map/pins/{pin}/reboot', [OnuMapController::class, 'rebootPin'])->name('map.pins.reboot');
+    Route::post('/map/pins/{pin}/rename', [OnuMapController::class, 'renamePin'])->name('map.pins.rename');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');

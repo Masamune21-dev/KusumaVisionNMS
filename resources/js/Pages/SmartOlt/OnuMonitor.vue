@@ -4,6 +4,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
+import { rxBadgeClass, rxLevel } from '@/Composables/useRxLevel';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { ExternalLink, Radar, RefreshCw, Search, Wifi, X } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
@@ -63,14 +64,6 @@ const portOptions = computed(() => {
     }
     return [...set.values()].sort((a, b) => a.slot - b.slot || a.port - b.port);
 });
-
-// Klasifikasi level redaman ONU RX (dipakai bersama badge & filter agar ambang batas konsisten).
-const rxLevel = (value) => {
-    if (value === null || value === undefined) return 'none';
-    if (value <= -28 || value >= -8) return 'critical';
-    if (value <= -25 || value >= -10) return 'warning';
-    return 'good';
-};
 
 const matchStatus = (onu) => {
     switch (statusFilter.value) {
@@ -154,19 +147,6 @@ const portOnuHref = (onu) => {
 };
 
 const formatDate = (value) => formatDateTime(value);
-
-const rxBadgeClass = (value) => {
-    switch (rxLevel(value)) {
-        case 'critical':
-            return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
-        case 'warning':
-            return 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30';
-        case 'good':
-            return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
-        default:
-            return 'bg-slate-800/60 text-slate-500 ring-1 ring-slate-500/30';
-    }
-};
 
 const phaseClass = (onu) => {
     if (onu.online) return 'text-emerald-400';

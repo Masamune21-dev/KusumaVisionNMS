@@ -1,5 +1,82 @@
 # Worklog
 
+## 2026-06-23
+
+### Peta ONU — pemolesan UI marker/kartu + tombol kontekstual "Lihat di Peta"
+
+Lanjutan halaman Peta ONU (lihat entri 2026-06-22): perbaikan tampilan & UX dari masukan operator.
+
+Changed:
+
+- `resources/js/Components/Map/OnuMap.vue` — marker diganti ke bentuk **ikon Lucide `MapPin`**
+  (sama seperti header/nav), diisi warna sesuai level RX + titik putih; ukuran dikecilkan (26px).
+  Default base layer kini **OpenStreetMap** (sebelumnya Google Streets); emit `pin-position` juga
+  saat `onMounted` agar kartu detail langsung muncul untuk pin yang difokuskan.
+- `resources/js/Pages/Map/Index.vue` — kartu detail kini **menempel tepat di atas pin** (mengikuti
+  pan/zoom via `pin-position`) menggantikan overlay pojok kiri-atas; latar kartu dibuat hampir solid
+  (`slate-950/95`) + panah penunjuk; dukung prop `focus_pin_id` → auto-select pin saat dibuka.
+- `resources/js/Components/Map/PinDetailCard.vue` — tombol dirapikan jadi grid 2 kolom + tombol
+  danger "Hapus Pin" full-width; font diperkecil; latar lebih solid (tidak transparan).
+- `app/Http/Controllers/OnuMapController.php` — `index()` dukung param `focus_olt/slot/port/onu`
+  → center peta ke pin (zoom 17) + kirim `focus_pin_id`. Helper `onuKeyFromRequest()` dipakai bersama
+  oleh `placementFromRequest()` & `focusFromRequest()`.
+- `app/Http/Controllers/SmartOltController.php` & `CDataOltController.php` — `portOnus()` kirim
+  `pinned_onu_ids` (ONU yang sudah punya pin di port itu).
+- `resources/js/Pages/SmartOlt/PortOnus.vue` & `CDataOlt/PortOnus.vue` — tombol per-ONU jadi
+  **kontekstual**: belum ada pin → "Tambah ke Peta" (ikon MapPin, buka modal); sudah ada pin →
+  "Lihat di Peta" (ikon MapPinned hijau) → buka `/map` fokus ke pin tsb.
+
+Notes:
+
+- Belum diverifikasi operator di OLT live untuk aksi tulis (edit nama/reboot) dari kartu pin.
+
+## 2026-06-22
+
+### Halaman Peta ONU — sebaran pin ONU pelanggan lintas-OLT (Leaflet + Google keyless)
+
+Peta geografis baru untuk menandai lokasi ONU pelanggan dari **semua OLT** (ZTE & C-Data),
+melihat redaman RX per lokasi, dan aksi cepat (ganti nama / reboot) langsung dari pin.
+
+**Created:**
+- `database/migrations/2026_06_22_000000_create_onu_map_pins_table.php` — tabel `onu_map_pins`
+  (koordinat + ref ONU `snmp_olt_id/slot/port/onu_id` + `serial_number` jangkar, field tambahan
+  `customer_name/address/phone/notes`, `created_by`). Unique `(olt,slot,port,onu)` → 1 pin/ONU.
+- `app/Models/OnuMapPin.php` — model + relasi `olt`/`creator`.
+- `app/Services/OnuInventoryService.php` — agregasi ONU lintas-OLT dari cache `port_onus`
+  (`collect()` + `findOne()`); sumber tunggal untuk ONU Monitoring & dropdown/search peta.
+- `app/Http/Controllers/OnuMapController.php` — `index` (pin di-enrich data ONU live + capabilities),
+  `store`/`update`/`destroy` (updateOrCreate per kunci ONU), `resolveLink` (parse koordinat URL
+  Google Maps + follow redirect link pendek `maps.app.goo.gl`/`goo.gl`), `rebootPin`/`renamePin`
+  (delegasi ke `ZteRemoteOnuService`/`CDataCliWriteService` lalu **balik ke peta**, beda dgn rute
+  port-onus existing yang redirect ke halaman port).
+- `resources/js/Pages/Map/Index.vue` — halaman peta (peta **lazy-load** via `defineAsyncComponent`),
+  toolbar tambah-pin, overlay panel detail, mode placement dari Port ONUs.
+- `resources/js/Components/Map/OnuMap.vue` — Leaflet; layer **Google keyless** (`mt{s}.google.com/vt`
+  Streets/Satelit/Hybrid/Terrain) + OSM fallback via `L.control.layers`; marker `divIcon` warna per
+  level RX (legenda), pulsa untuk offline; emit `map-click` (mode tambah) & `select-pin`.
+- `resources/js/Components/Map/AddPinModal.vue` — dropdown bertingkat OLT→Port→ONU + **search global**;
+  koordinat (dari klik peta/editable) + field pelanggan tambahan.
+- `resources/js/Components/Map/PinDetailCard.vue` — detail pin (nama, OLT, port, RX badge, status) +
+  aksi Edit Nama (modal) & Reboot (gerbang `caps`), Detail ONU/Port/Google Maps, Hapus pin.
+- `resources/js/Composables/useRxLevel.js` — `rxLevel`/`rxBadgeClass`/`rxMarkerColor` (sumber tunggal
+  ambang RX, dipakai OnuMonitor + peta).
+
+**Changed:**
+- `routes/web.php` — grup rute `map.*` (index, pins store/update/destroy/reboot/rename, resolve-link).
+- `resources/js/Layouts/AuthenticatedLayout.vue` — nav item **Peta ONU** (ikon MapPin).
+- `app/Http/Controllers/SmartOltController.php` — `onuMonitor()` pakai `OnuInventoryService` (DRY).
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — pakai composable `useRxLevel` (hapus duplikasi).
+- `resources/js/Pages/SmartOlt/PortOnus.vue` & `resources/js/Pages/CDataOlt/PortOnus.vue` — tombol
+  **Add Map** per-ONU (desktop+mobile): modal 2 opsi → paste link Google Maps (pin otomatis) /
+  klik langsung di peta (buka peta mode placement pra-target ONU).
+- `package.json` — dependency `leaflet`.
+
+**Notes:**
+- Tile Google keyless = endpoint tidak resmi (gratis, tanpa API key, cocok NMS internal); bila diblokir
+  Google, ganti ke layer OpenStreetMap dari switcher.
+- Build OK (`OnuMap` chunk async 152 kB, manifest aman). Migrasi jalan di sqlite (full suite 150 passed)
+  & sudah diterapkan ke DB pgsql prod. **Belum diverifikasi operator di OLT live.**
+
 ## 2026-06-21
 
 ### Halaman OLT C-Data — aksi write: rename & reboot ONU (CLI)
