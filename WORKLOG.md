@@ -2419,3 +2419,15 @@ Notes:
 - Backward compatible: tanpa flag `execute` (mis. test lama / pemakaian audit-only) perilaku `generated` tetap. Eksekusi langsung mengikuti pola `configureOnuApply` (sanitasi output, mask password CLI, catat audit `smartolt_onu_registrations`).
 - Preview & script di Registrations menampilkan password PPPoE plaintext — data input user sendiri di sesi terautentikasi, konsisten dengan tampilan script existing.
 - Verifikasi: `php artisan test` → 168 passed; `npx vite build` sukses; Pint passed.
+
+## 2026-06-25
+
+### Kurangi tinggi peta di halaman Peta ONU
+
+Changed:
+
+- `resources/js/Pages/Map/Index.vue` — area peta tak lagi memenuhi seluruh viewport. Container luar lepas pemaksaan tinggi penuh (`h-[calc(100vh-4rem)]` → `flex flex-col`), dan area peta dari `flex-1` jadi tinggi tetap `h-[78vh] min-h-[420px]`.
+
+Notes:
+
+- Atas permintaan user: peta terasa terlalu tinggi. Sempat dicoba `60vh` (dianggap terlalu pendek), lalu disepakati `78vh` — lebih pendek dari penuh tapi tetap lapang, min 420px untuk layar kecil.

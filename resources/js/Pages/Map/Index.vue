@@ -93,7 +93,7 @@ const onSaved = () => {
     <Head title="Peta ONU" />
 
     <AuthenticatedLayout>
-        <div class="flex h-[calc(100vh-4rem)] flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
             <!-- Header + toolbar -->
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
@@ -131,7 +131,7 @@ const onSaved = () => {
             </div>
 
             <!-- Peta + panel detail -->
-            <div class="relative flex-1 overflow-hidden rounded-xl border border-white/10">
+            <div class="relative h-[78vh] min-h-[420px] overflow-hidden rounded-xl border border-white/10">
                 <OnuMap
                     ref="mapRef"
                     :pins="pins"
