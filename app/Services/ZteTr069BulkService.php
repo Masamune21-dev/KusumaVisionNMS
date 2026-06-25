@@ -25,6 +25,9 @@ use App\Support\SmartOltSupport;
  */
 class ZteTr069BulkService
 {
+    /** Max ONUs read per telnet session (bounds blast radius of a degraded read). */
+    private const READ_CHUNK = 40;
+
     public function __construct(
         private readonly ZteOnuRunningConfigService $runningConfig,
         private readonly ZteCliProvisioningExecutor $executor,
@@ -73,9 +76,7 @@ class ZteTr069BulkService
                 }
             }
 
-            $configs = $readable !== []
-                ? $this->runningConfig->fetchMany($olt, $slot, $port, $readable)['onus']
-                : [];
+            $configs = $this->readPortConfigs($olt, $slot, $port, $readable);
 
             $applyIds = [];
             $applyOnus = [];
@@ -90,9 +91,15 @@ class ZteTr069BulkService
                     continue;
                 }
 
-                $read = $configs[$id] ?? ['ok' => false, 'config' => []];
-                if (! $read['ok']) {
-                    $record($this->item($slot, $port, $id, $sn, 'failed', 'Gagal baca running-config ONU — TR069 tidak diubah.'));
+                $read = $configs[$id] ?? null;
+
+                // Crucial: a partial read (interface block present but the
+                // `show onu running config` management block missing) must NOT be
+                // treated as "TR069 off". Otherwise a flaky telnet read silently
+                // queues a working ONU for a write. Surface it as a read failure
+                // so it shows up and can be re-scanned instead.
+                if ($read === null || ! $read['mgmt']) {
+                    $record($this->item($slot, $port, $id, $sn, 'failed', 'Running-config tak lengkap terbaca (blok management hilang) — TR069 tidak diubah, coba pindai ulang.'));
 
                     continue;
                 }
@@ -150,6 +157,67 @@ class ZteTr069BulkService
             'total' => count($items),
             'items' => $items,
         ];
+    }
+
+    /**
+     * Read every registered ONU's running-config on one port and tag whether the
+     * management block (`show onu running config` → `pon-onu-mng …`) was actually
+     * captured. The bulk read goes in modest chunks (bounds one telnet session's
+     * size so a degraded session can't swallow a whole big port), then any ONU
+     * whose management block came back missing is re-read individually — a small,
+     * reliable read that recovers transient truncation under telnet contention.
+     *
+     * @param  array<int, int>  $ids
+     * @return array<int, array{config:array<string,mixed>, mgmt:bool}>
+     */
+    private function readPortConfigs(SnmpOlt $olt, int $slot, int $port, array $ids): array
+    {
+        $out = [];
+
+        foreach (array_chunk($ids, self::READ_CHUNK) as $chunk) {
+            $onus = $this->runningConfig->fetchMany($olt, $slot, $port, $chunk)['onus'];
+            foreach ($chunk as $id) {
+                $row = $onus[$id] ?? ['config' => [], 'raw' => ''];
+                $out[$id] = ['config' => $row['config'], 'mgmt' => $this->mgmtRead($row)];
+            }
+        }
+
+        // Retry only the ONUs whose management block was lost in the bulk pass.
+        foreach ($ids as $id) {
+            if (($out[$id]['mgmt'] ?? false) === false) {
+                $single = $this->runningConfig->fetch($olt, $slot, $port, $id);
+                $out[$id] = [
+                    'config' => $single['config'],
+                    'mgmt' => $this->mgmtRead(['config' => $single['config'], 'raw' => $single['raw']]),
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Did the `show onu running config` (management/OMCI) block actually come
+     * back? Its output starts with a `pon-onu-mng gpon-onu_…` header; every
+     * configured ONU also has at least a `service`/`wan` directive there. Without
+     * any of these the read is incomplete and TR069 state is unknown — distinct
+     * from the interface block (name/tcont), which can parse on its own.
+     *
+     * @param  array{config?:array<string,mixed>, raw?:string}  $row
+     */
+    private function mgmtRead(array $row): bool
+    {
+        if (stripos((string) ($row['raw'] ?? ''), 'pon-onu-mng') !== false) {
+            return true;
+        }
+
+        $config = $row['config'] ?? [];
+
+        return ($config['services'] ?? []) !== []
+            || ($config['wan_ips'] ?? []) !== []
+            || ($config['wan_services'] ?? []) !== []
+            || (bool) ($config['tr069'] ?? false)
+            || (bool) ($config['remote_ont'] ?? false);
     }
 
     /**

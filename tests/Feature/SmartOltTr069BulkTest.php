@@ -82,6 +82,31 @@ class SmartOltTr069BulkTest extends TestCase
         $this->assertStringNotContainsString(':5', $joined);
     }
 
+    public function test_incomplete_read_is_marked_failed_not_applied(): void
+    {
+        $olt = $this->makeOlt(['ip' => '10.31.0.14']);
+        // ONU 6 selalu kehilangan blok management (termasuk saat retry) → harus
+        // jadi "gagal baca", BUKAN ditulisi TR069.
+        $fake = $this->fakeExecutor(activeOnuIds: [], incompleteOnuIds: [6]);
+
+        $task = $this->makeTask($olt, execute: true);
+        (new Tr069BulkConfigJob($task->id))->handle(app(ZteTr069BulkService::class));
+
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+        $this->assertSame(1, $task->failed_count);  // ONU 6
+        $this->assertSame(2, $task->applied_count);  // ONU 5 dan 1
+        $this->assertSame(0, $task->skipped_count);
+
+        $joined = implode("\n", $fake->writes);
+        $this->assertStringNotContainsString(':6', $joined); // tidak ditulisi
+        $this->assertStringContainsString('gpon-onu_1/2/3:5', $joined);
+
+        $failed = collect($task->items)->firstWhere('status', 'failed');
+        $this->assertSame(6, $failed['onu_id']);
+        $this->assertStringContainsString('tak lengkap', $failed['message']);
+    }
+
     public function test_status_endpoint_returns_progress(): void
     {
         $user = User::factory()->create();
@@ -116,19 +141,24 @@ class SmartOltTr069BulkTest extends TestCase
     /**
      * Executor palsu: untuk read mengembalikan running-config per interface (ONU
      * pada $activeOnuIds dibubuhi TR069 aktif ke ACS target); untuk write merekam
-     * script-nya ke $writes.
+     * script-nya ke $writes. ONU pada $incompleteOnuIds dibuat "baca tak lengkap"
+     * — blok `show onu running config` (pon-onu-mng) sengaja hilang.
      *
      * @param  array<int, int>  $activeOnuIds
+     * @param  array<int, int>  $incompleteOnuIds
      */
-    private function fakeExecutor(array $activeOnuIds): object
+    private function fakeExecutor(array $activeOnuIds, array $incompleteOnuIds = []): object
     {
-        $fake = new class($activeOnuIds) extends ZteCliProvisioningExecutor
+        $fake = new class($activeOnuIds, $incompleteOnuIds) extends ZteCliProvisioningExecutor
         {
             /** @var array<int, string> */
             public array $writes = [];
 
-            /** @param array<int, int> $activeOnuIds */
-            public function __construct(private array $activeOnuIds) {}
+            /**
+             * @param  array<int, int>  $activeOnuIds
+             * @param  array<int, int>  $incompleteOnuIds
+             */
+            public function __construct(private array $activeOnuIds, private array $incompleteOnuIds) {}
 
             public function execute(SnmpOlt $olt, string $script): array
             {
@@ -152,6 +182,9 @@ class SmartOltTr069BulkTest extends TestCase
                         $out .= "interface {$m[1]}\n  name Pelanggan\n  tcont 1 name 1 profile SERVER\n"
                             ."  gemport 1 name 1 tcont 1\n  service-port 1 vport 1 user-vlan 100 vlan 100\n!\nend\n";
                     } elseif (preg_match('/show onu running config (gpon-onu_\S+:(\d+))/', $cmd, $m)) {
+                        if (in_array((int) $m[2], $this->incompleteOnuIds, true)) {
+                            continue; // simulasi blok management hilang (baca terpotong)
+                        }
                         $out .= "pon-onu-mng {$m[1]}\n  service ServiceName gemport 1 cos 0 vlan 100\n";
                         if (in_array((int) $m[2], $this->activeOnuIds, true)) {
                             $out .= "  tr069-mgmt 1 state unlock\n"

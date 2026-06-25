@@ -2459,3 +2459,18 @@ Notes:
 - Deteksi sukses per-ONU = agregat per port (executor balas satu ok/error per sesi tulis); kalau script port error, semua ONU di port itu ditandai gagal dengan pesan error.
 - **Belum diverifikasi ke OLT nyata.** Test pakai executor palsu (in-memory sqlite). Saat eksekusi nyata, isi cache `port_onus` harus lengkap (Refresh SNMP dulu) karena jadi sumber daftar ONU.
 - **Langkah deploy**: `php artisan migrate` (tabel `tr069_bulk_tasks` masih Pending di DB prod), `php artisan config:cache` (blok `services.acs` baru), `php artisan queue:restart` (worker muat job baru `Tr069BulkConfigJob`), lalu `npm run build`.
+
+### Fix TR069 Massal — baca tak lengkap salah diklasifikasi "akan diaktifkan"
+
+Changed:
+
+- `app/Services/ZteTr069BulkService.php` — tambah `readPortConfigs()` (baca per-port dipecah chunk `READ_CHUNK=40` + retry baca-satuan untuk ONU yang blok management-nya hilang) dan `mgmtRead()` (deteksi blok `show onu running config`/`pon-onu-mng` benar-benar terbaca). `run()` kini: ONU yang blok management-nya hilang ditandai **`failed`** ("baca tak lengkap, coba pindai ulang") — BUKAN "would-apply" — sehingga tak akan ditulisi TR069.
+- `app/Jobs/Tr069BulkConfigJob.php` — timeout 3600s → **7200s** (retry baca menambah durasi run penuh).
+- `tests/Feature/SmartOltTr069BulkTest.php` — fake executor dapat parameter `incompleteOnuIds` (simulasi blok management hilang) + test baru `test_incomplete_read_is_marked_failed_not_applied`.
+
+Notes:
+
+- **Diverifikasi langsung di C300 nyata (OLT id=2, OLT-C300-SEKARJALAK, 2136 ONU)**: parser & aturan skip BENAR (ONU aktif terdeteksi `tr069=1`, url+user cocok). Sampel port 2/1 = 23/26 aktif, port 2/3 = 108/120 aktif (~89%), tapi dry-run penuh user cuma melaporkan 409 aktif / 1727 "akan diaktifkan" (19%).
+- **Akar masalah**: saat run penuh 48 port (~90 menit, kemungkinan bentrok telnet dgn RX-poll), banyak sesi baca terdegradasi → blok `show onu running config` (tempat baris `tr069`) hilang, tapi blok interface masih kebaca → lama-nya `ok=true` (`looksConfigured` cukup dari name/tcont) → tr069 dikira mati → ONU yang sebetulnya sudah aktif salah masuk "akan diaktifkan". 1727 itu membengkak palsu.
+- **Diskriminator**: ONU yang memang belum-TR069 tetap punya blok management keparse (`pon-onu-mng`/`service`/`wan-ip`); baca terpotong kehilangan blok itu. `mgmtRead()` membedakan keduanya.
+- **Deploy fix ini**: cukup pull code + `php artisan queue:restart` (worker muat ulang service/job). TIDAK perlu migrate / config:cache / rebuild (tak ada perubahan skema/config/frontend). Setelah itu **pindai ulang** dry-run — angka mestinya membalik mendekati ~1900 aktif / ~200 akan-diaktifkan.

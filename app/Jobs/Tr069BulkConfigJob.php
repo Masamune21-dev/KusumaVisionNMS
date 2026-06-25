@@ -20,7 +20,9 @@ class Tr069BulkConfigJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 3600;
+    // A full OLT (2000+ ONUs) reads ~1s/ONU plus per-ONU retries for degraded
+    // telnet reads, so allow up to 2h before the worker kills the job.
+    public int $timeout = 7200;
 
     public bool $failOnTimeout = true;
 
