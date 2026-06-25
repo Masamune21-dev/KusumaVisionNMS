@@ -1,0 +1,228 @@
+<script setup>
+import Modal from '@/Components/Modal.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import { Cloud, RefreshCw, ShieldCheck, TriangleAlert } from '@lucide/vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+
+const props = defineProps({
+    show: { type: Boolean, default: false },
+    olt: { type: Object, required: true },
+});
+
+const emit = defineEmits(['close']);
+
+// Default ACS endpoint (BMKV) — server-side ini dibaca dari config('services.acs').
+const acs = { url: 'http://acs.bmkv.net:7547', username: 'cms' };
+
+const blankProgress = () => ({
+    status: 'queued', execute: false, total: 0, processed: 0,
+    applied: 0, skipped: 0, failed: 0, finished: false, items: [], error: null,
+});
+
+// intro → running → dry-done / execute-done
+const phase = ref('intro');
+const submitting = ref(false);
+const errorMsg = ref('');
+const statusUrl = ref('');
+const progress = ref(blankProgress());
+let pollTimer = null;
+
+const percent = computed(() => {
+    const total = progress.value.total || 0;
+    return total > 0 ? Math.round((progress.value.processed / total) * 100) : 0;
+});
+const failedItems = computed(() => (progress.value.items ?? []).filter((i) => i.status === 'failed'));
+const isExecute = computed(() => progress.value.execute);
+
+const stopPolling = () => { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } };
+
+const reset = () => {
+    stopPolling();
+    phase.value = 'intro';
+    submitting.value = false;
+    errorMsg.value = '';
+    progress.value = blankProgress();
+};
+
+const close = () => { emit('close'); };
+
+watch(() => props.show, (open) => { if (open) reset(); else stopPolling(); });
+onUnmounted(stopPolling);
+
+const pollStatus = async () => {
+    try {
+        const { data } = await window.axios.get(statusUrl.value);
+        progress.value = data;
+        if (data.finished) {
+            stopPolling();
+            phase.value = data.execute ? 'execute-done' : 'dry-done';
+        }
+    } catch (e) {
+        // transient (worker belum sempat update) — biarkan polling lanjut
+    }
+};
+
+const start = async (execute) => {
+    errorMsg.value = '';
+    submitting.value = true;
+    try {
+        const { data } = await window.axios.post(route('smartolt.tr069-bulk', props.olt.id), { execute });
+        statusUrl.value = data.status_url;
+        progress.value = { ...blankProgress(), execute };
+        phase.value = 'running';
+        await pollStatus();
+        pollTimer = setInterval(pollStatus, 1500);
+    } catch (e) {
+        errorMsg.value = e.response?.data?.message ?? e.message ?? 'Request gagal.';
+    } finally {
+        submitting.value = false;
+    }
+};
+</script>
+
+<template>
+    <Modal :show="show" max-width="lg" @close="close">
+        <!-- Fase 1: intro -->
+        <div v-if="phase === 'intro'" class="p-6">
+            <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/15 ring-1 ring-cyan-500/30">
+                    <Cloud class="h-5 w-5 text-cyan-400" />
+                </span>
+                <h3 class="text-base font-semibold text-white">Aktifkan TR069 Massal</h3>
+            </div>
+            <p class="mt-2 text-sm text-slate-400">
+                Mengaktifkan TR069 (manajemen ACS) di <strong class="text-slate-200">semua ONU</strong> pada
+                <strong class="text-slate-200">{{ olt.name }}</strong>. ONU yang TR069-nya sudah aktif &amp; mengarah ke ACS target
+                otomatis <strong class="text-emerald-300">di-skip</strong>.
+            </p>
+
+            <dl class="mt-4 space-y-1.5 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-3 text-xs">
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">ACS URL</dt><dd class="font-mono text-slate-200">{{ acs.url }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Username</dt><dd class="font-mono text-slate-200">{{ acs.username }}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Password</dt><dd class="font-mono text-slate-200">••••••••</dd></div>
+            </dl>
+
+            <div class="mt-3 flex items-start gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-200">
+                <ShieldCheck class="mt-0.5 h-4 w-4 flex-shrink-0" />
+                Jalankan <strong>Pindai (Dry-run)</strong> dulu — tidak menulis apa pun ke OLT, hanya menampilkan ONU mana yang akan diaktifkan dan mana yang sudah aktif.
+            </div>
+
+            <p v-if="errorMsg" class="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ errorMsg }}</p>
+
+            <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
+                <SecondaryButton type="button" @click="close">Batal</SecondaryButton>
+                <PrimaryButton type="button" :disabled="submitting" @click="start(false)">
+                    <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': submitting }" />
+                    {{ submitting ? 'Memproses…' : 'Pindai (Dry-run)' }}
+                </PrimaryButton>
+            </div>
+        </div>
+
+        <!-- Fase 2: berjalan -->
+        <div v-else-if="phase === 'running'" class="p-6">
+            <div class="flex items-center gap-3">
+                <RefreshCw class="h-5 w-5 animate-spin text-cyan-400" />
+                <h3 class="text-base font-semibold text-white">
+                    {{ isExecute ? 'Mengaktifkan TR069 ke OLT…' : 'Memindai ONU…' }}
+                </h3>
+            </div>
+            <p class="mt-1 text-sm text-slate-500">
+                Membaca running-config tiap ONU per port di {{ olt.name }}. Proses jalan di latar — boleh ditutup, hasil tetap tersimpan.
+            </p>
+
+            <div class="mt-4">
+                <div class="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                    <span>{{ progress.processed }} / {{ progress.total }} diproses</span>
+                    <span>{{ percent }}%</span>
+                </div>
+                <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div class="h-full rounded-full bg-cyan-500 transition-all duration-300" :style="{ width: `${percent}%` }"></div>
+                </div>
+                <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-cyan-300">{{ progress.applied }}</div>{{ isExecute ? 'diaktifkan' : 'akan diaktifkan' }}</div>
+                    <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-emerald-400">{{ progress.skipped }}</div>sudah aktif</div>
+                    <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-red-300">{{ progress.failed }}</div>gagal</div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <SecondaryButton type="button" @click="close">Tutup (tetap jalan)</SecondaryButton>
+            </div>
+        </div>
+
+        <!-- Fase 3a: dry-run selesai -->
+        <div v-else-if="phase === 'dry-done'" class="p-6">
+            <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500/15">
+                    <ShieldCheck class="h-5 w-5 text-cyan-400" />
+                </span>
+                <h3 class="text-base font-semibold text-white">Hasil pindai</h3>
+            </div>
+
+            <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="rounded-lg bg-slate-800/60 py-2.5"><div class="text-lg font-semibold text-cyan-300">{{ progress.applied }}</div>akan diaktifkan</div>
+                <div class="rounded-lg bg-slate-800/60 py-2.5"><div class="text-lg font-semibold text-emerald-400">{{ progress.skipped }}</div>sudah aktif (skip)</div>
+                <div class="rounded-lg bg-slate-800/60 py-2.5"><div class="text-lg font-semibold text-red-300">{{ progress.failed }}</div>gagal baca</div>
+            </div>
+
+            <p v-if="progress.total === 0" class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                Belum ada ONU di cache OLT ini — jalankan <strong>Refresh SNMP</strong> di halaman GPON Port dulu.
+            </p>
+            <p v-else-if="progress.applied === 0" class="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200">
+                Semua ONU sudah aktif TR069 ke ACS target — tidak ada yang perlu dieksekusi.
+            </p>
+            <p v-else class="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                <TriangleAlert class="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span><strong>{{ progress.applied }} ONU</strong> akan ditulisi konfigurasi TR069 langsung ke OLT. Aksi ini mengubah ONU produksi.</span>
+            </p>
+
+            <div v-if="failedItems.length" class="mt-3 max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gagal dibaca</p>
+                <div v-for="(item, idx) in failedItems" :key="idx" class="text-xs text-slate-400">
+                    <span class="font-mono text-slate-300">{{ item.slot }}/{{ item.port }}:{{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}
+                </div>
+            </div>
+
+            <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
+                <SecondaryButton type="button" @click="close">Tutup</SecondaryButton>
+                <SecondaryButton type="button" :disabled="submitting" @click="start(false)">Pindai ulang</SecondaryButton>
+                <PrimaryButton v-if="progress.applied > 0" type="button" :disabled="submitting" @click="start(true)">
+                    <Cloud class="mr-2 h-4 w-4" />
+                    {{ submitting ? 'Memproses…' : `Eksekusi ke OLT (${progress.applied})` }}
+                </PrimaryButton>
+            </div>
+        </div>
+
+        <!-- Fase 3b: eksekusi selesai -->
+        <div v-else class="p-6">
+            <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-full" :class="progress.status === 'failed' || progress.failed > 0 ? 'bg-amber-500/15' : 'bg-emerald-500/15'">
+                    <Cloud class="h-5 w-5" :class="progress.status === 'failed' || progress.failed > 0 ? 'text-amber-300' : 'text-emerald-400'" />
+                </span>
+                <h3 class="text-base font-semibold text-white">
+                    {{ progress.status === 'failed' ? 'Batch gagal' : 'TR069 selesai dieksekusi' }}
+                </h3>
+            </div>
+            <p class="mt-2 text-sm text-slate-300">
+                <span class="text-cyan-300 font-semibold">{{ progress.applied }}</span> diaktifkan ·
+                <span class="text-emerald-400 font-semibold">{{ progress.skipped }}</span> sudah aktif (skip) ·
+                <span class="text-red-300 font-semibold">{{ progress.failed }}</span> gagal
+                <span class="text-slate-500">(dari {{ progress.total }} ONU).</span>
+            </p>
+            <p v-if="progress.error" class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ progress.error }}</p>
+
+            <div v-if="failedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gagal</p>
+                <div v-for="(item, idx) in failedItems" :key="idx" class="text-xs text-slate-400">
+                    <span class="font-mono text-slate-300">{{ item.slot }}/{{ item.port }}:{{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}
+                </div>
+            </div>
+
+            <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
+                <SecondaryButton type="button" @click="start(false)">Pindai ulang</SecondaryButton>
+                <PrimaryButton type="button" @click="close">Selesai</PrimaryButton>
+            </div>
+        </div>
+    </Modal>
+</template>

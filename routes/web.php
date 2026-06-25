@@ -123,6 +123,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/copy', [SmartOltController::class, 'copyOnusToPort'])->name('smartolt.port-onus.copy');
     Route::get('/smartolt/{olt}/copy-tasks/{task}', [SmartOltController::class, 'copyTaskStatus'])->name('smartolt.copy-task.status');
+    Route::post('/smartolt/{olt}/tr069-bulk', [SmartOltController::class, 'tr069Bulk'])->name('smartolt.tr069-bulk');
+    Route::get('/smartolt/{olt}/tr069-bulk/{task}', [SmartOltController::class, 'tr069BulkStatus'])->name('smartolt.tr069-bulk.status');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [SmartOltController::class, 'rebootOnu'])->name('smartolt.onu.reboot');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/delete', [SmartOltController::class, 'deleteOnu'])->name('smartolt.onu.delete');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [SmartOltController::class, 'setOnuState'])->name('smartolt.onu.state');

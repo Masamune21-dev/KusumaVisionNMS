@@ -1,9 +1,10 @@
 <script setup>
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, CheckCircle2, RefreshCw } from '@lucide/vue';
+import { ArrowLeft, Cable, CheckCircle2, Cloud, RefreshCw } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -49,6 +50,9 @@ const doRefresh = () => {
 
 const portStatusLabel = (status) => String(status || 'unknown').toUpperCase();
 const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || onu.interface || '-';
+
+const canTr069 = computed(() => !!props.olt.capabilities?.supports_cli_onu_configure);
+const tr069ModalOpen = ref(false);
 </script>
 
 <template>
@@ -76,6 +80,10 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                             Detail OLT
                         </SecondaryButton>
                     </Link>
+                    <SecondaryButton v-if="canTr069" type="button" @click="tr069ModalOpen = true">
+                        <Cloud class="mr-2 h-4 w-4" />
+                        TR069 Massal
+                    </SecondaryButton>
                     <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         Refresh SNMP
@@ -187,5 +195,7 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
 
             </div>
         </div>
+
+        <Tr069BulkModal v-if="canTr069" :show="tr069ModalOpen" :olt="olt" @close="tr069ModalOpen = false" />
     </AuthenticatedLayout>
 </template>

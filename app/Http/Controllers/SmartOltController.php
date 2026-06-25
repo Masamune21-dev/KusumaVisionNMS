@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CopyOnusToPortJob;
+use App\Jobs\Tr069BulkConfigJob;
 use App\Models\CopyOnuTask;
 use App\Models\OnuMapPin;
 use App\Models\OnuRxSample;
@@ -10,6 +11,7 @@ use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
+use App\Models\Tr069BulkTask;
 use App\Services\OnuInventoryService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
@@ -20,6 +22,7 @@ use App\Services\ZteOnuReconfigureScriptBuilder;
 use App\Services\ZteOnuRunningConfigService;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
+use App\Services\ZteTr069BulkService;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
@@ -905,6 +908,44 @@ class SmartOltController extends Controller
     }
 
     public function copyTaskStatus(SnmpOlt $olt, CopyOnuTask $task): JsonResponse
+    {
+        abort_unless($task->snmp_olt_id === $olt->id, 404);
+
+        return response()->json($task->progressPayload());
+    }
+
+    /**
+     * Kick off a per-OLT "aktifkan TR069 massal" batch. Two phases share this
+     * endpoint via the `execute` flag: dry-run (scan only) and execute (write).
+     * Both skip ONUs already pointing at the target ACS. Runs in a queued job;
+     * the frontend polls {@see tr069BulkStatus()} for live progress.
+     */
+    public function tr069Bulk(Request $request, SnmpOlt $olt, ZteTr069BulkService $service): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        $data = $request->validate([
+            'execute' => ['boolean'],
+        ]);
+
+        $task = Tr069BulkTask::create([
+            'snmp_olt_id' => $olt->id,
+            'created_by' => $request->user()?->id,
+            'execute' => (bool) ($data['execute'] ?? false),
+            'total' => $service->cachedOnuCount($olt),
+            'status' => 'queued',
+        ]);
+
+        Tr069BulkConfigJob::dispatch($task->id);
+
+        return response()->json([
+            'ok' => true,
+            'task_id' => $task->id,
+            'status_url' => route('smartolt.tr069-bulk.status', [$olt, $task]),
+        ]);
+    }
+
+    public function tr069BulkStatus(SnmpOlt $olt, Tr069BulkTask $task): JsonResponse
     {
         abort_unless($task->snmp_olt_id === $olt->id, 404);
 

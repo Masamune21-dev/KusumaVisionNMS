@@ -1,0 +1,265 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\SnmpOlt;
+use App\Support\CliOutputSanitizer;
+use App\Support\SmartOltSupport;
+
+/**
+ * Bulk-activates TR069 (ACS management) on every registered ONU of a single ZTE
+ * OLT. For each PON port it reads the ONUs' running-config in ONE telnet session
+ * to learn the current TR069 state, then — only for ONUs that are NOT already
+ * pointing at the target ACS — writes the `tr069-mgmt 1 state unlock` + acs line
+ * in one more session per port.
+ *
+ * Skip rule: an ONU whose running-config already has TR069 unlocked AND whose
+ * ACS url + username already match the target is left untouched. Password is
+ * NOT part of the skip test because some firmwares mask/encrypt it in
+ * `show running-config` — re-applying the full acs line (which always includes
+ * the password) when url/username differ keeps credentials correct anyway.
+ *
+ * Two modes via $execute:
+ * - false (dry-run): scan only, mark each ONU skipped / would-apply / read-error.
+ * - true  (execute): scan + write, mark each ONU skipped / applied / failed.
+ */
+class ZteTr069BulkService
+{
+    public function __construct(
+        private readonly ZteOnuRunningConfigService $runningConfig,
+        private readonly ZteCliProvisioningExecutor $executor,
+    ) {}
+
+    /**
+     * @param  (callable(array{processed:int, applied:int, skipped:int, failed:int}): void)|null  $onProgress
+     *                                                                                                         invoked after each ONU so a queued job can persist live progress
+     * @return array{applied:int, skipped:int, failed:int, total:int, items:array<int, array<string, mixed>>}
+     */
+    public function run(SnmpOlt $olt, bool $execute, ?int $userId = null, ?callable $onProgress = null): array
+    {
+        $acs = $this->acs();
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        $applied = 0;
+        $skipped = 0;
+        $failed = 0;
+        $items = [];
+
+        $record = function (array $item) use (&$items, &$applied, &$skipped, &$failed, $onProgress): void {
+            $items[] = $item;
+            match ($item['status']) {
+                'applied', 'would-apply' => $applied++,
+                'skipped' => $skipped++,
+                default => $failed++,
+            };
+
+            if ($onProgress !== null) {
+                $onProgress([
+                    'processed' => count($items),
+                    'applied' => $applied,
+                    'skipped' => $skipped,
+                    'failed' => $failed,
+                ]);
+            }
+        };
+
+        foreach ($this->portsFromCache($olt) as [$slot, $port, $onus]) {
+            // Only registered ONUs (with a serial) can have a running-config read.
+            $readable = [];
+            foreach ($onus as $onu) {
+                $id = (int) ($onu['onu_id'] ?? 0);
+                if ($id > 0 && trim((string) ($onu['serial_number'] ?? '')) !== '') {
+                    $readable[] = $id;
+                }
+            }
+
+            $configs = $readable !== []
+                ? $this->runningConfig->fetchMany($olt, $slot, $port, $readable)['onus']
+                : [];
+
+            $applyIds = [];
+            $applyOnus = [];
+
+            foreach ($onus as $onu) {
+                $id = (int) ($onu['onu_id'] ?? 0);
+                $sn = strtoupper(trim((string) ($onu['serial_number'] ?? '')));
+
+                if ($id <= 0 || $sn === '') {
+                    $record($this->item($slot, $port, $id, $sn, 'skipped', 'ONU tidak terdaftar (tanpa serial) — dilewati.'));
+
+                    continue;
+                }
+
+                $read = $configs[$id] ?? ['ok' => false, 'config' => []];
+                if (! $read['ok']) {
+                    $record($this->item($slot, $port, $id, $sn, 'failed', 'Gagal baca running-config ONU — TR069 tidak diubah.'));
+
+                    continue;
+                }
+
+                if ($this->alreadyActive($read['config'], $acs)) {
+                    $record($this->item($slot, $port, $id, $sn, 'skipped', 'TR069 sudah aktif & mengarah ke ACS target.'));
+
+                    continue;
+                }
+
+                $applyIds[] = $id;
+                $applyOnus[$id] = $sn;
+            }
+
+            if ($applyIds === []) {
+                continue;
+            }
+
+            // Dry-run: report intent without touching the OLT.
+            if (! $execute) {
+                foreach ($applyIds as $id) {
+                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'would-apply', 'Akan diaktifkan TR069 + ACS.'));
+                }
+
+                continue;
+            }
+
+            // Execute: one telnet session per port writes every pending ONU.
+            $script = $this->buildScript($slot, $port, $applyIds, $isC600, $acs);
+
+            try {
+                $result = $this->executor->execute($olt, $script);
+                if ($result['ok']) {
+                    foreach ($applyIds as $id) {
+                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'applied', 'TR069 diaktifkan + ACS di-set.'));
+                    }
+                } else {
+                    $error = CliOutputSanitizer::clean((string) ($result['error'] ?? 'unknown'));
+                    foreach ($applyIds as $id) {
+                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} error: {$error}"));
+                    }
+                }
+            } catch (\Throwable $exception) {
+                $error = CliOutputSanitizer::clean($exception->getMessage());
+                foreach ($applyIds as $id) {
+                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} gagal: {$error}"));
+                }
+            }
+        }
+
+        return [
+            'applied' => $applied,
+            'skipped' => $skipped,
+            'failed' => $failed,
+            'total' => count($items),
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * Total ONUs in the OLT cache — used as the progress-bar denominator. Every
+     * cached ONU is recorded exactly once by run(), so this matches the final
+     * processed count.
+     */
+    public function cachedOnuCount(SnmpOlt $olt): int
+    {
+        $total = 0;
+        foreach ($this->portsFromCache($olt) as [, , $onus]) {
+            $total += count($onus);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Build the TR069-enable script for a batch of ONUs on one port. Each ONU is
+     * configured under its own `pon-onu-mng` block (guide §5.3).
+     *
+     * @param  array<int, int>  $onuIds
+     * @param  array{url:string, username:string, password:string}  $acs
+     */
+    private function buildScript(int $slot, int $port, array $onuIds, bool $isC600, array $acs): string
+    {
+        $lines = ['conf t'];
+
+        foreach ($onuIds as $id) {
+            $iface = SmartOltSupport::onuInterfaceId($slot, $port, $id, $isC600);
+            $lines[] = "pon-onu-mng {$iface}";
+            $lines[] = 'tr069-mgmt 1 state unlock';
+            $lines[] = sprintf(
+                'tr069-mgmt 1 acs %s validate basic username %s password %s',
+                $acs['url'],
+                $acs['username'],
+                $acs['password'],
+            );
+            $lines[] = 'exit';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     * @param  array{url:string, username:string, password:string}  $acs
+     */
+    private function alreadyActive(array $config, array $acs): bool
+    {
+        return ($config['tr069'] ?? false) === true
+            && strcasecmp(trim((string) ($config['acs_url'] ?? '')), $acs['url']) === 0
+            && (string) ($config['acs_username'] ?? '') === $acs['username'];
+    }
+
+    /**
+     * Group cached ONUs by PON port from `snmp_olts.last_test_result.port_onus`.
+     * Slot/port come from the canonical cache key ("{slot}_{port}") rather than
+     * per-ONU fields, which may be absent.
+     *
+     * @return array<int, array{0:int, 1:int, 2:array<int, array<string, mixed>>}>
+     */
+    private function portsFromCache(SnmpOlt $olt): array
+    {
+        $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
+        $ports = [];
+
+        foreach ((is_array($portOnus) ? $portOnus : []) as $key => $entry) {
+            if (! preg_match('/^(\d+)_(\d+)$/', (string) $key, $m)) {
+                continue;
+            }
+
+            $onus = data_get($entry, 'onus', []);
+            if (! is_array($onus) || $onus === []) {
+                continue;
+            }
+
+            $ports[] = [(int) $m[1], (int) $m[2], array_values($onus)];
+        }
+
+        // Deterministic order (slot, port) so progress reads naturally.
+        usort($ports, fn (array $a, array $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+
+        return $ports;
+    }
+
+    /**
+     * @return array{url:string, username:string, password:string}
+     */
+    private function acs(): array
+    {
+        return [
+            'url' => (string) config('services.acs.url', 'http://acs.bmkv.net:7547'),
+            'username' => (string) config('services.acs.username', 'cms'),
+            'password' => (string) config('services.acs.password', 'kusuma123!'),
+        ];
+    }
+
+    /**
+     * @return array{slot:int, port:int, onu_id:int, serial_number:string, status:string, message:string}
+     */
+    private function item(int $slot, int $port, int $onuId, string $sn, string $status, string $message): array
+    {
+        return [
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'serial_number' => $sn,
+            'status' => $status,
+            'message' => $message,
+        ];
+    }
+}

@@ -2431,3 +2431,31 @@ Changed:
 Notes:
 
 - Atas permintaan user: peta terasa terlalu tinggi. Sempat dicoba `60vh` (dianggap terlalu pendek), lalu disepakati `78vh` — lebih pendek dari penuh tapi tetap lapang, min 420px untuk layar kecil.
+
+### Fitur "Aktifkan TR069 Massal" per-OLT ZTE (dry-run + eksekusi)
+
+Created:
+
+- `database/migrations/2026_06_25_120000_create_tr069_bulk_tasks_table.php` — tabel `tr069_bulk_tasks` (progress batch: execute flag, total/processed/applied/skipped/failed, items json, status, error, started/finished).
+- `app/Models/Tr069BulkTask.php` — model + casts + `progressPayload()` (dalam dry-run `applied` = "akan diaktifkan") + relasi olt/creator.
+- `app/Services/ZteTr069BulkService.php` — inti fitur. Per port: baca running-config semua ONU (1 sesi telnet/port via `ZteOnuRunningConfigService::fetchMany`) → tentukan skip/apply → (mode eksekusi) tulis `tr069-mgmt 1 state unlock` + acs line (1 sesi tulis/port, satu blok `pon-onu-mng` per ONU). Slot/port diambil dari **key** cache `port_onus` ("{slot}_{port}"). `cachedOnuCount()` untuk denom progress.
+- `app/Jobs/Tr069BulkConfigJob.php` — queued job (`$tries=1`, timeout 3600) yang menjalankan service + update progress (pola `CopyOnusToPortJob`).
+- `resources/js/Components/SmartOlt/Tr069BulkModal.vue` — modal mandiri: intro (info ACS) → Pindai (Dry-run) → hasil pindai (akan diaktifkan/sudah aktif/gagal) → tombol Eksekusi ke OLT → selesai. Polling status tiap 1.5s.
+- `tests/Feature/SmartOltTr069BulkTest.php` — 4 test: endpoint antrikan task (+total dari cache), dry-run lapor tanpa nulis, eksekusi skip yang sudah aktif & tulis sisanya, status endpoint.
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — method `tr069Bulk` (POST, gate `supports_cli_onu_configure`, antrikan job, total = `cachedOnuCount`) + `tr069BulkStatus` (GET poll). Import job/model/service.
+- `routes/web.php` — route `smartolt.tr069-bulk` (POST) + `smartolt.tr069-bulk.status` (GET).
+- `config/services.php` — blok `acs` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`, default `http://acs.bmkv.net:7547`/`cms`/`kusuma123!`).
+- `resources/js/Pages/SmartOlt/GponPorts.vue` — tombol "TR069 Massal" di header (gate kapabilitas ZTE) + mount modal.
+- `CLAUDE.md`, `docs/handbook/07-modul-fitur.md` — dokumentasi fitur (batch job baru, skip rule, alur 2 fase, default ACS).
+
+Notes:
+
+- Atas permintaan user: aktifkan TR069 di semua ONU OLT ZTE dengan ACS `http://acs.bmkv.net:7547` / `cms` / `kusuma123!`; yang sudah aktif di-skip. Default ACS ini kebetulan persis default di guide §5.3.
+- **Skip rule**: ONU dilewati bila TR069 sudah `unlock` DAN acs url + username sudah mengarah ke target. Password sengaja TIDAK dipakai sebagai syarat skip (sebagian firmware memasking-nya di `show running-config`), tapi acs line yang ditulis tetap menyertakan password.
+- Keputusan UX (dikonfirmasi user): **dry-run dulu lalu eksekusi**, dan **tombol per-OLT** (bukan halaman lintas-OLT). Eksekusi mem-pindai ulang sendiri (tidak bergantung hasil dry-run) agar aman bila state berubah.
+- Deteksi sukses per-ONU = agregat per port (executor balas satu ok/error per sesi tulis); kalau script port error, semua ONU di port itu ditandai gagal dengan pesan error.
+- **Belum diverifikasi ke OLT nyata.** Test pakai executor palsu (in-memory sqlite). Saat eksekusi nyata, isi cache `port_onus` harus lengkap (Refresh SNMP dulu) karena jadi sumber daftar ONU.
+- **Langkah deploy**: `php artisan migrate` (tabel `tr069_bulk_tasks` masih Pending di DB prod), `php artisan config:cache` (blok `services.acs` baru), `php artisan queue:restart` (worker muat job baru `Tr069BulkConfigJob`), lalu `npm run build`.

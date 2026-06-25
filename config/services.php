@@ -35,6 +35,13 @@ return [
         ],
     ],
 
+    // ACS / TR069 default endpoint dipakai fitur "Aktifkan TR069 Massal" (ZTE).
+    'acs' => [
+        'url' => env('ACS_URL', 'http://acs.bmkv.net:7547'),
+        'username' => env('ACS_USERNAME', 'cms'),
+        'password' => env('ACS_PASSWORD', 'kusuma123!'),
+    ],
+
     'snmp_poller' => [
         'driver' => env('SNMP_POLLER_DRIVER', 'php'),
         'binary' => env('SNMP_POLLER_BINARY', base_path('bin/kv-snmp-poller')),

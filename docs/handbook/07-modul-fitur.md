@@ -41,6 +41,16 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
 - **Controller**: `gponPorts` · **Page**: `SmartOlt/GponPorts.vue`.
 - Daftar port PON dari snapshot (`ports[]` di `last_test_result`): status oper/admin, jumlah ONU.
 
+### 4b. TR069 Massal (per-OLT)
+- **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_cli_onu_configure`, ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.
+- **Controller**: `tr069Bulk` (POST, antrikan job), `tr069BulkStatus` (GET, poll) · **Service**: `ZteTr069BulkService` · **Job**: `Tr069BulkConfigJob` + tabel `tr069_bulk_tasks`.
+- Alur 2 fase via flag `execute`:
+  1. **Dry-run** (`execute=false`): pindai running-config tiap ONU per port (1 sesi telnet/port via `ZteOnuRunningConfigService::fetchMany`), laporkan mana yang **akan diaktifkan** vs **sudah aktif (skip)** vs **gagal baca** — tanpa menulis apa pun ke OLT.
+  2. **Eksekusi** (`execute=true`): pindai ulang lalu tulis `tr069-mgmt 1 state unlock` + `tr069-mgmt 1 acs … validate basic username … password …` ke ONU yang belum aktif (1 sesi tulis/port; satu blok `pon-onu-mng` per ONU).
+- **Skip rule**: ONU dilewati bila TR069 sudah `unlock` **dan** ACS url + username sudah mengarah ke target. Password tidak dipakai sebagai syarat skip (sebagian firmware memasking-nya di `show running-config`), tapi acs line yang ditulis selalu menyertakan password.
+- **Default ACS**: `config('services.acs')` → `ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` (default `http://acs.bmkv.net:7547` / `cms` / `kusuma123!`).
+- Progress di-poll mirip Copy ONU; total = jumlah ONU di cache `port_onus` OLT itu (Refresh SNMP dulu agar lengkap).
+
 ## 5. Detail Port (per-interface)
 - Navigasi: **klik port di visualisasi chassis** (komponen `Components/SmartOlt/OltChassis.vue` di halaman Detail OLT). Port GPON & uplink (XGEI/GEI) bisa diklik; kartu kontrol/power tidak.
 - **Controller**: `portDetail` (render), `refreshPortDetail` (refresh 1 interface via CLI — GPON `refreshGponInterface`, uplink `refreshUplinkInterface`), `portTraffic` (JSON polling trafik uplink), `storePortVlan` (tambah/tag VLAN via CLI).
