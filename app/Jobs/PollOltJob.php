@@ -6,6 +6,7 @@ use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
+use App\Services\CData\CDataOltScanner;
 use App\Services\Snmp\GoSnmpPoller;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
@@ -35,7 +36,7 @@ class PollOltJob implements ShouldQueue
         return [(new WithoutOverlapping($this->oltId))->expireAfter($this->timeout + 300)->dontRelease()];
     }
 
-    public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null): void
+    public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null, ?CDataOltScanner $cdataScanner = null): void
     {
         $olt = SnmpOlt::find($this->oltId);
 
@@ -43,8 +44,10 @@ class PollOltJob implements ShouldQueue
             return;
         }
 
-        // OLT C-Data di-refresh sinkron saat halaman dibuka (CDataOltController), bukan via poller ZTE ini.
+        // OLT C-Data dipoll lewat jalur driver C-Data (SNMP/CLI), bukan poller ZTE (Go/OltSnmpClient).
         if (SmartOltSupport::isCData(SmartOltSupport::driverKey($olt))) {
+            $this->pollCData($olt, $alarms, $cdataScanner ?? app(CDataOltScanner::class));
+
             return;
         }
 
@@ -154,6 +157,62 @@ class PollOltJob implements ShouldQueue
                 $rxPollSucceeded,
                 $rxPowerError,
             );
+        }
+    }
+
+    /**
+     * Poll OLT C-Data: scan penuh lewat {@see CDataOltScanner} (driver SNMP/CLI menulis
+     * `last_test_result.port_onus` dgn bentuk sama spt ZTE), lalu samakan housekeeping ZTE —
+     * tandai `ok`/error utk AlarmEvaluator, catat sampel RX, evaluasi alarm, & log PollingEvent.
+     */
+    private function pollCData(SnmpOlt $olt, AlarmEvaluator $alarms, CDataOltScanner $scanner): void
+    {
+        $now = now();
+        $previousSnapshot = $olt->last_test_result ?? [];
+        $rxPollDue = $olt->isRxPollDue();
+        $ok = false;
+        $error = null;
+        $onus = [];
+
+        try {
+            // Scanner me-resolve driver (EPON SNMP / GPON V3 SNMP+CLI), tulis system/ports/port_onus.
+            $scanner->scan($olt);
+            $onus = collect(data_get($olt->last_test_result, 'port_onus', []))
+                ->flatMap(fn ($port) => is_array($port['onus'] ?? null) ? $port['onus'] : [])
+                ->all();
+            $ok = true;
+        } catch (Throwable $exception) {
+            $error = $exception->getMessage();
+        }
+
+        // Scanner tak menulis penanda `ok` top-level yang dibutuhkan AlarmEvaluator → set di sini.
+        $snapshot = $olt->last_test_result ?? [];
+        $snapshot['ok'] = $ok;
+        $snapshot['error'] = $error;
+        $snapshot['poller'] = 'cdata';
+        $snapshot['polled_at'] = $now->toIso8601String();
+
+        $updates = [
+            'last_test_result' => $snapshot,
+            'last_tested_at' => $now,
+            'last_polled_at' => $now,
+        ];
+        if ($ok && $rxPollDue) {
+            $updates['last_rx_polled_at'] = $now;
+        }
+
+        $olt->forceFill($updates)->save();
+
+        // Rx C-Data ikut tiap scan (EPON via SNMP, GPON via CLI) → catat time-series sesuai cadence RX.
+        if ($ok && $rxPollDue) {
+            $this->recordRxSamples($olt->id, $onus, $now);
+        }
+
+        $alarms->evaluate($olt, $previousSnapshot);
+
+        PollingEvent::log($olt->id, PollingEvent::KIND_OLT_POLL, $ok, $error);
+        if ($rxPollDue) {
+            PollingEvent::log($olt->id, PollingEvent::KIND_RX_POLL, $ok, $error);
         }
     }
 

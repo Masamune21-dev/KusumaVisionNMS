@@ -224,8 +224,8 @@ const viewOnMap = (onu) => {
                                             <div class="mt-0.5 text-xs text-slate-500">{{ o.type_name || o.vendor_id || '—' }}</div>
                                         </td>
                                         <td class="px-4 py-4">
-                                            <div class="font-mono text-xs text-slate-200">{{ o.serial_number || '—' }}</div>
-                                            <div v-if="o.mac" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
+                                            <div class="font-mono text-xs text-slate-200">{{ o.serial_number || o.mac || '—' }}</div>
+                                            <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
                                         </td>
                                         <td class="px-4 py-4 text-sm text-slate-200">{{ o.name || '—' }}</td>
                                         <td class="px-4 py-4">
@@ -268,7 +268,7 @@ const viewOnMap = (onu) => {
                                 </div>
                                 <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
                                 <div class="mt-2 flex items-center justify-between text-xs">
-                                    <span class="font-mono text-slate-400">{{ o.serial_number || '—' }}</span>
+                                    <span class="font-mono text-slate-400">{{ o.serial_number || o.mac || '—' }}</span>
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
                                 </div>
                                 <div v-if="hasActions" class="mt-3 flex gap-2">

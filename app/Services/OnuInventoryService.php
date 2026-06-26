@@ -101,6 +101,7 @@ class OnuInventoryService
             'if_index' => isset($onu['if_index']) ? (int) $onu['if_index'] : null,
             'interface' => $onu['interface'] ?? null,
             'serial_number' => $onu['serial_number'] ?? null,
+            'mac' => $onu['mac'] ?? null,
             'type_name' => $onu['type_name'] ?? null,
             'name' => $onu['name'] ?? null,
             'description' => $onu['description'] ?? null,

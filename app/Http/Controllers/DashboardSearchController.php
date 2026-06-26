@@ -65,16 +65,19 @@ class DashboardSearchController extends Controller
                     $serial = strtolower($serialValue);
                     $name = strtolower((string) ($onu['name'] ?? ''));
                     $interface = strtolower((string) ($onu['interface'] ?? ''));
-                    if ($serial === '' && $name === '' && $interface === '') {
+                    // ONU EPON tak punya serial terpisah (identitas = MAC) → ikut cocokkan MAC.
+                    $mac = strtolower((string) ($onu['mac'] ?? ''));
+                    if ($serial === '' && $name === '' && $interface === '' && $mac === '') {
                         continue;
                     }
-                    if (! str_contains($serial, $needle) && ! str_contains($name, $needle) && ! str_contains($interface, $needle)) {
+                    if (! str_contains($serial, $needle) && ! str_contains($name, $needle)
+                        && ! str_contains($interface, $needle) && ! str_contains($mac, $needle)) {
                         continue;
                     }
 
                     $slot = $port['slot'] ?? null;
                     $portNo = $port['port'] ?? null;
-                    $label = $serialValue !== '' ? $serialValue : ($onu['name'] ?? $onu['interface'] ?? 'ONU');
+                    $label = $serialValue !== '' ? $serialValue : ($onu['name'] ?? $onu['mac'] ?? $onu['interface'] ?? 'ONU');
 
                     $hasPort = $slot !== null && $portNo !== null;
                     $sublabelParts = [$olt->name];

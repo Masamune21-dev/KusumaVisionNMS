@@ -2474,3 +2474,71 @@ Notes:
 - **Akar masalah**: saat run penuh 48 port (~90 menit, kemungkinan bentrok telnet dgn RX-poll), banyak sesi baca terdegradasi → blok `show onu running config` (tempat baris `tr069`) hilang, tapi blok interface masih kebaca → lama-nya `ok=true` (`looksConfigured` cukup dari name/tcont) → tr069 dikira mati → ONU yang sebetulnya sudah aktif salah masuk "akan diaktifkan". 1727 itu membengkak palsu.
 - **Diskriminator**: ONU yang memang belum-TR069 tetap punya blok management keparse (`pon-onu-mng`/`service`/`wan-ip`); baca terpotong kehilangan blok itu. `mgmtRead()` membedakan keduanya.
 - **Deploy fix ini**: cukup pull code + `php artisan queue:restart` (worker muat ulang service/job). TIDAK perlu migrate / config:cache / rebuild (tak ada perubahan skema/config/frontend). Setelah itu **pindai ulang** dry-run — angka mestinya membalik mendekati ~1900 aktif / ~200 akan-diaktifkan.
+
+## 2026-06-26
+
+### Inventory ONU C-Data GPON V3 via SNMP penuh (CLI jadi enrichment)
+
+Created:
+
+- `docs/handbook/17-cdata-gpon-snmp-walk.md` — peta SNMP walk FD1608S (id=277) + cara driver baca inventory via SNMP; ditautkan di `docs/handbook/README.md`.
+
+Changed:
+
+- `app/Services/CData/CDataValue.php` — tambah `parseGponOnuName()` (parse `"gpon F/S/P onu N <label>"` dari tabel legacy 17409) dan `gponRxDbm()` (string dBm → float, buang `--`/garbage di luar jendela `[-60,5]`).
+- `app/Services/CData/CDataGponSnmpService.php` — jalur V3 `getRegisteredOnus()` dibalik jadi **SNMP-first**: `snmpOnus()` membaca inventory penuh dari tabel nama legacy `17409.2.8.4.1.1.2` (master, beri slot/port/onuId+label) di-join MAC `17409.2.3.4.7.1.3` + status/Rx `34592…21.1.1.{2,3,5}` lewat onuIndex global. CLI (`show ont info all`) kini hanya **enrich** SN/admin/last-down + Rx andal via `mergeCliDetail()` (best-effort, gagal CLI tak menggugurkan inventory SNMP). `getPortRxMap()` kini balikkan Rx SNMP yang terisi. Buang `v3Onus()`/`gponIfMap()`/konstanta `V3_NAME`/`V3_DESC` (tabel `.18.12` cuma ~2 baris, tak dipakai).
+- `tests/Unit/CDataValueTest.php`, `tests/Unit/CDataSnmpDriverTest.php` — test parser baru + test V3 ganti ke jalur SNMP penuh (online/offline, MAC, Rx, SN=null tanpa CLI).
+
+Notes:
+
+- **Koreksi asumsi lama** "FD1608S V3 SNMP cuma baca 1 ONU → inventory wajib CLI". Yang 1–2 baris hanya tabel atribut `34592…18.12`. Tabel legacy 17409 + optik `34592…21` membaca **34/34 ONU**.
+- **Diverifikasi langsung ke OLT nyata #277** (`172.27.10.105`): jalur SNMP murni = 34 ONU, ~230 ms (online 30 / offline 4, 33 MAC). Jalur SNMP+enrich CLI = 34 ONU, ~900 ms, lengkap **SN (CLI) + MAC (SNMP, yang CLI tak punya) + Rx andal (CLI)**. Sebelumnya CLI-only tak punya MAC; fallback SNMP lama cuma ~2 ONU.
+- **Rx per-ONU via SNMP tidak andal** (`34592…21.1.1.5` umumnya `--`, kadang nilai positif garbage) → CLI tetap sumber Rx utama; SNMP Rx hanya opportunistik.
+- Unit test C-Data 12/12 PASS. Catatan: 6 Feature test C-Data (`CDataOltWriteTest`/`CDataOltInventoryTest`/`OltPollingTest`/`TelegramWebhookTest`) gagal **HTTP 419 (CSRF/Page Expired)** — **pre-existing** (terbukti gagal sama di clean main saat perubahan di-stash), tidak terkait perubahan read-only ini.
+- **Deploy** (diedit langsung di server prod ini, bukan git pull): perubahan `.php` terbaca opcache otomatis (~2 dtk; reload `php8.3-fpm` opsional). Tak perlu migrate/config:cache/rebuild. Setelah itu **Refresh** OLT C-Data GPON akan mengisi cache `port_onus` (kini termasuk MAC) jauh lebih cepat & andal. Sinkron ke GitHub = push (`/done`).
+
+### Fix C-Data EPON — serial ONU tampil sama dengan MAC
+
+Changed:
+
+- `app/Services/CData/CDataEponSnmpService.php` — ganti `normalizeSerial()` → `eponSerial($raw, $mac)`. Firmware C-Data EPON menaruh **MAC di kolom serial `.28`** (terverifikasi `.28 == .7` untuk **258/258** ONU live #276), jadi `serial_number` jadi MAC → di UI "Serial / MAC" nilainya kembar. Sekarang serial = **null** bila nilainya MAC ONU itu sendiri (ONU EPON identitasnya memang MAC, tak punya serial GPON-style); hanya dipertahankan bila benar-benar serial alfanumerik berbeda. Hapus fallback `?? $mac`.
+- `app/Services/OnuInventoryService.php` — `normalize()` kini ikut bawa `mac` (sebelumnya tak ada) supaya MAC tersedia di ONU Monitoring lintas-OLT & search.
+- `app/Http/Controllers/DashboardSearchController.php` — global search (⌘K) kini ikut cocokkan **MAC** + label fallback ke MAC, agar ONU EPON tetap ketemu via MAC sesudah serial di-null-kan.
+- `resources/js/Pages/CDataOlt/PortOnus.vue`, `resources/js/Pages/SmartOlt/OnuMonitor.vue` — sel "Serial / MAC" tampilkan `serial || mac` (MAC sekali sebagai identitas EPON), baris MAC abu-abu hanya saat ada serial terpisah (GPON). OnuMonitor: haystack search + label "Serial / MAC".
+- `tests/Unit/CDataSnmpDriverTest.php` — test baru `test_epon_serial_equal_to_mac_is_dropped`.
+
+Notes:
+
+- **Diverifikasi langsung ke OLT EPON nyata #276** (`172.27.10.103`, OLT-EPON-CDATA-TAYU): 258 ONU, `serial==mac` lama = **0** (sebelumnya 258), `serial=null` = 258, MAC utuh 258. GPON tak terdampak (punya serial sungguhan).
+- **Akar masalah**: OID serial EPON `17409.2.3.4.1.1.28` di firmware ini mengembalikan Hex-STRING MAC yang sama persis dgn kolom MAC `.7`. Bukan bug parsing — memang firmware tak punya serial terpisah utk EPON.
+- **Deploy** (kode diedit langsung di server prod ini — `/var/www/KusumaVisionNMS` dilayani nginx, daemon supervisor di sini; **bukan** edit-di-dev lalu git pull): perubahan `.php` otomatis terbaca opcache (`validate_timestamps=On`, `revalidate_freq=2`, ~2 dtk) — reload `php8.3-fpm` opsional bila ingin instan; `npm run build` untuk perubahan Vue (sudah dijalankan); `queue:restart` tak wajib (baca EPON on-demand via web). Tak perlu migrate/config:cache. Lalu **Refresh** tiap OLT C-Data EPON agar cache `port_onus` lama (serial==mac) ter-tulis ulang dgn serial=null. Sinkron ke GitHub = **push** (`/done`), bukan pull.
+
+### Scheduled polling untuk OLT C-Data (sebelumnya di-skip)
+
+Changed:
+
+- `app/Jobs/PollOltJob.php` — C-Data tak lagi early-return. Branch family C-Data memanggil `pollCData()` baru: scan penuh via `CDataOltScanner` (driver EPON SNMP / GPON V3 SNMP+CLI menulis `last_test_result.port_onus`), lalu samakan housekeeping ZTE — set penanda `ok`/`error`/`poller='cdata'` top-level (dibutuhkan `AlarmEvaluator`; scanner tak menyetelnya), catat `onu_rx_samples` saat RX due (reuse `recordRxSamples`), evaluasi alarm, log `PollingEvent` (OLT_POLL + RX_POLL). `handle()` dapat param ke-4 `?CDataOltScanner $cdataScanner` (di-autowire queue, di-override di test).
+- `app/Console/Commands/PollOltsCommand.php` — buang skip C-Data; kini dispatch SEMUA OLT `polling_enabled` yang due (ZTE & C-Data). Hapus import `SmartOltSupport` yang jadi tak terpakai.
+- `tests/Feature/OltPollingTest.php` — dua test skip dibalik jadi positif (`test_poll_command_dispatches_cdata_olts_when_enabled`, `test_poll_job_polls_cdata_olt_via_scanner`) + helper `fakeCDataScanner()`.
+- `CLAUDE.md` — dokumentasi arsitektur polling C-Data.
+
+Notes:
+
+- **Diverifikasi live di OLT EPON nyata #279** (OLT-EPON-CDATA-KELING, `172.27.10.112`): poll via jalur job = 253 ONU, **845 ms**, `ok=true poller=cdata`, `last_polled_at`+`last_rx_polled_at` ter-set, **232 rx samples** terekam, PollingEvent ter-log. Beberapa OLT EPON (#279/280/281/282) sudah `polling_enabled=Y` — selama ini di-skip, sekarang jalan. GPON #277 `polling_enabled=N` (scan via telnet ~ butuh diaktifkan manual bila mau).
+- **`CDataOltScanner` tak set `ok` top-level** → `AlarmEvaluator` (yg pakai `snapshot['ok']` utk deteksi OLT-unreachable) butuh itu; di-set di `pollCData` (true saat scan sukses, false+error saat gagal). RX C-Data ikut tiap scan (EPON SNMP / GPON CLI), jadi sampel dicatat per-cadence RX (`isRxPollDue`).
+- ⚠️ **Gotcha test→pgsql (hampir mewipe prod)**: `php artisan test` dgn config ter-cache menyambar pgsql produksi → `OltPollingTest` HANG ~90s (RefreshDatabase `migrate:fresh` di DB prod) & `assertDatabaseCount` lihat 5.9 jt baris asli. **Produksi terverifikasi utuh** (9 OLT, users, 5.9M rx samples — RefreshDatabase pakai transaksi). Pola aman: `php artisan config:clear` → test (sqlite `:memory:`) → `php artisan config:cache`. Semua 13 test polling PASS di sqlite. Lihat memori `prod-deploy-gotchas`.
+- **Deploy fix ini**: karena `PollOltJob` jalan di dalam **queue worker** (long-lived), **wajib `php artisan queue:restart`** agar worker memuat kode baru (opcache web tak berlaku utk daemon). Tak perlu migrate/config:cache/rebuild.
+
+### Munculkan kembali kontrol Auto-Poll di UI OLT C-Data
+
+Saat C-Data masih di-skip dari polling, kontrol auto-poll dihapus dari form & tabel C-Data. Sekarang polling sudah aktif → dimunculkan lagi (backend `CDataOltController` sudah lama menerima field ini).
+
+Changed:
+
+- `resources/js/Pages/CDataOlt/Partials/CDataOltForm.vue` — tambah section **"Auto-Poll SNMP"** (checkbox `polling_enabled` + `poll_interval_minutes` + `rx_poll_interval_minutes`), meniru `SmartOlt/Partials/OltForm.vue`. Field ditambah ke `useForm` (default enabled=true, interval 5m). Catatan kecil: GPON V3 pakai telnet saat scan, interval terlalu pendek bisa membebani OLT.
+- `resources/js/Pages/CDataOlt/Index.vue` — indikator **"Auto-poll: On · {interval}m / Off"** (titik hijau/abu) di sel Family (desktop) + field mobile, sama gaya tabel ZTE.
+
+Notes:
+
+- Tak ada perubahan backend — validasi & fillable `polling_enabled`/`poll_interval_minutes`/`rx_poll_interval_minutes` sudah ada di `CDataOltController::validated()` & model `SnmpOlt`. Edit form pre-fill dari `serializeOlt`.
+- **Deploy**: hanya `npm run build` (perubahan Vue saja; sudah dijalankan). Tak perlu queue:restart/migrate/config:cache.

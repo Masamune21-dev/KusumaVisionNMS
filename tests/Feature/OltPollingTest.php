@@ -6,6 +6,8 @@ use App\Jobs\PollOltJob;
 use App\Models\OnuRxSample;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
+use App\Services\CData\CDataOltScanner;
+use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -73,6 +75,35 @@ class OltPollingTest extends TestCase
         };
     }
 
+    private function fakeCDataScanner(): CDataOltScanner
+    {
+        return new class(app(SmartOltSnmpServiceResolver::class)) extends CDataOltScanner
+        {
+            public function scan(SnmpOlt $olt): int
+            {
+                $now = now()->toIso8601String();
+                $snapshot = $olt->last_test_result ?? [];
+                $snapshot['system'] = ['sys_name' => 'CDATA-EPON'];
+                $snapshot['ports'] = [
+                    ['if_index' => 1, 'name' => 'epon 0/1/1', 'slot' => 1, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
+                ];
+                $snapshot['port_onus'] = [
+                    '1_1' => [
+                        'ok' => true, 'slot' => 1, 'port' => 1, 'count' => 1, 'refreshed_at' => $now, 'error' => null,
+                        'onus' => [[
+                            'onu_id' => 1, 'slot' => 1, 'port' => 1, 'interface' => 'epon 0/1/1 onu 1',
+                            'online' => true, 'phase_state' => 'Online', 'serial_number' => null,
+                            'mac' => 'D0:5F:AF:00:00:01', 'rx_power_dbm' => -20.0, 'rx_power_label' => '-20.00 dBm',
+                        ]],
+                    ],
+                ];
+                $olt->forceFill(['last_test_result' => $snapshot, 'last_polled_at' => now()])->save();
+
+                return 1;
+            }
+        };
+    }
+
     public function test_poll_command_dispatches_one_job_per_polling_enabled_olt(): void
     {
         Queue::fake();
@@ -89,7 +120,7 @@ class OltPollingTest extends TestCase
         Queue::assertNotPushed(fn (PollOltJob $job) => $job->oltId === $disabled->id);
     }
 
-    public function test_poll_command_skips_cdata_olts_even_when_enabled(): void
+    public function test_poll_command_dispatches_cdata_olts_when_enabled(): void
     {
         Queue::fake();
 
@@ -98,22 +129,28 @@ class OltPollingTest extends TestCase
 
         $this->artisan('olts:poll')->assertSuccessful();
 
-        // Hanya OLT ZTE yang di-dispatch; C-Data di-refresh saat halaman dibuka, bukan via poller.
-        Queue::assertPushed(PollOltJob::class, 1);
+        // ZTE & C-Data sama-sama di-dispatch; PollOltJob memilih jalur poll per family.
+        Queue::assertPushed(PollOltJob::class, 2);
         Queue::assertPushed(fn (PollOltJob $job) => $job->oltId === $zte->id);
-        Queue::assertNotPushed(fn (PollOltJob $job) => $job->oltId === $cdata->id);
+        Queue::assertPushed(fn (PollOltJob $job) => $job->oltId === $cdata->id);
     }
 
-    public function test_poll_job_skips_cdata_olt(): void
+    public function test_poll_job_polls_cdata_olt_via_scanner(): void
     {
         $olt = $this->makeOlt(['polling_enabled' => true, 'vendor' => 'C-Data EPON 17409', 'name' => 'CDATA-EPON']);
 
-        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, null, $this->fakeCDataScanner());
 
         $olt->refresh();
 
-        $this->assertNull($olt->last_polled_at);
-        $this->assertNull($olt->last_test_result);
+        $this->assertNotNull($olt->last_polled_at);
+        $this->assertTrue((bool) data_get($olt->last_test_result, 'ok'));
+        $this->assertSame('cdata', data_get($olt->last_test_result, 'poller'));
+        $this->assertCount(1, data_get($olt->last_test_result, 'port_onus.1_1.onus'));
+        $this->assertTrue((bool) data_get($olt->last_test_result, 'port_onus.1_1.onus.0.online'));
+        // Rx C-Data ikut tiap scan → time-series tercatat saat RX due (poll pertama: last_rx_polled_at null).
+        $this->assertDatabaseCount('onu_rx_samples', 1);
+        $this->assertNotNull($olt->last_rx_polled_at);
     }
 
     public function test_poll_command_skips_enabled_olts_that_are_not_due(): void

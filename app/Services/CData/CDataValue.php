@@ -135,4 +135,44 @@ class CDataValue
             'label' => $label === '' ? null : $label,
         ];
     }
+
+    /**
+     * Parse onuName GPON dari tabel legacy `17409.2.8.4.1.1.2`:
+     * `gpon <chassis>/<slot>/<port> onu <onuId> <deskripsi>` (chassis diabaikan, samakan dgn ifDescr).
+     *
+     * @return array{slot: int, port: int, onu_id: int, label: ?string}|null
+     */
+    public static function parseGponOnuName(?string $name): ?array
+    {
+        $name = self::clean($name);
+        if ($name === null || ! preg_match('/gpon\s+\d+\/(\d+)\/(\d+)\s+onu\s+(\d+)\s*(.*)$/i', $name, $m)) {
+            return null;
+        }
+
+        $label = trim($m[4]);
+
+        return [
+            'slot' => (int) $m[1],
+            'port' => (int) $m[2],
+            'onu_id' => (int) $m[3],
+            'label' => $label === '' ? null : $label,
+        ];
+    }
+
+    /**
+     * Rx ONU GPON V3 dari tabel optik `34592.1.5.1.1.2.21.1.1.5` (string dBm langsung, `--` = N/A).
+     * Tabel ini sering kosong/fluktuatif di FD1608S — buang `--` dan nilai di luar jendela masuk akal.
+     */
+    public static function gponRxDbm(?string $value): ?float
+    {
+        $value = self::clean($value);
+        if ($value === null || ! preg_match('/-?\d+(?:\.\d+)?/', $value, $m)) {
+            return null;
+        }
+
+        $dbm = round((float) $m[0], 2);
+
+        // Jendela Rx ONU GPON yang masuk akal; buang sentinel/garbage (mis. nilai positif besar).
+        return ($dbm >= -60.0 && $dbm <= 5.0) ? $dbm : null;
+    }
 }

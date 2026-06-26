@@ -34,6 +34,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 | 14 | [Panduan Menambah Fitur](14-panduan-tambah-fitur.md) | Resep langkah demi langkah |
 | 15 | [UI & Tema Dashboard](15-ui-tema-dashboard.md) | Design token, kelas `kv-*`, aturan halaman/komponen baru |
 | 16 | [Peta ONU](16-peta-onu.md) | Peta Leaflet pin ONU lintas-OLT, tile Google keyless, tambah pin & aksi |
+| 17 | [C-Data GPON: SNMP walk & inventory](17-cdata-gpon-snmp-walk.md) | Peta OID FD1608S, inventory ONU V3 via SNMP penuh, CLI enrich SN/Rx |
 
 ---
 

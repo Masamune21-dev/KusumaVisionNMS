@@ -55,4 +55,32 @@ class CDataValueTest extends TestCase
         );
         $this->assertNull(CDataValue::parseEponOnuName('random text'));
     }
+
+    public function test_parse_gpon_onu_name(): void
+    {
+        // Bentuk asli tabel legacy 17409 FD1608S.
+        $this->assertSame(
+            ['slot' => 0, 'port' => 1, 'onu_id' => 1, 'label' => 'SERVER-PENJAWI'],
+            CDataValue::parseGponOnuName('gpon 0/0/1 onu 1 SERVER-PENJAWI'),
+        );
+        // Label boleh mengandung `/` dan spasi (mis. catatan VLAN).
+        $this->assertSame(
+            ['slot' => 0, 'port' => 1, 'onu_id' => 4, 'label' => 'Iman Saeronji Sidokerto/ Vlan 24'],
+            CDataValue::parseGponOnuName('gpon 0/0/1 onu 4 Iman Saeronji Sidokerto/ Vlan 24'),
+        );
+        $this->assertSame(
+            ['slot' => 1, 'port' => 2, 'onu_id' => 9, 'label' => null],
+            CDataValue::parseGponOnuName('gpon 0/1/2 onu 9'),
+        );
+        $this->assertNull(CDataValue::parseGponOnuName('random text'));
+    }
+
+    public function test_gpon_rx_dbm_parses_string_and_drops_garbage(): void
+    {
+        $this->assertSame(-21.5, CDataValue::gponRxDbm('-21.50'));
+        $this->assertSame(-6.56, CDataValue::gponRxDbm('STRING: "-6.56"'));
+        $this->assertNull(CDataValue::gponRxDbm('--'));      // N/A
+        $this->assertNull(CDataValue::gponRxDbm(null));
+        $this->assertNull(CDataValue::gponRxDbm('20.61'));   // positif besar = garbage
+    }
 }

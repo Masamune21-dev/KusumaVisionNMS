@@ -9,13 +9,18 @@ use Throwable;
 /**
  * Driver SNMP read C-Data native GPON (enterprise `34592`).
  *
- * Dua skema tabel ONU (guide §3.2/§3.3 & §5):
+ * Tiga skema tabel ONU yang dipakai (terverifikasi di FD1608S V3, full walk — lihat
+ * docs/handbook/17-cdata-gpon-snmp-walk.md):
  *  - Legacy/V2: FD-ONU-MIB `34592.1.3.4.1.1.<col>`, index = 3 segmen terakhir `slot.port.onuId`.
- *  - FlashV3.x: `34592.1.5.1.1.2.18.12.1.<col>`, index `.1.0.<ifIndex>.<flow>.<onuId>`.
+ *  - Inventory V3 ANDAL: tabel legacy `17409.2.8.4.1.1.2` (nama lengkap `gpon F/S/P onu N <label>`)
+ *    + `17409.2.3.4.7.1.3.<idx>.1` (MAC), di-key oleh onuIndex global (`0x480000 + seq`).
+ *  - Status/optik V3: `34592.1.5.1.1.2.21.1.1.<col>` (col2=status 1/-1, col3=onuIndex penghubung,
+ *    col5=Rx dBm string). col3 menjembatani tabel optik ke tabel nama/MAC 17409.
  *
- * Quirk V3: SNMP sering hanya balas 1 baris; SN/MAC/optical/inventory penuh hanya via CLI
- * (`show ont info all`) — di-enrich pada fase CLI (2c). Rx per-ONU tak tersedia via SNMP di
- * kedua skema (DDM SNMP hanya per-port OLT). v1 read-only.
+ * Quirk V3: tabel atribut `34592...18.12` hanya balas ~2 baris (tak terpakai). Inventory penuh
+ * 34 ONU diambil via SNMP (cepat, tanpa telnet). SN tak tersedia via SNMP di firmware V3 →
+ * di-enrich best-effort lewat CLI (`show ont info all`) bila kredensial telnet ada; Rx per-ONU SNMP
+ * jarang terisi (mostly `--`) → CLI (`show ont optical-info`) tetap sumber Rx andal. v1 read-only.
  */
 class CDataGponSnmpService implements SmartOltSnmpDriver
 {
@@ -39,9 +44,17 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
 
     private const V3_STATUS = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.1';
 
-    private const V3_NAME = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.10';
+    // Inventory V3 andal (tabel legacy 17409), di-key onuIndex global `0x480000 + seq`.
+    private const GPON_NAME = '1.3.6.1.4.1.17409.2.8.4.1.1.2';   // "gpon F/S/P onu N <label>"
 
-    private const V3_DESC = '1.3.6.1.4.1.34592.1.5.1.1.2.18.12.1.11';
+    private const GPON_MAC = '1.3.6.1.4.1.17409.2.3.4.7.1.3';    // Hex-STRING, suffix `<idx>.1`
+
+    // Tabel optik/status V3 (34592 .21.1.1.<col>), index `.1.0.<port>.<onuSeq>.1` sama antar-kolom.
+    private const V3_OPT_STATUS = '1.3.6.1.4.1.34592.1.5.1.1.2.21.1.1.2';   // 1 = online, -1 = offline
+
+    private const V3_OPT_ONUIDX = '1.3.6.1.4.1.34592.1.5.1.1.2.21.1.1.3';   // onuIndex penghubung ke 17409
+
+    private const V3_OPT_RX = '1.3.6.1.4.1.34592.1.5.1.1.2.21.1.1.5';       // Rx dBm string (sering `--`)
 
     // Tabel statistik per-ONU `.18.26.1` — nilainya `-1` (tak berguna utk atribut), TAPI meng-enumerasi
     // seluruh ONU (1 baris/ONU). Dipakai utk hitung jumlah ONU V3 yang benar; atribut tetap dari CLI.
@@ -118,20 +131,32 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
             return $this->legacyOnus($olt);
         }
 
-        // V3: SNMP hanya balas 1 baris → inventory penuh via CLI `show ont info all`
-        // bila kredensial telnet tersedia; fallback ke SNMP v3 (parsial) jika CLI gagal.
-        if ($olt->cli_transport === 'telnet' && filled($olt->cli_username)) {
+        // V3: inventory penuh via SNMP (tabel nama/MAC 17409 + status 34592 .21) — 34 ONU, ringan,
+        // tanpa telnet. (Tabel atribut V3 .18.12 hanya balas ~2 baris.)
+        $onus = $this->snmpOnus($olt);
+
+        // Enrich SN/admin/last-down/Rx-andal via CLI bila kredensial telnet ada (SN tak ada via SNMP).
+        // Best-effort: kegagalan CLI tak menggugurkan inventory SNMP yang sudah lengkap.
+        if ($onus !== [] && $olt->cli_transport === 'telnet' && filled($olt->cli_username)) {
             try {
-                $onus = $this->cli->getOnts($olt);
-                if ($onus !== []) {
-                    return $onus;
-                }
+                $onus = $this->mergeCliDetail($onus, $this->cli->getOnts($olt));
             } catch (Throwable) {
-                // diabaikan — jatuh ke jalur SNMP v3 di bawah
+                // diabaikan — pertahankan hasil SNMP
+            }
+
+            return $onus;
+        }
+
+        // Fallback ekstrem: SNMP kosong tapi telnet tersedia → coba CLI penuh.
+        if ($onus === [] && $olt->cli_transport === 'telnet' && filled($olt->cli_username)) {
+            try {
+                return $this->cli->getOnts($olt);
+            } catch (Throwable) {
+                return [];
             }
         }
 
-        return $this->v3Onus($olt);
+        return $onus;
     }
 
     public function getRegisteredOnusByPort(SnmpOlt $olt, int $slot, int $port): array
@@ -144,8 +169,20 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
 
     public function getPortRxMap(SnmpOlt $olt): array
     {
-        // Rx per-ONU GPON tidak tersedia via SNMP (DDM hanya per-port OLT); V3 via CLI (2c).
-        return [];
+        if (! $this->isV3($olt)) {
+            return [];
+        }
+
+        // V3: Rx per-ONU dari tabel optik 34592 .21 col5 — sering `--`, jadi hanya entri yang
+        // benar-benar terisi yang dikembalikan (di-key onu_key `slot.port.onuId`).
+        $map = [];
+        foreach ($this->snmpOnus($olt) as $onu) {
+            if (($onu['rx_power_dbm'] ?? null) !== null) {
+                $map[$onu['onu_key']] = $onu['rx_power_dbm'];
+            }
+        }
+
+        return $map;
     }
 
     public function countRegisteredOnus(SnmpOlt $olt): int
@@ -212,43 +249,150 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
     }
 
     /**
+     * Inventory ONU V3 via SNMP murni: tabel nama 17409 (master, beri slot/port/onuId + label) di-join
+     * dgn MAC 17409 dan status/Rx 34592 .21 lewat onuIndex global. Lengkap 34 ONU tanpa telnet.
+     *
      * @return array<int, array<string, mixed>>
      */
-    private function v3Onus(SnmpOlt $olt): array
+    private function snmpOnus(SnmpOlt $olt): array
     {
-        $status = $this->snmp->walk($olt, self::V3_STATUS);
-        if ($status === []) {
+        $names = $this->snmp->walk($olt, self::GPON_NAME);
+        if ($names === []) {
             return [];
         }
 
-        $ifMap = $this->gponIfMap($olt);
-        $names = $this->snmp->walk($olt, self::V3_NAME);
-        $descs = $this->snmp->walk($olt, self::V3_DESC);
+        $macByIdx = $this->macByIndex($olt);
+        [$statusByIdx, $rxByIdx] = $this->v3StatusRx($olt);
         $onus = [];
 
-        foreach ($status as $oid => $value) {
-            // index `.1.0.<ifIndex>.<flow>.<onuId>`
-            $seg = CDataValue::oidLastSegments($oid, 3);
-            if ($seg === null) {
+        foreach ($names as $oid => $rawName) {
+            $idxSeg = CDataValue::oidLastSegments($oid, 1);
+            $parsed = CDataValue::parseGponOnuName($rawName);
+            if ($idxSeg === null || $parsed === null) {
                 continue;
             }
 
-            [$ifIndex, $flow, $onuId] = $seg;
-            $suffix = $this->suffixAfter($oid, self::V3_STATUS);
-            $slotPort = $ifMap[$ifIndex] ?? ['slot' => 0, 'port' => 0];
-            $online = CDataValue::toInt($value) === 1;
+            $onuIdx = $idxSeg[0];
+            ['slot' => $slot, 'port' => $port, 'onu_id' => $onuId, 'label' => $label] = $parsed;
 
-            $name = CDataValue::clean($names[self::V3_NAME.'.'.$suffix] ?? null);
-            $desc = CDataValue::clean($descs[self::V3_DESC.'.'.$suffix] ?? null);
+            $statusRaw = $statusByIdx[$onuIdx] ?? null;
+            $online = $statusRaw === 1;
 
-            $row = $this->onuRow($slotPort['slot'], $slotPort['port'], $onuId, "{$ifIndex}.{$flow}.{$onuId}", $online, $desc ?? $name);
+            $row = $this->onuRow($slot, $port, $onuId, "{$slot}.{$port}.{$onuId}", $online, $label);
+            $row['mac'] = $macByIdx[$onuIdx] ?? null;
+            $row['phase_state'] = $statusRaw === null ? 'Unknown' : ($online ? 'Online' : 'Offline');
+            $row['source'] = 'snmp';
             $row['v3'] = true;
+
+            $rx = $rxByIdx[$onuIdx] ?? null;
+            if ($rx !== null) {
+                $row['rx_power_dbm'] = $rx;
+                $row['rx_power_label'] = sprintf('%.2f dBm', $rx);
+            }
+
             $onus[] = $row;
         }
 
         usort($onus, fn ($a, $b) => [$a['slot'], $a['port'], $a['onu_id']] <=> [$b['slot'], $b['port'], $b['onu_id']]);
 
         return $onus;
+    }
+
+    /**
+     * MAC per onuIndex global dari `17409.2.3.4.7.1.3.<idx>.1` (Hex-STRING).
+     *
+     * @return array<int, string>
+     */
+    private function macByIndex(SnmpOlt $olt): array
+    {
+        $map = [];
+
+        foreach ($this->snmp->walk($olt, self::GPON_MAC) as $oid => $value) {
+            $seg = CDataValue::oidLastSegments($oid, 2); // [onuIndex, 1]
+            $mac = CDataValue::macFromHex($value);
+            if ($seg !== null && $mac !== null) {
+                $map[$seg[0]] = $mac;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Status (online) & Rx per onuIndex dari tabel optik 34592 .21. col3 = onuIndex penghubung,
+     * col2 = status, col5 = Rx; ketiganya dijoin lewat suffix index yang identik.
+     *
+     * @return array{0: array<int, int>, 1: array<int, float>} [statusByIdx, rxByIdx]
+     */
+    private function v3StatusRx(SnmpOlt $olt): array
+    {
+        try {
+            $idxBySuffix = [];
+            foreach ($this->snmp->walk($olt, self::V3_OPT_ONUIDX) as $oid => $value) {
+                $onuIdx = CDataValue::toInt($value);
+                if ($onuIdx !== null) {
+                    $idxBySuffix[$this->suffixAfter($oid, self::V3_OPT_ONUIDX)] = $onuIdx;
+                }
+            }
+
+            $statusByIdx = [];
+            foreach ($this->snmp->walk($olt, self::V3_OPT_STATUS) as $oid => $value) {
+                $onuIdx = $idxBySuffix[$this->suffixAfter($oid, self::V3_OPT_STATUS)] ?? null;
+                if ($onuIdx !== null) {
+                    $statusByIdx[$onuIdx] = CDataValue::toInt($value);
+                }
+            }
+
+            $rxByIdx = [];
+            foreach ($this->snmp->walk($olt, self::V3_OPT_RX) as $oid => $value) {
+                $onuIdx = $idxBySuffix[$this->suffixAfter($oid, self::V3_OPT_RX)] ?? null;
+                $rx = CDataValue::gponRxDbm($value);
+                if ($onuIdx !== null && $rx !== null) {
+                    $rxByIdx[$onuIdx] = $rx;
+                }
+            }
+
+            return [$statusByIdx, $rxByIdx];
+        } catch (Throwable) {
+            return [[], []];
+        }
+    }
+
+    /**
+     * Tempel detail CLI (SN/admin/last-down/type + Rx andal) ke baris SNMP, di-join `slot.port.onuId`.
+     * Daftar ONU tetap dari SNMP (lengkap); CLI hanya mengisi atribut yang tak tersedia via SNMP.
+     *
+     * @param  array<int, array<string, mixed>>  $snmpOnus
+     * @param  array<int, array<string, mixed>>  $cliOnus
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeCliDetail(array $snmpOnus, array $cliOnus): array
+    {
+        $byKey = [];
+        foreach ($cliOnus as $cli) {
+            $byKey["{$cli['slot']}.{$cli['port']}.{$cli['onu_id']}"] = $cli;
+        }
+
+        foreach ($snmpOnus as &$onu) {
+            $cli = $byKey["{$onu['slot']}.{$onu['port']}.{$onu['onu_id']}"] ?? null;
+            if ($cli === null) {
+                continue;
+            }
+
+            $onu['serial_number'] = $cli['serial_number'] ?? $onu['serial_number'];
+            $onu['vendor_id'] = $cli['vendor_id'] ?? ($onu['vendor_id'] ?? null);
+            $onu['admin_state'] = $cli['admin_state'] ?? $onu['admin_state'];
+            $onu['last_down_cause'] = $cli['last_down_cause'] ?? $onu['last_down_cause'];
+            $onu['type_name'] = $cli['type_name'] ?? $onu['type_name'];
+
+            // Rx CLI lebih andal daripada SNMP (.21 sering `--`) → utamakan bila ada.
+            if (($cli['rx_power_dbm'] ?? null) !== null) {
+                $onu['rx_power_dbm'] = $cli['rx_power_dbm'];
+                $onu['rx_power_label'] = $cli['rx_power_label'] ?? $onu['rx_power_label'];
+            }
+        }
+
+        return $snmpOnus;
     }
 
     /**
@@ -275,29 +419,6 @@ class CDataGponSnmpService implements SmartOltSnmpDriver
             'rx_power_dbm' => null,
             'rx_power_label' => null,
         ];
-    }
-
-    /**
-     * ifDescr `gpon 0/<slot>/<port>` → ifIndex => slot/port.
-     *
-     * @return array<int, array{slot: int, port: int}>
-     */
-    private function gponIfMap(SnmpOlt $olt): array
-    {
-        $map = [];
-
-        foreach ($this->snmp->walk($olt, self::IF_DESCR) as $oid => $label) {
-            if (! preg_match('/gpon\s+\d+\/(\d+)\/(\d+)/i', $label, $m)) {
-                continue;
-            }
-
-            $ifIndex = (CDataValue::oidLastSegments($oid, 1) ?? [null])[0];
-            if ($ifIndex !== null) {
-                $map[$ifIndex] = ['slot' => (int) $m[1], 'port' => (int) $m[2]];
-            }
-        }
-
-        return $map;
     }
 
     /**

@@ -58,15 +58,27 @@ class CDataEponSnmpService implements SmartOltSnmpDriver
         }
     }
 
-    private function normalizeSerial(?string $raw): ?string
+    /**
+     * Serial ONU EPON. Firmware C-Data menaruh **MAC** di kolom serial (`.28`), bukan serial sungguhan
+     * — terverifikasi `.28 == .7` untuk seluruh 258 ONU live (#276). Identitas ONU EPON memang MAC,
+     * jadi jangan menduplikasi MAC sebagai "serial": kembalikan `null` bila nilainya MAC ONU itu sendiri.
+     * Hanya pertahankan bila benar-benar serial alfanumerik (mis. firmware lain yang isinya beda).
+     */
+    private function eponSerial(?string $raw, ?string $mac): ?string
     {
         $clean = CDataValue::clean($raw);
         if ($clean === null) {
             return null;
         }
 
-        // Pada banyak ONU EPON, serial identik MAC (Hex-STRING) — tampilkan sebagai MAC ber-":".
-        return CDataValue::macFromHex($clean) ?? strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $clean) ?? '');
+        // Nilai berbentuk MAC ⇒ itu MAC, bukan serial. Sama dgn MAC ONU → buang (jangan duplikasi).
+        if (($asMac = CDataValue::macFromHex($clean)) !== null) {
+            return $asMac === $mac ? null : $asMac;
+        }
+
+        $serial = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $clean) ?? '');
+
+        return $serial === '' ? null : $serial;
     }
 
     public function getSystemInfo(SnmpOlt $olt): array
@@ -139,7 +151,7 @@ class CDataEponSnmpService implements SmartOltSnmpDriver
             $online = CDataValue::toInt($statuses[self::ONU_STATUS.'.'.$deviceIndex] ?? null) === 1;
 
             $mac = CDataValue::macFromHex($macs[self::ONU_MAC.'.'.$deviceIndex] ?? null);
-            $serial = $this->normalizeSerial($serials[self::ONU_SERIAL.'.'.$deviceIndex] ?? null) ?? $mac;
+            $serial = $this->eponSerial($serials[self::ONU_SERIAL.'.'.$deviceIndex] ?? null, $mac);
             $rx = $rxMap[$deviceIndex] ?? null;
 
             $onus[] = [

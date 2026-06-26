@@ -89,7 +89,7 @@ const filteredOnus = computed(() => {
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
         if (rxFilter.value !== 'all' && rxLevel(onu.rx_power_dbm) !== rxFilter.value) return false;
         if (!term) return true;
-        const hay = [onu.interface, onu.serial_number, onu.name, onu.description, onu.type_name, onu.olt_name]
+        const hay = [onu.interface, onu.serial_number, onu.mac, onu.name, onu.description, onu.type_name, onu.olt_name]
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
@@ -359,8 +359,8 @@ const phaseDotClass = (onu) => {
 
                                     <div class="kv-mobile-fields">
                                         <div class="kv-mobile-field">
-                                            <span class="kv-mobile-label">Serial</span>
-                                            <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || '—' }}</span>
+                                            <span class="kv-mobile-label">Serial / MAC</span>
+                                            <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || onu.mac || '—' }}</span>
                                         </div>
                                         <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">Type</span>
@@ -423,7 +423,7 @@ const phaseDotClass = (onu) => {
                                                 <div class="mt-0.5 text-xs text-slate-500">{{ onu.name || onu.description || '—' }}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || '—' }}</span>
+                                                <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || onu.mac || '—' }}</span>
                                             </td>
                                             <td class="px-6 py-4 text-sm text-slate-200">{{ onu.type_name || '—' }}</td>
                                             <td class="px-6 py-4">

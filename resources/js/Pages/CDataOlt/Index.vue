@@ -167,6 +167,12 @@ const formatDate = (value) => formatDateTime(value);
                                         <span class="kv-mobile-label">Terakhir</span>
                                         <span class="kv-mobile-value">{{ formatDate(olt.last_tested_at) }}</span>
                                     </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Auto-poll</span>
+                                        <span class="kv-mobile-value" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                                            {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
@@ -227,9 +233,21 @@ const formatDate = (value) => formatDateTime(value);
                                         <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
                                     </td>
                                     <td class="px-4 py-4">
-                                        <div class="flex flex-wrap items-center gap-1.5">
-                                            <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
-                                            <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                        <div class="space-y-1.5">
+                                            <div class="flex flex-wrap items-center gap-1.5">
+                                                <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
+                                                <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                            </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="olt.polling_enabled ? 'bg-emerald-400' : 'bg-slate-600'"
+                                                ></span>
+                                                Auto-poll: {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-4">
