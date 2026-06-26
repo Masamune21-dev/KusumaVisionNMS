@@ -2676,3 +2676,11 @@ Notes:
   latensi tiap request). Load average standar untuk panel kesehatan & cukup informatif.
 - **Deploy box ini**: PHP terbaca opcache otomatis (~2 dtk), frontend sudah `npm run build`. Tak perlu
   migrate/config:cache/queue:restart (middleware jalan di request web, bukan daemon).
+
+### Tweak — highlight nav saat sidebar collapse jadi kotak terpusat
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — kelas link nav dibuat kondisional: collapsed pakai
+  `mx-auto h-11 w-11 justify-center` (tile kotak 44×44 terpusat di ikon) ganti `px-3 py-2.5` full-width
+  yang dulu bikin highlight aktif jadi pill lebar & ikon menempel kiri. Expanded tak berubah.

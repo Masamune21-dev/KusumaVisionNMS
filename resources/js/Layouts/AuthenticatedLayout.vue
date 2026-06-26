@@ -189,10 +189,13 @@ onUnmounted(() => {
                         v-for="link in navLinks"
                         :key="link.name"
                         :href="link.href"
-                        class="group relative flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all"
-                        :class="isActive(link)
-                            ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
+                        class="group relative flex items-center rounded-xl text-[14px] font-semibold transition-all"
+                        :class="[
+                            isActive(link)
+                                ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
+                                : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
+                            showSidebarContent ? 'gap-3.5 px-3 py-2.5' : 'mx-auto h-11 w-11 justify-center',
+                        ]"
                         :title="!showSidebarContent ? link.name : null"
                         @click="sidebarOpen = false"
                     >
