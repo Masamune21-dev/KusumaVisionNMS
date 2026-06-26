@@ -2648,3 +2648,31 @@ Notes:
   halaman aktif — sesuai ekspektasi aksi massal.
 - Belum diverifikasi di browser/OLT live; `npm run build` sukses. Kandidat lanjut: terapkan pola sama
   ke `CDataOlt/PortOnus.vue`.
+
+### Panel SISTEM — monitor kesehatan server (CPU/RAM/disk)
+
+Panel "SISTEM" di kaki sidebar sebelumnya hanya menampilkan Versi/Waktu/Uptime/Online. Ditambah
+**metrik kesehatan server** agar resource ikut termonitor sekilas tanpa buka tool lain.
+
+Changed:
+
+- `app/Http/Middleware/HandleInertiaRequests.php` — `systemInfoPayload()` kini menyertakan `health`:
+  - **CPU**: load average 1-menit (`sys_getloadavg`) dinormalkan jumlah core (hitung `^processor:` di
+    `/proc/cpuinfo`) → persen (cap 100) + angka load + cores.
+  - **RAM**: `/proc/meminfo` (`MemTotal` − `MemAvailable`) → persen + used/total (human-readable).
+  - **Disk**: `disk_total_space`/`disk_free_space` di `base_path()` → persen + used/total.
+  - Helper `serverHealth()` (cache 5s, hindari baca /proc tiap request), `cpuHealth/memoryHealth/`
+    `diskHealth`, `cpuCores`, `humanBytes`. Tiap metrik **null bila tak terbaca** (non-Linux) → UI sembunyi.
+- `resources/js/Components/Shell/SystemInfoPanel.vue` — render CPU/RAM/Disk sebagai **bar progress
+  berwarna** (hijau <70% · amber 70–89% · merah ≥90%) + ikon Lucide (Cpu/MemoryStick/HardDrive) +
+  baris detail (load·core / used·total). **Auto-refresh ringan tiap 20s** via
+  `router.reload({ only: ['systemInfo'], preserveScroll, preserveState })` — partial visit, jam tetap
+  jalan, tak memicu toast (flash tak ikut terkirim di partial reload).
+
+Notes:
+
+- Diverifikasi langsung di server ini: CPU load1=4.36/4core, RAM 2.6/8.0 GB (33%), Disk 12/31 GB (39%).
+- CPU pakai **load average**, bukan %util sesaat (yang butuh 2 sampel /proc/stat berjarak → menambah
+  latensi tiap request). Load average standar untuk panel kesehatan & cukup informatif.
+- **Deploy box ini**: PHP terbaca opcache otomatis (~2 dtk), frontend sudah `npm run build`. Tak perlu
+  migrate/config:cache/queue:restart (middleware jalan di request web, bukan daemon).
