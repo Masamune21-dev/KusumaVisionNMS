@@ -116,14 +116,6 @@ const onSaved = () => {
                 </button>
             </div>
 
-            <!-- Flash -->
-            <div v-if="flash.success" class="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-2.5 text-sm text-emerald-300">
-                <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>{{ flash.success }}
-            </div>
-            <div v-if="flash.error" class="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-2.5 text-sm text-red-300">
-                <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>{{ flash.error }}
-            </div>
-
             <!-- Banner mode placement -->
             <div v-if="addMode && presetForModal" class="flex items-center gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm text-cyan-200">
                 <Crosshair class="h-4 w-4" />

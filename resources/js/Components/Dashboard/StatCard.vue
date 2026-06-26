@@ -97,7 +97,7 @@ const sparkSeries = computed(() => [{ name: props.sparklineLabel, data: props.sp
             </span>
             <div class="min-w-0 flex-1">
                 <p class="text-xs font-medium uppercase tracking-wider text-slate-400">{{ label }}</p>
-                <p class="mt-1 text-3xl font-bold text-white sm:text-[2rem]">{{ value }}</p>
+                <p class="mt-1 text-3xl font-bold tabular-nums text-white sm:text-[2rem]">{{ value }}</p>
             </div>
         </div>
 

@@ -191,21 +191,6 @@ const phaseDotClass = (onu) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
-                <!-- Flash messages -->
-                <div
-                    v-if="flash.success"
-                    class="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
-                    {{ flash.success }}
-                </div>
-                <div
-                    v-if="flash.error"
-                    class="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
-                    {{ flash.error }}
-                </div>
 
                 <!-- Filter card -->
                 <FilterCard title="Filter ONU" subtitle="Pilih OLT untuk mulai menampilkan ONU." :icon="Search">
@@ -275,22 +260,22 @@ const phaseDotClass = (onu) => {
                 <template v-else>
                 <!-- Stat cards -->
                 <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ stats.total }}</p>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Online</p>
                         <div class="mt-3 flex items-end gap-2">
                             <p class="text-2xl font-bold text-emerald-400">{{ stats.online }}</p>
                             <p class="mb-0.5 text-sm text-slate-400">/ {{ stats.total }}</p>
                         </div>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">LOS / Dying Gasp</p>
                         <p class="mt-3 text-2xl font-bold text-amber-300">{{ stats.problem }}</p>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Offline</p>
                         <p class="mt-3 text-2xl font-bold text-slate-300">{{ stats.offline }}</p>
                     </div>
@@ -397,7 +382,7 @@ const phaseDotClass = (onu) => {
 
                             <!-- Desktop table -->
                             <div class="kv-table-desktop">
-                                <table class="min-w-[820px] w-full">
+                                <table class="min-w-[820px] w-full tabular-nums">
                                     <thead>
                                         <tr class="border-b border-white/10 bg-slate-950/40">
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">OLT</th>

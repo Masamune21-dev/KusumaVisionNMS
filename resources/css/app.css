@@ -196,6 +196,11 @@
         @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
+    /* === Kartu statistik ringkas (label + angka) — dipakai lintas halaman monitoring === */
+    .kv-stat {
+        @apply rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl;
+    }
+
     /* === Mobile data cards === */
     .kv-mobile-list {
         @apply divide-y divide-white/5 md:hidden;
@@ -230,7 +235,7 @@
     }
 
     .kv-mobile-value {
-        @apply min-w-0 break-words text-right text-slate-200;
+        @apply min-w-0 break-words text-right tabular-nums text-slate-200;
     }
 
     .kv-table-desktop {
@@ -395,6 +400,19 @@
 .page-leave-to {
     opacity: 0;
     transform: translateY(-4px);
+}
+
+/* Hormati pengguna yang mengurangi animasi: matikan geser transisi halaman
+   (partikel & aurora sudah ditangani di masing-masing komponen). */
+@media (prefers-reduced-motion: reduce) {
+    .page-enter-active,
+    .page-leave-active {
+        transition: none !important;
+    }
+    .page-enter-from,
+    .page-leave-to {
+        transform: none !important;
+    }
 }
 
 /* === Custom scrollbar (dark) === */

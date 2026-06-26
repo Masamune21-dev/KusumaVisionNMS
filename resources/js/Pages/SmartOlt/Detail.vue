@@ -125,40 +125,26 @@ const oltImage = computed(() => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
-                <div
-                    v-if="flash.success"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
-                    {{ flash.success }}
-                </div>
-                <div
-                    v-if="flash.error"
-                    class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300"
-                >
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
-                    {{ flash.error }}
-                </div>
 
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
                         <p class="mt-3 text-2xl font-bold"
                             :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
                             {{ snapshot.ok ? 'Online' : 'Unknown' }}
                         </p>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">GPON Port</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
                         <p class="mt-3 text-2xl font-bold text-white">
                             {{ onuOnline }}<span class="text-sm font-normal text-slate-500"> / {{ onuTotal }} online</span>
                         </p>
                     </div>
-                    <div class="rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl p-5 shadow-sm shadow-black/30">
+                    <div class="kv-stat">
                         <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
                         <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.last_tested_at) }}</p>
                         <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-400'">

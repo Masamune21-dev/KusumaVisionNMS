@@ -158,14 +158,6 @@ const deleteRegistration = async (registration) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
-                <div v-if="flash.success" class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300">
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500"></span>
-                    {{ flash.success }}
-                </div>
-                <div v-if="flash.error" class="mb-5 flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-500"></span>
-                    {{ flash.error }}
-                </div>
 
                 <div v-if="registrations.length === 0" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="px-6 py-10 text-center text-sm text-slate-500">

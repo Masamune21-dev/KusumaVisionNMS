@@ -1,6 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import FlashMessages from '@/Components/Shell/FlashMessages.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
@@ -314,6 +315,9 @@ onUnmounted(() => {
                 </div>
             </footer>
         </div>
+
+        <!-- Toast flash terpusat (sukses/error) -->
+        <FlashMessages />
 
         <!-- Global search palette -->
         <GlobalSearch v-model:open="searchOpen" />

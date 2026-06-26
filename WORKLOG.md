@@ -2568,3 +2568,48 @@ Notes:
 
 - Engine internal tetap mendukung scope null (seluruh OLT) untuk kompatibilitas baris task lama; controller sekarang selalu mengisi slot/port. Verifikasi: `SmartOltTr069BulkTest` **6 passed** (di sqlite via `config:clear`), Pint passed, `npm run build` sukses.
 - **Deploy box ini**: migrasi sudah `php artisan migrate --force` (pgsql, tambah kolom nullable — aman), `config:cache` dikembalikan (sempat di-clear untuk test), `queue:restart` dijalankan (kode `Tr069BulkConfigJob`/`ZteTr069BulkService` berubah → worker long-lived harus muat ulang). Route tak ter-cache (cek `bootstrap/cache` hanya `config.php`).
+
+### Polish UI/UX — toast flash terpusat, reduced-motion, tabular-nums, dedup kartu statistik
+
+Hasil review UI/UX (skill ui-ux-pro-max). Empat pembenahan "quick win" berdampak besar, risiko kecil,
+tanpa mengubah alur. Net −130 baris markup duplikat. `npm run build` hijau.
+
+Created:
+
+- `resources/js/Components/Shell/FlashMessages.vue` — toast terpusat untuk flash `success`/`error`
+  Inertia. Non-blocking, auto-dismiss (sukses 5s, error 8s), bisa ditutup manual, dan **diumumkan ke
+  screen reader** (`aria-live="polite"`; error pakai `role="alert"`). Membaca `page.props.flash` saat
+  initial load + tiap `router.on('success')`. Di-mount sekali di `AuthenticatedLayout` (offset di bawah
+  bilah atas: `top-16 sm:top-20`).
+  - **Fix toast dobel**: layout non-persistent → instance baru tiap visit memanggil `pump()` di
+    `onMounted` SEKALIGUS listener `router.on('success')`-nya ikut menyala untuk visit yang sama.
+    Guard modul-level `lastFlashSeen` (identitas objek `page.props.flash`, stabil per visit)
+    memastikan satu objek flash hanya ditoast sekali.
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — pasang `<FlashMessages />` (sekali, global).
+- **17 halaman** — cabut blok flash inline yang diduplikasi (4 varian markup berbeda + sudah drift
+  `bg-…/10` vs `/15`): CDataOlt {Detail,Index,PortOnus}, Map/Index, Settings/Index, Users/Index, dan
+  SmartOlt {ConfigureOnu,Detail,GponPorts,Index,OnuMonitor,PortDetail,PortOnus,Profiles,Registrations,
+  Unconfigured,UnconfiguredGlobal}. (Computed `flash` dibiarkan — inert, aman.)
+- `resources/css/app.css` —
+  - `@media (prefers-reduced-motion: reduce)` kini juga mematikan geser transisi halaman
+    (`.page-enter/leave`). Partikel & aurora sudah dihormati di komponennya masing-masing.
+  - Tambah kelas `.kv-stat` (surface kartu statistik ringkas) untuk dedup.
+  - `.kv-mobile-value` dapat `tabular-nums` (angka data sejajar di kartu mobile).
+- `resources/js/Components/Dashboard/StatCard.vue` — angka utama pakai `tabular-nums`.
+- `resources/js/Pages/SmartOlt/{PortOnus,OnuMonitor}.vue` — tabel ONU pakai `tabular-nums`.
+- `resources/js/Pages/SmartOlt/{Detail,GponPorts,OnuMonitor,PortOnus,Unconfigured,UnconfiguredGlobal}.vue`
+  — surface kartu statistik inline (`rounded-lg … shadow-sm`) diganti kelas `.kv-stat` (21 occurrence).
+
+Notes:
+
+- **Sticky table header sengaja DITUNDA**: tabel berada di wrapper `overflow-x-auto` yang memaksa
+  `overflow-y:auto`, membuat `position: sticky` jadi no-op kecuali tinggi tabel dibatasi — yang
+  memunculkan scroll bersarang (justru dilarang pedoman skill `scroll-behavior`). Butuh keputusan
+  scroll-region tersendiri.
+- Kandidat lanjutan dari review (belum dikerjakan): skeleton loader saat Scan/Refresh SNMP lambat,
+  paginasi/virtualisasi `OnuMonitor` (bisa 1000+ ONU), `aria-label`+autofocus pada `Modal`,
+  standarisasi `FilterCard` di `PortOnus`, naikkan kontras teks sekunder `slate-500`→`slate-400`.
+- Belum diverifikasi di browser/OLT live; verifikasi via `npm run build` (sukses).

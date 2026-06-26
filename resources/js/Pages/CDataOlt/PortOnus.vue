@@ -172,12 +172,6 @@ const viewOnMap = (onu) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
-                <div v-if="flash.success" class="kv-alert-success">
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-400"></span>{{ flash.success }}
-                </div>
-                <div v-if="flash.error" class="kv-alert-danger">
-                    <span class="h-2 w-2 flex-shrink-0 rounded-full bg-red-400"></span>{{ flash.error }}
-                </div>
 
                 <div class="kv-glass-panel">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
