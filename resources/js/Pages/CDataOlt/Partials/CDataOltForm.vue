@@ -306,7 +306,7 @@ const submit = () => {
 
         <!-- Submit bar -->
         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-            <Link :href="route('cdata-olt.index')">
+            <Link :href="route('smartolt.index', { tab: 'cdata' })">
                 <SecondaryButton type="button">Batal</SecondaryButton>
             </Link>
             <PrimaryButton :disabled="form.processing">

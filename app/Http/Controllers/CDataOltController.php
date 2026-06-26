@@ -33,18 +33,10 @@ class CDataOltController extends Controller
     /** TTL cache auto-refresh: scan ulang saat halaman dibuka hanya bila cache lebih tua dari ini. */
     private const CACHE_TTL_MINUTES = 5;
 
-    public function index(): Response
+    public function index(): RedirectResponse
     {
-        $olts = SnmpOlt::query()
-            ->orderBy('name')
-            ->get()
-            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
-            ->filter(fn (array $row) => SmartOltSupport::isCData($row['driver']))
-            ->values();
-
-        return Inertia::render('CDataOlt/Index', [
-            'olts' => $olts,
-        ]);
+        // Inventori C-Data kini jadi tab di halaman SmartOLT — arahkan ke sana.
+        return redirect()->route('smartolt.index', ['tab' => 'cdata']);
     }
 
     public function create(): Response
@@ -63,7 +55,7 @@ class CDataOltController extends Controller
     public function store(Request $request, CDataOltScanner $scanner): RedirectResponse
     {
         $olt = SnmpOlt::create($this->validated($request));
-        $redirect = redirect()->route('cdata-olt.index');
+        $redirect = redirect()->route('smartolt.index', ['tab' => 'cdata']);
 
         // Scan awal sekali supaya ONU langsung searchable di global search tanpa perlu buka halaman OLT.
         try {
@@ -87,7 +79,7 @@ class CDataOltController extends Controller
         $olt->update($this->withoutEmptySecrets($this->validated($request, $olt)));
 
         return redirect()
-            ->route('cdata-olt.index')
+            ->route('smartolt.index', ['tab' => 'cdata'])
             ->with('success', 'OLT C-Data berhasil diperbarui.');
     }
 
@@ -96,7 +88,7 @@ class CDataOltController extends Controller
         $olt->delete();
 
         return redirect()
-            ->route('cdata-olt.index')
+            ->route('smartolt.index', ['tab' => 'cdata'])
             ->with('success', 'OLT C-Data berhasil dihapus.');
     }
 
@@ -141,7 +133,7 @@ class CDataOltController extends Controller
             : sprintf('SNMP gagal: %s', $result['error'] ?? 'unknown error');
 
         return redirect()
-            ->route('cdata-olt.index')
+            ->route('smartolt.index', ['tab' => 'cdata'])
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 

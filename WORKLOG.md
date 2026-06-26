@@ -1,5 +1,44 @@
 # Worklog
 
+## 2026-06-26
+
+### SmartOLT — gabung inventori OLT C-Data jadi tab (OLT ZTE / OLT C-Data)
+
+Halaman OLT C-Data yang sebelumnya berdiri sendiri (menu sidebar terpisah) kini jadi **tab di halaman
+SmartOLT**, gaya tab seperti halaman Pengaturan (state disinkronkan ke query `?tab`).
+
+Changed:
+
+- `app/Http/Controllers/SmartOltController.php` — `index()` kini mem-`partition` semua OLT jadi dua
+  prop: `olts` (ZTE + unknown) dan `cdataOlts` (C-Data) untuk satu halaman dua tab.
+- `app/Http/Controllers/CDataOltController.php` — `index()` kini **redirect** ke
+  `smartolt.index?tab=cdata` (return type jadi `RedirectResponse`). Redirect `store`/`update`/
+  `destroy`/`test` diarahkan ke `smartolt.index?tab=cdata` agar tab C-Data tetap aktif + flash
+  bertahan; `refresh` tetap pakai `back()` (kembali ke URL pemicu yang sudah memuat `?tab=cdata`).
+- `resources/js/Pages/SmartOlt/Index.vue` — ditambah tab bar (OLT ZTE / OLT C-Data); tabel ZTE +
+  tabel C-Data (lengkap dengan tombol Refresh scan-penuh, badge FlashV3.x, info auto-poll) dalam
+  satu halaman. `activeTab` dibaca dari `?tab` + disinkron ke URL via `history.replaceState` supaya
+  bertahan saat reload/redirect-back. Tombol "Tambah OLT" di header mengikuti tab aktif.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — item menu "OLT C-Data" dihapus; menu "SmartOLT"
+  kini `match` array `['smartolt.*','cdata-olt.*']` agar tetap aktif di halaman C-Data; `isActive`
+  mendukung match array. Import ikon `Server` yang tak terpakai dibuang.
+- `resources/js/Pages/CDataOlt/Detail.vue` & `Partials/CDataOltForm.vue` — back-link/Batal kini ke
+  `smartolt.index?tab=cdata`.
+- `tests/Feature/CDataOltInventoryTest.php` — disesuaikan: `cdata-olt.index` → assert redirect;
+  store assert redirect ke `smartolt.index?tab=cdata`; pemisahan ZTE/C-Data diuji lewat prop
+  `olts`/`cdataOlts` pada `SmartOlt/Index`.
+
+Removed:
+
+- `resources/js/Pages/CDataOlt/Index.vue` — tak terpakai (route `cdata-olt.index` kini redirect).
+
+Notes:
+
+- Route name `cdata-olt.index` sengaja dipertahankan (jadi redirect) untuk kompatibilitas
+  back-link/bookmark — tak ada perubahan daftar route, jadi route cache prod tetap valid.
+- Test dijalankan dengan `APP_CONFIG_CACHE` override → sqlite (9 CData + 23 SmartOlt/CData write
+  lulus). Tanpa override, `php artisan test` nyasar ke pgsql/OLT live karena config ter-cache prod.
+
 ## 2026-06-23
 
 ### OLT C-Data — tombol Refresh ONU (scan penuh) di halaman index

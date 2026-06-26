@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Database, Eye, Pencil, Plus, RefreshCw, Terminal, Trash2 } from '@lucide/vue';
+import { Cable, Database, Eye, Pencil, Plus, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
@@ -17,6 +17,10 @@ defineProps({
         type: Array,
         required: true,
     },
+    cdataOlts: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -24,11 +28,43 @@ const flash = computed(() => page.props.flash ?? {});
 const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
+/* ------------------------------------------------------------------ */
+/* Tab: OLT ZTE / OLT C-Data — state disinkronkan ke ?tab agar         */
+/* bertahan saat reload / redirect back dari aksi test/refresh.        */
+/* ------------------------------------------------------------------ */
+const tabs = [
+    { key: 'zte', label: 'OLT ZTE', icon: Cable },
+    { key: 'cdata', label: 'OLT C-Data', icon: Server },
+];
+const activeTab = ref(
+    new URLSearchParams(window.location.search).get('tab') === 'cdata' ? 'cdata' : 'zte',
+);
+const setTab = (key) => {
+    activeTab.value = key;
+    const url = new URL(window.location.href);
+    if (key === 'cdata') {
+        url.searchParams.set('tab', 'cdata');
+    } else {
+        url.searchParams.delete('tab');
+    }
+    window.history.replaceState(window.history.state, '', url);
+};
+
+const createHref = computed(() =>
+    activeTab.value === 'cdata' ? route('cdata-olt.create') : route('smartolt.create'),
+);
+
+/* ------------------------------------------------------------------ */
+/* Telnet                                                              */
+/* ------------------------------------------------------------------ */
 const telnetOlt = ref(null);
 const openTelnet = (olt) => {
     telnetOlt.value = { id: olt.id, name: olt.name, ip: olt.ip };
 };
 
+/* ------------------------------------------------------------------ */
+/* Aksi OLT ZTE                                                        */
+/* ------------------------------------------------------------------ */
 const destroyOlt = async (olt) => {
     const ok = await confirm({
         title: 'Hapus OLT',
@@ -51,6 +87,43 @@ const testOlt = (olt) => {
     });
 };
 
+/* ------------------------------------------------------------------ */
+/* Aksi OLT C-Data                                                     */
+/* ------------------------------------------------------------------ */
+const destroyCdataOlt = async (olt) => {
+    const ok = await confirm({
+        title: 'Hapus OLT C-Data',
+        message: `Hapus OLT ${olt.name}? Tindakan ini permanen.`,
+        confirmLabel: 'Hapus',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    router.delete(route('cdata-olt.destroy', olt.id), {
+        preserveScroll: true,
+    });
+};
+
+const testCdataOlt = (olt) => {
+    router.post(route('cdata-olt.test', olt.id), {}, {
+        preserveScroll: true,
+    });
+};
+
+// Scan penuh: baca system + ports + seluruh ONU dan tulis cache (lebih berat dari Test SNMP).
+const refreshingId = ref(null);
+const refreshCdataOlt = (olt) => {
+    router.post(route('cdata-olt.refresh', olt.id), {}, {
+        preserveScroll: true,
+        onStart: () => { refreshingId.value = olt.id; },
+        onFinish: () => { refreshingId.value = null; },
+    });
+};
+
+const firmwareBadge = (olt) => (olt.last_test_result?.cdata?.firmware_v3 ? 'FlashV3.x' : null);
+
 const formatDate = (value) => formatDateTime(value);
 </script>
 
@@ -63,7 +136,7 @@ const formatDate = (value) => formatDateTime(value);
                 <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
                     SmartOLT
                 </h2>
-                <Link v-if="$page.props.auth.can.manage_olt" :href="route('smartolt.create')" class="sm:w-auto">
+                <Link v-if="canManageOlt" :href="createHref" class="sm:w-auto">
                     <PrimaryButton class="w-full sm:w-auto">
                         <Plus class="mr-2 h-4 w-4" />
                         Tambah OLT
@@ -73,10 +146,27 @@ const formatDate = (value) => formatDateTime(value);
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
-            <div class="w-full px-4 sm:px-6 lg:px-8">
+            <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
-                <!-- Main card -->
-                <div class="kv-glass-panel">
+                <!-- Tab bar -->
+                <div class="flex flex-wrap gap-1 rounded-xl border border-white/10 bg-slate-900/40 p-1 backdrop-blur-xl">
+                    <button
+                        v-for="tab in tabs"
+                        :key="tab.key"
+                        type="button"
+                        class="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:flex-none"
+                        :class="activeTab === tab.key
+                            ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-500/40'
+                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'"
+                        @click="setTab(tab.key)"
+                    >
+                        <component :is="tab.icon" class="h-4 w-4" />
+                        {{ tab.label }}
+                    </button>
+                </div>
+
+                <!-- ============================ TAB: OLT ZTE ============================ -->
+                <div v-show="activeTab === 'zte'" class="kv-glass-panel">
                     <!-- Card header -->
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <span class="kv-circle-sky !h-10 !w-10">
@@ -95,7 +185,7 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan OLT pertama untuk mulai test SNMP.</p>
-                        <div v-if="$page.props.auth.can.manage_olt" class="mt-5">
+                        <div v-if="canManageOlt" class="mt-5">
                             <Link :href="route('smartolt.create')">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
@@ -271,6 +361,221 @@ const formatDate = (value) => formatDateTime(value);
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                                <Trash2 class="h-4 w-4" />
+                                            </IconButton>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- =========================== TAB: OLT C-Data =========================== -->
+                <div v-show="activeTab === 'cdata'" class="kv-glass-panel">
+                    <!-- Card header -->
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <span class="kv-circle-sky !h-10 !w-10">
+                            <Server class="h-5 w-5" />
+                        </span>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">Inventory OLT C-Data</h3>
+                            <p class="text-xs text-slate-400">SNMP inventory & test koneksi C-Data EPON (17409) / GPON (34592)</p>
+                        </div>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div v-if="cdataOlts.length === 0" class="px-6 py-16 text-center">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-white/10">
+                            <Server class="h-7 w-7 text-slate-500" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT C-Data</h3>
+                        <p class="mt-1 text-sm text-slate-500">Tambahkan OLT C-Data EPON atau GPON untuk mulai test SNMP.</p>
+                        <div v-if="canManageOlt" class="mt-5">
+                            <Link :href="route('cdata-olt.create')">
+                                <PrimaryButton>
+                                    <Plus class="mr-2 h-4 w-4" />
+                                    Tambah OLT
+                                </PrimaryButton>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <!-- Table / mobile cards -->
+                    <template v-else>
+                        <div class="kv-mobile-list">
+                            <article v-for="olt in cdataOlts" :key="olt.id" class="kv-mobile-card">
+                                <div class="kv-mobile-card-header">
+                                    <div class="min-w-0">
+                                        <h4 class="kv-mobile-card-title">{{ olt.name }}</h4>
+                                        <p class="kv-mobile-card-subtitle">{{ olt.vendor || 'Family belum diisi' }}</p>
+                                    </div>
+                                    <div class="flex flex-col items-end gap-1">
+                                        <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
+                                        <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                    </div>
+                                </div>
+
+                                <div class="kv-mobile-fields">
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">SNMP</span>
+                                        <span class="kv-mobile-value font-mono text-xs">{{ olt.ip }}:{{ olt.snmp_port }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Versi</span>
+                                        <span class="kv-mobile-value uppercase tracking-widest">{{ olt.snmp_version }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Test</span>
+                                        <span
+                                            class="kv-mobile-value font-semibold"
+                                            :class="olt.last_test_result?.ok
+                                                ? 'text-emerald-300'
+                                                : olt.last_test_result
+                                                    ? 'text-red-300'
+                                                    : 'text-slate-500'"
+                                        >
+                                            {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Terakhir</span>
+                                        <span class="kv-mobile-value">{{ formatDate(olt.last_tested_at) }}</span>
+                                    </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Auto-poll</span>
+                                        <span class="kv-mobile-value" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                                            {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                        <Eye class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        title="Refresh ONU (scan penuh)"
+                                        :disabled="refreshingId === olt.id"
+                                        @click="refreshCdataOlt(olt)"
+                                    >
+                                        <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
+                                    </IconButton>
+                                    <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
+                                        <RefreshCw class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton :href="route('cdata-olt.edit', olt.id)" title="Edit">
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                        variant="primary"
+                                        title="Telnet ke OLT"
+                                        @click="openTelnet(olt)"
+                                    >
+                                        <Terminal class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
+                                </div>
+                            </article>
+                        </div>
+
+                        <div class="kv-table-desktop">
+                        <table class="w-full min-w-[720px]">
+                            <thead>
+                                <tr class="border-b border-white/10 bg-slate-950/40">
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">OLT</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">SNMP</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Family</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Test Terakhir</th>
+                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-white/5">
+                                <tr
+                                    v-for="olt in cdataOlts"
+                                    :key="olt.id"
+                                    class="transition-colors duration-150 hover:bg-white/[0.03]"
+                                >
+                                    <td class="px-4 py-4">
+                                        <div class="font-medium text-white">{{ olt.name }}</div>
+                                        <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || 'Family belum diisi' }}</div>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="font-mono text-xs text-slate-300">{{ olt.ip }}:{{ olt.snmp_port }}</div>
+                                        <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="space-y-1.5">
+                                            <div class="flex flex-wrap items-center gap-1.5">
+                                                <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
+                                                <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                            </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-500'"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="olt.polling_enabled ? 'bg-emerald-400' : 'bg-slate-600'"
+                                                ></span>
+                                                Auto-poll: {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="flex items-center gap-2">
+                                            <span
+                                                class="h-2 w-2 rounded-full"
+                                                :class="olt.last_test_result?.ok
+                                                    ? 'bg-emerald-400'
+                                                    : olt.last_test_result
+                                                        ? 'bg-red-400'
+                                                        : 'bg-slate-600'"
+                                            ></span>
+                                            <span
+                                                class="text-sm font-semibold"
+                                                :class="olt.last_test_result?.ok
+                                                    ? 'text-emerald-300'
+                                                    : olt.last_test_result
+                                                        ? 'text-red-300'
+                                                        : 'text-slate-500'"
+                                            >
+                                                {{ olt.last_test_result?.ok ? 'OK' : (olt.last_test_result ? 'Gagal' : 'Belum dites') }}
+                                            </span>
+                                        </div>
+                                        <div class="mt-1 text-xs text-slate-500">{{ formatDate(olt.last_tested_at) }}</div>
+                                    </td>
+                                    <td class="px-4 py-4">
+                                        <div class="flex justify-center gap-1.5">
+                                            <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                                <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                title="Refresh ONU (scan penuh)"
+                                                :disabled="refreshingId === olt.id"
+                                                @click="refreshCdataOlt(olt)"
+                                            >
+                                                <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
+                                            </IconButton>
+                                            <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
+                                                <RefreshCw class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton :href="route('cdata-olt.edit', olt.id)" title="Edit">
+                                                <Pencil class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                                variant="primary"
+                                                title="Telnet ke OLT"
+                                                @click="openTelnet(olt)"
+                                            >
+                                                <Terminal class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
                                         </div>

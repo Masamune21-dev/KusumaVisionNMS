@@ -84,13 +84,13 @@ class CDataOltInventoryTest extends TestCase
         $this->app->instance(SmartOltSnmpServiceResolver::class, $resolver);
     }
 
-    public function test_cdata_olt_index_can_be_rendered(): void
+    public function test_cdata_olt_index_redirects_to_smartolt_cdata_tab(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
             ->get(route('cdata-olt.index'))
-            ->assertOk();
+            ->assertRedirect(route('smartolt.index', ['tab' => 'cdata']));
     }
 
     public function test_create_and_edit_pages_can_be_rendered(): void
@@ -130,20 +130,22 @@ class CDataOltInventoryTest extends TestCase
                 'poll_interval_minutes' => 5,
                 'rx_poll_interval_minutes' => 5,
             ])
-            ->assertRedirect(route('cdata-olt.index'));
+            ->assertRedirect(route('smartolt.index', ['tab' => 'cdata']));
 
         $olt = SnmpOlt::where('ip', '10.20.0.5')->firstOrFail();
         $this->assertSame(SmartOltSupport::DRIVER_CDATA_GPON, SmartOltSupport::driverKey($olt));
 
-        // Muncul di halaman OLT C-Data.
+        // Rute lama OLT C-Data kini redirect ke tab C-Data di halaman SmartOLT.
         $this->actingAs($user)
             ->get(route('cdata-olt.index'))
-            ->assertInertia(fn ($page) => $page->component('CDataOlt/Index')->has('olts', 1));
+            ->assertRedirect(route('smartolt.index', ['tab' => 'cdata']));
 
-        // Tidak bocor ke halaman SmartOLT (ZTE).
+        // Muncul di tab C-Data, tidak bocor ke daftar ZTE — keduanya satu halaman SmartOLT.
         $this->actingAs($user)
             ->get(route('smartolt.index'))
-            ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')->has('olts', 0));
+            ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')
+                ->has('olts', 0)
+                ->has('cdataOlts', 1));
     }
 
     public function test_detail_and_port_onus_pages_render(): void
@@ -185,7 +187,7 @@ class CDataOltInventoryTest extends TestCase
                 'snmp_read_community' => 'public',
                 'snmp_version' => 'v2c',
             ])
-            ->assertRedirect(route('cdata-olt.index'));
+            ->assertRedirect(route('smartolt.index', ['tab' => 'cdata']));
 
         $olt = SnmpOlt::where('ip', '10.20.0.20')->firstOrFail();
         $this->assertSame('INITSCAN1', data_get($olt->last_test_result, 'port_onus.0_1.onus.0.serial_number'));
@@ -279,7 +281,7 @@ class CDataOltInventoryTest extends TestCase
         $this->assertStringContainsString('ports/0/1', $url); // slot 0 tetap terlink
     }
 
-    public function test_zte_olt_is_not_listed_in_cdata_index(): void
+    public function test_zte_olt_is_not_listed_in_cdata_tab(): void
     {
         $user = User::factory()->create();
 
@@ -292,8 +294,11 @@ class CDataOltInventoryTest extends TestCase
             'snmp_version' => 'v2c',
         ]);
 
+        // OLT ZTE muncul di daftar ZTE, bukan di daftar C-Data (tab terpisah, satu halaman).
         $this->actingAs($user)
-            ->get(route('cdata-olt.index'))
-            ->assertInertia(fn ($page) => $page->component('CDataOlt/Index')->has('olts', 0));
+            ->get(route('smartolt.index'))
+            ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')
+                ->has('olts', 1)
+                ->has('cdataOlts', 0));
     }
 }

@@ -31,7 +31,7 @@ const fmt = (v) => formatDateTime(v);
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-3">
-                    <Link :href="route('cdata-olt.index')" class="text-slate-400 hover:text-white">
+                    <Link :href="route('smartolt.index', { tab: 'cdata' })" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
                     </Link>
                     <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ olt.name }}</h2>

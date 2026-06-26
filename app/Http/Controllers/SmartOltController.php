@@ -37,16 +37,17 @@ class SmartOltController extends Controller
 {
     public function index(): Response
     {
-        $olts = SnmpOlt::query()
+        // Satu halaman dua tab: OLT ZTE (+ unknown) dan OLT C-Data. Pisahkan berdasarkan driver.
+        $rows = SnmpOlt::query()
             ->orderBy('name')
             ->get()
-            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
-            // OLT C-Data punya halaman sendiri (OLT C-Data); ZTE + unknown tetap di sini.
-            ->reject(fn (array $row) => SmartOltSupport::isCData($row['driver']))
-            ->values();
+            ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt));
+
+        [$cdataOlts, $olts] = $rows->partition(fn (array $row) => SmartOltSupport::isCData($row['driver']));
 
         return Inertia::render('SmartOlt/Index', [
-            'olts' => $olts,
+            'olts' => $olts->values(),
+            'cdataOlts' => $cdataOlts->values(),
         ]);
     }
 
