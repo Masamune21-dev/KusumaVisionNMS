@@ -413,6 +413,11 @@
     .page-leave-to {
         transform: none !important;
     }
+    /* Skeleton shimmer & spinner — diam saat pengguna minta kurangi animasi. */
+    .animate-pulse,
+    .animate-spin {
+        animation: none !important;
+    }
 }
 
 /* === Custom scrollbar (dark) === */

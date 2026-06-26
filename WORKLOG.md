@@ -2613,3 +2613,38 @@ Notes:
   paginasi/virtualisasi `OnuMonitor` (bisa 1000+ ONU), `aria-label`+autofocus pada `Modal`,
   standarisasi `FilterCard` di `PortOnus`, naikkan kontras teks sekunder `slate-500`→`slate-400`.
 - Belum diverifikasi di browser/OLT live; verifikasi via `npm run build` (sukses).
+
+### Skeleton loader + paginasi sisi-klien untuk daftar ONU
+
+Tindak lanjut review: dua daftar ONU terbesar (`OnuMonitor` lintas-OLT & `PortOnus`) tadinya
+me-render SEMUA baris (bisa 1000+ ONU) dan tak ada umpan-balik saat scan/refresh SNMP yang lambat.
+
+Created:
+
+- `resources/js/Composables/usePagination.js` — paginasi sisi-klien (tanpa request server) atas array
+  yang sudah terfilter: `page`, `pageSize`, `pageCount`, `pageItems`, `rangeStart/End`, `next/prev`.
+  Auto reset ke hal. 1 saat sumber/filter berubah & jaga page tetap valid saat data menyusut.
+- `resources/js/Components/Shell/ClientPagination.vue` — kontrol paginasi responsif (info "X–Y dari Z",
+  pemilih item/halaman 25/50/100 di desktop, tombol prev/next target sentuh ≥44px, `tabular-nums`).
+- `resources/js/Components/Shell/ListSkeleton.vue` — placeholder shimmer meniru `kv-mobile-list` +
+  `kv-table-desktop`; `animate-pulse` otomatis diam saat `prefers-reduced-motion`.
+
+Changed:
+
+- `resources/css/app.css` — `@media (prefers-reduced-motion: reduce)` kini juga mematikan
+  `.animate-pulse` & `.animate-spin`.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — `<ListSkeleton v-if="scanning">` selama Scan SNMP
+  penuh; tabel & kartu mobile render `pagedOnus` (default 50/hal) + `<ClientPagination>` di kaki kartu.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — sama: flag `refreshing` baru → skeleton saat Refresh ONU;
+  `pagedOnus` + `<ClientPagination>`. Fitur lompat-ke-ONU (`?focus=`) kini **lompat ke halaman** yang
+  memuat ONU itu dulu sebelum scroll (regresi paginasi ditangani).
+
+Notes:
+
+- Paginasi sisi-klien dipilih (bukan virtual scroll / server paginate) karena data ONU sudah dimuat
+  penuh dari cache `port_onus` ke props — nol perubahan backend, nol risiko. Pola konsisten dgn
+  Alarms/AuditLogs yang sudah paginated (itu server-side).
+- "Pilih semua" di `PortOnus` tetap menyeleksi **seluruh hasil filter** (lintas halaman), bukan hanya
+  halaman aktif — sesuai ekspektasi aksi massal.
+- Belum diverifikasi di browser/OLT live; `npm run build` sukses. Kandidat lanjut: terapkan pola sama
+  ke `CDataOlt/PortOnus.vue`.

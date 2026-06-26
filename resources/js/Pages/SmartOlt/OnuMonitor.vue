@@ -1,9 +1,12 @@
 <script setup>
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ClientPagination from '@/Components/Shell/ClientPagination.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
+import ListSkeleton from '@/Components/Shell/ListSkeleton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
+import { usePagination } from '@/Composables/usePagination';
 import { rxBadgeClass, rxLevel } from '@/Composables/useRxLevel';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { ExternalLink, Radar, RefreshCw, Search, Wifi, X } from '@lucide/vue';
@@ -96,6 +99,9 @@ const filteredOnus = computed(() => {
         return hay.includes(term);
     });
 });
+
+// Paginasi sisi-klien daftar ONU terfilter (data sudah dimuat penuh ke props).
+const { page: onuPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOnus, rangeStart, rangeEnd } = usePagination(filteredOnus);
 
 const stats = computed(() => {
     const rows = oltScopedOnus.value;
@@ -302,8 +308,11 @@ const phaseDotClass = (onu) => {
                         </div>
                     </div>
 
+                    <!-- Skeleton saat scan SNMP penuh berjalan -->
+                    <ListSkeleton v-if="scanning" :rows="10" />
+
                     <!-- Empty state: OLT selected but no cached data yet -->
-                    <div v-if="oltScopedOnus.length === 0" class="px-6 py-14 text-center">
+                    <div v-else-if="oltScopedOnus.length === 0" class="px-6 py-14 text-center">
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <Wifi class="h-7 w-7 text-slate-400" />
                         </div>
@@ -328,7 +337,7 @@ const phaseDotClass = (onu) => {
                             <!-- Mobile cards -->
                             <div class="kv-mobile-list">
                                 <article
-                                    v-for="onu in filteredOnus"
+                                    v-for="onu in pagedOnus"
                                     :key="`${onu.olt_id}-${onu.slot}-${onu.port}-${onu.onu_id}`"
                                     class="kv-mobile-card"
                                 >
@@ -398,7 +407,7 @@ const phaseDotClass = (onu) => {
                                     </thead>
                                     <tbody class="divide-y divide-white/5">
                                         <tr
-                                            v-for="onu in filteredOnus"
+                                            v-for="onu in pagedOnus"
                                             :key="`${onu.olt_id}-${onu.slot}-${onu.port}-${onu.onu_id}`"
                                             class="transition-colors duration-150 hover:bg-white/[0.03]"
                                         >
@@ -444,6 +453,17 @@ const phaseDotClass = (onu) => {
                                     </tbody>
                                 </table>
                             </div>
+
+                            <ClientPagination
+                                v-if="pageCount > 1"
+                                v-model:page="onuPage"
+                                v-model:page-size="pageSize"
+                                :page-count="pageCount"
+                                :total="pageTotal"
+                                :range-start="rangeStart"
+                                :range-end="rangeEnd"
+                                label="ONU"
+                            />
                         </template>
                     </template>
                 </div>

@@ -8,8 +8,11 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
+import ClientPagination from '@/Components/Shell/ClientPagination.vue';
+import ListSkeleton from '@/Components/Shell/ListSkeleton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { usePagination } from '@/Composables/usePagination';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
@@ -105,6 +108,9 @@ const filteredOnus = computed(() => {
 
 const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || adminFilter.value !== 'all');
 const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; adminFilter.value = 'all'; };
+
+// Paginasi sisi-klien daftar ONU terfilter (data sudah dimuat penuh ke props).
+const { page: onuPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOnus, rangeStart, rangeEnd } = usePagination(filteredOnus);
 
 // --- batch copy konfigurasi ke port lain (OLT sama) ---
 const canCopy = computed(() => !!caps.value.supports_cli_onu_configure);
@@ -240,13 +246,25 @@ const scrollToFocus = () => {
     }
 };
 
-watch(() => props.initial_search, (v) => { search.value = v ?? ''; });
-watch(() => props.focus_onu_id, (v) => { focusId.value = v; nextTick(scrollToFocus); });
-onMounted(() => nextTick(scrollToFocus));
+// ONU yang difokus (dari ?focus=) mungkin ada di halaman paginasi lain → lompat dulu.
+const focusFocusedOnu = () => {
+    if (focusId.value) {
+        const idx = filteredOnus.value.findIndex((o) => o.onu_id === focusId.value);
+        if (idx >= 0) onuPage.value = Math.floor(idx / pageSize.value) + 1;
+    }
+    nextTick(scrollToFocus);
+};
 
+watch(() => props.initial_search, (v) => { search.value = v ?? ''; });
+watch(() => props.focus_onu_id, (v) => { focusId.value = v; focusFocusedOnu(); });
+onMounted(focusFocusedOnu);
+
+const refreshing = ref(false);
 const refresh = () => {
+    refreshing.value = true;
     router.post(route('smartolt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, {
         preserveScroll: true,
+        onFinish: () => { refreshing.value = false; },
     });
 };
 
@@ -618,8 +636,11 @@ const rxBadgeClass = (value) => {
                         </div>
                     </div>
 
+                    <!-- Skeleton saat Refresh ONU (baca SNMP) berjalan -->
+                    <ListSkeleton v-if="refreshing" :rows="10" />
+
                     <!-- Empty state -->
-                    <div v-if="snapshot.onus.length === 0" class="px-6 py-14 text-center">
+                    <div v-else-if="snapshot.onus.length === 0" class="px-6 py-14 text-center">
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <Wifi class="h-7 w-7 text-slate-400" />
                         </div>
@@ -644,7 +665,7 @@ const rxBadgeClass = (value) => {
                         <template v-else>
                         <div class="kv-mobile-list">
                             <article
-                                v-for="onu in filteredOnus"
+                                v-for="onu in pagedOnus"
                                 :key="`${onu.if_index}-${onu.onu_id}`"
                                 :data-onu-id="onu.onu_id"
                                 class="kv-mobile-card transition-shadow"
@@ -791,7 +812,7 @@ const rxBadgeClass = (value) => {
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr
-                                    v-for="onu in filteredOnus"
+                                    v-for="onu in pagedOnus"
                                     :key="`${onu.if_index}-${onu.onu_id}`"
                                     :data-onu-id="onu.onu_id"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
@@ -916,6 +937,17 @@ const rxBadgeClass = (value) => {
                             </tbody>
                         </table>
                         </div>
+
+                        <ClientPagination
+                            v-if="pageCount > 1"
+                            v-model:page="onuPage"
+                            v-model:page-size="pageSize"
+                            :page-count="pageCount"
+                            :total="pageTotal"
+                            :range-start="rangeStart"
+                            :range-end="rangeEnd"
+                            label="ONU"
+                        />
                         </template>
                     </template>
                 </div>
