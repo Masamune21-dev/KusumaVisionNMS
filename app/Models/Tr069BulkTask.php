@@ -22,6 +22,8 @@ class Tr069BulkTask extends Model
     protected $fillable = [
         'snmp_olt_id',
         'created_by',
+        'slot',
+        'port',
         'execute',
         'total',
         'processed',
@@ -39,6 +41,8 @@ class Tr069BulkTask extends Model
     {
         return [
             'execute' => 'boolean',
+            'slot' => 'integer',
+            'port' => 'integer',
             'items' => 'array',
             'total' => 'integer',
             'processed' => 'integer',
@@ -63,6 +67,8 @@ class Tr069BulkTask extends Model
         return [
             'id' => $this->id,
             'status' => $this->status,
+            'slot' => $this->slot,
+            'port' => $this->port,
             'execute' => $this->execute,
             'total' => $this->total,
             'processed' => $this->processed,

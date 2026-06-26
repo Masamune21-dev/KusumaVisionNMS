@@ -7,11 +7,12 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, ChevronLeft, ChevronRight, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -49,6 +50,10 @@ const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const caps = computed(() => props.olt.capabilities ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
+// --- TR069 massal (semua ONU port ini) ---
+const canTr069 = computed(() => !!caps.value.supports_cli_onu_configure);
+const tr069ModalOpen = ref(false);
 
 // --- navigasi cepat antar port (OLT sama) ---
 const navPorts = computed(() => {
@@ -489,6 +494,10 @@ const rxBadgeClass = (value) => {
                             GPON Port & ONU
                         </SecondaryButton>
                     </Link>
+                    <SecondaryButton v-if="canTr069" type="button" @click="tr069ModalOpen = true">
+                        <Cloud class="mr-2 h-4 w-4" />
+                        TR069 Massal
+                    </SecondaryButton>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         Refresh ONU
@@ -1122,6 +1131,8 @@ const rxBadgeClass = (value) => {
                 </div>
             </div>
         </Modal>
+
+        <Tr069BulkModal v-if="canTr069" :show="tr069ModalOpen" :olt="olt" :slot="slot" :port="port" @close="tr069ModalOpen = false" />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>

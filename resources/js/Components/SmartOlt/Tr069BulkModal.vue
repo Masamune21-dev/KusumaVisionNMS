@@ -8,6 +8,8 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 const props = defineProps({
     show: { type: Boolean, default: false },
     olt: { type: Object, required: true },
+    slot: { type: Number, required: true },
+    port: { type: Number, required: true },
 });
 
 const emit = defineEmits(['close']);
@@ -67,7 +69,7 @@ const start = async (execute) => {
     errorMsg.value = '';
     submitting.value = true;
     try {
-        const { data } = await window.axios.post(route('smartolt.tr069-bulk', props.olt.id), { execute });
+        const { data } = await window.axios.post(route('smartolt.tr069-bulk', [props.olt.id, props.slot, props.port]), { execute });
         statusUrl.value = data.status_url;
         progress.value = { ...blankProgress(), execute };
         phase.value = 'running';
@@ -92,7 +94,7 @@ const start = async (execute) => {
                 <h3 class="text-base font-semibold text-white">Aktifkan TR069 Massal</h3>
             </div>
             <p class="mt-2 text-sm text-slate-400">
-                Mengaktifkan TR069 (manajemen ACS) di <strong class="text-slate-200">semua ONU</strong> pada
+                Mengaktifkan TR069 (manajemen ACS) di <strong class="text-slate-200">semua ONU port {{ slot }}/{{ port }}</strong> pada
                 <strong class="text-slate-200">{{ olt.name }}</strong>. ONU yang TR069-nya sudah aktif &amp; mengarah ke ACS target
                 otomatis <strong class="text-emerald-300">di-skip</strong>.
             </p>
@@ -128,7 +130,7 @@ const start = async (execute) => {
                 </h3>
             </div>
             <p class="mt-1 text-sm text-slate-500">
-                Membaca running-config tiap ONU per port di {{ olt.name }}. Proses jalan di latar — boleh ditutup, hasil tetap tersimpan.
+                Membaca running-config tiap ONU di port {{ slot }}/{{ port }} ({{ olt.name }}). Proses jalan di latar — boleh ditutup, hasil tetap tersimpan.
             </p>
 
             <div class="mt-4">
@@ -167,7 +169,7 @@ const start = async (execute) => {
             </div>
 
             <p v-if="progress.total === 0" class="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
-                Belum ada ONU di cache OLT ini — jalankan <strong>Refresh SNMP</strong> di halaman GPON Port dulu.
+                Belum ada ONU di cache port {{ slot }}/{{ port }} — jalankan <strong>Refresh ONU</strong> di halaman ini dulu.
             </p>
             <p v-else-if="progress.applied === 0" class="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200">
                 Semua ONU sudah aktif TR069 ke ACS target — tidak ada yang perlu dieksekusi.

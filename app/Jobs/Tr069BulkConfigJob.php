@@ -10,7 +10,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
 /**
- * Runs a per-OLT "aktifkan TR069 massal" batch in the background, updating the
+ * Runs a per-port "aktifkan TR069 massal" batch in the background, updating the
  * {@see Tr069BulkTask} row as it goes so the UI can render live progress. Telnet
  * writes are not idempotent at the session level — never retry ($tries = 1).
  */
@@ -58,6 +58,8 @@ class Tr069BulkConfigJob implements ShouldQueue
                         'failed_count' => $progress['failed'],
                     ]);
                 },
+                $task->slot,
+                $task->port,
             );
 
             $task->update([

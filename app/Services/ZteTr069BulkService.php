@@ -7,8 +7,9 @@ use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
 
 /**
- * Bulk-activates TR069 (ACS management) on every registered ONU of a single ZTE
- * OLT. For each PON port it reads the ONUs' running-config in ONE telnet session
+ * Bulk-activates TR069 (ACS management) on every registered ONU of a ZTE OLT,
+ * scoped to a single PON port (pass $onlySlot/$onlyPort to {@see run()}; omit
+ * for the whole OLT). For each PON port it reads the ONUs' running-config in ONE telnet session
  * to learn the current TR069 state, then — only for ONUs that are NOT already
  * pointing at the target ACS — writes the `tr069-mgmt 1 state unlock` + acs line
  * in one more session per port.
@@ -36,9 +37,11 @@ class ZteTr069BulkService
     /**
      * @param  (callable(array{processed:int, applied:int, skipped:int, failed:int}): void)|null  $onProgress
      *                                                                                                         invoked after each ONU so a queued job can persist live progress
+     * @param  int|null  $onlySlot  scope the run to a single PON port (null = whole OLT)
+     * @param  int|null  $onlyPort  scope the run to a single PON port (null = whole OLT)
      * @return array{applied:int, skipped:int, failed:int, total:int, items:array<int, array<string, mixed>>}
      */
-    public function run(SnmpOlt $olt, bool $execute, ?int $userId = null, ?callable $onProgress = null): array
+    public function run(SnmpOlt $olt, bool $execute, ?int $userId = null, ?callable $onProgress = null, ?int $onlySlot = null, ?int $onlyPort = null): array
     {
         $acs = $this->acs();
         $isC600 = SmartOltSupport::isC600($olt);
@@ -66,7 +69,7 @@ class ZteTr069BulkService
             }
         };
 
-        foreach ($this->portsFromCache($olt) as [$slot, $port, $onus]) {
+        foreach ($this->portsFromCache($olt, $onlySlot, $onlyPort) as [$slot, $port, $onus]) {
             // Only registered ONUs (with a serial) can have a running-config read.
             $readable = [];
             foreach ($onus as $onu) {
@@ -225,10 +228,10 @@ class ZteTr069BulkService
      * cached ONU is recorded exactly once by run(), so this matches the final
      * processed count.
      */
-    public function cachedOnuCount(SnmpOlt $olt): int
+    public function cachedOnuCount(SnmpOlt $olt, ?int $onlySlot = null, ?int $onlyPort = null): int
     {
         $total = 0;
-        foreach ($this->portsFromCache($olt) as [, , $onus]) {
+        foreach ($this->portsFromCache($olt, $onlySlot, $onlyPort) as [, , $onus]) {
             $total += count($onus);
         }
 
@@ -276,17 +279,23 @@ class ZteTr069BulkService
     /**
      * Group cached ONUs by PON port from `snmp_olts.last_test_result.port_onus`.
      * Slot/port come from the canonical cache key ("{slot}_{port}") rather than
-     * per-ONU fields, which may be absent.
+     * per-ONU fields, which may be absent. When $onlySlot/$onlyPort are given the
+     * result is scoped to that single port (TR069 massal is now per-port).
      *
      * @return array<int, array{0:int, 1:int, 2:array<int, array<string, mixed>>}>
      */
-    private function portsFromCache(SnmpOlt $olt): array
+    private function portsFromCache(SnmpOlt $olt, ?int $onlySlot = null, ?int $onlyPort = null): array
     {
         $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
         $ports = [];
 
         foreach ((is_array($portOnus) ? $portOnus : []) as $key => $entry) {
             if (! preg_match('/^(\d+)_(\d+)$/', (string) $key, $m)) {
+                continue;
+            }
+
+            if ($onlySlot !== null && $onlyPort !== null
+                && ((int) $m[1] !== $onlySlot || (int) $m[2] !== $onlyPort)) {
                 continue;
             }
 

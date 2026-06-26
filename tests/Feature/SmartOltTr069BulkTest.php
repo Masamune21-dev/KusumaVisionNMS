@@ -16,14 +16,14 @@ class SmartOltTr069BulkTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_endpoint_queues_a_task_with_cached_onu_total(): void
+    public function test_endpoint_queues_a_task_scoped_to_one_port_with_cached_total(): void
     {
         Queue::fake();
         $user = User::factory()->create();
         $olt = $this->makeOlt();
 
         $response = $this->actingAs($user)->postJson(
-            route('smartolt.tr069-bulk', $olt),
+            route('smartolt.tr069-bulk', [$olt, 2, 3]),
             ['execute' => false],
         );
 
@@ -32,9 +32,33 @@ class SmartOltTr069BulkTest extends TestCase
         $task = Tr069BulkTask::firstOrFail();
         $this->assertSame('queued', $task->status);
         $this->assertFalse($task->execute);
-        $this->assertSame(3, $task->total); // 5,6 di 2/3 + 1 di 2/4
+        $this->assertSame(2, $task->slot);
+        $this->assertSame(3, $task->port);
+        $this->assertSame(2, $task->total); // hanya ONU 5,6 di port 2/3 (bukan 1 di 2/4)
 
         Queue::assertPushed(Tr069BulkConfigJob::class, fn (Tr069BulkConfigJob $job) => $job->taskId === $task->id);
+    }
+
+    public function test_run_scoped_to_single_port_ignores_other_ports(): void
+    {
+        $olt = $this->makeOlt(['ip' => '10.31.0.15']);
+        $fake = $this->fakeExecutor(activeOnuIds: []); // semua belum aktif
+
+        // Scope ke port 2/3 saja (ONU 5,6) — ONU 1 di port 2/4 tidak boleh ikut.
+        $task = $this->makeTask($olt, execute: true, slot: 2, port: 3);
+        (new Tr069BulkConfigJob($task->id))->handle(app(ZteTr069BulkService::class));
+
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+        $this->assertSame(2, $task->applied_count); // ONU 5,6
+        $this->assertSame(2, $task->processed);
+
+        // Satu session tulis (port 2/3) — port 2/4 tidak disentuh.
+        $this->assertCount(1, $fake->writes);
+        $joined = implode("\n", $fake->writes);
+        $this->assertStringContainsString('pon-onu-mng gpon-onu_1/2/3:5', $joined);
+        $this->assertStringContainsString('pon-onu-mng gpon-onu_1/2/3:6', $joined);
+        $this->assertStringNotContainsString('1/2/4', $joined);
     }
 
     public function test_dry_run_reports_intent_without_writing(): void
@@ -128,10 +152,12 @@ class SmartOltTr069BulkTest extends TestCase
             ->assertJson(['status' => 'running', 'total' => 3, 'processed' => 2, 'applied' => 1, 'skipped' => 1, 'finished' => false]);
     }
 
-    private function makeTask(SnmpOlt $olt, bool $execute): Tr069BulkTask
+    private function makeTask(SnmpOlt $olt, bool $execute, ?int $slot = null, ?int $port = null): Tr069BulkTask
     {
         return Tr069BulkTask::create([
             'snmp_olt_id' => $olt->id,
+            'slot' => $slot,
+            'port' => $port,
             'execute' => $execute,
             'total' => 3,
             'status' => 'queued',

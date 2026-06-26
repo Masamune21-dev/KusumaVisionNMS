@@ -915,12 +915,13 @@ class SmartOltController extends Controller
     }
 
     /**
-     * Kick off a per-OLT "aktifkan TR069 massal" batch. Two phases share this
-     * endpoint via the `execute` flag: dry-run (scan only) and execute (write).
-     * Both skip ONUs already pointing at the target ACS. Runs in a queued job;
-     * the frontend polls {@see tr069BulkStatus()} for live progress.
+     * Kick off a per-port "aktifkan TR069 massal" batch (all ONUs on one PON
+     * port). Two phases share this endpoint via the `execute` flag: dry-run (scan
+     * only) and execute (write). Both skip ONUs already pointing at the target
+     * ACS. Runs in a queued job; the frontend polls {@see tr069BulkStatus()} for
+     * live progress.
      */
-    public function tr069Bulk(Request $request, SnmpOlt $olt, ZteTr069BulkService $service): JsonResponse
+    public function tr069Bulk(Request $request, SnmpOlt $olt, int $slot, int $port, ZteTr069BulkService $service): JsonResponse
     {
         $this->assertCapability($olt, 'supports_cli_onu_configure');
 
@@ -931,8 +932,10 @@ class SmartOltController extends Controller
         $task = Tr069BulkTask::create([
             'snmp_olt_id' => $olt->id,
             'created_by' => $request->user()?->id,
+            'slot' => $slot,
+            'port' => $port,
             'execute' => (bool) ($data['execute'] ?? false),
-            'total' => $service->cachedOnuCount($olt),
+            'total' => $service->cachedOnuCount($olt, $slot, $port),
             'status' => 'queued',
         ]);
 

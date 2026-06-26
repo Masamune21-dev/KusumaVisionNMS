@@ -2542,3 +2542,29 @@ Notes:
 
 - Tak ada perubahan backend — validasi & fillable `polling_enabled`/`poll_interval_minutes`/`rx_poll_interval_minutes` sudah ada di `CDataOltController::validated()` & model `SnmpOlt`. Edit form pre-fill dari `serializeOlt`.
 - **Deploy**: hanya `npm run build` (perubahan Vue saja; sudah dijalankan). Tak perlu queue:restart/migrate/config:cache.
+
+### TR069 Massal dipindah dari per-OLT ke per-port
+
+Sebelumnya tombol "TR069 Massal" ada di halaman GPON Port dan menyapu **semua ONU satu OLT**. Atas permintaan user, fitur dipindah jadi **per PON port** (lebih aman & terarah, tak ada aksi sapu-seluruh-OLT). Engine baca/skip/tulis tidak berubah — hanya di-scope ke satu port.
+
+Created:
+
+- `database/migrations/2026_06_26_120000_add_port_scope_to_tr069_bulk_tasks_table.php` — kolom `slot`/`port` nullable di `tr069_bulk_tasks` (null = baris task lama bergaya seluruh-OLT). sqlite-compatible.
+
+Changed:
+
+- `app/Services/ZteTr069BulkService.php` — `run()`, `cachedOnuCount()`, `portsFromCache()` terima `?int $onlySlot`/`?int $onlyPort` (null = seluruh OLT). Filter port di `portsFromCache`. Docblock disesuaikan.
+- `app/Http/Controllers/SmartOltController.php` — `tr069Bulk()` kini terima `int $slot, int $port`, simpan ke task + hitung total per-port (`cachedOnuCount($olt, $slot, $port)`).
+- `app/Jobs/Tr069BulkConfigJob.php` — teruskan `$task->slot`/`$task->port` ke `service->run()`. Docblock per-port.
+- `app/Models/Tr069BulkTask.php` — `slot`/`port` di fillable + cast integer + ikut `progressPayload()`.
+- `routes/web.php` — route POST jadi `…/ports/{slot}/{port}/tr069-bulk` (nama `smartolt.tr069-bulk` tetap; status route tak berubah).
+- `resources/js/Components/SmartOlt/Tr069BulkModal.vue` — prop `slot`/`port` (required), teks "semua ONU port X/Y", POST ke route per-port, pesan "Refresh ONU di halaman ini".
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tombol "TR069 Massal" baru di header (gated `supports_cli_onu_configure`) + render `Tr069BulkModal` dengan slot/port aktif. Import `Cloud` + komponen modal.
+- `resources/js/Pages/SmartOlt/GponPorts.vue` — hapus tombol/modal/refs/import TR069 massal (Cloud, canTr069, tr069ModalOpen, Tr069BulkModal).
+- `tests/Feature/SmartOltTr069BulkTest.php` — test endpoint diubah ke per-port (route dgn slot/port, total=2, assert slot/port task), `makeTask()` terima slot/port opsional, + test baru `test_run_scoped_to_single_port_ignores_other_ports`.
+- `CLAUDE.md` — paragraf TR069 massal diupdate jadi per-port.
+
+Notes:
+
+- Engine internal tetap mendukung scope null (seluruh OLT) untuk kompatibilitas baris task lama; controller sekarang selalu mengisi slot/port. Verifikasi: `SmartOltTr069BulkTest` **6 passed** (di sqlite via `config:clear`), Pint passed, `npm run build` sukses.
+- **Deploy box ini**: migrasi sudah `php artisan migrate --force` (pgsql, tambah kolom nullable — aman), `config:cache` dikembalikan (sempat di-clear untuk test), `queue:restart` dijalankan (kode `Tr069BulkConfigJob`/`ZteTr069BulkService` berubah → worker long-lived harus muat ulang). Route tak ter-cache (cek `bootstrap/cache` hanya `config.php`).
