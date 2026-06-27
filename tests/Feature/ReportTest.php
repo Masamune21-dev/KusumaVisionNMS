@@ -52,18 +52,35 @@ class ReportTest extends TestCase
             );
     }
 
-    public function test_rx_report_flags_critical(): void
+    public function test_onu_report_flags_rx_critical(): void
     {
         $user = User::factory()->create();
         $this->seedOlt();
 
+        // Inventaris ONU kini menyatu dengan RX Power dalam satu laporan.
         $this->actingAs($user)
-            ->get(route('reports.index', ['type' => 'rx']))
+            ->get(route('reports.index', ['type' => 'onu']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('report.type', 'rx')
+                ->where('report.type', 'onu')
                 ->has('report.rows', 2)
-                ->where('report.summary.2.value', 1) // 1 critical (< -28 dBm)
+                ->where('report.summary.4.value', 1) // 1 RX critical (< -28 dBm)
+            );
+    }
+
+    public function test_onu_report_filters_by_redaman(): void
+    {
+        $user = User::factory()->create();
+        $this->seedOlt();
+
+        // Filter redaman critical -> hanya ONU dengan RX < -28 dBm yang tampil.
+        $this->actingAs($user)
+            ->get(route('reports.index', ['type' => 'onu', 'rx_status' => 'critical']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('report.rows', 1)
+                ->where('report.rows.0.serial_number', 'ZTEG0002')
+                ->where('report.summary.4.value', 1) // ringkasan tetap penuh dataset
             );
     }
 

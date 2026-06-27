@@ -2723,3 +2723,43 @@ Changed:
 - `resources/js/Layouts/AuthenticatedLayout.vue` — kelas link nav dibuat kondisional: collapsed pakai
   `mx-auto h-11 w-11 justify-center` (tile kotak 44×44 terpusat di ikon) ganti `px-3 py-2.5` full-width
   yang dulu bikin highlight aktif jadi pill lebar & ikon menempel kiri. Expanded tak berubah.
+
+## 2026-06-27
+
+### Report — gabung Inventaris ONU + RX Power jadi satu, sembunyikan rentang hari
+
+Atas permintaan user di halaman Report: dua jenis laporan terpisah ("Inventaris ONU" dan "RX Power
+ONU") disatukan menjadi satu laporan, dan filter rentang hari dihilangkan untuk laporan yang
+mencerminkan state cache "saat ini".
+
+Changed:
+
+- `app/Services/Report/ReportService.php` — type `rx` dihapus dari `TYPES`/`build()`/`title()`/
+  `typeOptions()`; method `rxPower()` dibuang dan logikanya digabung ke `onuInventory()`. Laporan `onu`
+  kini berjudul "Laporan Inventaris & RX Power ONU" dengan kolom baru **RX Power** (nilai dBm atau `-`
+  bila tak ada pembacaan) plus field per-baris `rx_level` (normal/warning/critical, untuk pewarnaan,
+  bukan kolom tampil). Filter redaman (`rx_status`) & ringkasan kini ikut: kartu jadi `Total ONU ·
+  Online · Offline · RX Warning (< -25) · RX Critical (< -28)`. Ringkasan tetap hitung seluruh dataset
+  meski baris dipersempit filter (perilaku konsisten dgn filter ONU monitoring). `applyStatusFilter`
+  buang early-return `rx`.
+- `resources/js/Pages/Reports/Index.vue` — dropdown **rentang hari** kini `v-if` hanya untuk type
+  `alarm`/`provisioning` (Inventaris ONU & Status OLT baca cache "saat ini", rentang tak relevan).
+  Filter **Redaman RX** dipindah dari type `rx` → `onu`. Helper `rxClass()` mewarnai sel RX Power
+  (merah critical · amber warning · hijau normal) di tabel desktop & kartu mobile. `queryParams`
+  menyesuaikan: `rx_status` ikut saat type `onu`.
+- `tests/Feature/ReportTest.php` — test `rx` diganti `test_onu_report_flags_rx_critical`
+  (`summary.4.value` = 1 critical) + test baru `test_onu_report_filters_by_redaman` (filter
+  `rx_status=critical` → 1 baris, ringkasan tetap penuh).
+
+Notes:
+
+- **Rentang hari disembunyikan, bukan dihapus dari kode** — laporan Alarm & Provisioning masih butuh
+  filter waktu (`startFor()`), jadi dropdown tetap muncul untuk keduanya. Inventaris ONU & Status OLT
+  selalu baca `last_test_result` (state cache terkini) sehingga rentang memang tak berpengaruh.
+- CSV/PDF otomatis ikut kolom baru (keduanya column-driven, tak perlu diubah).
+- Verifikasi: `ReportTest` **6 passed**, Pint passed, `npm run build` sukses.
+- ⚠️ **Gotcha test→pgsql lagi**: `php artisan test` dgn config ter-cache menyambar PostgreSQL prod
+  (3762 baris vs ekspektasi 2). Pola aman dipakai: `config:clear` → test (sqlite) → `config:cache`.
+  Lihat memori `prod-deploy-gotchas`.
+- **Deploy box ini**: `.php` terbaca opcache otomatis (~2 dtk), Vue sudah `npm run build`, `config:cache`
+  sudah dikembalikan. Tak perlu migrate/queue:restart (laporan dirender di request web).

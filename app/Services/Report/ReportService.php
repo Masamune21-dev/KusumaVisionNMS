@@ -9,7 +9,7 @@ use Illuminate\Support\Carbon;
 
 class ReportService
 {
-    public const TYPES = ['onu', 'olt', 'alarm', 'provisioning', 'rx'];
+    public const TYPES = ['onu', 'olt', 'alarm', 'provisioning'];
 
     public const RANGES = ['24h', '7d', '30d', 'all'];
 
@@ -30,7 +30,6 @@ class ReportService
             'olt' => $this->oltStatus($filters),
             'alarm' => $this->alarmHistory($filters),
             'provisioning' => $this->provisioning($filters),
-            'rx' => $this->rxPower($filters),
             default => $this->onuInventory($filters),
         };
 
@@ -47,10 +46,6 @@ class ReportService
      */
     private function applyStatusFilter(array $report, string $type, ?string $status): array
     {
-        if ($type === 'rx') {
-            return $report;
-        }
-
         // OLT report keeps its status under "reachable"; the rest use "status".
         $column = $type === 'olt' ? 'reachable' : 'status';
 
@@ -89,8 +84,7 @@ class ReportService
             'olt' => 'Laporan Status OLT',
             'alarm' => 'Laporan Riwayat Alarm',
             'provisioning' => 'Laporan Provisioning ONU',
-            'rx' => 'Laporan RX Power ONU',
-            default => 'Laporan Inventaris ONU',
+            default => 'Laporan Inventaris & RX Power ONU',
         };
     }
 
@@ -100,11 +94,10 @@ class ReportService
     public static function typeOptions(): array
     {
         return [
-            ['value' => 'onu', 'label' => 'Inventaris ONU'],
+            ['value' => 'onu', 'label' => 'Inventaris & RX Power ONU'],
             ['value' => 'olt', 'label' => 'Status OLT'],
             ['value' => 'alarm', 'label' => 'Riwayat Alarm'],
             ['value' => 'provisioning', 'label' => 'Provisioning ONU'],
-            ['value' => 'rx', 'label' => 'RX Power ONU'],
         ];
     }
 
@@ -149,13 +142,22 @@ class ReportService
     }
 
     /**
-     * @param  array{range?:string, olt_id?:int|null}  $filters
+     * Inventaris ONU + RX Power dalam satu tabel. Selalu mencerminkan state cache
+     * "saat ini" (last_test_result), tidak bergantung pada rentang waktu.
+     *
+     * @param  array{olt_id?:int|null, pon_port?:string|null, rx_status?:string|null}  $filters
      */
     private function onuInventory(array $filters): array
     {
         $olts = $this->oltsQuery($filters)->get();
+        $rxFilter = in_array($filters['rx_status'] ?? null, self::RX_STATUSES, true)
+            ? $filters['rx_status']
+            : null;
         $rows = [];
+        $total = 0;
         $online = 0;
+        $warning = 0;
+        $critical = 0;
 
         foreach ($olts as $olt) {
             foreach ((array) data_get($olt->last_test_result, 'port_onus', []) as $key => $group) {
@@ -164,14 +166,42 @@ class ReportService
                 }
                 [$slot, $port] = array_pad(explode('_', (string) $key), 2, '');
                 foreach ((array) data_get($group, 'onus', []) as $onu) {
+                    $total++;
                     $isOnline = (bool) data_get($onu, 'online', false);
                     $online += $isOnline ? 1 : 0;
+
+                    // RX power opsional: tidak semua ONU punya pembacaan RX di cache.
+                    $rx = data_get($onu, 'rx_power_dbm', data_get($onu, 'rx_power', data_get($onu, 'rx')));
+                    $rxLevel = '';
+                    $rxLabel = '-';
+                    if (is_numeric($rx)) {
+                        $rx = (float) $rx;
+                        $rxLabel = sprintf('%.2f dBm', $rx);
+                        $rxLevel = 'normal';
+                        if ($rx < -28) {
+                            $rxLevel = 'critical';
+                            $critical++;
+                        } elseif ($rx < -25) {
+                            $rxLevel = 'warning';
+                            $warning++;
+                        }
+                    }
+
+                    // Ringkasan di atas mencakup seluruh dataset; baris yang tampil
+                    // dipersempit ke level redaman terpilih (mirip filter ONU monitoring).
+                    if ($rxFilter !== null && $rxLevel !== $rxFilter) {
+                        continue;
+                    }
+
                     $rows[] = [
                         'olt' => $olt->name,
                         'interface' => data_get($onu, 'interface', "{$slot}/{$port}"),
                         'onu_id' => data_get($onu, 'onu_id'),
                         'serial_number' => data_get($onu, 'serial_number'),
                         'name' => data_get($onu, 'name') ?: '-',
+                        'rx_power' => $rxLabel,
+                        // Bukan kolom tampil; hanya untuk pewarnaan sel RX di frontend.
+                        'rx_level' => $rxLevel,
                         'status' => $this->onuPhaseLabel($isOnline, (string) data_get($onu, 'phase_state', '')),
                     ];
                 }
@@ -187,85 +217,16 @@ class ReportService
                 ['key' => 'onu_id', 'label' => 'ONU ID'],
                 ['key' => 'serial_number', 'label' => 'Serial Number'],
                 ['key' => 'name', 'label' => 'Nama / Pelanggan'],
-                ['key' => 'status', 'label' => 'Status'],
-            ],
-            'rows' => $rows,
-            'summary' => [
-                ['label' => 'Total ONU', 'value' => count($rows)],
-                ['label' => 'Online', 'value' => $online],
-                ['label' => 'Offline', 'value' => count($rows) - $online],
-            ],
-        ];
-    }
-
-    /**
-     * @param  array{range?:string, olt_id?:int|null, rx_status?:string|null}  $filters
-     */
-    private function rxPower(array $filters): array
-    {
-        $olts = $this->oltsQuery($filters)->get();
-        $rxFilter = in_array($filters['rx_status'] ?? null, self::RX_STATUSES, true)
-            ? $filters['rx_status']
-            : null;
-        $rows = [];
-        $warning = 0;
-        $critical = 0;
-
-        foreach ($olts as $olt) {
-            foreach ((array) data_get($olt->last_test_result, 'port_onus', []) as $key => $group) {
-                if (! empty($filters['pon_port']) && (string) $key !== $filters['pon_port']) {
-                    continue;
-                }
-                [$slot, $port] = array_pad(explode('_', (string) $key), 2, '');
-                foreach ((array) data_get($group, 'onus', []) as $onu) {
-                    $rx = data_get($onu, 'rx_power_dbm', data_get($onu, 'rx_power', data_get($onu, 'rx')));
-                    if (! is_numeric($rx)) {
-                        continue;
-                    }
-                    $rx = (float) $rx;
-                    $level = 'normal';
-                    if ($rx < -28) {
-                        $level = 'critical';
-                        $critical++;
-                    } elseif ($rx < -25) {
-                        $level = 'warning';
-                        $warning++;
-                    }
-
-                    // Summary counts above reflect the full dataset; the displayed rows are
-                    // narrowed to the chosen attenuation level (like the ONU monitoring filter).
-                    if ($rxFilter !== null && $level !== $rxFilter) {
-                        continue;
-                    }
-
-                    $rows[] = [
-                        'olt' => $olt->name,
-                        'interface' => data_get($onu, 'interface', "{$slot}/{$port}"),
-                        'serial_number' => data_get($onu, 'serial_number'),
-                        'name' => data_get($onu, 'name') ?: '-',
-                        'rx_power' => sprintf('%.2f dBm', $rx),
-                        'status' => ucfirst($level),
-                    ];
-                }
-            }
-        }
-
-        return [
-            'type' => 'rx',
-            'title' => $this->title('rx'),
-            'columns' => [
-                ['key' => 'olt', 'label' => 'OLT'],
-                ['key' => 'interface', 'label' => 'Interface'],
-                ['key' => 'serial_number', 'label' => 'Serial Number'],
-                ['key' => 'name', 'label' => 'Nama / Pelanggan'],
                 ['key' => 'rx_power', 'label' => 'RX Power'],
                 ['key' => 'status', 'label' => 'Status'],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total ONU (ada RX)', 'value' => count($rows)],
-                ['label' => 'Warning (< -25 dBm)', 'value' => $warning],
-                ['label' => 'Critical (< -28 dBm)', 'value' => $critical],
+                ['label' => 'Total ONU', 'value' => $total],
+                ['label' => 'Online', 'value' => $online],
+                ['label' => 'Offline', 'value' => $total - $online],
+                ['label' => 'RX Warning (< -25 dBm)', 'value' => $warning],
+                ['label' => 'RX Critical (< -28 dBm)', 'value' => $critical],
             ],
         ];
     }

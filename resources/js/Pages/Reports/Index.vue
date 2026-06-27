@@ -30,8 +30,8 @@ const queryParams = () => ({
     range: state.range,
     ...(state.olt_id !== '' && state.olt_id !== null ? { olt_id: state.olt_id } : {}),
     ...(state.olt_id !== '' && state.olt_id !== null && state.pon_port !== '' ? { pon_port: state.pon_port } : {}),
-    ...(state.type === 'rx' && state.rx_status !== '' ? { rx_status: state.rx_status } : {}),
-    ...(state.type !== 'rx' && state.status !== '' ? { status: state.status } : {}),
+    ...(state.type === 'onu' && state.rx_status !== '' ? { rx_status: state.rx_status } : {}),
+    ...(state.status !== '' ? { status: state.status } : {}),
 });
 
 const reload = () => {
@@ -74,6 +74,14 @@ const statusClass = (value) => {
 };
 
 const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key);
+
+// Warna nilai RX Power sesuai level redaman (rx_level dikirim per-baris, bukan kolom).
+const rxClass = (level) => {
+    if (level === 'critical') return 'font-medium text-red-300';
+    if (level === 'warning') return 'font-medium text-amber-300';
+    if (level === 'normal') return 'text-emerald-300';
+    return 'text-slate-200';
+};
 </script>
 
 <template>
@@ -106,7 +114,7 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
                         <select id="type" v-model="state.type" class="kv-filter-control w-full sm:w-auto" title="Jenis laporan">
                             <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                        <select id="range" v-model="state.range" class="kv-filter-control w-full sm:w-auto" title="Rentang waktu">
+                        <select v-if="state.type === 'alarm' || state.type === 'provisioning'" id="range" v-model="state.range" class="kv-filter-control w-full sm:w-auto" title="Rentang waktu">
                             <option v-for="opt in rangeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                         <select id="olt" v-model="state.olt_id" class="kv-filter-control w-full sm:w-auto" title="OLT">
@@ -123,13 +131,13 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
                             <option value="">{{ state.olt_id ? 'Semua Port' : 'Pilih OLT dulu' }}</option>
                             <option v-for="opt in ponPortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                        <select v-if="state.type === 'rx'" id="rx_status" v-model="state.rx_status" class="kv-filter-control w-full sm:w-auto" title="Redaman RX">
+                        <select v-if="state.type === 'onu'" id="rx_status" v-model="state.rx_status" class="kv-filter-control w-full sm:w-auto" title="Redaman RX">
                             <option value="">Semua Redaman</option>
                             <option value="normal">Normal (&ge; -25 dBm)</option>
                             <option value="warning">Warning (&lt; -25 dBm)</option>
                             <option value="critical">Critical (&lt; -28 dBm)</option>
                         </select>
-                        <select v-if="state.type !== 'rx' && (report.status_options?.length ?? 0) > 0" id="status" v-model="state.status" class="kv-filter-control w-full sm:w-auto" title="Status">
+                        <select v-if="(report.status_options?.length ?? 0) > 0" id="status" v-model="state.status" class="kv-filter-control w-full sm:w-auto" title="Status">
                             <option value="">Semua Status</option>
                             <option v-for="opt in report.status_options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
@@ -171,6 +179,7 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
                                             <span v-if="isStatusColumn(column.key)" :class="['inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', statusClass(row[column.key])]">
                                                 {{ row[column.key] }}
                                             </span>
+                                            <span v-else-if="column.key === 'rx_power'" :class="rxClass(row.rx_level)">{{ row[column.key] ?? '-' }}</span>
                                             <template v-else>{{ row[column.key] ?? '-' }}</template>
                                         </span>
                                     </div>
@@ -194,6 +203,7 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
                                             <span v-if="isStatusColumn(column.key)" :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', statusClass(row[column.key])]">
                                                 {{ row[column.key] }}
                                             </span>
+                                            <span v-else-if="column.key === 'rx_power'" :class="rxClass(row.rx_level)">{{ row[column.key] ?? '-' }}</span>
                                             <template v-else>{{ row[column.key] ?? '-' }}</template>
                                         </td>
                                     </tr>
