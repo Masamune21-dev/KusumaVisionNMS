@@ -276,6 +276,33 @@ class CDataOltController extends Controller
         }
     }
 
+    /**
+     * Hapus (deregister) ONU dari OLT C-Data via CLI `ont delete {port} {onuId}`
+     * (sintaks identik EPON & GPON). Destruktif — gated `supports_onu_delete`.
+     */
+    public function deleteOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, CDataCliWriteService $writer): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_delete');
+        $back = redirect()->route('cdata-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $writer->delete($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
+
+            if ($result['ok']) {
+                $this->removeCachedOnu($olt, $slot, $port, $onuId);
+            }
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? sprintf('ONU %d/%d/%d berhasil dihapus dari OLT.', $slot, $port, $onuId)
+                    : 'Hapus ONU selesai dengan indikasi error: '.$result['error'],
+            );
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Hapus ONU gagal: '.$exception->getMessage());
+        }
+    }
+
     private function ifaceKeyword(SnmpOlt $olt): string
     {
         return $this->driverOf($olt) === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';
@@ -320,6 +347,29 @@ class CDataOltController extends Controller
     }
 
     /**
+     * Buang satu ONU dari cache `port_onus` setelah delete sukses, dan sesuaikan count.
+     */
+    private function removeCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $path = "port_onus.{$slot}_{$port}.onus";
+        $onus = data_get($snapshot, $path);
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        $onus = array_values(array_filter($onus, fn (array $onu): bool => (int) ($onu['onu_id'] ?? 0) !== $onuId));
+        data_set($snapshot, $path, $onus);
+
+        if (data_get($snapshot, "port_onus.{$slot}_{$port}.count") !== null) {
+            data_set($snapshot, "port_onus.{$slot}_{$port}.count", count($onus));
+        }
+
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serializeSnapshot(SnmpOlt $olt): array
@@ -340,6 +390,7 @@ class CDataOltController extends Controller
             'system' => data_get($result, 'system'),
             'ports' => data_get($result, 'ports', []),
             'port_counts' => $counts,
+            'panel' => data_get($result, 'panel'),
             'firmware_v3' => (bool) data_get($result, 'cdata.firmware_v3', false),
             'scanned_at' => data_get($result, 'onu_scanned_at'),
         ];

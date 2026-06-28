@@ -7,7 +7,6 @@ use App\Models\OnuRxSample;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\CData\CDataOltScanner;
-use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -77,8 +76,10 @@ class OltPollingTest extends TestCase
 
     private function fakeCDataScanner(): CDataOltScanner
     {
-        return new class(app(SmartOltSnmpServiceResolver::class)) extends CDataOltScanner
+        return new class extends CDataOltScanner
         {
+            public function __construct() {}
+
             public function scan(SnmpOlt $olt): int
             {
                 $now = now()->toIso8601String();

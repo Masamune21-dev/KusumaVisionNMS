@@ -1,5 +1,97 @@
 # Worklog
 
+## 2026-06-28
+
+### C-Data — visualisasi faceplate (panel depan) di halaman Detail EPON & GPON
+
+Halaman Detail OLT C-Data kini menampilkan **faceplate** ala SmartOLT (sesuai referensi gambar
+user): chassis + port PON/GE/XGE dengan ikon fiber/copper, warna per status (up/down/shutdown),
+cluster LED (SYS/ALM/MGMT), legend; plus baris stat ringkas (Total/Online/Offline ONU, Port up) dan
+identitas device (model/serial/HW/SW) di kartu Info Sistem.
+
+**SNMP ditelusuri & diverifikasi live** (read-only) di EPON-TAYU (#276) & FD1608S (#277):
+
+- **Port fisik via IF-MIB** `ifDescr/ifOperStatus/ifAdminStatus` — klasifikasi dari prefix nama
+  (`epon|gpon`=PON fiber, `ge`=uplink copper, `xge`=uplink fiber). Cocok persis dengan 2 gambar
+  referensi: EPON = PON 0/1+0/2 (4+4) + GE(4) + XGE(4); FD1608S = PON 0/0 (8) + GE(4) + XGE(2).
+- **Identitas device** `17409.2.3.1.*` (kedua family lapor 17409): model (GPON bersih `FD1608S-…`;
+  EPON Hex-STRING null-padded → di-drop), serial, versi HW/SW, device type.
+- **Health (CPU/suhu/memori) TIDAK ADA** via SNMP (host-resources/ENTITY-SENSOR/entPhysical kosong)
+  → LED ALM tidak dikarang (tetap `off`).
+
+Created:
+
+- `app/Services/CData/CDataFaceplateService.php` — kumpulkan port + klasifikasi + identitas device
+  dari IF-MIB & tabel `17409.2.3.1.*`; murni SNMP read, best-effort.
+- `resources/js/Components/CDataOlt/OltFaceplate.vue` — render chassis/port/LED/legend (CSS, ikon SVG
+  fiber/copper inline), horizontal-scroll di mobile.
+- `tests/Unit/CDataFaceplateServiceTest.php` — klasifikasi port, subgrup PON per frame, drop model
+  hex, null bila tak ada interface (3 test).
+
+Changed:
+
+- `app/Services/CData/CDataOltScanner.php` — inject `CDataFaceplateService`, isi `snapshot.panel`
+  (try/catch; kegagalan tak menggagalkan scan/polling).
+- `app/Http/Controllers/CDataOltController.php` — `serializeSnapshot` expose `panel`.
+- `resources/js/Pages/CDataOlt/Detail.vue` — kartu "Panel Depan" + baris stat ringkas + field
+  model/serial/HW/SW/tipe di Info Sistem.
+- `docs/SMARTOLT_CDATA_GUIDE.md` — §5b baru (IF-MIB faceplate + tabel device `17409.2.3.1.*`).
+
+Notes:
+
+- Panel di-cache di `last_test_result.panel` (TTL-gated seperti data lain); discan ulang via tombol
+  "Scan ONU" / auto saat cache stale. **Pre-populate ke-7 OLT C-Data** lewat CLI (kode baru) agar
+  langsung tampil tanpa nunggu poll; scanner lama di worker mempertahankan key `panel` (tak terhapus).
+- `productModel()` mem-buang nilai Hex-STRING termasuk yang ber-**trailing space** (kasus PEKALONGAN
+  `4F 4C 54 … 00 ` → drop, headline fallback `EPON OLT`); ditambah ke unit test.
+- prod: `opcache.validate_timestamps=On revalidate_freq=2` → php-fpm auto-pickup ~2 dtk (tak perlu
+  reload manual). Worker long-lived → `php artisan queue:restart` agar poll latar pakai kode baru.
+- Semua probe SNMP read-only. Test: 11 lulus (3 faceplate + 5 driver + 3 write) + 35 polling/telegram
+  dgn config cache dipindah sementara → sqlite, lalu dipulihkan byte-identik.
+
+## 2026-06-27
+
+### C-Data — aksi Delete ONU (EPON & GPON) via CLI `ont delete`
+
+Tambah aksi hapus/deregister ONU di halaman ONU per-port OLT C-Data (EPON & GPON), mirror pola
+reboot yang sudah ada. **Command ditelusuri & diverifikasi live** lewat context-help CLI (read-only
+`?`) di FD1608S (GPON, OLT 277) dan FD1108S (EPON, OLT 276): sintaks **identik**
+`ont delete {port} {onuId}` (arg ke-2 boleh `<1-128>` | `all` | `offline-list`). Kandidat awal
+`no ont {port} {onuId}` terbukti **salah** (grup `no ont` tak punya bentuk delete).
+
+Changed:
+
+- `app/Services/CData/CDataCliWriteService.php` — method `delete()` baru: `ont delete {port} {onuId}`
+  di submode `interface {epon|gpon} 0/{slot}`, `confirm: true` (OLT minta y/n → dijawab otomatis).
+- `app/Support/SmartOltSupport.php` — `supports_onu_delete` EPON & GPON `false → true`.
+- `app/Http/Controllers/CDataOltController.php` — `deleteOnu()` (gated `supports_onu_delete`) +
+  helper `removeCachedOnu()` (buang ONU dari cache `port_onus` + sesuaikan `count`).
+- `routes/web.php` — `DELETE cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}` → `cdata-olt.onu.delete`.
+- `resources/js/Pages/CDataOlt/PortOnus.vue` — tombol Trash (desktop + mobile) gated `canDelete`,
+  `ConfirmModal` konfirmasi destruktif.
+- `tests/Feature/CDataOltWriteTest.php` — fake `delete()` + test wiring CLI + hapus cache (count→0).
+- `docs/SMARTOLT_CDATA_GUIDE.md` — §6.1/§6.2 tambah `ont delete` + catatan verifikasi live;
+  §7 baris matriks "Delete / deregister ONU" + flag `supports_onu_delete`.
+
+### UI — hero banner gradient brand + semua card transparan
+
+- `resources/js/Components/Dashboard/HeroBanner.vue` — hero tak lagi panel slate rata: base diagonal
+  brand (slate→sky/cyan), layer `hero-tint` (wash cyan/indigo) + `hero-glow` (radial cyan mengisi sisi
+  kanan kosong), scrim kiri-saja untuk kontras teks, judul gradient putih→sky.
+- `resources/css/app.css` — semua permukaan glass (`kv-glass-panel/card`, `kv-filter`, `kv-panel`,
+  `kv-card`, `kv-stat`) `bg-slate-900/40 → /10` (benar-benar tembus, andalkan `backdrop-blur`); hover
+  `/60 → /20`. Input/select/tombol sengaja tetap pekat untuk keterbacaan.
+
+Notes:
+
+- Probe CLI live murni read-only (`ont ?`, `no ?`, `ont delete ?`), tiap baris ketik dibersihkan
+  Ctrl-U — **tidak ada delete yang dieksekusi**.
+- Test dijalankan dengan `bootstrap/cache/config.php` dipindah sementara → sqlite (3 C-Data write
+  lulus, termasuk delete). Tanpa itu, `php artisan test` POST/DELETE kena 419 karena config prod
+  ter-cache (session/CSRF ala prod) — sudah dipulihkan byte-identik.
+- Aksi sinkron di controller (bukan queued job) → tak perlu `queue:restart`; tapi agar live di prod,
+  php-fpm perlu reload opcache (assets sudah `npm run build`).
+
 ## 2026-06-26
 
 ### SmartOLT — gabung inventori OLT C-Data jadi tab (OLT ZTE / OLT C-Data)

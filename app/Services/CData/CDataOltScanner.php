@@ -5,6 +5,7 @@ namespace App\Services\CData;
 use App\Http\Controllers\CDataOltController;
 use App\Models\SnmpOlt;
 use App\Services\SmartOltSnmpServiceResolver;
+use Throwable;
 
 /**
  * Scan penuh OLT C-Data (system + ports + seluruh ONU) lalu tulis cache
@@ -17,7 +18,10 @@ use App\Services\SmartOltSnmpServiceResolver;
  */
 class CDataOltScanner
 {
-    public function __construct(private readonly SmartOltSnmpServiceResolver $resolver) {}
+    public function __construct(
+        private readonly SmartOltSnmpServiceResolver $resolver,
+        private readonly CDataFaceplateService $faceplate,
+    ) {}
 
     /**
      * @return int jumlah ONU yang ditemukan
@@ -44,6 +48,15 @@ class CDataOltScanner
         data_set($snapshot, 'ports', $ports);
         data_set($snapshot, 'cdata.firmware_v3', (bool) data_get($system, 'firmware_v3', data_get($snapshot, 'cdata.firmware_v3', false)));
         data_set($snapshot, 'onu_scanned_at', $now);
+
+        // Faceplate (panel depan) — best-effort; kegagalan tak boleh menggagalkan scan/polling.
+        try {
+            if (($panel = $this->faceplate->collect($olt)) !== null) {
+                data_set($snapshot, 'panel', $panel);
+            }
+        } catch (Throwable) {
+            // pertahankan panel cache terakhir bila ada
+        }
         $snapshot['port_onus'] = [];
 
         foreach (array_keys($byPort + $portRows) as $key) {

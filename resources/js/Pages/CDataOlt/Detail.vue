@@ -2,9 +2,10 @@
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltFaceplate from '@/Components/CDataOlt/OltFaceplate.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, ChevronRight, RadioTower, RefreshCw, Server } from '@lucide/vue';
+import { ArrowLeft, ChevronRight, LayoutPanelTop, RadioTower, RefreshCw, Server } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -17,6 +18,21 @@ const flash = computed(() => page.props.flash ?? {});
 const system = computed(() => props.snapshot.system ?? {});
 const ports = computed(() => props.snapshot.ports ?? []);
 const counts = computed(() => props.snapshot.port_counts ?? {});
+const panel = computed(() => props.snapshot.panel ?? null);
+const device = computed(() => panel.value?.device ?? {});
+
+// Total ONU lintas port untuk ringkasan.
+const onuTotals = computed(() => {
+    let total = 0;
+    let online = 0;
+    for (const c of Object.values(counts.value)) {
+        total += c.count ?? 0;
+        online += c.online ?? 0;
+    }
+    return { total, online, offline: total - online };
+});
+
+const portsUp = computed(() => ports.value.filter((p) => p.oper_status === 'up').length);
 
 const portCount = (p) => counts.value[`${p.slot}_${p.port}`] ?? { count: 0, online: 0 };
 
@@ -47,6 +63,40 @@ const fmt = (v) => formatDateTime(v);
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
 
+                <!-- Ringkasan -->
+                <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <div class="kv-stat">
+                        <p class="text-xs uppercase tracking-wider text-slate-500">Total ONU</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ onuTotals.total.toLocaleString('id-ID') }}</p>
+                    </div>
+                    <div class="kv-stat">
+                        <p class="text-xs uppercase tracking-wider text-slate-500">Online</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-300">{{ onuTotals.online.toLocaleString('id-ID') }}</p>
+                    </div>
+                    <div class="kv-stat">
+                        <p class="text-xs uppercase tracking-wider text-slate-500">Offline</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums" :class="onuTotals.offline > 0 ? 'text-red-300' : 'text-slate-300'">{{ onuTotals.offline.toLocaleString('id-ID') }}</p>
+                    </div>
+                    <div class="kv-stat">
+                        <p class="text-xs uppercase tracking-wider text-slate-500">Port {{ olt.capabilities.pon_label }} Up</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ portsUp }}<span class="text-base text-slate-500"> / {{ ports.length }}</span></p>
+                    </div>
+                </div>
+
+                <!-- Faceplate panel depan -->
+                <div v-if="panel" class="kv-glass-panel">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <span class="kv-circle-cyan !h-10 !w-10"><LayoutPanelTop class="h-5 w-5" /></span>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">Panel Depan</h3>
+                            <p class="text-xs text-slate-400">Status port fisik real-time · {{ olt.capabilities.vendor_family }}</p>
+                        </div>
+                    </div>
+                    <div class="p-4 sm:p-6">
+                        <OltFaceplate :panel="panel" />
+                    </div>
+                </div>
+
                 <!-- System info -->
                 <div class="kv-glass-panel">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
@@ -75,6 +125,26 @@ const fmt = (v) => formatDateTime(v);
                                 <span v-if="snapshot.firmware_v3" class="kv-pill-muted">FlashV3.x (inventory via CLI)</span>
                                 <span v-else class="text-slate-200">Legacy / SNMP</span>
                             </p>
+                        </div>
+                        <div v-if="device.model">
+                            <p class="text-xs uppercase tracking-wider text-slate-500">Model</p>
+                            <p class="mt-1 font-mono text-sm text-slate-200">{{ device.model }}</p>
+                        </div>
+                        <div v-else-if="device.device_type">
+                            <p class="text-xs uppercase tracking-wider text-slate-500">Tipe</p>
+                            <p class="mt-1 text-sm text-slate-200">{{ device.device_type }}</p>
+                        </div>
+                        <div v-if="device.serial">
+                            <p class="text-xs uppercase tracking-wider text-slate-500">Serial</p>
+                            <p class="mt-1 font-mono text-sm text-slate-200">{{ device.serial }}</p>
+                        </div>
+                        <div v-if="device.hw_version">
+                            <p class="text-xs uppercase tracking-wider text-slate-500">Versi HW</p>
+                            <p class="mt-1 font-mono text-sm text-slate-200">{{ device.hw_version }}</p>
+                        </div>
+                        <div v-if="device.sw_version">
+                            <p class="text-xs uppercase tracking-wider text-slate-500">Versi SW</p>
+                            <p class="mt-1 font-mono text-sm text-slate-200">{{ device.sw_version }}</p>
                         </div>
                     </div>
                     <p v-if="snapshot.scanned_at" class="border-t border-white/10 px-6 py-3 text-xs text-slate-500">

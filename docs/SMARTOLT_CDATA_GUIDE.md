@@ -272,6 +272,41 @@ Index: `.1.0.<ifIndex>.<flow>.<onuId>`.
 
 ---
 
+## 5b. Identitas device & faceplate (terverifikasi live, 28 Jun 2026)
+
+Dipakai oleh `CDataFaceplateService` → cache `last_test_result.panel` → `Components/CDataOlt/OltFaceplate.vue` (visualisasi panel-depan: port PON/GE/XGE + status, LED, legend). **Kedua family melapor enterprise `17409`** (EPON & GPON V3), jadi OID di bawah berlaku untuk keduanya.
+
+### 5b.1 Enumerasi port fisik — IF-MIB (`1.3.6.1.2.1.2.2.1.*`)
+
+`ifDescr` (`.2`) memuat semua port; klasifikasi dari prefix nama, status dari `ifOperStatus` (`.8`, `1=up`/`2=down`) + `ifAdminStatus` (`.7`, `2=shutdown`):
+
+| Prefix `ifDescr` | Grup | Jenis | Contoh |
+| --- | --- | --- | --- |
+| `epon`/`gpon 0/<frame>/<port>` | PON (subgrup per frame/slot) | fiber | `gpon 0/0/1`, `epon 0/2/4` |
+| `ge 0/<f>/<n>` | GE uplink | copper | `ge 0/0/1` (ifType 117) |
+| `xge 0/<f>/<n>` | XGE uplink | fiber | `xge 0/0/1` (ifType 1/6) |
+
+Live: **EPON-TAYU** = EPON 0/1 (4) + 0/2 (4) + GE 0/0 (4) + XGE 0/0 (4); **FD1608S** = GPON 0/0 (8) + GE 0/0 (4) + XGE 0/0 (2). Indeks ifIndex C-Data ber-encoding besar (mis. `1310721` utk gpon, `524289` utk ge) — jangan diandalkan; pakai nama.
+
+### 5b.2 Tabel device/card — `17409.2.3.1.*`
+
+Identitas perangkat. Get langsung per-leaf (walk subtree `2.3.1` kadang gagal getnext di EPON, tapi get leaf tetap jalan):
+
+| OID | Field | EPON-TAYU | FD1608S |
+| --- | --- | --- | --- |
+| `17409.2.3.1.2.1.1.2.1` | model / nama | `OLT-CDA…` (Hex-STRING null-padded → **bukan model**, di-drop) | `FD1608S-B1-NDA0` |
+| `17409.2.3.1.2.1.1.10.1` | vendor | — | `C-Data` |
+| `17409.2.3.1.3.1.1.7.1.0` | versi HW | `V1.1` | `V1.1` |
+| `17409.2.3.1.3.1.1.8.1.0` | versi SW | `V3.4.53_260130` | `V3.3.86_260113` |
+| `17409.2.3.1.3.1.1.12.1.0` | serial | `AF2802-2503000082` | `DA22-2411000162` |
+| `17409.2.3.1.3.1.1.14.1.0` | device type | `EPON OLT` | `GPON OLT` |
+
+> Kolom `.2.1.1.2.1` = field nama fixed-width: di GPON berisi model produk bersih, di EPON berisi sysName ter-truncate (balik sbg Hex-STRING). `CDataFaceplateService::productModel()` membuang nilai berbentuk hex-string; headline EPON fallback ke `device_type`.
+
+> **Health (CPU/suhu/memori) TIDAK tersedia via SNMP** di kedua OLT — host-resources (`25.*`), ENTITY-SENSOR (`99.*`), `entPhysical` (`47.*`) semua kosong/`No Such Object`. LED ALM tidak dikarang (tetap `off`) sampai disambung ke alarm engine.
+
+---
+
 ## 6. CLI Reference
 
 ### 6.1 EPON (`CDataEponCliSessionService` — FD1108S / FD1208S)
@@ -285,6 +320,7 @@ SNMP write ONU ditolak `genError`, jadi rename/deskripsi/reboot lewat CLI. CLI E
 (config-epon-0/{slot})# ont reboot {slot} {onuId}
 (config-epon-0/{slot})# ont description {slot} {onuId} <text>
 (config-epon-0/{slot})# no ont description {slot} {onuId}     # clear deskripsi
+(config-epon-0/{slot})# ont delete {slot} {onuId}            # hapus/deregister ONU (destruktif, konfirmasi y/n auto)
 (config-epon-0/{slot})# end
 ```
 
@@ -306,9 +342,14 @@ CLI GPON memakai interface `gpon 0/<slot>`, argumen command = `<port> <onuId>`.
 (config-gpon-0/{slot})# ont reboot {port} {onuId}
 (config-gpon-0/{slot})# ont activate {port} {onuId}            # enable
 (config-gpon-0/{slot})# ont deactivate {port} {onuId}          # disable
+(config-gpon-0/{slot})# ont delete {port} {onuId}             # hapus/deregister ONU (destruktif, konfirmasi y/n auto)
 (config-gpon-0/{slot})# show ont optical-info {port} all
 (config-gpon-0/{slot})# end
 ```
+
+> **`ont delete` terverifikasi live (27 Jun 2026)** via context-help di submode interface (read-only `?`), pada FD1608S (GPON, OLT 277) **dan** FD1108S (EPON, OLT 276) — sintaks **identik**:
+> `ont delete <PORTID>` lalu arg ke-2 `<1-128>` (ONT ID) | `all` | `offline-list`.
+> Grup `no ont` **tidak** punya bentuk delete (hanya `no ont description|gemport|tcont|…`), jadi gunakan `ont delete`, **bukan** `no ont`.
 
 **Read (di level `enable`):**
 
@@ -340,10 +381,11 @@ Anggap command gagal bila output mengandung (case-insensitive): `invalid input`,
 | Rename / deskripsi | **CLI** `ont description` | SNMP `.18.2.1.5` *atau* CLI | **CLI** `ont description` |
 | Reboot ONU | **CLI** `ont reboot` | SNMP `.18.4.1.1` | **CLI** `ont reboot` |
 | Enable / disable ONU | belum (kandidat `.9`) | SNMP `.18.4.1.2` (pilot) | **CLI** `ont activate/deactivate` |
+| Delete / deregister ONU | **CLI** `ont delete` | **CLI** `ont delete` | **CLI** `ont delete` |
 | Provisioning ONU baru | belum | belum | belum |
 | PON port autofind/switch | — | SNMP `17.1.1.4/5` (kandidat) | SNMP/CLI |
 
-`reboot_mode` / `description_mode` di capability BMKV: EPON = `cli_cdata_epon`, GPON = `snmp` (legacy) atau CLI otomatis bila V3 terdeteksi. `supports_onu_toggle`: EPON `false`, GPON `true`.
+`reboot_mode` / `description_mode` di capability BMKV: EPON = `cli_cdata_epon`, GPON = `snmp` (legacy) atau CLI otomatis bila V3 terdeteksi. `supports_onu_toggle`: EPON `false`, GPON `true`. `supports_onu_delete`: EPON & GPON `true` (CLI `ont delete {port} {onuId}`, gerbang route `cdata-olt.onu.delete`).
 
 ---
 

@@ -7,14 +7,16 @@ use App\Services\CData\Concerns\InteractsWithCDataCli;
 use RuntimeException;
 
 /**
- * Aksi write ONU C-Data via CLI telnet — rename (deskripsi) & reboot.
+ * Aksi write ONU C-Data via CLI telnet — rename (deskripsi), reboot & hapus.
  *
- * Sintaks identik EPON & GPON (terverifikasi help CLI #276/#277), beda hanya keyword interface:
+ * Sintaks identik EPON & GPON (terverifikasi help CLI live FD1608S/FD1108S #276/#277),
+ * beda hanya keyword interface:
  *   (config)# interface {epon|gpon} 0/{slot}
  *   ont reboot {port} {onuId}
  *   ont description {port} {onuId} <text>      / no ont description {port} {onuId}
+ *   ont delete {port} {onuId}                  # destruktif: deregister ONU dari OLT
  *
- * SNMP write ONU C-Data umumnya ditolak, jadi keduanya lewat CLI (guide §6 & §7).
+ * SNMP write ONU C-Data umumnya ditolak, jadi semuanya lewat CLI (guide §6 & §7).
  */
 class CDataCliWriteService
 {
@@ -43,6 +45,17 @@ class CDataCliWriteService
     public function reboot(SnmpOlt $olt, string $iface, int $slot, int $port, int $onuId): array
     {
         return $this->runInInterface($olt, $iface, $slot, ["ont reboot {$port} {$onuId}"], confirm: true);
+    }
+
+    /**
+     * Hapus (deregister) satu ONU — `ont delete {port} {onuId}`. Destruktif: registrasi ONU
+     * dihapus permanen dari OLT. OLT minta konfirmasi y/n → dijawab otomatis (confirm: true).
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function delete(SnmpOlt $olt, string $iface, int $slot, int $port, int $onuId): array
+    {
+        return $this->runInInterface($olt, $iface, $slot, ["ont delete {$port} {$onuId}"], confirm: true);
     }
 
     /**

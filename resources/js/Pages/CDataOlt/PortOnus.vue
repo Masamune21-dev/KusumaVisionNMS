@@ -10,7 +10,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import Modal from '@/Components/Modal.vue';
-import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, Wifi, WifiOff } from '@lucide/vue';
+import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, Trash2, Wifi, WifiOff } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 
 const props = defineProps({
@@ -51,6 +51,7 @@ const caps = computed(() => props.olt.capabilities ?? {});
 const canManage = computed(() => Boolean(page.props.auth?.can?.manage_olt));
 const canReboot = computed(() => canManage.value && caps.value.supports_reboot);
 const canRename = computed(() => canManage.value && caps.value.supports_onu_info_write);
+const canDelete = computed(() => canManage.value && caps.value.supports_onu_delete);
 // Pin peta tersedia untuk semua user terautentikasi (anotasi lokasi, bukan tulis ke OLT).
 const hasActions = computed(() => true);
 
@@ -76,6 +77,16 @@ const rebootOnu = async (onu) => {
     });
     if (!ok) return;
     router.post(route('cdata-olt.onu.reboot', [props.olt.id, props.slot, props.port, onu.onu_id]), {}, { preserveScroll: true });
+};
+
+const deleteOnu = async (onu) => {
+    const ok = await confirm({
+        title: 'Hapus ONU',
+        message: `Hapus permanen ONU ${onu.interface}${onu.name ? ` (${onu.name})` : ''} dari OLT? Registrasi ONU akan dihapus (ont delete) dan perlu didaftarkan ulang untuk mengaktifkan kembali.`,
+        confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
+    router.delete(route('cdata-olt.onu.delete', [props.olt.id, props.slot, props.port, onu.onu_id]), { preserveScroll: true });
 };
 
 // --- Add Map (tempel ONU sebagai pin di Peta) ---
@@ -240,6 +251,9 @@ const viewOnMap = (onu) => {
                                                 <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
                                                     <Power class="h-4 w-4" />
                                                 </IconButton>
+                                                <IconButton v-if="canDelete" variant="danger" title="Hapus ONU" @click="deleteOnu(o)">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </IconButton>
                                                 <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? 'Lihat di Peta' : 'Tambah ke Peta'" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                                     <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                                     <MapPin v-else class="h-4 w-4" />
@@ -271,6 +285,9 @@ const viewOnMap = (onu) => {
                                     </IconButton>
                                     <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
                                         <Power class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="canDelete" variant="danger" title="Hapus ONU" @click="deleteOnu(o)">
+                                        <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? 'Lihat di Peta' : 'Tambah ke Peta'" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                         <MapPinned v-if="isPinned(o)" class="h-4 w-4" />

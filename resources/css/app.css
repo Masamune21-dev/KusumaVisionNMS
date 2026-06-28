@@ -84,15 +84,15 @@
 
     /* === Dark glass surfaces === */
     .kv-glass-panel {
-        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
+        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/10 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
     .kv-glass-card {
-        @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
+        @apply rounded-2xl border border-white/10 bg-slate-900/10 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
     .kv-glass-hover {
-        @apply transition-all duration-200 hover:border-white/20 hover:bg-slate-900/60 hover:shadow-cyan-500/10;
+        @apply transition-all duration-200 hover:border-white/20 hover:bg-slate-900/20 hover:shadow-cyan-500/10;
     }
 
     .kv-glass-header {
@@ -132,7 +132,7 @@
 
     /* === Filter card (bentuk standar lintas halaman; dipakai via <FilterCard/>) === */
     .kv-filter {
-        @apply overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
+        @apply overflow-hidden rounded-lg border border-white/10 bg-slate-900/10 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
     .kv-filter-head {
@@ -189,16 +189,16 @@
 
     /* === Legacy aliases (kv-panel/kv-card now route to dark glass) === */
     .kv-panel {
-        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl;
+        @apply overflow-hidden rounded-2xl border border-white/10 bg-slate-900/10 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
     .kv-card {
-        @apply rounded-2xl border border-white/10 bg-slate-900/40 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
+        @apply rounded-2xl border border-white/10 bg-slate-900/10 p-5 shadow-lg shadow-black/30 backdrop-blur-xl;
     }
 
     /* === Kartu statistik ringkas (label + angka) — dipakai lintas halaman monitoring === */
     .kv-stat {
-        @apply rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl;
+        @apply rounded-lg border border-white/10 bg-slate-900/10 p-5 shadow-sm shadow-black/30 backdrop-blur-xl;
     }
 
     /* === Mobile data cards === */
