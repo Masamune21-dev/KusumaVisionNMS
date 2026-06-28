@@ -5,10 +5,11 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { Check, Copy, Cpu, Globe, LayoutList, Settings, Terminal, User, Zap } from '@lucide/vue';
+import { Check, Copy, Cpu, Globe, LayoutList, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -20,13 +21,36 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    advanced_defaults: {
+        type: Object,
+        required: true,
+    },
     profiles: {
         type: Object,
         required: true,
     },
 });
 
+const clone = (value) => JSON.parse(JSON.stringify(value ?? null));
+
+// 'simple' = wizard template tetap (1 service); 'advanced' = editor granular
+// (tcont/gemport/service-port/service per baris) untuk multi-service.
+const mode = ref('simple');
+
 const form = useForm({ ...props.defaults });
+
+// Form mode Lanjutan: header registrasi + config granular (dipakai OnuConfigEditor).
+const advForm = useForm({
+    serial_number: props.defaults.serial_number,
+    slot: props.defaults.slot,
+    port: props.defaults.port,
+    onu_id: props.defaults.onu_id,
+    oid_index: props.defaults.oid_index,
+    onu_type: props.defaults.onu_type,
+    config: clone(props.advanced_defaults),
+});
+
+const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
@@ -55,8 +79,14 @@ let debounceTimer = null;
 
 const runPreview = () => {
     preview.loading = true;
+    const isAdvanced = mode.value === 'advanced';
+    const url = isAdvanced
+        ? route('smartolt.register.advanced.preview', props.olt.id)
+        : route('smartolt.register.preview', props.olt.id);
+    const payload = isAdvanced ? { ...advForm.data() } : { ...form.data() };
+
     window.axios
-        .post(route('smartolt.register.preview', props.olt.id), { ...form.data() })
+        .post(url, payload)
         .then(({ data }) => {
             preview.script = data.script && data.script.trim() !== '' ? data.script : '# (script kosong)';
         })
@@ -73,7 +103,12 @@ const schedulePreview = () => {
     debounceTimer = setTimeout(runPreview, 400);
 };
 
-watch(() => JSON.stringify(form.data()), schedulePreview);
+const activePayload = computed(() => (mode.value === 'advanced'
+    ? JSON.stringify(advForm.data())
+    : JSON.stringify(form.data())));
+
+watch(activePayload, schedulePreview);
+watch(mode, () => { preview.script = '# Memuat…'; runPreview(); });
 onMounted(runPreview);
 onUnmounted(() => clearTimeout(debounceTimer));
 
@@ -106,6 +141,26 @@ const submit = async (execute) => {
     form
         .transform((data) => ({ ...data, execute }))
         .post(route('smartolt.register.store', props.olt.id), {
+            preserveScroll: true,
+        });
+};
+
+const submitAdvanced = async (execute) => {
+    if (execute) {
+        const ok = await confirm({
+            title: 'Eksekusi ke OLT',
+            message: `Register & eksekusi ONU ${advForm.serial_number || ''} ke ${props.olt.name} sekarang? Script granular akan langsung dijalankan via CLI Telnet.`,
+            confirmLabel: 'Eksekusi',
+        });
+
+        if (!ok) {
+            return;
+        }
+    }
+
+    advForm
+        .transform((data) => ({ ...data, execute }))
+        .post(route('smartolt.register.advanced.store', props.olt.id), {
             preserveScroll: true,
         });
 };
@@ -161,7 +216,35 @@ const submit = async (execute) => {
                     </div>
 
                     <!-- Kolom kanan: form konfigurasi -->
-                    <form class="order-1 space-y-5 xl:order-2" @submit.prevent="submit(canExecute)">
+                    <div class="order-1 space-y-5 xl:order-2">
+
+                    <!-- Mode toggle: Sederhana vs Lanjutan -->
+                    <div class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                        <div>
+                            <h3 class="text-sm font-semibold text-white">Mode Registrasi</h3>
+                            <p class="text-xs text-slate-500">Sederhana: template 1 service. Lanjutan: atur tcont/gemport/service per baris.</p>
+                        </div>
+                        <div class="inline-flex rounded-lg border border-white/10 bg-slate-950/40 p-1">
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all"
+                                :class="mode === 'simple' ? 'bg-cyan-500 text-white' : 'text-slate-300 hover:text-white'"
+                                @click="mode = 'simple'"
+                            >
+                                <LayoutList class="h-4 w-4" /> Sederhana
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all"
+                                :class="mode === 'advanced' ? 'bg-cyan-500 text-white' : 'text-slate-300 hover:text-white'"
+                                @click="mode = 'advanced'"
+                            >
+                                <SlidersHorizontal class="h-4 w-4" /> Lanjutan
+                            </button>
+                        </div>
+                    </div>
+
+                    <form v-if="mode === 'simple'" class="space-y-5" @submit.prevent="submit(canExecute)">
 
                     <!-- Section 1: Identitas ONU -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
@@ -472,6 +555,85 @@ const submit = async (execute) => {
                         </div>
                     </div>
                     </form>
+
+                    <!-- Mode Lanjutan: editor granular -->
+                    <div v-else class="space-y-5">
+                        <div v-if="advErrorList.length" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
+                            <p class="font-semibold">Periksa kembali input berikut:</p>
+                            <ul class="mt-1 list-inside list-disc space-y-0.5">
+                                <li v-for="(msg, i) in advErrorList" :key="i">{{ msg }}</li>
+                            </ul>
+                        </div>
+
+                        <!-- Identitas ONU (header registrasi) -->
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                    <User class="h-4 w-4 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-white">Identitas ONU</h3>
+                                    <p class="text-xs text-slate-500">SN & posisi port — nama pelanggan diisi di kolom <span class="text-slate-300">Name</span> bawah.</p>
+                                </div>
+                            </div>
+                            <div class="grid gap-5 p-6 md:grid-cols-4">
+                                <div class="md:col-span-4">
+                                    <InputLabel for="adv_sn" value="Serial Number" />
+                                    <TextInput id="adv_sn" v-model="advForm.serial_number" class="mt-1 block w-full font-mono" required />
+                                    <InputError class="mt-1.5" :message="advForm.errors.serial_number" />
+                                </div>
+                                <div>
+                                    <InputLabel for="adv_slot" value="Slot" />
+                                    <TextInput id="adv_slot" v-model="advForm.slot" type="number" class="mt-1 block w-full" required />
+                                    <InputError class="mt-1.5" :message="advForm.errors.slot" />
+                                </div>
+                                <div>
+                                    <InputLabel for="adv_port" value="Port" />
+                                    <TextInput id="adv_port" v-model="advForm.port" type="number" class="mt-1 block w-full" required />
+                                    <InputError class="mt-1.5" :message="advForm.errors.port" />
+                                </div>
+                                <div>
+                                    <InputLabel for="adv_onu_id" value="ONU ID" />
+                                    <TextInput id="adv_onu_id" v-model="advForm.onu_id" type="number" class="mt-1 block w-full" required />
+                                    <InputError class="mt-1.5" :message="advForm.errors.onu_id" />
+                                </div>
+                                <div>
+                                    <InputLabel for="adv_onu_type" value="ONU Type" />
+                                    <select id="adv_onu_type" v-model="advForm.onu_type" class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500" required>
+                                        <option v-for="profile in onuTypeProfiles" :key="profile.id" :value="profile.name">{{ profile.name }}</option>
+                                    </select>
+                                    <InputError class="mt-1.5" :message="advForm.errors.onu_type" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Editor granular -->
+                        <OnuConfigEditor :config="advForm.config" :profiles="profiles" :errors="advForm.errors" />
+
+                        <input v-model="advForm.oid_index" type="hidden" />
+
+                        <!-- Submit bar (Lanjutan) -->
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6">
+                            <p v-if="!canExecute" class="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+                                Driver OLT ini tidak mendukung eksekusi CLI otomatis — script hanya bisa di-generate &amp; disimpan ke audit log.
+                            </p>
+                            <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
+                                <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
+                                    <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
+                                </Link>
+                                <SecondaryButton type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(false)">
+                                    <LayoutList class="mr-2 h-4 w-4" />
+                                    Generate script saja
+                                </SecondaryButton>
+                                <PrimaryButton v-if="canExecute" type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(true)">
+                                    <Zap class="mr-2 h-4 w-4" />
+                                    {{ advForm.processing ? 'Mengeksekusi…' : 'Eksekusi ke OLT' }}
+                                </PrimaryButton>
+                            </div>
+                        </div>
+                    </div>
+
+                    </div>
                 </div>
             </div>
         </div>

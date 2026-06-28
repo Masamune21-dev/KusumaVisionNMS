@@ -451,6 +451,39 @@ class SmartOltController extends Controller
                 'remote_ont_mode' => 'forward',
                 'remote_ont_protocol' => 'web',
             ],
+            // Pre-fill template standar untuk mode Lanjutan (editor granular):
+            // 1 T-CONT + 1 gemport + 1 service-port + 1 service + 1 WAN-IP, semua
+            // bisa ditambah/diubah baris per baris.
+            'advanced_defaults' => [
+                'name' => '',
+                'tconts' => [['id' => 1, 'name' => '1', 'profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'), 'gap' => 'mode0']],
+                'gemports' => [['id' => 1, 'name' => '1', 'tcont' => 1, 'traffic_up' => '', 'traffic_down' => '']],
+                'service_ports' => [['id' => 1, 'vport' => 1, 'user_vlan' => 100, 'vlan' => 100]],
+                'services' => [['name' => 'ServiceName', 'type' => null, 'mode' => 'vlanpri', 'gem' => 1, 'cos' => 0, 'vlan' => 100]],
+                'vlan_ports' => [],
+                'wan_services' => [],
+                'wan_ips' => [[
+                    'id' => 1,
+                    'mode' => 'pppoe',
+                    'vlan_profile' => $this->firstProfileName($olt, 'vlan', 'ServiceName'),
+                    'pppoe_username' => '',
+                    'pppoe_password' => '',
+                    'ip_profile' => $this->firstProfileName($olt, 'ip', 'INTERNET'),
+                    'static_ip' => '',
+                    'static_mask_length' => 24,
+                    'host' => 1,
+                    'ping_response' => true,
+                    'traceroute_response' => true,
+                ]],
+                'tr069' => false,
+                'acs_url' => 'http://acs.bmkv.net:7547',
+                'acs_username' => 'cms',
+                'acs_password' => 'kusuma123!',
+                'remote_ont' => false,
+                'remote_ont_id' => 1,
+                'remote_ont_mode' => 'forward',
+                'remote_ont_protocol' => 'web',
+            ],
         ]);
     }
 
@@ -840,7 +873,7 @@ class SmartOltController extends Controller
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
                     ? 'Konfigurasi ONU berhasil di-apply ke OLT.'
-                    : 'Apply konfigurasi selesai dengan indikasi error: '.$error,
+                    : 'Konfigurasi belum berhasil — bagian ini ditolak OLT: '.$error,
             );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1053,7 +1086,114 @@ class SmartOltController extends Controller
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
                         ? 'ONU berhasil diregister & dieksekusi ke OLT.'
-                        : 'Eksekusi register selesai dengan indikasi error: '.$error,
+                        : 'Registrasi belum berhasil — bagian ini ditolak OLT: '.$error,
+                );
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => 'failed',
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('error', 'Eksekusi register gagal: '.$error);
+        }
+    }
+
+    /**
+     * Live preview for the advanced (granular) registration: builds a full
+     * registration script from the composed tcont/gemport/service-port/service
+     * rows, same shape as Configure ONU but for a brand-new ONU.
+     */
+    public function registerOnuAdvancedPreview(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
+
+        $script = $builder->buildForRegistration($config, $this->advancedRegistrationContext($olt, $header));
+
+        return response()->json(['script' => $script]);
+    }
+
+    /**
+     * Persist (and optionally execute) an advanced registration. Mirrors
+     * {@see storeOnu} but the CLI script comes from the granular editor instead
+     * of the fixed single-service template.
+     */
+    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    {
+        [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
+        $context = $this->advancedRegistrationContext($olt, $header);
+        $script = $builder->buildForRegistration($config, $context);
+        $execute = $request->boolean('execute');
+
+        $primaryWan = is_array($config['wan_ips'][0] ?? null) ? $config['wan_ips'][0] : [];
+        $base = [
+            'snmp_olt_id' => $olt->id,
+            'serial_number' => (string) $header['serial_number'],
+            'slot' => (int) $header['slot'],
+            'port' => (int) $header['port'],
+            'onu_id' => (int) $header['onu_id'],
+            'pon_port' => $context['onu_iface'],
+            'onu_type' => (string) $header['onu_type'],
+            'customer_name' => (string) ($config['name'] ?? ''),
+            'vlan' => $this->resolvePrimaryVlan($config),
+            'vlan_profile' => $primaryWan['vlan_profile'] ?? null,
+            'wan_mode' => in_array($primaryWan['mode'] ?? '', ['pppoe', 'dhcp', 'static'], true) ? $primaryWan['mode'] : 'pppoe',
+            'pppoe_username' => $primaryWan['pppoe_username'] ?? null,
+            'ip_profile' => $primaryWan['ip_profile'] ?? null,
+            'static_ip' => $primaryWan['static_ip'] ?? null,
+            'static_netmask' => isset($primaryWan['static_mask_length']) ? (string) $primaryWan['static_mask_length'] : null,
+            'tr069_enabled' => (bool) ($config['tr069'] ?? false),
+            'acs_url' => $config['acs_url'] ?? null,
+            'acs_username' => $config['acs_username'] ?? null,
+            'remote_ont_enabled' => (bool) ($config['remote_ont'] ?? false),
+            'remote_ont_id' => $config['remote_ont_id'] ?? null,
+            'remote_ont_mode' => $config['remote_ont_mode'] ?? null,
+            'remote_ont_protocol' => $config['remote_ont_protocol'] ?? null,
+            'cli_script' => $script,
+            'created_by' => $request->user()?->id,
+        ];
+
+        // Hanya simpan script (audit) — tanpa menyentuh OLT.
+        if (! $execute) {
+            SmartOltOnuRegistration::create([...$base, 'status' => 'generated']);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('success', 'Provisioning script (mode lanjutan) berhasil digenerate dan disimpan ke audit log.');
+        }
+
+        // Eksekusi langsung ke OLT via Telnet.
+        $this->assertCapability($olt, 'supports_cli_onu_configure');
+
+        try {
+            $result = $executor->execute($olt, $script);
+            $output = CliOutputSanitizer::clean($result['output']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => $result['ok'] ? 'executed' : 'failed',
+                'execution_output' => $output,
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? 'ONU berhasil diregister & dieksekusi ke OLT.'
+                        : 'Registrasi belum berhasil — bagian ini ditolak OLT: '.$error,
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1172,7 +1312,7 @@ class SmartOltController extends Controller
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
                         ? 'Provisioning script berhasil dieksekusi ke OLT.'
-                        : 'Provisioning script selesai dengan indikasi error: '.$error,
+                        : 'Provisioning belum berhasil — bagian ini ditolak OLT: '.$error,
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1276,7 +1416,20 @@ class SmartOltController extends Controller
      */
     private function validatedReconfigure(Request $request): array
     {
-        $validated = $request->validate([
+        $validated = $request->validate($this->reconfigureConfigRules());
+
+        return $validated['config'];
+    }
+
+    /**
+     * Shared validation rules for the granular ONU config payload — used by both
+     * the reconfigure (Configure ONU) flow and the advanced registration flow.
+     *
+     * @return array<string, mixed>
+     */
+    private function reconfigureConfigRules(): array
+    {
+        return [
             'config' => ['required', 'array'],
             'config.name' => ['required', 'string', 'max:191'],
             'config.tconts' => ['array'],
@@ -1337,9 +1490,56 @@ class SmartOltController extends Controller
             'config.remote_ont_id' => ['nullable', 'integer', 'between:1,4095'],
             'config.remote_ont_mode' => ['nullable', Rule::in(['forward', 'discard'])],
             'config.remote_ont_protocol' => ['nullable', Rule::in(['web', 'telnet', 'ssh', 'ftp', 'tftp', 'snmp'])],
+        ];
+    }
+
+    /**
+     * Validate the advanced-registration payload: registration header (SN, slot,
+     * port, onu_id, onu_type) + the granular config (reuses reconfigure rules).
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>} [header, config]
+     */
+    private function validatedAdvancedProvisioning(Request $request, SnmpOlt $olt): array
+    {
+        $validated = $request->validate([
+            'serial_number' => ['required', 'string', 'max:64'],
+            'slot' => ['required', 'integer', 'between:1,255'],
+            'port' => ['required', 'integer', 'between:1,255'],
+            'onu_id' => ['required', 'integer', 'between:1,4096'],
+            'oid_index' => ['nullable', 'string', 'max:191'],
+            'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
+            ...$this->reconfigureConfigRules(),
         ]);
 
-        return $validated['config'];
+        return [
+            [
+                'serial_number' => $validated['serial_number'],
+                'slot' => (int) $validated['slot'],
+                'port' => (int) $validated['port'],
+                'onu_id' => (int) $validated['onu_id'],
+                'oid_index' => $validated['oid_index'] ?? null,
+                'onu_type' => $validated['onu_type'],
+            ],
+            $validated['config'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $header
+     * @return array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600:bool}
+     */
+    private function advancedRegistrationContext(SnmpOlt $olt, array $header): array
+    {
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        return [
+            'olt_iface' => SmartOltSupport::gponOltInterface((int) $header['slot'], (int) $header['port'], $isC600),
+            'onu_iface' => SmartOltSupport::onuInterfaceId((int) $header['slot'], (int) $header['port'], (int) $header['onu_id'], $isC600),
+            'onu_id' => (int) $header['onu_id'],
+            'sn' => (string) $header['serial_number'],
+            'onu_type' => (string) $header['onu_type'],
+            'is_c600' => $isC600,
+        ];
     }
 
     /**

@@ -259,6 +259,30 @@ RAW;
         $this->assertStringNotContainsString('service-port 1 ', $delta['script']);
     }
 
+    public function test_service_port_modify_emits_no_then_recreate(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        // ubah id=2 (user-vlan 100 -> 15); id=1 tetap.
+        $target['service_ports'] = [
+            ['id' => 1, 'vport' => 1, 'user_vlan' => 22, 'vlan' => 22],
+            ['id' => 2, 'vport' => 1, 'user_vlan' => 15, 'vlan' => 15],
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        // Modify harus hapus dulu baru buat ulang (hindari %Code 66661 already existed),
+        // dengan urutan no -> service-port.
+        $this->assertStringContainsString('no service-port 2', $delta['script']);
+        $this->assertStringContainsString('service-port 2 vport 1 user-vlan 15 vlan 15', $delta['script']);
+        $this->assertLessThan(
+            strpos($delta['script'], 'service-port 2 vport 1 user-vlan 15 vlan 15'),
+            strpos($delta['script'], 'no service-port 2'),
+        );
+        // id=1 tidak berubah → tidak boleh ada no service-port 1.
+        $this->assertStringNotContainsString('no service-port 1', $delta['script']);
+    }
+
     public function test_wan_and_toggle_deltas(): void
     {
         $base = $this->parser()->parse($this->sampleRaw());
@@ -348,6 +372,70 @@ RAW;
         $this->assertStringNotContainsString('priority 7', $delta['script']);
     }
 
+    public function test_uni_vlan_removal_emits_mode_na(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $base['vlan_ports'] = [
+            ['port_type' => 'eth', 'port' => 2, 'mode' => 'tag', 'def_vlan' => 100, 'priority' => 0],
+        ];
+        $target = $base;
+        $target['vlan_ports'] = []; // hapus baris UNI VLAN
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        // ZTE: `mode na` invalid (20202), `no vlan port eth_0/2` saja incomplete
+        // (20203) — yang diterima `no vlan port {token} mode` (mode tanpa nilai).
+        $this->assertStringContainsString('no vlan port eth_0/2 mode', $delta['script']);
+        $this->assertStringNotContainsString('no vlan port eth_0/2 mode tag', $delta['script']);
+    }
+
+    public function test_uni_vlan_explicit_na_mode_clears_mapping(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $base['vlan_ports'] = [
+            ['port_type' => 'wifi', 'port' => 1, 'mode' => 'hybrid', 'def_vlan' => 10, 'priority' => 0],
+        ];
+        $target = $base;
+        $target['vlan_ports'] = [
+            ['port_type' => 'wifi', 'port' => 1, 'mode' => 'na'],
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        // Hapus = `no vlan port wifi_0/1 mode` (tanpa nilai mode), bukan `mode na`.
+        $this->assertStringContainsString('no vlan port wifi_0/1 mode', $delta['script']);
+        $this->assertStringNotContainsString('mode na', $delta['script']);
+        $this->assertStringNotContainsString('mode hybrid', $delta['script']);
+    }
+
+    public function test_detect_error_flags_zte_code_and_names_failing_command(): void
+    {
+        $ref = new \ReflectionMethod(ZteCliProvisioningExecutor::class, 'detectError');
+        $ref->setAccessible(true);
+
+        $output = "> service Hotspot gemport 1 cos 0 vlan 15\n"
+            ."%Code 64007-GPONRM : Operation is forbidden for conflicting with some applied on u-profile.\n"
+            .'> exit';
+        $error = $ref->invoke(new ZteCliProvisioningExecutor, $output);
+
+        $this->assertNotNull($error);
+        $this->assertStringContainsString('service Hotspot gemport 1 cos 0 vlan 15', $error);
+        $this->assertStringContainsString('64007', $error);
+    }
+
+    public function test_detect_error_ignores_info_banner_and_login_warning(): void
+    {
+        $ref = new \ReflectionMethod(ZteCliProvisioningExecutor::class, 'detectError');
+        $ref->setAccessible(true);
+
+        $output = "% The password is not strong, please change the password.\n"
+            ."> conf t\n"
+            ."%Info 20272: Enter configuration commands, one per line. End with CTRL/Z.\n"
+            ."> interface gpon-onu_1/2/7:50\n> exit\nBMKV-C300#";
+
+        $this->assertNull($ref->invoke(new ZteCliProvisioningExecutor, $output));
+    }
+
     public function test_parses_service_mode_vlanpri_and_transparent(): void
     {
         $vlanpri = $this->parser()->parse(
@@ -376,6 +464,40 @@ RAW;
 
         $this->assertStringContainsString('service ServiceName gemport 1', $delta['script']);
         $this->assertStringNotContainsString('service ServiceName gemport 1 cos', $delta['script']);
+    }
+
+    public function test_service_modify_emits_no_then_recreate(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        // ubah vlan service yang sama (22 -> 15); ONU profile-bound menolak overwrite.
+        $target['services'] = [
+            ['name' => 'ServiceName', 'type' => null, 'mode' => 'vlanpri', 'gem' => 1, 'cos' => 0, 'vlan' => 15],
+        ];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('no service ServiceName', $delta['script']);
+        $this->assertStringContainsString('service ServiceName gemport 1 cos 0 vlan 15', $delta['script']);
+        $this->assertLessThan(
+            strpos($delta['script'], 'service ServiceName gemport 1 cos 0 vlan 15'),
+            strpos($delta['script'], 'no service ServiceName'),
+        );
+    }
+
+    public function test_new_service_added_without_no_directive(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        // tambah service baru "Hotspot" — tidak boleh ada "no service Hotspot".
+        $target['services'] = array_merge($base['services'], [
+            ['name' => 'Hotspot', 'type' => null, 'mode' => 'vlanpri', 'gem' => 1, 'cos' => 0, 'vlan' => 15],
+        ]);
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+
+        $this->assertStringContainsString('service Hotspot gemport 1 cos 0 vlan 15', $delta['script']);
+        $this->assertStringNotContainsString('no service Hotspot', $delta['script']);
     }
 
     public function test_build_for_copy_emits_full_registration_on_target_iface(): void

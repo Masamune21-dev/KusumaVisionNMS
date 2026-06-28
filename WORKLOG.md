@@ -2,6 +2,69 @@
 
 ## 2026-06-28
 
+### SmartOLT — Register ONU "mode Lanjutan" (editor granular) + fix modify service-port/service
+
+**Problem (dari user, ONU profile-bound `==Configured by profile: VLAN1114==`):** edit/ tambah
+config di Configure ONU sering ditolak OLT. Dua akar masalah ditemukan + 1 fitur baru.
+
+1. **Modify service-port ditolak `%Code 66661: already existed`.** ZTE menolak membuat ulang
+   `service-port {id}` yang sudah ada. Fix: saat MENGUBAH entri yang sudah ada, emit
+   `no service-port {id}` dulu baru buat ulang (id baru / path copy & registrasi tetap tambah
+   langsung). **Diverifikasi live**: `no service-port 2` + `service-port 2 …` lolos di OLT-C300-SEKARJALAK.
+2. **Modify service di pon-onu-mng ditolak `%Code 64007: conflicting with u-profile`.** Pola sama —
+   `diffServices` kini `no service {name}` dulu sebelum buat ulang saat modify. (Catatan: untuk
+   **tambah service baru** ke ONU yang masih profile-bound, OLT tetap bisa menolak `64007` — itu
+   batasan profile sisi OLT, bukan builder. Service kedua harus pakai **gemport sendiri**.)
+3. **Register ONU mode Lanjutan** — register kini punya 2 mode: *Sederhana* (wizard template 1 service,
+   lama) dan *Lanjutan* (editor granular per-baris tcont/gemport/service-port/service/uni-vlan/wan-ip),
+   pre-fill template standar. Menyelesaikan kasus multi-service (mis. hotspot di gemport 2) yang tak
+   bisa lewat wizard. Script registrasi penuh dibangun via `buildForRegistration` (delegasi ke
+   `buildForCopy` — full build dari baseline kosong + baris `onu N type T sn S`).
+4. **Notif jujur saat OLT menolak.** `detectError` dulu hanya kenal keyword Inggris → error ZTE
+   `%Code …` lolos jadi `ok=true` (lapor "berhasil" palsu). Kini scan per-baris: kenali
+   `%Code`/`%Error`/forbidden/exists/conflicting (abaikan `%Info` & warning "password is not strong"),
+   dan **sebut command yang ditolak**. Flash `!ok` jadi "Konfigurasi/Registrasi/Provisioning belum
+   berhasil — bagian ini ditolak OLT: `<command>` → %Code …". Success hanya saat benar-benar penuh ok.
+5. **Hapus UNI VLAN.** `diffVlanPorts` dulu tak punya loop hapus → buang baris tak ber-efek. Kini:
+   baris yang dihapus / di-set mode `na` meng-emit **`no vlan port {token} mode`** (keyword `mode`
+   tanpa nilai). Verifikasi live di C300: `vlan port … mode na` ditolak `%Error 20202 Invalid input`,
+   `no vlan port {token}` saja `%Error 20203 Incomplete`, `no vlan port {token} mode` **diterima**.
+   Opsi "na (hapus)" ditambah di dropdown UNI VLAN.
+
+Created:
+
+- `resources/js/Components/SmartOlt/OnuConfigEditor.vue` — editor granular bersama (semua seksi tabel
+  + WAN-IP/TR069/Remote-ONT + style `kv-*`), memutasi objek `config` di tempat. Dipakai ConfigureOnu
+  **dan** RegisterOnu (mode Lanjutan). UNI VLAN punya opsi mode "na (hapus)" + hint.
+- `tests/Feature/SmartOltAdvancedRegisterTest.php` — preview multi-gemport, store generated (audit
+  tanpa eksekusi), store execute → `executed` (3 test).
+
+Changed:
+
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `diffServicePorts`/`diffServices` no-then-recreate
+  saat modify; tambah `buildForRegistration()`; `diffVlanPorts` emit `no vlan port {token} mode` saat
+  hapus (helper `emitUniVlanDelete`), `vlanPortLine`/`uniToken` untuk mode sentinel `na`.
+- `app/Services/ZteCliProvisioningExecutor.php` — `detectError` scan per-baris + `isErrorLine` (kenali
+  error ZTE, sebut command gagal).
+- `app/Http/Controllers/SmartOltController.php` — `registerOnuAdvancedPreview` + `storeOnuAdvanced` +
+  `validatedAdvancedProvisioning` + `advancedRegistrationContext`; `reconfigureConfigRules()` diekstrak
+  (dipakai bersama reconfigure); `registerOnuForm` kirim `advanced_defaults`; flash `!ok` di apply/
+  register/execute diubah jadi "belum berhasil — bagian ini ditolak OLT: …".
+- `routes/web.php` — `smartolt.register.advanced.preview` + `smartolt.register.advanced.store`.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — pakai `OnuConfigEditor` (editor inline diekstrak).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — toggle Sederhana/Lanjutan + `advForm` + preview/apply
+  mode-aware ke route advanced.
+- `tests/Unit/ZteOnuConfigureTest.php` — test modify service-port & service no-then-recreate, +
+  service baru tanpa `no`, + UNI VLAN hapus/explicit `na`, + `detectError` kenali `%Code`/abaikan banner.
+
+Notes:
+
+- Suffix `==Configured by profile: VLAN1114==` di nama ONU **dibaca apa adanya dari OLT** (bukan dari
+  app) — bekas provisioning lewat platform SmartOLT; ONU itu ter-bind u-profile sehingga sebagian
+  perubahan service ditolak OLT.
+- Test suite penuh **218 passed**. Ingat gotcha: `php artisan config:clear` sebelum `php artisan test`
+  (config ter-cache bikin test jalan sebagai env non-testing → 419/pgsql).
+
 ### C-Data — visualisasi faceplate (panel depan) di halaman Detail EPON & GPON
 
 Halaman Detail OLT C-Data kini menampilkan **faceplate** ala SmartOLT (sesuai referensi gambar

@@ -71,6 +71,21 @@ class ZteOnuReconfigureScriptBuilder
      * @param  array<string, mixed>  $config  parsed source running-config
      * @param  array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600?:bool}  $context
      */
+    /**
+     * Build a complete registration script from a granular config shape — backs
+     * the "Register ONU · mode Lanjutan" page where the operator composes
+     * tcont/gemport/service-port/service rows one by one instead of the fixed
+     * single-service template of {@see ZteProvisioningScriptBuilder}. Same engine
+     * as {@see buildForCopy} (full build from empty baseline + `onu N type T sn S`).
+     *
+     * @param  array<string, mixed>  $config  granular form values (name, tconts[], gemports[], …)
+     * @param  array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600?:bool}  $context
+     */
+    public function buildForRegistration(array $config, array $context): string
+    {
+        return $this->buildForCopy($config, $context);
+    }
+
     public function buildForCopy(array $config, array $context): string
     {
         $ifaceLines = [];
@@ -234,6 +249,13 @@ class ZteOnuReconfigureScriptBuilder
             $prev = $base[$id] ?? null;
             $newDesc = "vport {$vport} user-vlan {$userVlan} vlan {$vlan}";
             if ($prev === null || $this->fmtServicePort($prev) !== $newDesc) {
+                // ZTE menolak membuat ulang service-port dengan id yang sudah ada
+                // (%Code 66661: The service is already existed). Untuk MENGUBAH entri
+                // yang sudah ada, hapus dulu lalu buat ulang. Untuk id baru (prev null,
+                // mis. path registrasi/copy) cukup tambah langsung.
+                if ($prev !== null) {
+                    $lines[] = "no service-port {$id}";
+                }
                 $lines[] = "service-port {$id} {$newDesc}";
                 $changes[] = $this->change("Service-port {$id}", $this->fmtServicePort($prev), $newDesc);
             }
@@ -265,6 +287,13 @@ class ZteOnuReconfigureScriptBuilder
             $prev = $base[$name] ?? null;
             $newDesc = $mode === 'transparent' ? "gemport {$gem}" : "gemport {$gem} cos {$cos} vlan {$vlan}";
             if ($prev === null || $this->fmtService($prev) !== $newDesc) {
+                // ZTE menolak menimpa service yang sudah ada di pon-onu-mng
+                // (%Code 64007: forbidden for conflicting with applied u-profile).
+                // Untuk MENGUBAH service yang sudah ada, hapus dulu lalu buat ulang.
+                // Service baru (prev null) cukup ditambah langsung.
+                if ($prev !== null) {
+                    $lines[] = "no service {$name}";
+                }
                 $lines[] = "service {$name} {$newDesc}";
                 $changes[] = $this->change("Service {$name}", $this->fmtService($prev), $newDesc);
             }
@@ -285,6 +314,17 @@ class ZteOnuReconfigureScriptBuilder
 
         foreach ($next as $key => $row) {
             $prev = $base[$key] ?? null;
+
+            // Mode "na" = hapus mapping. ZTE menolak `mode na` (%Error 20202) dan
+            // `no vlan port {token}` saja masih incomplete (%Error 20203) — yang
+            // diterima OLT adalah `no vlan port {token} mode` (keyword `mode`
+            // tanpa nilai, verifikasi live di C300).
+            if (strtolower($this->str($row['mode'] ?? '')) === 'na') {
+                $this->emitUniVlanDelete($key, $prev, $lines, $changes);
+
+                continue;
+            }
+
             $line = $this->vlanPortLine($row);
             if ($line === null) {
                 continue;
@@ -295,6 +335,32 @@ class ZteOnuReconfigureScriptBuilder
                 $changes[] = $this->change("UNI VLAN {$key}", $prev ? ($this->vlanPortLine($prev) ?? '') : '', $line);
             }
         }
+
+        // Baris yang dibuang dari editor → hapus juga (negasi baris asli).
+        foreach ($base as $key => $row) {
+            if (! isset($next[$key])) {
+                $this->emitUniVlanDelete($key, $row, $lines, $changes);
+            }
+        }
+    }
+
+    /**
+     * Emit penghapusan UNI VLAN: `no vlan port {token} mode` — keyword `mode`
+     * tanpa nilai (yang diterima ZTE C300; `mode na` invalid & `no vlan port
+     * {token}` saja incomplete). Butuh baris baseline hanya untuk label & token.
+     *
+     * @param  array<string, mixed>|null  $original  baris baseline (running-config)
+     * @param  array<int, string>  $lines
+     * @param  array<int, array{label:string, from:string, to:string}>  $changes
+     */
+    private function emitUniVlanDelete(string $key, ?array $original, array &$lines, array &$changes): void
+    {
+        if ($original === null || ($token = $this->uniToken($original)) === null) {
+            return;
+        }
+
+        $lines[] = "no vlan port {$token} mode";
+        $changes[] = $this->change("UNI VLAN {$key}", $this->vlanPortLine($original) ?? '', 'dihapus');
     }
 
     private function diffWanServices(array $baseline, array $target, array &$lines, array &$changes): void
@@ -538,16 +604,26 @@ class ZteOnuReconfigureScriptBuilder
     /**
      * @param  array<string, mixed>  $row
      */
-    private function vlanPortLine(array $row): ?string
+    private function uniToken(array $row): ?string
     {
-        $type = strtolower($this->str($row['port_type'] ?? 'eth'));
         $port = (int) ($row['port'] ?? 0);
-        $mode = $this->str($row['mode'] ?? '');
-        if ($port < 1 || $mode === '') {
+        if ($port < 1) {
             return null;
         }
 
-        $token = ($type === 'wifi' ? 'wifi_0/' : 'eth_0/').$port;
+        return (strtolower($this->str($row['port_type'] ?? 'eth')) === 'wifi' ? 'wifi_0/' : 'eth_0/').$port;
+    }
+
+    private function vlanPortLine(array $row): ?string
+    {
+        $token = $this->uniToken($row);
+        $mode = strtolower($this->str($row['mode'] ?? ''));
+        // Mode "na" adalah sentinel UI (hapus) — bukan baris set; ditangani di
+        // diffVlanPorts (negasi baris asli). Di sini ia bukan baris valid.
+        if ($token === null || $mode === '' || $mode === 'na') {
+            return null;
+        }
+
         $line = "vlan port {$token} mode {$mode}";
 
         if (($row['vlan'] ?? null) !== null && $row['vlan'] !== '') {

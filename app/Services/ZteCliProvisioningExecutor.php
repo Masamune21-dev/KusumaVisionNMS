@@ -161,13 +161,61 @@ class ZteCliProvisioningExecutor
             ->all();
     }
 
+    /**
+     * Scan CLI output for rejected commands and return a human summary naming the
+     * exact command(s) the OLT refused, or null if everything was accepted.
+     *
+     * ZTE reports failures as `%Code <n>: …` / `%Error …` lines right after the
+     * offending `> command`. The benign `%Info …` config-mode banner is ignored.
+     * Returning non-null flips the result to "not ok" so the UI flags a partial
+     * failure instead of falsely reporting success.
+     */
     private function detectError(string $output): ?string
     {
-        if (preg_match('/(invalid input|unknown command|incomplete command|command failed|error:|failed)/i', $output, $matches)) {
-            return $matches[1];
+        $lastCommand = null;
+        $failures = [];
+
+        foreach (preg_split('/\r?\n/', $output) ?: [] as $line) {
+            $trimmed = trim($line);
+
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if (str_starts_with($trimmed, '> ')) {
+                $lastCommand = trim(substr($trimmed, 2));
+
+                continue;
+            }
+
+            if (! $this->isErrorLine($trimmed)) {
+                continue;
+            }
+
+            $failures[] = ($lastCommand !== null && $lastCommand !== '')
+                ? "`{$lastCommand}` → {$trimmed}"
+                : $trimmed;
         }
 
-        return null;
+        if ($failures === []) {
+            return null;
+        }
+
+        return implode('; ', array_values(array_unique($failures)));
+    }
+
+    private function isErrorLine(string $line): bool
+    {
+        // `%Info …` is the benign "Enter configuration commands" banner, and the
+        // login warning "% The password is not strong …" is not a config error.
+        if (str_starts_with($line, '%Info') || stripos($line, 'password is not strong') !== false) {
+            return false;
+        }
+
+        return preg_match(
+            '/(%Code\b|%Error\b|invalid input|unknown command|incomplete command|command failed|operation is forbidden|already exist|conflicting with|error:)/i',
+            $line,
+        ) === 1;
     }
 
     private function maskSecrets(string $output, SnmpOlt $olt): string
