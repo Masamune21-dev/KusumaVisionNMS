@@ -3429,3 +3429,41 @@ Notes:
 - Verifikasi: suite penuh **252 passed** (1383 assertions), Pint bersih.
 - **Deploy**: perubahan di service yang dipakai request web (webhook) → cukup opcache (php-fpm);
   tidak menyentuh worker/scheduler.
+
+### Bot Telegram: perintah /uncfg — ONU ZTE belum dikonfigurasi, live dari CLI
+
+Created:
+
+- `app/Services/ZteUncfgOnuService.php` — service discovery ONU uncfg ZTE LANGSUNG dari CLI
+  (`terminal length 0` + `show gpon onu uncfg` via `ZteCliProvisioningExecutor`), sengaja bukan
+  dari cache polling/SNMP. Parser regex fleksibel (`gpon[-_]onu[-_]r/s/p[:seq]  SN  state`),
+  skip echo perintah, dedup per-SN, urut slot/port.
+- `tests/Unit/ZteUncfgOnuServiceTest.php` — 4 test parser memakai output CLI **nyata** dari
+  OLT-C320-PATI (parse baris data, tabel kosong, dedup+sort, propagasi error CLI).
+
+Changed:
+
+- `app/Services/Telegram/TelegramKeyboard.php` — builder callback `uncfg()` (`uc:{scope}`,
+  scope 0 = semua OLT ZTE) untuk tombol "🔄 Cek Ulang".
+- `app/Services/Telegram/TelegramCommandHandler.php` — command baru `/uncfg` (alias
+  `/unconfigured`) `[nama|id OLT]` + callback `uc:` → `uncfgScreen()`: filter OLT ber-driver ZTE
+  (via `oltDriver()`), panggil `ZteUncfgOnuService::fetch()` per OLT (sinkron, telnet beberapa
+  detik seperti /refresh), render per-OLT: daftar SN + PON slot/port + state (cap 15 ONU/OLT),
+  ✅ bila kosong, ❌ + pesan bila CLI gagal/kredensial kosong (exception per-OLT ditangkap,
+  OLT lain tetap dilaporkan). /help + docblock kelas diperbarui.
+- `tests/Feature/TelegramWebhookTest.php` — +3 test: `/uncfg` menampilkan SN live dan TIDAK
+  menampilkan ONU dari cache; tanpa OLT ZTE → "Belum ada OLT ZTE" tanpa memanggil service;
+  callback `uc:{id}` re-run dan melaporkan error CLI.
+- `docs/handbook/10-alarm-telegram.md` — `/uncfg` masuk daftar command + blok "Aksi di luar cache".
+
+Notes:
+
+- **Verifikasi OLT nyata (id=1, OLT-C320-PATI)**: `show gpon onu uncfg` live menghasilkan
+  `gpon-onu_1/2/2:1  ZTEGCD7D2FD6  unknown`; `ZteUncfgOnuService::fetch()` end-to-end via tinker
+  mem-parse persis → `{interface, slot 2, port 2, seq 1, SN, state unknown}`. Fixture unit test
+  memakai output capture ini.
+- Ini jalur read-only (perintah `show`) meski lewat telnet; berbeda dari halaman web
+  `smartolt.unconfigured` yang berbasis SNMP walk + cache `last_test_result.unconfigured_onus` —
+  bot tidak menulis cache sama sekali.
+- Verifikasi: suite penuh **259 passed** (1403 assertions), Pint bersih.
+- **Deploy**: hanya jalur request web (webhook) → cukup opcache php-fpm, tanpa restart worker.

@@ -10,6 +10,7 @@ use App\Services\CData\CDataOltScanner;
 use App\Services\Dashboard\DashboardStatsService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\ZteRemoteOnuService;
+use App\Services\ZteUncfgOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -22,10 +23,11 @@ use Throwable;
  *
  * Actions are READ-ONLY (query the same cached/persisted data the web UI reads —
  * snmp_olts.last_test_result, alarm_events) so the bot stays consistent with the dashboard.
- * Dua pengecualian: /refresh men-scan ulang OLT C-Data (via {@see CDataOltScanner}) untuk
- * menyegarkan cache — tetap tidak mengubah konfigurasi OLT — dan tombol "Reboot ONU" di layar
- * detail ONU (dua langkah: konfirmasi dulu, gated `supports_reboot`, delegasi ke service
- * write per-family seperti pin peta di OnuMapController).
+ * Pengecualian: /refresh men-scan ulang OLT C-Data (via {@see CDataOltScanner}) untuk
+ * menyegarkan cache — tetap tidak mengubah konfigurasi OLT; /uncfg membaca live dari CLI OLT
+ * ZTE (via {@see ZteUncfgOnuService}, read-only); dan tombol "Reboot ONU" di layar detail ONU
+ * (dua langkah: konfirmasi dulu, gated `supports_reboot`, delegasi ke service write
+ * per-family seperti pin peta di OnuMapController).
  *
  * Every reply is a {@see TelegramReply} (text + optional inline keyboard), so the same
  * screen renderers feed either a fresh sendMessage (command) or an in-place
@@ -46,6 +48,7 @@ class TelegramCommandHandler
         private readonly ZteRemoteOnuService $zteWrite,
         private readonly CDataCliWriteService $cdataWrite,
         private readonly HiosoCliWriteService $hiosoWrite,
+        private readonly ZteUncfgOnuService $uncfg,
     ) {}
 
     /**
@@ -92,6 +95,7 @@ class TelegramCommandHandler
             'los' => $this->losScreen($this->resolveScope($argument), 0),
             'redaman', 'rx' => $this->rxScreen($this->resolveScope($argument), 0),
             'prov', 'provisioning' => $this->provisioningScreen(),
+            'uncfg', 'unconfigured' => $this->uncfgScreen($this->resolveScope($argument)),
             'refresh', 'segarkan' => $this->refreshCdataScreen($argument),
             default => $this->unknown(),
         };
@@ -134,6 +138,7 @@ class TelegramCommandHandler
             'los' => $this->losScreen($a[0] ?? 0, $a[1] ?? 0),
             'rx' => $this->rxScreen($a[0] ?? 0, $a[1] ?? 0),
             'al' => $this->alarmsScreen($a[0] ?? 0),
+            'uc' => $this->uncfgScreen($a[0] ?? 0),
             'noop' => null,
             default => $this->mainMenu(),
         };
@@ -161,7 +166,9 @@ class TelegramCommandHandler
             ."   contoh: <code>/search budi</code> · <code>/onu ZTEGC12</code>\n"
             ."/los <i>[nama OLT]</i> — ONU yang LOS/putus (kosong = semua OLT)\n"
             ."/redaman <i>[nama OLT]</i> — ONU redaman tinggi (alias: /rx)\n"
-            ."   contoh: <code>/redaman pati</code>\n\n"
+            ."   contoh: <code>/redaman pati</code>\n"
+            ."/uncfg <i>[nama OLT]</i> — ONU ZTE belum dikonfigurasi, live dari CLI OLT (bukan cache)\n"
+            ."   contoh: <code>/uncfg</code> · <code>/uncfg pati</code>\n\n"
 
             ."🔄 <b>Aksi</b>\n"
             ."/refresh <i>[nama OLT]</i> — Scan ulang OLT C-Data agar menu/port tampil terbaru (alias: /segarkan). Kosong = semua OLT C-Data.\n"
@@ -681,6 +688,76 @@ class TelegramCommandHandler
         ];
 
         return TelegramReply::make(implode("\n", $lines), $keyboard);
+    }
+
+    /**
+     * ONU ZTE yang belum dikonfigurasi (auto-discovery), diambil LANGSUNG dari CLI OLT
+     * (`show gpon onu uncfg` via {@see ZteUncfgOnuService}) — sengaja bukan dari cache
+     * polling supaya ONU yang baru dicolok teknisi langsung terlihat. Sinkron: telnet
+     * beberapa detik per OLT (seperti /refresh). Scope 0 = semua OLT ZTE, selain itu 1 OLT.
+     */
+    private function uncfgScreen(int $scope): TelegramReply
+    {
+        $olts = SnmpOlt::query()->orderBy('name')->get()
+            ->filter(fn (SnmpOlt $olt) => $this->oltDriver($olt) === SmartOltSupport::DRIVER_ZTE);
+
+        if ($scope > 0) {
+            $olts = $olts->where('id', $scope);
+        }
+
+        $olts = $olts->values();
+
+        if ($olts->isEmpty()) {
+            return TelegramReply::make(
+                $scope > 0 ? 'OLT tersebut bukan OLT ZTE (discovery uncfg hanya untuk ZTE).' : 'Belum ada OLT ZTE terdaftar.',
+                [TelegramKeyboard::backRow(null)],
+            );
+        }
+
+        $sections = ["🔍 <b>ONU Uncfg — Belum Dikonfigurasi</b>\n📡 Live dari CLI OLT (bukan cache)"];
+        $maxPerOlt = 15;
+
+        foreach ($olts as $olt) {
+            try {
+                $result = $this->uncfg->fetch($olt);
+            } catch (Throwable $e) {
+                $sections[] = '❌ <b>'.$this->escape((string) $olt->name).'</b> — '.$this->escape($this->truncate($e->getMessage(), 120));
+
+                continue;
+            }
+
+            if (! $result['ok']) {
+                $sections[] = '❌ <b>'.$this->escape((string) $olt->name).'</b> — '.$this->escape($this->truncate((string) $result['error'], 120));
+
+                continue;
+            }
+
+            if ($result['onus'] === []) {
+                $sections[] = '✅ <b>'.$this->escape((string) $olt->name).'</b> — tidak ada ONU uncfg.';
+
+                continue;
+            }
+
+            $lines = ['📶 <b>'.$this->escape((string) $olt->name).'</b> — '.count($result['onus']).' ONU menunggu registrasi:'];
+            foreach (array_slice($result['onus'], 0, $maxPerOlt) as $onu) {
+                $state = $onu['state'] ? ' · '.$this->escape((string) $onu['state']) : '';
+                $lines[] = '• <code>'.$this->escape($onu['serial_number']).'</code> — PON '.$onu['slot'].'/'.$onu['port'].$state;
+            }
+            if (count($result['onus']) > $maxPerOlt) {
+                $lines[] = '… dan '.(count($result['onus']) - $maxPerOlt).' ONU lagi.';
+            }
+
+            $sections[] = implode("\n", $lines);
+        }
+
+        $sections[] = '🕒 '.$this->now();
+
+        $keyboard = [
+            [TelegramKeyboard::button('🔄 Cek Ulang', TelegramKeyboard::uncfg($scope))],
+            TelegramKeyboard::backRow(null),
+        ];
+
+        return TelegramReply::make(implode("\n\n", $sections), $keyboard);
     }
 
     private function searchHelpScreen(): TelegramReply

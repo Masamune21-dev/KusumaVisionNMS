@@ -7,6 +7,7 @@ use App\Models\TelegramSetting;
 use App\Models\User;
 use App\Services\CData\CDataOltScanner;
 use App\Services\ZteRemoteOnuService;
+use App\Services\ZteUncfgOnuService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -359,6 +360,68 @@ class TelegramWebhookTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'answerCallbackQuery'));
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'editMessageText'));
+    }
+
+    public function test_uncfg_command_reads_live_from_cli_not_cache(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $this->seedOltWithOnus(); // cache berisi ONU terdaftar — TIDAK boleh muncul di /uncfg
+
+        $this->mock(ZteUncfgOnuService::class, function ($mock) {
+            $mock->shouldReceive('fetch')->once()->andReturn([
+                'ok' => true,
+                'onus' => [[
+                    'interface' => 'gpon-onu_1/2/2:1', 'slot' => 2, 'port' => 2, 'seq' => 1,
+                    'serial_number' => 'ZTEGCD7D2FD6', 'state' => 'unknown',
+                ]],
+                'error' => null,
+            ]);
+        });
+
+        $this->postWebhook($this->update('111', '/uncfg'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'ZTEGCD7D2FD6')
+            && str_contains($request['text'], 'PON 2/2')
+            && str_contains($request['text'], 'Live dari CLI')
+            && ! str_contains($request['text'], 'ZTEGOK000001'));
+    }
+
+    public function test_uncfg_command_without_zte_olt_reports_none(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        SnmpOlt::create([
+            'name' => 'OLT-CDATA-EPON', 'vendor' => 'C-Data FD1208', 'ip' => '10.0.0.8',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+        ]);
+
+        $this->mock(ZteUncfgOnuService::class)->shouldNotReceive('fetch');
+
+        $this->postWebhook($this->update('111', '/uncfg'))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
+            && str_contains($request['text'], 'Belum ada OLT ZTE'));
+    }
+
+    public function test_uncfg_callback_reruns_discovery_and_reports_cli_error(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedOltWithOnus();
+
+        $this->mock(ZteUncfgOnuService::class, function ($mock) {
+            $mock->shouldReceive('fetch')->once()->andReturn([
+                'ok' => false, 'onus' => [], 'error' => 'Gagal connect Telnet',
+            ]);
+        });
+
+        $this->postWebhook($this->callbackUpdate('111', "uc:{$olt->id}"))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && str_contains($request['text'], 'Gagal connect Telnet'));
     }
 
     public function test_onu_detail_callback_offers_reboot_button(): void

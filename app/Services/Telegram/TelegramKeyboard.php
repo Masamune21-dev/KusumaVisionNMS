@@ -117,6 +117,12 @@ class TelegramKeyboard
         return "al:{$page}";
     }
 
+    /** Layar ONU uncfg ZTE (live dari CLI); scope 0 = semua OLT ZTE, selain itu 1 OLT. */
+    public static function uncfg(int $scope = 0): string
+    {
+        return "uc:{$scope}";
+    }
+
     public static function searchHelp(): string
     {
         return 'srh';

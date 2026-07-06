@@ -138,13 +138,16 @@ hasil). Token kedaluwarsa → minta kirim ulang. Tombol "🔎 Cari ONU" di menu 
 
 **Command yang didukung** (`TelegramCommandHandler`): `/menu` (`/start`), `/help`, `/ping`,
 `/status`, `/olt [nama|id]`, `/los [olt]`, `/redaman` (`/rx`) `[olt]`, `/search` (`/cari`)
-`<nama|serial>`, `/alarm`, `/onu` (`/cek`) `<serial|nama>`, `/prov`, `/refresh` (`/segarkan`)
-`[nama|id]`, `/id`. Hanya chat di allow-list
+`<nama|serial>`, `/alarm`, `/onu` (`/cek`) `<serial|nama>`, `/prov`, `/uncfg` (`/unconfigured`)
+`[nama|id]`, `/refresh` (`/segarkan`) `[nama|id]`, `/id`. Hanya chat di allow-list
 (`isChatAuthorized`) boleh menjalankan command/tombol data — termasuk `callback_query` (dicek ulang
-di `handleCallback`); selain itu `accessDenied`. **Dua aksi non-read-only**: `/refresh` men-scan ulang
+di `handleCallback`); selain itu `accessDenied`. **Aksi di luar cache**: `/refresh` men-scan ulang
 OLT C-Data via `CDataOltScanner` (sinkron — EPON SNMP cepat, GPON V3 CLI ~10 dtk/OLT) lalu menulis cache
-`port_onus`, supaya menu/port tampil terbaru (OLT ZTE diabaikan — sudah dipoll background); dan tombol
-"🔄 Reboot ONU" di detail ONU (lihat blok di atas — konfirmasi dua langkah, gated `supports_reboot`).
+`port_onus`, supaya menu/port tampil terbaru (OLT ZTE diabaikan — sudah dipoll background); `/uncfg
+[nama|id]` menampilkan ONU ZTE yang belum dikonfigurasi **live dari CLI** (`show gpon onu uncfg` via
+`ZteUncfgOnuService`, read-only, sengaja bukan cache agar ONU baru dicolok langsung terlihat; callback
+`uc:{scope}` = tombol "Cek Ulang", scope 0 = semua OLT ZTE); dan tombol "🔄 Reboot ONU" di detail ONU
+(lihat blok di atas — konfirmasi dua langkah, gated `supports_reboot`).
 
 ### Catatan keamanan
 - `bot_token` & `webhook_secret` terenkripsi + `$hidden`.
