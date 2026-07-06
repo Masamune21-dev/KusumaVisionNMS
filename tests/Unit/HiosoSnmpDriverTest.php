@@ -174,4 +174,91 @@ class HiosoSnmpDriverTest extends TestCase
         $this->assertSame(-24.10, $b['rx_power_dbm']);
         $this->assertSame('onu-b', $b['name']);
     }
+
+    /**
+     * Regresi anti-flapping (OLT-HIOSO-PATI port 3, 1 ONU): saat walk Rx SAMA SEKALI tak menyertakan
+     * baris sebuah ONU (link lossy memotong walk, bahkan setelah robustWalk mengulang), ONU itu TIDAK
+     * boleh ditandai offline — ONU offline HiOSO tetap melapor `na` (barisnya ada), jadi baris yang
+     * benar-benar hilang = walk tak sampai, bukan bukti mati. Status terakhir dari snapshot poll
+     * sebelumnya dipertahankan supaya port 1-ONU tak "down/up" tiap walk yang terpotong.
+     */
+    public function test_absent_rx_row_keeps_last_known_state_instead_of_flapping_offline(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        // Rx: SELALU partial (hanya 1.1); baris 1.3 tak pernah muncul → robustWalk kehabisan attempt.
+        $snmp = new QueuedHiosoSnmp([
+            $mac => [[
+                "{$mac}.1.1" => 'ec237bd78071',
+                "{$mac}.1.3" => 'd05faf84994e',
+            ]],
+            $name => [[
+                "{$name}.1.1" => 'onu-a',
+                "{$name}.1.3" => 'Madun',
+            ]],
+            $rx => [["{$rx}.1.1" => '-20.36']],
+        ]);
+
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        // Snapshot poll sebelumnya: ONU 1.3 online, Rx -19.00 dBm.
+        $olt->last_test_result = [
+            'port_onus' => [
+                '1_3' => ['onus' => [[
+                    'onu_key' => '1.3',
+                    'online' => true,
+                    'rx_power_dbm' => -19.0,
+                    'rx_power_label' => '-19.00 dBm',
+                ]]],
+            ],
+        ];
+
+        $onus = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt);
+        $byKey = collect($onus)->keyBy('onu_key');
+
+        // ONU 1.1 punya baris Rx sungguhan → online normal.
+        $this->assertTrue($byKey['1.1']['online']);
+        $this->assertSame(-20.36, $byKey['1.1']['rx_power_dbm']);
+        $this->assertSame('snmp', $byKey['1.1']['rx_power_source']);
+
+        // ONU 1.3: baris Rx absen → pertahankan status terakhir (online), TAK jadi offline.
+        $onu = $byKey['1.3'];
+        $this->assertTrue($onu['online'], 'ONU tanpa baris Rx (walk terpotong) tak boleh dianggap offline');
+        $this->assertSame('Online', $onu['phase_state']);
+        $this->assertSame(-19.0, $onu['rx_power_dbm']);
+        // Rx carry-forward ditandai 'snmp_stale' → tak ikut dicatat ke time-series oleh PollOltJob.
+        $this->assertSame('snmp_stale', $onu['rx_power_source']);
+    }
+
+    /**
+     * Baris Rx `na` (ONU sungguh-sungguh offline, barisnya ADA) tetap harus terbaca offline — pembeda
+     * dari kasus baris absen di atas. Regresi agar fix anti-flap tak menutupi ONU yang benar mati.
+     */
+    public function test_present_na_rx_row_is_still_offline(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'Madun'],
+            $mac => ["{$mac}.1.3" => 'd05faf84994e'],
+            $rx => ["{$rx}.1.3" => 'na'],
+        ]);
+
+        // Meski snapshot sebelumnya online, baris `na` yang HADIR menang → offline.
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = [
+            'port_onus' => ['1_3' => ['onus' => [[
+                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -19.0,
+            ]]]],
+        ];
+
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt)[0];
+
+        $this->assertFalse($onu['online'], 'Baris Rx `na` yang hadir = ONU memang offline');
+        $this->assertSame('Offline', $onu['phase_state']);
+        $this->assertNull($onu['rx_power_dbm']);
+    }
 }

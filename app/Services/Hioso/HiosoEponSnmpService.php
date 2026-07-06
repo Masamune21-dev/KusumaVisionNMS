@@ -135,14 +135,33 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
         $onuKeys = array_keys($registered);
         $nameByKey = $this->indexByPonOnu($this->robustWalk($olt, self::ONU_NAME, $onuKeys));
-        $rxByKey = $this->rxMap($olt, $onuKeys);
+        $rxScan = $this->rxScan($olt, $onuKeys);
+        $previous = $this->previousOnuState($olt);
 
         $onus = [];
 
         foreach ($registered as $key => [$port, $onuId, $mac]) {
-            $rx = $rxByKey[$key] ?? null;
             $name = HiosoValue::clean($nameByKey[$key] ?? null);
-            $online = $rx !== null;
+
+            if (isset($rxScan['seen'][$key])) {
+                // Baris Rx sungguh-sungguh terbaca cycle ini → pembacaan sah: dBm valid = online;
+                // `na`/`0`/di luar jendela = ONU memang offline (guide §4.4: ONU offline melapor `na`).
+                $rx = $rxScan['valid'][$key] ?? null;
+                $online = $rx !== null;
+                $rxLabel = $rx !== null ? sprintf('%.2f dBm', $rx) : null;
+                $rxSource = $rx !== null ? 'snmp' : null;
+            } else {
+                // Baris Rx ABSEN dari walk = walk terpotong link lossy, BUKAN bukti ONU offline (ONU
+                // offline HiOSO tetap melapor `na` → barisnya tetap ada). Menandainya offline di sini
+                // membuat port ber-ONU sedikit (mis. port 1-ONU) "flapping" down/up tiap walk yang tak
+                // sampai. Pertahankan status terakhir dari snapshot poll sebelumnya; Rx dibawa sebagai
+                // 'snmp_stale' agar tampil kontinu tapi TAK dicatat ke time-series (lihat PollOltJob).
+                $prev = $previous[$key] ?? null;
+                $online = $prev['online'] ?? true; // tak ada acuan → MAC terdaftar, asumsikan up
+                $rx = $prev['rx'] ?? null;
+                $rxLabel = $prev['rx_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
+                $rxSource = $rx !== null ? 'snmp_stale' : null;
+            }
 
             $onus[] = [
                 'onu_key' => $key,
@@ -163,8 +182,8 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 'online' => $online,
                 'last_down_cause' => null,
                 'rx_power_dbm' => $rx,
-                'rx_power_label' => $rx !== null ? sprintf('%.2f dBm', $rx) : null,
-                'rx_power_source' => $rx !== null ? 'snmp' : null,
+                'rx_power_label' => $rxLabel,
+                'rx_power_source' => $rxSource,
             ];
         }
 
@@ -183,7 +202,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
     public function getPortRxMap(SnmpOlt $olt): array
     {
-        return $this->rxMap($olt);
+        return $this->rxScan($olt)['valid'];
     }
 
     public function countRegisteredOnus(SnmpOlt $olt): int
@@ -289,12 +308,21 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     }
 
     /**
+     * Walk tabel Rx sekali (robust), lalu pisahkan dua hal yang WAJIB dibedakan:
+     *   - `valid`: `{PON}.{ONU}` => dBm untuk baris yang terbaca sebagai nilai valid (ONU online).
+     *   - `seen` : `{PON}.{ONU}` => true untuk SETIAP baris Rx yang MUNCUL di walk, apa pun nilainya
+     *              (termasuk `na`/`0`). ONU offline HiOSO TETAP melapor `na` → barisnya tetap ada; jadi
+     *              baris yang muncul = pembacaan sungguhan, sedangkan baris yang SAMA SEKALI absen =
+     *              walk terpotong link lossy (bukan bukti ONU mati). Pemisahan ini yang mencegah port
+     *              ber-ONU sedikit "flapping" saat walk sesekali tak sampai (lihat getRegisteredOnus).
+     *
      * @param  array<int, string>  $onuKeys  target kelengkapan `{PON}.{ONU}` (lihat getRegisteredOnus)
-     * @return array<string, float> key `{PON}.{ONU}` => dBm
+     * @return array{valid: array<string, float>, seen: array<string, bool>}
      */
-    private function rxMap(SnmpOlt $olt, array $onuKeys = []): array
+    private function rxScan(SnmpOlt $olt, array $onuKeys = []): array
     {
-        $map = [];
+        $valid = [];
+        $seen = [];
 
         foreach ($this->robustWalk($olt, self::ONU_RX, $onuKeys) as $oid => $value) {
             $segments = HiosoValue::oidLastSegments($oid, 2);
@@ -302,13 +330,47 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 continue;
             }
 
+            $key = "{$segments[0]}.{$segments[1]}";
+            $seen[$key] = true;
+
             $dbm = HiosoValue::rxDbm($value);
             if ($dbm !== null) {
-                $map["{$segments[0]}.{$segments[1]}"] = $dbm;
+                $valid[$key] = $dbm;
             }
         }
 
-        return $map;
+        return ['valid' => $valid, 'seen' => $seen];
+    }
+
+    /**
+     * Status ONU dari snapshot poll SEBELUMNYA (`last_test_result.port_onus`), di-key `{PON}.{ONU}`.
+     * Dipakai sebagai fallback saat walk Rx tak menyertakan baris sebuah ONU (truncation) → status
+     * terakhir dipertahankan alih-alih mengarang "offline". Aman: saat getRegisteredOnus dipanggil,
+     * scanner belum menimpa `last_test_result` (masih berisi hasil poll sebelumnya).
+     *
+     * @return array<string, array{online: bool, rx: float|null, rx_label: string|null}>
+     */
+    private function previousOnuState(SnmpOlt $olt): array
+    {
+        $state = [];
+
+        foreach ((array) data_get($olt->last_test_result, 'port_onus', []) as $port) {
+            foreach ((array) ($port['onus'] ?? []) as $onu) {
+                $key = $onu['onu_key'] ?? null;
+                if (! is_string($key)) {
+                    continue;
+                }
+
+                $rx = $onu['rx_power_dbm'] ?? null;
+                $state[$key] = [
+                    'online' => (bool) ($onu['online'] ?? false),
+                    'rx' => is_numeric($rx) ? (float) $rx : null,
+                    'rx_label' => $onu['rx_power_label'] ?? null,
+                ];
+            }
+        }
+
+        return $state;
     }
 
     /**

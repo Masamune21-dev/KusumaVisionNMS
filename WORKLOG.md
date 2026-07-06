@@ -3357,3 +3357,40 @@ Notes:
   Lihat memori `prod-deploy-gotchas`.
 - **Deploy box ini**: `.php` terbaca opcache otomatis (~2 dtk), Vue sudah `npm run build`, `config:cache`
   sudah dikembalikan. Tak perlu migrate/queue:restart (laporan dirender di request web).
+
+## 2026-07-06
+
+### Fix flapping port HiOSO (baris RX absen ≠ ONU offline)
+
+Changed:
+
+- `app/Services/Hioso/HiosoEponSnmpService.php` — `rxMap()` diganti `rxScan()` yang memisahkan
+  `seen` (setiap baris RX yang MUNCUL di walk, apa pun nilainya) dari `valid` (dBm sah). Di
+  `getRegisteredOnus()`: baris RX `na`/`0` yang **hadir** tetap offline (benar), tapi baris yang
+  **absen** dari walk (link lossy memotong walk, bahkan setelah `robustWalk`) tak lagi dianggap
+  offline — status terakhir dipertahankan via `previousOnuState()` (baca `last_test_result.port_onus`
+  poll sebelumnya), RX carry-forward ditandai sumber `snmp_stale`. `getPortRxMap()` kini pakai
+  `rxScan()['valid']`.
+- `app/Jobs/PollOltJob.php` — `recordRxSamples()` melewati RX bersumber `snmp_stale` (carry-forward)
+  agar time-series RX tak terisi titik palsu berulang.
+- `tests/Unit/HiosoSnmpDriverTest.php` — +2 test regresi: baris RX absen → status terakhir
+  dipertahankan (bukan offline, sumber `snmp_stale`); baris `na` yang hadir → tetap offline (pembeda,
+  supaya fix tak menutupi ONU yang benar-benar mati).
+
+Notes:
+
+- **Akar masalah OLT-HIOSO-PATI (id 411) port 3**: HiOSO tak punya OID status ONU → "online"
+  diturunkan dari ada/tidaknya bacaan RX; scanner menurunkan status port dari jumlah ONU online.
+  Port 3 hanya 1 ONU (MAC `D0:5F:AF:84:99:4E` "Madun", RX -17.21 dBm, sehat) → satu bacaan RX meleset
+  = seluruh port "down". Link WAN lossy membuat walk tabel RX sesekali terpotong sebelum sampai ke ONU
+  itu; kode lama menyamakan "baris RX absen" dengan "offline". Bukti produksi: **39 episode**
+  `port:1/3:port_down`, tiap episode ~6 menit (1 siklus refresh RX) lalu clear sendiri, berbarengan
+  `onu_offline` ONU sehat tsb.
+- Kunci pembeda dari guide: **ONU offline HiOSO tetap melapor `na`** di tabel RX (baris tetap ada),
+  jadi baris yang benar-benar absen = walk tak sampai, bukan bukti ONU mati. `robustWalk` tetap
+  mengulang sampai baris tiap ONU (termasuk `na`) terbaca; fallback carry-forward hanya dipakai saat
+  walk gagal total sampai ke ONU itu → deteksi outage nyata tetap terjaga.
+- Verifikasi: `HiosoSnmpDriverTest` **5 passed**; suite terkait (`Hioso|Alarm|Poll|CData`) **75 passed**
+  (480 assertions); Pint bersih; 0 alarm aktif tersisa di OLT 411.
+- **Deploy**: perubahan menyentuh service/job yang dijalankan worker `kusumavision-worker` →
+  `php artisan queue:restart` agar worker memuat kode baru (fix belum aktif tanpa restart).

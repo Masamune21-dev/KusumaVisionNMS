@@ -240,7 +240,9 @@ class PollOltJob implements ShouldQueue
         foreach ($onus as $onu) {
             $rx = $onu['rx_power_dbm'] ?? null;
 
-            if (! is_numeric($rx)) {
+            // Lewati nilai non-numerik & Rx carry-forward (mis. HiOSO 'snmp_stale' saat walk terpotong)
+            // agar time-series tak terisi titik palsu berulang.
+            if (! is_numeric($rx) || str_contains((string) ($onu['rx_power_source'] ?? ''), 'stale')) {
                 continue;
             }
 
