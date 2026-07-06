@@ -10,12 +10,11 @@ const props = defineProps({
     olt: { type: Object, required: true },
     slot: { type: Number, required: true },
     port: { type: Number, required: true },
+    // Target ACS (url + username) dari Pengaturan → SmartOltController::portOnus.
+    acs: { type: Object, default: () => ({ url: '', username: '' }) },
 });
 
 const emit = defineEmits(['close']);
-
-// Default ACS endpoint (BMKV) — server-side ini dibaca dari config('services.acs').
-const acs = { url: 'http://acs.bmkv.net:7547', username: 'cms' };
 
 const blankProgress = () => ({
     status: 'queued', execute: false, total: 0, processed: 0,

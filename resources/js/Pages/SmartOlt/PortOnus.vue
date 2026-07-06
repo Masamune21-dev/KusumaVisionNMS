@@ -47,6 +47,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    acs: {
+        type: Object,
+        default: () => ({ url: '', username: '' }),
+    },
 });
 
 const page = usePage();
@@ -1149,7 +1153,7 @@ const rxBadgeClass = (value) => {
             </div>
         </Modal>
 
-        <Tr069BulkModal v-if="canTr069" :show="tr069ModalOpen" :olt="olt" :slot="slot" :port="port" @close="tr069ModalOpen = false" />
+        <Tr069BulkModal v-if="canTr069" :show="tr069ModalOpen" :olt="olt" :slot="slot" :port="port" :acs="acs" @close="tr069ModalOpen = false" />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>

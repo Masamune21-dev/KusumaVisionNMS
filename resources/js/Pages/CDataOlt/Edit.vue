@@ -2,22 +2,25 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import CDataOltForm from './Partials/CDataOltForm.vue';
 import { Head } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
-defineProps({
+const props = defineProps({
     olt: {
         type: Object,
         required: true,
     },
 });
+
+const title = computed(() => (props.olt.driver === 'hioso-epon-25355' ? 'Edit OLT HiOSO' : 'Edit OLT C-Data'));
 </script>
 
 <template>
-    <Head title="Edit OLT C-Data" />
+    <Head :title="title" />
 
     <AuthenticatedLayout>
         <template #header>
             <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                Edit OLT C-Data
+                {{ title }}
             </h2>
         </template>
 

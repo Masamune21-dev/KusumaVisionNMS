@@ -7,7 +7,10 @@ use App\Support\AuditLogger;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -25,6 +28,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Rate limiter untuk grup rute API (dipakai middleware `throttle:api`).
+        // 120 request/menit per token (atau per IP bila belum login).
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
+            ->by($request->user()?->id ?: $request->ip()));
+
         // Prefetch eager seluruh chunk app dinonaktifkan: di landing publik ini
         // mem-prefetch puluhan asset (Dashboard/Auth/Telnet/dll) yang tidak
         // dibutuhkan pengunjung, dan tiap deploy (hash berubah) memicu badai

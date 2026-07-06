@@ -148,7 +148,8 @@ const scanOlt = () => {
 };
 
 const portOnuHref = (onu) => {
-    const name = onu.olt_cdata ? 'cdata-olt.port-onus' : 'smartolt.port-onus';
+    // port_route sudah menentukan family (smartolt / cdata-olt / hioso-olt) dari server.
+    const name = onu.port_route ?? 'smartolt.port-onus';
     return `${route(name, [onu.olt_id, onu.slot, onu.port])}?focus=${onu.onu_id}`;
 };
 

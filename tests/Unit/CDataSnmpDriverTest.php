@@ -7,6 +7,7 @@ use App\Services\CData\CDataEponSnmpService;
 use App\Services\CData\CDataGponCliService;
 use App\Services\CData\CDataGponSnmpService;
 use App\Services\CData\CDataSnmp;
+use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use Tests\TestCase;
 
@@ -178,6 +179,10 @@ class CDataSnmpDriverTest extends TestCase
         $this->assertInstanceOf(
             CDataGponSnmpService::class,
             $resolver->resolve(new SnmpOlt(['vendor' => 'C-Data GPON 34592', 'snmp_version' => 'v2c'])),
+        );
+        $this->assertInstanceOf(
+            HiosoEponSnmpService::class,
+            $resolver->resolve(new SnmpOlt(['vendor' => 'HIOSO', 'snmp_version' => 'v2c'])),
         );
 
         $this->expectException(\RuntimeException::class);

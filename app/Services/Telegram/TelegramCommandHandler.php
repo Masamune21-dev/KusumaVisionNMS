@@ -552,7 +552,7 @@ class TelegramCommandHandler
         $generic = $argument === '' || in_array(strtolower($argument), ['oltcdata', 'olt-cdata', 'cdata', 'c-data', 'all', 'semua'], true);
 
         $olts = SnmpOlt::query()->orderBy('name')->get()
-            ->filter(fn (SnmpOlt $olt) => SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)));
+            ->filter(fn (SnmpOlt $olt) => SmartOltSupport::isNonZte(SmartOltSupport::driverKey($olt)));
 
         if (! $generic) {
             $needle = strtolower($argument);

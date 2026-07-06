@@ -6,6 +6,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { Activity, Cpu, KeyRound, Network } from '@lucide/vue';
+import { computed } from 'vue';
 
 const props = defineProps({
     olt: {
@@ -38,6 +39,9 @@ const form = useForm({
     poll_interval_minutes: props.olt?.poll_interval_minutes ?? props.defaults.poll_interval_minutes ?? 5,
     rx_poll_interval_minutes: props.olt?.rx_poll_interval_minutes ?? props.defaults.rx_poll_interval_minutes ?? 5,
 });
+
+// Tab inventory tujuan tombol Batal — HiOSO punya tab sendiri.
+const backTab = computed(() => (/hioso|vsol|v-sol|25355/i.test(form.vendor) ? 'hioso' : 'cdata'));
 
 const submit = () => {
     if (props.olt) {
@@ -81,7 +85,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="vendor" value="Family C-Data" />
+                    <InputLabel for="vendor" value="Family OLT" />
                     <select
                         id="vendor"
                         v-model="form.vendor"
@@ -90,9 +94,10 @@ const submit = () => {
                     >
                         <option value="C-Data EPON 17409">C-Data EPON (17409)</option>
                         <option value="C-Data GPON 34592">C-Data GPON (34592)</option>
+                        <option value="HiOSO EPON 25355">HiOSO / V-Sol EPON (25355)</option>
                     </select>
                     <p class="mt-1 text-xs text-slate-500">
-                        Family menentukan driver. Tombol Test memverifikasi via sysObjectID & mendeteksi firmware V3 (GPON).
+                        Family menentukan driver. Tombol Test memverifikasi via sysObjectID (C-Data 17409/34592, HiOSO 25355).
                     </p>
                     <InputError class="mt-2" :message="form.errors.vendor" />
                 </div>
@@ -306,7 +311,7 @@ const submit = () => {
 
         <!-- Submit bar -->
         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-            <Link :href="route('smartolt.index', { tab: 'cdata' })">
+            <Link :href="route('smartolt.index', { tab: backTab })">
                 <SecondaryButton type="button">Batal</SecondaryButton>
             </Link>
             <PrimaryButton :disabled="form.processing">

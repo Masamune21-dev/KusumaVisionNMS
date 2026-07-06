@@ -29,3 +29,8 @@ Thumbs.db
 
 # kredensial sementara untuk scripts/snapshot.mjs (jangan commit)
 .snap.env
+
+# artefak distribusi Docker (di-generate ulang, jangan commit — bulky)
+/kusumavision-nms-docker.zip
+/kusumavision-nms-image.tar
+/kusumavision-nms-image.tar.gz

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcsSetting;
 use App\Models\AlarmEvent;
 use App\Models\GeneralSetting;
 use App\Models\TelegramSetting;
@@ -9,6 +10,8 @@ use App\Services\Telegram\TelegramNotifier;
 use App\Services\Telegram\TelegramWebhookManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -16,16 +19,33 @@ use Inertia\Response;
 
 class SettingsController extends Controller
 {
-    public function edit(): Response
+    public function edit(Request $request): Response
     {
         $setting = TelegramSetting::instance();
         $general = GeneralSetting::instance();
+        $acs = AcsSetting::instance();
 
         return Inertia::render('Settings/Index', [
+            'api' => [
+                // API aktif hanya bila rute benar-benar terdaftar (saklar di routes/api.php).
+                'enabled' => Route::has('api.public.status'),
+                'base_url' => url('/api/v1'),
+                'public_status_url' => url('/api/v1/public/status'),
+                // Token plain-text hanya tampil sekali (flash setelah dibuat).
+                'new_token' => $request->session()->get('apiToken'),
+                'tokens' => $this->apiTokensPayload($request),
+            ],
             'general' => [
                 'app_name' => $general->app_name ?? GeneralSetting::DEFAULT_NAME,
                 'app_version' => $general->app_version ?? GeneralSetting::DEFAULT_VERSION,
                 'logo_url' => $general->logoUrl(),
+            ],
+            'acs' => [
+                'url' => $acs->url ?? '',
+                'username' => $acs->username ?? '',
+                'password_set' => filled($acs->password),
+                'default_url' => (string) config('services.acs.url', 'http://acs.bmkv.net:7547'),
+                'default_username' => (string) config('services.acs.username', 'cms'),
             ],
             'appInfo' => $this->appInfoPayload(),
             'telegram' => [
@@ -51,6 +71,62 @@ class SettingsController extends Controller
                 ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
                 ->values(),
         ]);
+    }
+
+    /**
+     * Terbitkan token API (Sanctum) milik user yang sedang login.
+     * Plain-text token hanya dikirim balik sekali via flash.
+     */
+    public function createApiToken(Request $request): RedirectResponse
+    {
+        // API dimatikan di server → token tak ada gunanya; tolak agar tak menumpuk token nganggur.
+        if (! Route::has('api.public.status')) {
+            return back()->with('error', 'API sedang dinonaktifkan. Aktifkan dulu di server (routes/api.php) sebelum membuat token.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:60'],
+        ]);
+
+        $token = $request->user()->createToken($validated['name']);
+
+        return back()
+            ->with('apiToken', $token->plainTextToken)
+            ->with('success', 'Token API dibuat. Salin sekarang — token hanya ditampilkan satu kali.');
+    }
+
+    /**
+     * Cabut satu token API milik user yang sedang login.
+     */
+    public function revokeApiToken(Request $request, int $token): RedirectResponse
+    {
+        $request->user()->tokens()->whereKey($token)->delete();
+
+        return back()->with('success', 'Token API dicabut.');
+    }
+
+    /**
+     * Daftar token API milik user (tanpa nilai token; itu tak pernah disimpan plain).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function apiTokensPayload(Request $request): array
+    {
+        // Hindari 500 bila tabel token belum dimigrasikan di server.
+        if (! Schema::hasTable('personal_access_tokens')) {
+            return [];
+        }
+
+        return $request->user()->tokens()
+            ->latest()
+            ->get(['id', 'name', 'last_used_at', 'created_at'])
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'last_used_at' => $t->last_used_at?->toIso8601String(),
+                'created_at' => $t->created_at?->toIso8601String(),
+            ])
+            ->all();
     }
 
     public function updateGeneral(Request $request): RedirectResponse
@@ -85,6 +161,32 @@ class SettingsController extends Controller
         $setting->save();
 
         return back()->with('success', 'Pengaturan umum tersimpan.');
+    }
+
+    /**
+     * Simpan endpoint ACS / TR069 (dipakai fitur "Aktifkan TR069 Massal").
+     * Password kosong = pertahankan yang lama.
+     */
+    public function updateAcs(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'url' => ['required', 'string', 'max:255', 'url'],
+            'username' => ['required', 'string', 'max:100'],
+            'password' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $setting = AcsSetting::instance();
+        $setting->url = $validated['url'];
+        $setting->username = $validated['username'];
+
+        // Field password kosong berarti "pertahankan password lama".
+        if (filled($validated['password'] ?? null)) {
+            $setting->password = $validated['password'];
+        }
+
+        $setting->save();
+
+        return back()->with('success', 'Pengaturan ACS / TR069 tersimpan.');
     }
 
     public function updateTelegram(Request $request): RedirectResponse

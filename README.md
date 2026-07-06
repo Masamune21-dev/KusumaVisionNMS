@@ -2,7 +2,9 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320/C600 (ZXA10)**: monitoring OLT/ONU, provisioning ONU, remote management, background polling, alarm engine, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320/C600 (ZXA10)** — plus dukungan multi-vendor untuk OLT **C-Data (EPON/GPON)** dan **HiOSO/V-Sol EPON**: monitoring OLT/ONU, provisioning ONU (ZTE), remote management, background polling, alarm engine, notifikasi Telegram, peta ONU, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+
+Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **appliance Docker** yang lengkap di satu PC (Windows/Linux/macOS) untuk dibagikan ke banyak lokasi. Tersedia juga **REST API v1** (read-only, opsional) untuk integrasi aplikasi lain.
 
 > Riwayat pengembangan per fase: [`WORKLOG.md`](WORKLOG.md).
 > Dokumentasi teknis lengkap (arsitektur, routing, skema DB, SNMP/CLI, troubleshooting, panduan menambah fitur): **[`docs/handbook/`](docs/handbook/README.md)**.
@@ -31,6 +33,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ### Inventory & Monitoring
 
+- **Multi-vendor OLT** — selain ZTE C300/C320/C600, mendukung **C-Data EPON/GPON** dan **HiOSO/V-Sol EPON** (mis. HA7304): inventory, monitoring ONU, RX power, faceplate panel-depan, plus aksi ONU rename/reboot/delete via CLI. Tab terpisah (ZTE / C-Data / HiOSO) di halaman SmartOLT; semua ikut background polling & alarm. Provisioning penuh tetap khusus ZTE.
 - **Inventory OLT** — CRUD OLT, uji koneksi SNMP, kredensial tersimpan terenkripsi.
 - **Monitoring** — GPON port (up/down), ONU per port (online/offline, phase state, RX power via SNMP), search ONU langsung dari halaman Detail.
 - **ONU Monitoring (lintas OLT)** — halaman terpusat memantau seluruh ONU dari semua OLT & port dalam satu tabel, dengan filter OLT, port, status (online/LOS/dying-gasp/offline) dan admin; scan ulang seluruh ONU per-OLT dalam satu walk SNMP.
@@ -61,7 +64,8 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 - **Manajemen User** — CRUD user + assign role; guard admin terakhir agar akun tak terkunci.
 - **Report** — 5 jenis laporan (inventaris ONU, status OLT, riwayat alarm, provisioning, RX power) dengan filter range/OLT/PON port; export **CSV** & **PDF** berbranding.
 - **Audit Logs** — jejak audit *immutable* (append-only): perubahan model, login/logout/login gagal, pembukaan telnet; secret tak pernah dicatat, bisa difilter & di-expand untuk lihat diff lama→baru. Admin-only.
-- **Pengaturan** — branding aplikasi (nama, versi, logo) + konfigurasi Bot Telegram. Admin-only.
+- **REST API v1 (opsional, read-only)** — endpoint JSON untuk monitoring dari aplikasi lain (web/Android/billing): ringkasan dashboard, daftar/detail OLT & ONU (filter + paginasi), alarm, plus endpoint publik status agregat untuk widget embed. Auth Bearer token (personal access token), rate-limited, scoping demo. **Dinonaktifkan default** demi keamanan; kelola token via **Pengaturan → API & Token** atau `php artisan api:token`. Selengkapnya: [`docs/API.md`](docs/API.md).
+- **Pengaturan** — branding aplikasi (nama, versi, logo), konfigurasi Bot Telegram, ACS/TR069, dan token API. Admin-only.
 
 ---
 
@@ -78,6 +82,8 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 | SNMP Poller (opsional) | Go 1.18+ — binary `bin/kv-snmp-poller` |
 | Notifikasi | Telegram Bot API (notifikasi alarm + bot perintah read-only) |
 | Export laporan | CSV, PDF (`barryvdh/laravel-dompdf`) |
+| REST API | JSON v1 read-only, Bearer token (personal access token), rate-limited — opsional |
+| Deploy | `install.sh` (server Ubuntu) atau **Docker appliance** (Windows/Linux/macOS, all-in-one) |
 
 ---
 
@@ -96,7 +102,33 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C30
 
 ---
 
-## Instalasi (Ubuntu 22.04 / 24.04)
+## Instalasi
+
+Tiga jalur, pilih sesuai kebutuhan:
+
+| Jalur | Cocok untuk | Ringkas |
+|---|---|---|
+| **Docker appliance** | Pasang lengkap di 1 PC (Windows/Linux/macOS), dibagikan ke banyak lokasi | `docker compose up -d --build` (atau `start.bat`/`start.sh`) → buka `http://localhost:8080` |
+| **`install.sh`** | Server Ubuntu kosong, satu perintah | `sudo bash install.sh` |
+| **Manual (Langkah 1–10)** | Kontrol penuh / environment dev | ikuti langkah di bawah |
+
+### Cara Docker (appliance — Windows / Linux / macOS)
+
+Seluruh stack (web, PostgreSQL, Redis, poller Go, worker/scheduler/telnet-proxy) berjalan sebagai
+container; data persist di volume. Cocok dibagikan ke banyak PC/lokasi seperti NetNumen.
+
+```bash
+cp .env.docker.example .env      # sekali; edit DB_PASSWORD & admin
+docker compose up -d --build     # build + jalankan (pertama kali agak lama)
+# buka http://localhost:8080
+```
+
+Windows: cukup double-click **`start.bat`** (butuh Docker Desktop). Panduan lengkap (backup, update,
+distribusi image prebuilt, troubleshooting): **[`docs/DOCKER.md`](docs/DOCKER.md)**.
+
+---
+
+## Instalasi Server Ubuntu (22.04 / 24.04)
 
 ### Cara Cepat (`install.sh`) — server Ubuntu kosong
 
@@ -460,7 +492,7 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 
 ## Catatan & Batasan
 
-- **Vendor:** ZTE C300/C320 dan C600 (ZXA10). OLT C600 terdeteksi otomatis dari nama/vendor mengandung `"c600"` dan menggunakan OID `.1082` serta interface 4-tier. OLT non-ZTE terdeteksi sebagai `unknown` dengan kapabilitas dimatikan.
+- **Vendor:** provisioning penuh hanya untuk **ZTE** C300/C320 dan C600 (ZXA10) — C600 terdeteksi otomatis dari nama/vendor mengandung `"c600"` (OID `.1082`, interface 4-tier). **OLT non-ZTE didukung untuk monitoring + aksi ONU terbatas:** C-Data EPON/GPON dan HiOSO/V-Sol EPON (inventory, RX power, faceplate, rename/reboot/delete ONU via CLI) — dikenali otomatis oleh `SmartOltSupport::driverKey()`. Vendor lain di luar itu → `unknown` (kapabilitas dimatikan). Detail: [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md), [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md).
 - **SNMP:** v1/v2c saja (v3 belum didukung). Fitur enable/disable & edit info ONU butuh **write community** terisi.
 - **CLI:** eksekusi provisioning/reboot hanya via **Telnet** (`cli_transport=telnet`).
 - **Poll interval:** per-OLT, dapat diubah di form Edit OLT. Default 5 menit untuk polling SNMP, 5 menit untuk RX power.
@@ -481,7 +513,11 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
   [keamanan/RBAC/audit](docs/handbook/11-keamanan-rbac-audit.md), [frontend](docs/handbook/12-frontend.md),
   [troubleshooting](docs/handbook/13-troubleshooting-maintenance.md), dan
   [panduan menambah fitur](docs/handbook/14-panduan-tambah-fitur.md).
+- [`docs/API.md`](docs/API.md) — **REST API v1** (endpoint, autentikasi token, contoh JS/Kotlin/PHP).
+- [`docs/DOCKER.md`](docs/DOCKER.md) — **instalasi via Docker** (appliance 1 PC, backup, update, distribusi image).
 - [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_GUIDE.md) — referensi otoritatif perintah CLI ZTE.
+- [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md) — referensi OID/CLI OLT C-Data (EPON/GPON).
+- [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md) — referensi OID/CLI OLT HiOSO/V-Sol EPON.
 - [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md) — hardening produksi (nginx/UFW/SSH/PHP-FPM).
 - [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md) — penyiapan data & mode demo.
 - [`WORKLOG.md`](WORKLOG.md) — riwayat pekerjaan fase per fase.

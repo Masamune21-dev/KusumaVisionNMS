@@ -34,11 +34,7 @@ class OnuInventoryService
                 continue;
             }
 
-            $oltIsCdata = SmartOltSupport::isCData(SmartOltSupport::driverKey(
-                $olt,
-                data_get($olt->last_test_result, 'system.sys_descr'),
-                data_get($olt->last_test_result, 'system.sys_object_id'),
-            ));
+            $routePrefix = $this->routePrefix($olt);
 
             foreach ($portOnus as $entry) {
                 $entryRefreshed = data_get($entry, 'refreshed_at');
@@ -47,7 +43,7 @@ class OnuInventoryService
                 }
 
                 foreach (data_get($entry, 'onus', []) as $onu) {
-                    $onus[] = $this->normalize($olt, $oltIsCdata, $onu);
+                    $onus[] = $this->normalize($olt, $routePrefix, $onu);
                 }
             }
         }
@@ -68,17 +64,13 @@ class OnuInventoryService
      */
     public function findOne(SnmpOlt $olt, int $slot, int $port, int $onuId): ?array
     {
-        $oltIsCdata = SmartOltSupport::isCData(SmartOltSupport::driverKey(
-            $olt,
-            data_get($olt->last_test_result, 'system.sys_descr'),
-            data_get($olt->last_test_result, 'system.sys_object_id'),
-        ));
+        $routePrefix = $this->routePrefix($olt);
 
         $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
 
         foreach ($onus as $onu) {
             if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
-                return $this->normalize($olt, $oltIsCdata, $onu);
+                return $this->normalize($olt, $routePrefix, $onu);
             }
         }
 
@@ -86,15 +78,30 @@ class OnuInventoryService
     }
 
     /**
+     * Prefix rute inventori family OLT (smartolt / cdata-olt / hioso-olt) untuk membangun link
+     * halaman ONU per port di frontend (ONU monitoring & peta).
+     */
+    private function routePrefix(SnmpOlt $olt): string
+    {
+        return SmartOltSupport::inventoryRoutePrefix(SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        ));
+    }
+
+    /**
      * @param  array<string, mixed>  $onu
      * @return array<string, mixed>
      */
-    private function normalize(SnmpOlt $olt, bool $oltIsCdata, array $onu): array
+    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu): array
     {
         return [
             'olt_id' => $olt->id,
             'olt_name' => $olt->name,
-            'olt_cdata' => $oltIsCdata,
+            // Nama rute halaman ONU per port (per family) — dipakai frontend membangun link langsung.
+            'port_route' => $routePrefix.'.port-onus',
+            'olt_cdata' => $routePrefix !== 'smartolt',
             'slot' => (int) ($onu['slot'] ?? 0),
             'port' => (int) ($onu['port'] ?? 0),
             'onu_id' => (int) ($onu['onu_id'] ?? 0),

@@ -6,18 +6,22 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Database, Eye, Pencil, Plus, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
 const TelnetWindow = defineAsyncComponent(() => import('@/Components/Shell/TelnetWindow.vue'));
 
-defineProps({
+const props = defineProps({
     olts: {
         type: Array,
         required: true,
     },
     cdataOlts: {
+        type: Array,
+        default: () => [],
+    },
+    hiosoOlts: {
         type: Array,
         default: () => [],
     },
@@ -29,30 +33,52 @@ const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
-/* Tab: OLT ZTE / OLT C-Data — state disinkronkan ke ?tab agar         */
-/* bertahan saat reload / redirect back dari aksi test/refresh.        */
+/* Tab: OLT ZTE / OLT C-Data / OLT HiOSO — state disinkronkan ke ?tab  */
+/* agar bertahan saat reload / redirect back dari aksi test/refresh.   */
 /* ------------------------------------------------------------------ */
 const tabs = [
     { key: 'zte', label: 'OLT ZTE', icon: Cable },
     { key: 'cdata', label: 'OLT C-Data', icon: Server },
+    { key: 'hioso', label: 'OLT HiOSO', icon: RadioTower },
 ];
-const activeTab = ref(
-    new URLSearchParams(window.location.search).get('tab') === 'cdata' ? 'cdata' : 'zte',
-);
+const initialTab = new URLSearchParams(window.location.search).get('tab');
+const activeTab = ref(['cdata', 'hioso'].includes(initialTab) ? initialTab : 'zte');
 const setTab = (key) => {
     activeTab.value = key;
     const url = new URL(window.location.href);
-    if (key === 'cdata') {
-        url.searchParams.set('tab', 'cdata');
-    } else {
+    if (key === 'zte') {
         url.searchParams.delete('tab');
+    } else {
+        url.searchParams.set('tab', key);
     }
     window.history.replaceState(window.history.state, '', url);
 };
 
-const createHref = computed(() =>
-    activeTab.value === 'cdata' ? route('cdata-olt.create') : route('smartolt.create'),
+/* Tab non-ZTE (C-Data & HiOSO) berbagi satu body tabel; datanya di-switch per tab aktif. */
+const isNonZteTab = computed(() => activeTab.value === 'cdata' || activeTab.value === 'hioso');
+const isHiosoTab = computed(() => activeTab.value === 'hioso');
+const nonZteOlts = computed(() => (isHiosoTab.value ? props.hiosoOlts : props.cdataOlts));
+const nonZteHeader = computed(() =>
+    isHiosoTab.value
+        ? { title: 'Inventory OLT HiOSO', subtitle: 'SNMP inventory & test koneksi HiOSO / V-Sol EPON (25355)' }
+        : { title: 'Inventory OLT C-Data', subtitle: 'SNMP inventory & test koneksi C-Data EPON (17409) / GPON (34592)' },
 );
+const nonZteEmpty = computed(() =>
+    isHiosoTab.value
+        ? { title: 'Belum ada OLT HiOSO', subtitle: 'Tambahkan OLT HiOSO / V-Sol EPON untuk mulai test SNMP.' }
+        : { title: 'Belum ada OLT C-Data', subtitle: 'Tambahkan OLT C-Data EPON atau GPON untuk mulai test SNMP.' },
+);
+
+// Tab non-ZTE berbagi body tabel tapi memakai controller berbeda: HiOSO → hioso-olt.*, C-Data → cdata-olt.*.
+const nonZtePrefix = computed(() => (isHiosoTab.value ? 'hioso-olt' : 'cdata-olt'));
+const nonZteRoute = (name, params) => route(`${nonZtePrefix.value}.${name}`, params);
+
+const createHref = computed(() => {
+    if (isNonZteTab.value) {
+        return nonZteRoute('create');
+    }
+    return route('smartolt.create');
+});
 
 /* ------------------------------------------------------------------ */
 /* Telnet                                                              */
@@ -88,11 +114,11 @@ const testOlt = (olt) => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Aksi OLT C-Data                                                     */
+/* Aksi OLT non-ZTE (C-Data & HiOSO — route prefix ikut tab aktif)     */
 /* ------------------------------------------------------------------ */
 const destroyCdataOlt = async (olt) => {
     const ok = await confirm({
-        title: 'Hapus OLT C-Data',
+        title: isHiosoTab.value ? 'Hapus OLT HiOSO' : 'Hapus OLT C-Data',
         message: `Hapus OLT ${olt.name}? Tindakan ini permanen.`,
         confirmLabel: 'Hapus',
     });
@@ -101,13 +127,13 @@ const destroyCdataOlt = async (olt) => {
         return;
     }
 
-    router.delete(route('cdata-olt.destroy', olt.id), {
+    router.delete(nonZteRoute('destroy', olt.id), {
         preserveScroll: true,
     });
 };
 
 const testCdataOlt = (olt) => {
-    router.post(route('cdata-olt.test', olt.id), {}, {
+    router.post(nonZteRoute('test', olt.id), {}, {
         preserveScroll: true,
     });
 };
@@ -115,7 +141,7 @@ const testCdataOlt = (olt) => {
 // Scan penuh: baca system + ports + seluruh ONU dan tulis cache (lebih berat dari Test SNMP).
 const refreshingId = ref(null);
 const refreshCdataOlt = (olt) => {
-    router.post(route('cdata-olt.refresh', olt.id), {}, {
+    router.post(nonZteRoute('refresh', olt.id), {}, {
         preserveScroll: true,
         onStart: () => { refreshingId.value = olt.id; },
         onFinish: () => { refreshingId.value = null; },
@@ -372,28 +398,28 @@ const formatDate = (value) => formatDateTime(value);
                     </template>
                 </div>
 
-                <!-- =========================== TAB: OLT C-Data =========================== -->
-                <div v-show="activeTab === 'cdata'" class="kv-glass-panel">
+                <!-- ==================== TAB: OLT C-Data / OLT HiOSO ===================== -->
+                <div v-show="isNonZteTab" class="kv-glass-panel">
                     <!-- Card header -->
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <span class="kv-circle-sky !h-10 !w-10">
-                            <Server class="h-5 w-5" />
+                            <component :is="isHiosoTab ? RadioTower : Server" class="h-5 w-5" />
                         </span>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Inventory OLT C-Data</h3>
-                            <p class="text-xs text-slate-400">SNMP inventory & test koneksi C-Data EPON (17409) / GPON (34592)</p>
+                            <h3 class="text-base font-semibold text-white">{{ nonZteHeader.title }}</h3>
+                            <p class="text-xs text-slate-400">{{ nonZteHeader.subtitle }}</p>
                         </div>
                     </div>
 
                     <!-- Empty state -->
-                    <div v-if="cdataOlts.length === 0" class="px-6 py-16 text-center">
+                    <div v-if="nonZteOlts.length === 0" class="px-6 py-16 text-center">
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-white/10">
-                            <Server class="h-7 w-7 text-slate-500" />
+                            <component :is="isHiosoTab ? RadioTower : Server" class="h-7 w-7 text-slate-500" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT C-Data</h3>
-                        <p class="mt-1 text-sm text-slate-500">Tambahkan OLT C-Data EPON atau GPON untuk mulai test SNMP.</p>
+                        <h3 class="text-sm font-semibold text-slate-200">{{ nonZteEmpty.title }}</h3>
+                        <p class="mt-1 text-sm text-slate-500">{{ nonZteEmpty.subtitle }}</p>
                         <div v-if="canManageOlt" class="mt-5">
-                            <Link :href="route('cdata-olt.create')">
+                            <Link :href="createHref">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
                                     Tambah OLT
@@ -405,7 +431,7 @@ const formatDate = (value) => formatDateTime(value);
                     <!-- Table / mobile cards -->
                     <template v-else>
                         <div class="kv-mobile-list">
-                            <article v-for="olt in cdataOlts" :key="olt.id" class="kv-mobile-card">
+                            <article v-for="olt in nonZteOlts" :key="olt.id" class="kv-mobile-card">
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <h4 class="kv-mobile-card-title">{{ olt.name }}</h4>
@@ -452,7 +478,7 @@ const formatDate = (value) => formatDateTime(value);
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
-                                    <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                    <IconButton :href="nonZteRoute('detail', olt.id)" title="Detail">
                                         <Eye class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
@@ -465,7 +491,7 @@ const formatDate = (value) => formatDateTime(value);
                                     <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton :href="route('cdata-olt.edit', olt.id)" title="Edit">
+                                    <IconButton :href="nonZteRoute('edit', olt.id)" title="Edit">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
@@ -496,7 +522,7 @@ const formatDate = (value) => formatDateTime(value);
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr
-                                    v-for="olt in cdataOlts"
+                                    v-for="olt in nonZteOlts"
                                     :key="olt.id"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
@@ -551,7 +577,7 @@ const formatDate = (value) => formatDateTime(value);
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex justify-center gap-1.5">
-                                            <IconButton :href="route('cdata-olt.detail', olt.id)" title="Detail">
+                                            <IconButton :href="nonZteRoute('detail', olt.id)" title="Detail">
                                                 <Eye class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
@@ -564,7 +590,7 @@ const formatDate = (value) => formatDateTime(value);
                                             <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton :href="route('cdata-olt.edit', olt.id)" title="Edit">
+                                            <IconButton :href="nonZteRoute('edit', olt.id)" title="Edit">
                                                 <Pencil class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton

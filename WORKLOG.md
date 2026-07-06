@@ -1,6 +1,445 @@
 # Worklog
 
+## 2026-07-06
+
+### Docker appliance — hardening lintas-perangkat (Windows) + regenerasi paket distribusi
+
+**Permintaan user:** coba pasang Docker di server dev ini lalu hidupkan container instalasi baru; kalau
+tak bisa, **perbaiki paket Docker supaya andal dipakai di perangkat lain** (kemarin gagal pasang di
+Windows, penyebab tak jelas — dugaan seputar ekstraksi/"zip").
+
+**Temuan lingkungan (kenapa tak dijalankan di sini):** server dev = **LXC Proxmox** (`systemd-detect-virt
+= lxc`, kernel `6.14.8-2-pve`). Docker Engine v29.6.1 + compose v5.3.0 terpasang & daemon aktif (storage
+`overlayfs`, cgroup v2), image bisa di-pull, TAPI **container gagal init**: `runc create ... open sysctl
+net.ipv4.ip_unprivileged_port_start file: reopen fd 8: permission denied`. Ini batasan host: runc
+me-reopen fd sysctl lewat magic-link yang menabrak proteksi LXC (`/proc/sys` di-mount ro). Remount
+`/proc/sys` rw dari dalam **tidak menolong**. Perlu perbaikan **host-side Proxmox** (LXC `features:
+nesting=1`, atau jalankan Docker di VM — bukan LXC). Sesuai arahan user, berhenti memaksakan di sini;
+`docker build`/`run` juga tak bisa divalidasi lokal → verifikasi final di perangkat target.
+
+**Changed:**
+- `Dockerfile` — (1) setelah COPY konfig+entrypoint, **`sed -i 's/\r$//'`** menormalkan CRLF→LF pada
+  `entrypoint.sh`, `nginx.conf`, `supervisord.conf`, `php.ini` (menutup kelas kegagalan Windows: file
+  diedit/di-zip ulang jadi CRLF → shebang `bash\r` gagal exec / config ditolak). (2) `ENTRYPOINT`
+  kini `["/bin/bash", "/usr/local/bin/entrypoint.sh"]` (dijalankan via bash eksplisit, tahan shebang
+  CRLF). Tak mengubah perilaku di Linux.
+- `docker/entrypoint.sh` — tambah **langkah 0**: strip trailing `\r` dari var yang dikonsumsi app
+  (`APP_KEY APP_NAME APP_URL APP_LOCALE ACS_* ADMIN_*`) bila `.env` host diedit di Notepad (CRLF).
+  **Sengaja tidak menyentuh `DB_*`** — nilai itu harus identik dengan yang diterima container `db`
+  (postgres); strip sebelah malah bikin auth DB gagal. Diuji unit (`bash -n` OK; APP_KEY/APP_URL bersih,
+  DB_PASSWORD tetap ber-`\r`).
+- `docs/DOCKER.md` — §9 troubleshooting: 4 baris khusus Windows (build gagal unduh `gzip`/`unexpected
+  EOF` → ulang `build --pull` / pakai image prebuilt §8B; container exit `entrypoint.sh: no such file`
+  → CRLF, build ulang; login 500 setelah edit `.env` → simpan LF / kosongkan APP_KEY; Docker Desktop /
+  WSL2 tak start). Juga membuang 1 baris duplikat `docker compose tidak dikenal`.
+- `kusumavision-nms-docker.zip` — **diregenerasi** (3.4 MB, 514+ file) dengan perbaikan di atas. Exclude
+  sama seperti versi awal (`.git`/`vendor`/`node_modules`/`bin`/`public/build`), **tanpa secret** (hanya
+  `.env.example` + `.env.docker.example`), LF terjaga.
+
+**Notes:** Perbaikan bersifat build-time & idempotent; tak ada perubahan kode aplikasi. Bila jaringan di
+lokasi target tak stabil, jalur paling andal tetap **image prebuilt** (`docker save | gzip` → `docker
+load`, docs §8 Opsi B) supaya perangkat target tak perlu build/unduh base image ± 2 GB.
+
+## 2026-07-03
+
+### Kemasan Docker "appliance" — install lengkap di 1 PC (seperti NetNumen), buat dibagikan
+
+**Permintaan user:** "bisa ngga web aplikasi ini dijadikan software data dan instalasinya lengkap di PC
+seperti NetNumen" → pilih **Docker**, untuk **dibagikan ke banyak PC/lokasi**.
+
+**Konteks:** app bukan satu biner — butuh PHP-FPM (Laravel 12), PostgreSQL, Redis, biner Go poller, plus
+3 daemon (worker/scheduler/telnet-proxy) + nginx. Sebelumnya deploy hanya via `install.sh` (khusus host
+Ubuntu). Docker mengemas semuanya jadi container, data persist di volume, jalan di Windows/Linux/macOS.
+**Tidak mengubah kode aplikasi** — murni lapisan kemasan, paritas fungsional dengan `install.sh`.
+
+**Created:**
+- `Dockerfile` — multi-stage: (1) `node:22` build Vite → `public/build`; (2) `golang:1.22` build statis
+  `bin/kv-snmp-poller` (CGO_ENABLED=0, flag sama seperti install.sh); (3) `php:8.3-fpm` runtime —
+  ekstensi via `install-php-extensions` (`pdo_pgsql pgsql bcmath intl mbstring xml zip gd pcntl sockets
+  snmp redis opcache`) + nginx/supervisor/postgresql-client/curl; `composer install --no-dev`; COPY
+  source + `public/build` + biner Go.
+- `docker-compose.yml` — service `app` (all-in-one), `db` (postgres:16-alpine), `redis` (redis:7-alpine);
+  volumes `pgdata`/`redisdata`/`app_storage`; healthcheck (`/up`, `pg_isready`, `redis-cli ping`);
+  `depends_on service_healthy`; port `${APP_PORT:-8080}:80`. `image: kusumavision/nms:latest` + `build:`
+  → mendukung 2 mode distribusi (source `--build` / prebuilt `docker load`).
+- `docker/nginx.conf` (root `public/`, `/telnet-ws`→127.0.0.1:6002, fastcgi→127.0.0.1:9000),
+  `docker/php.ini` (memory 512M, upload 20M, opcache), `docker/supervisord.conf` (php-fpm, nginx,
+  `queue:work`, `schedule:work`, `telnet:proxy` — sama seperti supervisor install.sh; log→stdout),
+  `docker/entrypoint.sh` (storage skeleton utk volume-mask, tunggu DB, **APP_KEY auto-generate & persist
+  di `storage/app/.appkey`** bila kosong, `migrate --force`, admin opsional `ADMIN_*` bila users kosong,
+  `optimize`, exec supervisord — idempotent).
+- `.dockerignore` (kecualikan vendor/node_modules/bin/rahasia/data runtime; **pertahankan** `.env.example`
+  yang dibutuhkan build), `.env.docker.example` (env host-side: `APP_PORT`/`DB_*`/`ACS_*`/`ADMIN_*`).
+- Launcher `start.bat`/`stop.bat`/`update.bat` (Windows) + `start.sh` (Linux/macOS).
+- Dokumentasi: `docs/DOCKER.md` (panduan operator: pasang, admin, backup pg_dump, update, 2 mode
+  distribusi, troubleshooting) + `docs/handbook/18-docker-appliance.md` (arsitektur container) + entri
+  index handbook. Update `CLAUDE.md` (Commands + catatan Architecture jalur Docker).
+
+**Keputusan desain:** app all-in-one (1 port publish, ramah appliance) sementara db/redis container
+official terpisah; APP_KEY persist di volume supaya `docker compose up` tanpa tool host tapi enkripsi
+stabil antar restart; env dari compose (bukan `.env` Laravel) → `optimize` dijalankan setelah env terisi
+untuk menghindari gotcha config-cache→sqlite.
+
+**Verifikasi:** Docker **tidak tersedia di environment build ini**, jadi build image belum dijalankan.
+Validasi statis: `bash -n` semua skrip shell, YAML compose lint. Perlu dijalankan di PC ber-Docker:
+`docker compose up -d --build` → `docker compose ps` sehat; `curl localhost:8080/` = 200,
+`/dashboard` = 302; `migrate:status` di Postgres container; `bin/kv-snmp-poller` emit JSON;
+`down && up -d` → data & login tetap ada. Perintah lengkap ada di `docs/DOCKER.md` §9 &
+`docs/handbook/18-docker-appliance.md`.
+
+### Delete ONU HiOSO (CLI `no onu {id}`) — untuk diuji langsung di UI
+
+**Permintaan user:** aktifkan delete ONU HiOSO, mau langsung dicoba di UI (guide §5.6 menandai
+`no onu {ONU}` sebagai kandidat belum diuji).
+
+**Changed:**
+- `HiosoCliWriteService::delete($olt, $port, $onuId)` — `no onu {id}` di dalam `interface epon 0/{port}`
+  (`runInPon`, auto-jawab prompt konfirmasi bila muncul).
+- `SmartOltSupport::hiosoEponCapabilities()` — `supports_onu_delete` → `true`.
+- `HiosoOltController::deleteOnu()` (gated `supports_onu_delete`) + helper `removeCachedOnu` (buang ONU
+  dari cache + sesuaikan count); rute `DELETE hioso-olt.onu.delete`.
+- `Pages/Hioso/PortOnus.vue` — tombol Hapus (desktop+mobile, `canDelete`) + modal konfirmasi + `deleteOnu`.
+
+**Test:** `HiosoOltTest::test_delete_calls_cli_no_onu_and_removes_from_cache` (fake writer, cek dipanggil
+`['delete', port, onuId]` + ONU hilang dari cache). Semua test HiOSO/C-Data write lulus, pint bersih, build sukses.
+
+**Verifikasi live (HA7304 OLT-HIOSO-NDOKATON):** kandidat `no onu {id}` (guide §5.6) & `onu {id} delete`
+KEDUANYA ditolak (`% [DEFAULT] Unknown command`). Probe help CLI `EPON(epon_0/1)# ?` → verb delete ada
+di **level interface**, bukan di bawah `onu {id}`: `delete onu {id}` ("delete config") & `dereg onu {id}`
+("De-register onu"). Sub-command `onu {id}` hanya activate/deactivate/name/reboot/vlan/dst (tak ada delete).
+**Syntax final: `delete onu {id}`** (lebih permanen dari dereg) — diuji live menghapus `epon 0/1/1:7`:
+`ok=true`, ONU 7 hilang dari tabel (port 1 tinggal 1–6, 8–28). `HiosoCliWriteService::delete` dipakai.
+
+### HiOSO dipisah: controller + rute + halaman sendiri (bukan lagi nebeng C-Data)
+
+**Permintaan user:** "bisa ngga bikin hioso controller sendiri" — pisah penuh (controller + rute +
+halaman `Hioso/*`), tujuan kerapian/organisasi kode. Sebelumnya HiOSO menumpang `CDataOltController`
++ rute `cdata-olt.*` + halaman `CDataOlt/*` dengan trik `?family=hioso`.
+
+**Changed:**
+- **`app/Http/Controllers/HiosoOltController.php`** (baru) — cermin CDataOltController tapi HiOSO-only:
+  create/store/edit/update/destroy/test/detail/portOnus/refresh/refreshPortOnus + rebootOnu &
+  updateOnuInfo (selalu `HiosoCliWriteService`, tanpa cabang). Tanpa deleteOnu (belum ada) & tanpa
+  probe firmware V3 C-Data. Semua redirect → tab `hioso`.
+- **Rute `hioso-olt.*`** (`routes/web.php`) — 13 rute paralel `cdata-olt.*` minus `onu.delete`.
+- **Halaman `resources/js/Pages/Hioso/*`** — Create/Edit/Detail/PortOnus + `Partials/HiosoOltForm`
+  (versi bersih: vendor tetap HiOSO, tanpa select family, tanpa blok firmware V3, tanpa tombol
+  delete; rujuk rute `hioso-olt.*`). Reuse komponen presentasi `Components/CDataOlt/OltFaceplate`.
+- **`SmartOltSupport::inventoryRoutePrefix($driver)`** (baru) — sumber tunggal pemilihan prefix rute
+  inventori: `smartolt` / `cdata-olt` / `hioso-olt`. Dipakai `DashboardSearchController` (detail &
+  port-onus), `OnuInventoryService` & `OnuMapController` (field baru `port_route` menggantikan
+  boolean `olt_cdata` di frontend `OnuMonitor.vue` & `PinDetailCard.vue`).
+- **`SmartOlt/Index.vue`** — tab non-ZTE berbagi body tabel; aksi (detail/edit/test/refresh/destroy/
+  create) kini pilih prefix via helper `nonZteRoute()` berdasarkan `isHiosoTab`.
+- **`OnuMapController` reboot/rename pin** — tambah cabang HiOSO (`HiosoCliWriteService`); sebelumnya
+  HiOSO salah jatuh ke jalur ZTE (bug laten karena hanya cek `isCdata`).
+- **`CDataOltController` dibersihkan** — hapus semua cabang HiOSO (`?family=hioso`, `tabFor()`,
+  `isHioso` di reboot/rename, import `HiosoCliWriteService`); kini murni C-Data.
+- **`AuthenticatedLayout.vue`** — nav match SmartOLT tambah `hioso-olt.*`.
+
+**Test:** `tests/Feature/HiosoOltTest.php` (baru) — create form preset, store+scan+redirect tab hioso
++ global search tautkan ke `hioso-olt`, detail/port render dari cache, edit render. `fakeHiosoScan`
+bind resolver + faceplate palsu (hindari SNMP timeout WAN). Test `test_create_form_presets_hioso_family`
+dipindah dari CDataOltInventoryTest; test tab HiOSO tetap. Semua lulus, pint bersih, `npm run build`
+sukses (halaman Hioso/* masuk manifest).
+
+**Deploy note:** ada rute baru → `php artisan route:cache` di prod + reload php-fpm (opcache) untuk
+controller baru. Frontend perlu `npm run build`.
+
+### Polling HiOSO: Rx & status ONU sebagian tak terload saat polling terjadwal
+
+**Permintaan user:** polling HiOSO belum lengkap — ONU-nya semua terload, tapi Rx & status kadang
+tak benar/tak muncul; kalau di-refresh manual semua muncul.
+
+**Diagnosis:** refresh manual (`CDataOltController::refresh`) dan polling terjadwal
+(`PollOltJob::pollViaScanner`) memanggil kode yang **sama** (`CDataOltScanner::scan` →
+`HiosoEponSnmpService`) — jadi bedanya bukan logika, tapi keandalan walk SNMP. Di
+`getRegisteredOnus`: tabel **MAC** di-walk `robustWalk` (itu sebabnya semua ONU selalu terload),
+tapi **Nama** cuma di-walk sekali & **Rx** lewat `robustWalk` tanpa acuan kelengkapan. Status
+`online` diturunkan dari `rx !== null`, jadi kalau walk Rx terpotong (link WAN memutus GETBULK di
+tengah — lebih sering saat polling terjadwal men-scan banyak OLT bersamaan), ONU yang Rx-nya hilang
+salah tampak **Offline** & Rx kosong. `robustWalk` lama juga berhenti pada **satu** iterasi tanpa
+baris baru → dua walk yang sama-sama pendek dikira "stabil" padahal belum lengkap.
+
+**Changed:** `app/Services/Hioso/HiosoEponSnmpService.php`
+- `getRegisteredOnus` kini mengumpulkan kunci ONU terdaftar (`{PON}.{ONU}` ber-MAC non-nol) dari
+  tabel MAC dulu, lalu walk **Nama & Rx dengan kunci itu sebagai TARGET kelengkapan**. (Nama kini
+  robust juga, tak lagi single-walk.)
+- `robustWalk($olt, $oid, $targetKeys = [], $maxAttempts = 5)`: berhenti saat (1) semua target
+  ter-cover (jalur cepat link sehat, umumnya 1 walk), (2) **dua** attempt beruntun tanpa baris baru
+  (bukan satu — tahan prefix-terpotong yang kebetulan sama), atau (3) maxAttempts. Helper baru
+  `coversKeys`.
+
+**Test:** `tests/Unit/HiosoSnmpDriverTest.php` — `QueuedHiosoSnmp` (antrean hasil walk per-OID,
+walk pertama terpotong lalu lengkap) + `test_robust_walk_recovers_rx_and_status_from_partial_walks`:
+ONU yang hilang di walk Rx pertama dipulihkan walk kedua (online + Rx benar), bukan tercatat offline.
+Dua test HiOSO lama tetap lulus. Pint bersih.
+
+**Deploy note:** hanya kode driver PHP (dipakai `PollOltJob` di worker supervisor) — jalankan
+`php artisan queue:restart` agar worker memuat kode baru. Trade-off: saat link lossy, walk Rx/Nama
+bisa mengulang sampai 5× (lebih lambat tapi lengkap); saat sehat tetap ~1 walk karena target langsung
+ter-cover.
+
+### Endpoint ACS/TR069 bisa diatur dari Pengaturan (dipakai TR069 massal)
+
+**Permintaan user:** (1) konfirmasi apakah scan TR069 massal juga menangkap ONU yang TR069-nya
+sudah aktif tapi URL/username/password ACS-nya beda; (2) tambahkan di Pengaturan untuk set
+URL/username/password ACS sehingga scan otomatis menargetkan yang belum sesuai (termasuk TR069
+belum aktif).
+
+**Konfirmasi perilaku (jawaban #1):** `ZteTr069BulkService::alreadyActive` men-skip ONU hanya bila
+TR069 aktif **DAN** ACS URL cocok **DAN** username cocok. Jadi ONU dgn URL/username beda **sudah**
+ditulis ulang; hanya kasus "URL+username sama, password beda" yang tak terdeteksi (password di
+running-config di-mask firmware). User setuju ini cukup — password selalu mengikuti url+username.
+
+**Changed (fitur #2):**
+- **Model + tabel `AcsSetting`** (singleton, mirip `TelegramSetting`) — `url`/`username`/`password`
+  (`encrypted` + `$hidden`). `resolved()` pakai nilai tersimpan, fallback ke `config('services.acs')`
+  (env `ACS_*`) bila kosong; defensif thd tabel belum ada. Migrasi
+  `2026_07_02_010000_create_acs_settings_table`.
+- **`ZteTr069BulkService::acs()`** kini `AcsSetting::resolved()` (bukan lagi `config()` langsung) —
+  jadi URL/username **dan** password dari Pengaturan dipakai di skip-check & script tulis.
+- **Pengaturan:** tab baru "ACS / TR069" (`Settings/Index.vue`) + `SettingsController::updateAcs`
+  + route `PUT settings/acs` (`settings.acs.update`). Password kosong = pertahankan lama.
+- **Modal TR069 massal** (`Tr069BulkModal.vue`) tak lagi hardcode `acs.bmkv.net`/`cms` — terima prop
+  `acs` (url+username, tanpa password) dari `SmartOltController::portOnus` → `PortOnus.vue`.
+- **Test:** `SmartOltTr069BulkTest::test_uses_acs_endpoint_configured_in_settings` — set ACS custom,
+  ONU yg dulu "aktif" ke ACS lama kini ikut ditulis ulang dgn ACS baru (skip=0, applied=3, script
+  memuat url/user/pass baru, tak ada `acs.bmkv.net`).
+
+**Verifikasi:** tinker round-trip — fallback→config, simpan→dipakai, password TERENKRIPSI di DB (raw
+200 char, tanpa plaintext), service baca nilai sama. Migrasi dijalankan di DB live. Full test TR069
+(7) + TelegramSettings (8, render Settings) lulus, pint bersih, `npm run build` sukses.
+
+**Deploy note:** `ZteTr069BulkService` dipakai di `Tr069BulkConfigJob` (worker supervisor) — jalankan
+`php artisan queue:restart` agar worker memuat kode baru. Bila route/config di-cache di prod,
+`route:cache` (rute `settings.acs` baru) + reload php-fpm (opcache).
+
+### Izinkan IP OLT sama selama SNMP port berbeda
+
+**Permintaan user:** bisa menambahkan OLT dengan IP yang sama asalkan port SNMP-nya berbeda
+(satu perangkat mengekspos beberapa OLT via port SNMP berbeda). Sebelumnya validasi menolak
+dengan "The ip has already been taken."
+
+**Changed:**
+- **DB:** migrasi `2026_07_02_000000_make_snmp_olts_ip_unique_per_snmp_port.php` — drop unique
+  `snmp_olts_ip_unique` (kolom `ip`), ganti unique komposit `(ip, snmp_port)`
+  (`snmp_olts_ip_snmp_port_unique`). Punya `down()` (balik ke unique `ip` tunggal). Sqlite-compatible.
+- **Validasi:** `CDataOltController::validated` & `SmartOltController::validated` — rule `ip.unique`
+  kini `->where(snmp_port = request.snmp_port)->ignore($olt)` sehingga bentrok hanya bila IP **dan**
+  port SNMP sama. Pesan error diperjelas: "Kombinasi IP + SNMP port ini sudah dipakai OLT lain…".
+- **Test:** `CDataOltInventoryTest::test_same_ip_allowed_with_different_snmp_port` — IP sama port
+  beda tersimpan dua-duanya; IP+port sama ditolak (`assertSessionHasErrors('ip')`).
+
+**Catatan:** tak ada kode yang me-lookup OLT by IP (semua by id) — aman. Migrasi sudah dijalankan
+di DB live (pgsql); index komposit terverifikasi. Full CData suite lulus, pint bersih.
+
+## 2026-07-01
+
+### HiOSO: aksi tulis ONU (rename + reboot) + decouple service dari C-Data
+
+**Permintaan user:** aktifkan aksi tulis ONU HiOSO, dan **HiOSO pakai service sendiri — jangan
+menumpang kode C-Data**.
+
+**Decouple (service layer HiOSO berdiri sendiri):**
+- `app/Services/Hioso/HiosoSnmp.php` (baru) — transport SNMP v1/v2c sendiri (default timeout/retry
+  10s/3 untuk WAN). `HiosoValue.php` (baru) — helper parsing sendiri (clean/macFromHex/oidLastSegments/rxDbm).
+- `HiosoEponSnmpService` & `HiosoFaceplateService` tak lagi memakai `CDataSnmp`/`CDataValue` →
+  pindah ke `HiosoSnmp`/`HiosoValue`. Resolver resolve HiOSO via container (`app(...)`).
+- `CDataSnmp::walk` dikembalikan ke signature semula (param timeout/retries tadi hanya utk HiOSO,
+  kini di `HiosoSnmp`). Test fake diselaraskan.
+
+**Aksi tulis (CLI telnet, guide §5.5):**
+- `HiosoCliWriteService.php` (baru) — **self-contained**, tanpa trait C-Data. Telnet CRLF, banner
+  login longgar (15/20s), prompt `EPON>`/`EPON#`. `setName`: `conf t` → `interface epon 0/{PON}` →
+  `onu {ONU} name {label}` → `end` (nama alfanumerik+`_-.`, spasi→`_`, maks 32). `reboot`:
+  `onu {ONU} reboot`. Deteksi error + mask password sendiri.
+- `SmartOltSupport::hiosoEponCapabilities`: `supports_reboot`+`supports_onu_info_write` = true
+  (`reboot_mode`/`description_mode` = `cli_hioso`); delete masih off (guide §5.6 belum diuji).
+- `CDataOltController::rebootOnu`/`updateOnuInfo` branch ke `HiosoCliWriteService` bila `isHioso`
+  (C-Data tetap `CDataCliWriteService`). UI `CDataOlt/PortOnus.vue` sudah gate tombol via caps →
+  otomatis muncul.
+
+**Verifikasi live (OLT-HIOSO-NDOKATON):** READ via HiosoSnmp = 55 ONU; WRITE rename
+`epon 0/1/1:1` → `kvtest…` (SNMP konfirmasi berubah) → restore → nama asli (konfirmasi). ok=true,
+error=null. Reboot pakai jalur identik (tak ditembak agar tak outage). **Full suite 238 lulus**, pint bersih.
+
+### HiOSO polling: perbaikan 3 masalah (worker basi, ONU hantu, walk terpotong)
+
+**Laporan user:** (1) polling HiOSO gagal terus (autopoll dimatikan), (2) `epon 0/1/2` di web OLT
+KOSONG tapi scan menampilkan 19 ONU, (3) jumlah ONU per port kadang berkurang/tak lengkap.
+
+**Akar masalah & perbaikan:**
+
+1. **Polling gagal = worker supervisor menjalankan kode LAMA.** `kusumavision-worker` (uptime 2 hari)
+   dijalankan sebelum kode HiOSO ada; di kode lama vendor "HiOSO EPON 25355" mengandung "epon" →
+   salah diklasifikasikan C-Data EPON → walk OID 17409 → gagal. **Fix:** `supervisorctl restart
+   kusumavision-worker:*` (muat kode baru). Sejak restart, semua poll `success=true`.
+   *(Catatan: sempat salah diagnosa — query cek pakai kolom `ok`; kolom sebenarnya `success`.)*
+
+2. **ONU hantu (PON2 = 19, harusnya 0).** Tabel nama `.37.1` memuat slot ter-reserve ber-MAC
+   `000000000000` yang bukan ONU nyata (web OLT hanya hitung slot ber-MAC non-nol). **Fix:**
+   `HiosoEponSnmpService::getRegisteredOnus` kini **iterasi dari tabel MAC** & skip MAC nol
+   (`ZERO_MAC`); nama/Rx jadi lookup. `countRegisteredOnus` juga hitung MAC non-nol.
+   Hasil: 28/0/10/17 = **55 ONU**, 50 online — persis sama dgn web OLT.
+
+3. **Walk terpotong (jumlah berubah-ubah).** Link WAN ke HiOSO kadang memutus GETBULK di tengah →
+   hasil partial. **Fix:** (a) `CDataSnmp::walk` kini terima `timeoutUs`/`retries` (default lama utk
+   C-Data), HiOSO pakai 10s/3; (b) `robustWalk` — walk berulang (maks 3) lalu **gabung by-OID**
+   sampai stabil, karena registrasi ONU tetap antar-walk. Stabilitas naik dari ~50% → ~85–100% run
+   memberi 55/50 penuh.
+
+4. **Status port PON "unknown".** ifOperStatus HiOSO tak reliable → `getPorts` mengembalikan
+   `unknown`. **Fix:** `CDataOltScanner` menurunkan status dari jumlah ONU online (guide §6): ada ONU
+   online = `up`, ada ONU tapi semua offline = `down`, tak ada ONU = tetap `unknown`. Hanya port
+   ber-status `unknown` yang diturunkan (C-Data up/down dari ifOperStatus tak diubah). Hasil:
+   PON1/3/4 = up, PON2 (kosong) = unknown.
+
+5. **Faceplate panel-depan HiOSO.** `CDataFaceplateService` mengklasifikasi port dari pola nama
+   C-Data (`epon/ge/xge 0/x/y`) yang tak cocok penamaan HiOSO (`Pon-Nni1..4`, `G1..G4`) → panel
+   kosong. **Fix:** `HiosoFaceplateService` baru bikin layout fisik HA7304 (SNMP cuma expose 8 if,
+   tak bedakan SFP/LAN, tak ada MGMT/Console): **4 PON (fiber, status dari ONU online) + 2 SFP
+   (fiber, G3/G4) + 2 GE (copper, G1/G2, status ifOper) + MGMT + Console** (RJ45 statis).
+   `CDataOltScanner` memilih faceplate per driver; `OltFaceplate.vue` render `fixed_ports`
+   (default MGMT; HiOSO MGMT+Console). Device: HA7304 / SN / sw dari signature firmware.
+   *Asumsi: G1/G2=GE copper, G3/G4=SFP fiber — bisa dibalik di `HiosoFaceplateService` bila panel beda.*
+
+Changed: `app/Services/Hioso/HiosoEponSnmpService.php` (iterasi MAC, ZERO_MAC filter, robustWalk,
+WALK_TIMEOUT_US 10s/3), `app/Services/CData/CDataSnmp.php` (param timeout/retries),
+`app/Services/CData/CDataOltScanner.php` (status port turunan + pilih faceplate per driver),
+`app/Services/Hioso/HiosoFaceplateService.php` (baru), `resources/js/Components/CDataOlt/OltFaceplate.vue`
+(fixed_ports data-driven), test fake `walk()` diselaraskan (Hioso/CData/Faceplate). **Full suite 238
+lulus.** Verifikasi live: poll OK, total 55, per-PON 28/0/10/17, status PON1/3/4=up; panel HA7304
+4 PON + 2 SFP + 2 GE + MGMT + Console. Polling HiOSO aktif.
+
+## 2026-06-30
+
+### Driver OLT HiOSO / V-Sol EPON (25355) — family ke-4, read-only v1
+
+**Tujuan (dari user):** petakan OID OLT HiOSO (`OLT-HIOSO-NDOKATON`, HA7304) supaya bisa dipakai di
+SmartOLT. User menyediakan blueprint `docs/SMARTOLT_HIOSO_GUIDE.md` (referensi vendor dari project
+lama). Scope yang disepakati: **B — read-only dulu** (deteksi vendor + daftar ONU + Rx di UI + ikut
+polling); aksi tulis (rename/reboot CLI) menyusul.
+
+**Verifikasi OID live (`103.189.249.161:2238`, v2c `SNMPREAD`):** sysObjectID `25355.4.3`, model
+`HA7304/SN2018-03-00007`. Tiga OID ONU kanonik (index `.{PON}.{ONU}`, slot selalu 1) terbukti cocok
+dengan guide §4.3: nama `25355.3.2.6.3.2.1.37.1`, MAC `25355.3.2.6.3.2.1.11.1`, Rx `25355.3.2.6.14.2.1.8.1`.
+Catatan: **jangan walk** subtree `25355.3.2.6.2.1.*` (puluhan ribu entry — walk awal sempat nyangkut di
+sini & keliru disimpulkan "tidak ada ONU"); pakai OID singular. ifTable `Pon-Nni*` tak reliable untuk
+status PON → online diturunkan dari Rx valid.
+
+**Arsitektur:** HiOSO menumpang infra non-ZTE yang sudah ada (resolver + `CDataOltScanner` + controller
+`cdata-olt.*` + halaman `CDataOlt/*`), bukan §12 guide (yang dari project lain: `HiosoSnmpService`/
+contract resolver/Blade — tidak ada di repo ini).
+
+Created:
+
+- `app/Services/Hioso/HiosoEponSnmpService.php` — driver SNMP read (implements `SmartOltSnmpDriver`):
+  `getSystemInfo`/`getPorts`/`getRegisteredOnus`/`getPortRxMap`/dst. Pakai `CDataSnmp` (transport v1/v2c
+  non-ZTE bersama, timeout floor 5s/2 retries) + helper `CDataValue` (clean/macFromHex/oidLastSegments).
+  Output ONU bentuk-ZTE (slot=1, port=PON, onu_id; `interface` `epon 0/1/{port}:{onu}`; serial=MAC).
+- `tests/Unit/HiosoSnmpDriverTest.php` — 2 test (parse inventory+Rx+offline `na`; buang Rx 0/out-of-range).
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — konstanta `DRIVER_HIOSO_EPON`, deteksi di `driverKey()`
+  (needle `hioso|ha7304|25355|v-sol|vsol|v-solution`, sebelum needle `epon` C-Data), helper `isHioso()`
+  + `isNonZte()` (= isCData||isHioso, untuk routing non-ZTE; gating write tetap `isCData`),
+  `hiosoEponCapabilities()` read-only (snmp_rx on, semua write off).
+- `app/Services/SmartOltSnmpServiceResolver.php` — `supports()`→`isNonZte`, `resolve()` map HiOSO →
+  `HiosoEponSnmpService`.
+- `app/Jobs/PollOltJob.php` — branch `isCData`→`isNonZte`; rename `pollCData`→`pollViaScanner`.
+- Generalisasi titik routing non-ZTE `isCData`→`isNonZte`: `SmartOltController` (tab index, reject
+  unconfigured, branch refresh monitor), `OnuInventoryService` (collect/findOne), `DashboardSearchController`
+  (3 link), `OnuMapController` (`is_cdata` flag pin), `TelegramCommandHandler` (`/refresh`).
+  *Tidak diubah:* `Api/V1/OltController.is_cdata` (field klasifikasi vendor, akurat — `driver` membedakan)
+  & `OnuMapController::isCdata()` private (jalur write C-Data, sudah di-gate capability).
+- **UI tab HiOSO terpisah:** `SmartOltController::index()` partisi 3 arah (zte/cdata/hioso),
+  `resources/js/Pages/SmartOlt/Index.vue` tab ketiga "OLT HiOSO" (body tabel non-ZTE dipakai bersama,
+  data di-switch per tab aktif). `CDataOltController::create()` terima `?family=hioso` (preset vendor
+  `HiOSO EPON 25355`) + helper `tabFor()` → redirect store/update/test/refresh/destroy ke tab yang benar.
+  `CDataOlt/Partials/CDataOltForm.vue` tambah opsi vendor HiOSO + label "Family OLT" + tombol Batal
+  sadar-tab; `Create.vue`/`Edit.vue` judul family-aware; `Detail.vue` back-link sadar-tab.
+- `docs/SMARTOLT_HIOSO_GUIDE.md` — dipindah dari root + catatan status implementasi nyata (§0).
+
+**Verifikasi live (OLT sementara, lalu dihapus):** driver `hioso-epon-25355`, vendor_family
+`HiOSO / V-Sol EPON`, scan = **74 ONU** (41 online) di 4 port; nama/MAC/Rx/online benar. Read-only
+(reboot=0). **Full suite 236 test lulus** (1262 assertions).
+
 ## 2026-06-28
+
+### REST API v1 (read-only) — untuk web aplikasi lain & Android
+
+**Tujuan (dari user):** sediakan API agar aplikasi eksternal (web lain + Android) tinggal
+memanggil endpoint untuk mengambil "hasil"/data monitoring. Lengkap dengan metode + dokumen.
+
+**Desain:** API read-only `/api/v1/*`, autentikasi Bearer token (Laravel Sanctum, sudah
+ter-install di composer tapi belum dikonfigurasi). Data dari snapshot polling terakhir
+(`snmp_olts.last_test_result`) lewat service yang sudah ada — **tidak** menyentuh OLT live,
+jadi cepat & aman. Aksi tulis (register/reboot/hapus) belum diekspos (roadmap v2).
+
+**Endpoint:** `POST auth/login`, `GET me`, `POST auth/logout`, `GET summary`,
+`GET olts`, `GET olts/{olt}`, `GET onus` (filter olt_id/status/q + paginasi),
+`GET olts/{olt}/onus/{slot}/{port}/{onuId}`, `GET alarms`.
+
+Created:
+
+- `routes/api.php` — grup `v1`, `login` publik, sisanya `auth:sanctum`.
+- `app/Http/Controllers/Api/V1/{Auth,Summary,Olt,Onu,Alarm}Controller.php` — controller tipis;
+  reuse `OnuInventoryService`, `DashboardStatsService`, `SnmpOlt`, `AlarmEvent`. Envelope JSON
+  konsisten `{data, meta}`; error format Laravel standar.
+- `app/Http/Controllers/Api/V1/PublicStatusController.php` — **endpoint PUBLIK tanpa token**
+  `GET /api/v1/public/status` (atas permintaan user untuk di-embed di web lain). HANYA angka
+  agregat (OLT/ONU online-offline, alarm aktif, status per-OLT) — TANPA data pelanggan/IP OLT.
+  CORS default Laravel sudah aktif untuk `api/*` (`allowed_origins: *`). Cache 30 detik.
+- `app/Console/Commands/ApiTokenCommand.php` — `php artisan api:token <email> [--name=]` untuk
+  token server-ke-server (integrasi backend lain tanpa UI login).
+- `database/migrations/2026_06_28_000000_create_personal_access_tokens_table.php` — tabel Sanctum
+  (sqlite-compatible; salinan migrasi standar Sanctum).
+- `docs/API.md` — dokumentasi lengkap: auth (login/token/logout), tabel param tiap endpoint,
+  contoh `curl` + bentuk JSON hasil, kode status/error, contoh klien JS(fetch)/Kotlin(Retrofit)/PHP(Guzzle),
+  catatan operasional deploy + roadmap.
+- `tests/Feature/Api/ApiV1Test.php` — 8 test (login ok/gagal, 401 tanpa token, /onus inventory+filter,
+  detail ONU 200/404, /olts + detail, /summary). **Semua lulus**; full suite 230 test lulus.
+
+Changed:
+
+- `bootstrap/app.php` — daftarkan `api: routes/api.php` (`apiPrefix: 'api'`); `shouldRenderJsonWhen`
+  agar `/api/*` selalu balas JSON walau klien lupa header Accept.
+- `app/Models/User.php` — tambah trait `Laravel\Sanctum\HasApiTokens`.
+- `app/Providers/AppServiceProvider.php` — rate limiter `api` (120 req/menit per token/IP).
+
+UI manajemen token (Pengaturan → tab "API & Token"):
+
+- `app/Http/Controllers/SettingsController.php` — `createApiToken` (flash plain-text token sekali),
+  `revokeApiToken`, helper `apiTokensPayload` (guard `Schema::hasTable` agar tak 500 sebelum migrate).
+  `edit()` kini mengirim prop `api` (base_url, public_status_url, new_token, tokens).
+- `routes/web.php` — `settings.api-tokens.store` (POST) + `settings.api-tokens.destroy` (DELETE),
+  di grup `role:admin`.
+- `resources/js/Pages/Settings/Index.vue` — tab baru "API & Token": tampil Base URL + URL status publik
+  (tombol salin), banner token-baru (tampil sekali + salin), form buat token, tabel/kartu daftar token
+  + tombol cabut, peringatan simpan token di server. Build Vite OK.
+- `tests/Feature/Api/SettingsApiTokenTest.php` — admin buat token (lalu token dipakai ke `/api/v1/me`),
+  cabut token, non-admin 403. Semua lulus (total API+settings 12 test).
+
+Notes / deploy:
+
+- Rute **tidak** di-cache di prod (tak ada `bootstrap/cache/routes-*.php`) → endpoint langsung aktif
+  begitu file ada. Yang masih perlu di server prod: `php artisan migrate` (buat tabel token; UI tab
+  "API & Token" juga butuh ini — sudah di-guard `Schema::hasTable` agar halaman tak 500 sebelum migrate)
+  lalu **`npm run build`** (aset Settings page baru) dan reload php-fpm. Tak ada perubahan `.env`/config.
+  (Prod: migrate + reload php-fpm sudah dijalankan user.)
+
+Keamanan — API dimatikan default (saklar):
+
+- Atas permintaan user (API belum dipakai aplikasi mana pun → nol permukaan serangan), seluruh `/api`
+  DIMATIKAN via saklar `$apiEnabled = false` di `routes/api.php` (return lebih awal; environment
+  `testing` dikecualikan agar test API tetap jalan). Saat mati: semua `/api/*` → 404 (login & status
+  publik ikut tertutup). **Aktifkan kembali:** `$apiEnabled = true` + `reload php8.3-fpm` (1 baris, rute
+  tak di-cache). `SettingsController::edit()` mengirim `api.enabled = Route::has('api.public.status')`;
+  tab UI menampilkan banner "API dinonaktifkan" + men-disable tombol Buat Token, dan `createApiToken`
+  menolak server-side saat mati. Verifikasi: `route:list --path=api/v1` kosong di prod, 12 test API+settings
+  tetap lulus di env testing.
 
 ### SmartOLT — Register ONU "mode Lanjutan" (editor granular) + fix modify service-port/service
 

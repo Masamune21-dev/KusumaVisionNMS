@@ -8,13 +8,15 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Building2, CheckCircle2, Cpu, ImageUp, Info, Send, SlidersHorizontal, Trash2, Upload } from '@lucide/vue';
+import { AlertTriangle, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Trash2, Upload } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps({
     general: { type: Object, required: true },
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
+    acs: { type: Object, default: () => ({ url: '', username: '', password_set: false, default_url: '', default_username: '' }) },
     telegram: { type: Object, required: true },
+    api: { type: Object, default: () => ({ enabled: false, base_url: '', public_status_url: '', new_token: null, tokens: [] }) },
     severityOptions: { type: Array, default: () => [] },
     alarmTypeOptions: { type: Array, default: () => [] },
 });
@@ -24,7 +26,9 @@ const flash = computed(() => page.props.flash ?? {});
 
 const tabs = [
     { key: 'general', label: 'Umum', icon: SlidersHorizontal },
+    { key: 'acs', label: 'ACS / TR069', icon: Cloud },
     { key: 'telegram', label: 'Bot Telegram', icon: Send },
+    { key: 'api', label: 'API & Token', icon: KeyRound },
 ];
 const activeTab = ref('general');
 
@@ -82,6 +86,22 @@ const submitGeneral = () => {
 onBeforeUnmount(() => {
     if (logoPreview.value) URL.revokeObjectURL(logoPreview.value);
 });
+
+/* ------------------------------------------------------------------ */
+/* Tab: ACS / TR069                                                    */
+/* ------------------------------------------------------------------ */
+const acsForm = useForm({
+    url: props.acs.url ?? '',
+    username: props.acs.username ?? '',
+    password: '',
+});
+
+const submitAcs = () => {
+    acsForm.put(route('settings.acs.update'), {
+        preserveScroll: true,
+        onSuccess: () => acsForm.reset('password'),
+    });
+};
 
 /* ------------------------------------------------------------------ */
 /* Tab: Bot Telegram                                                   */
@@ -157,6 +177,40 @@ const deleteWebhook = () => {
 const lastSent = computed(() =>
     props.telegram.last_sent_at ? formatDateTime(props.telegram.last_sent_at) : null,
 );
+
+/* ------------------------------------------------------------------ */
+/* Tab: API & Token                                                    */
+/* ------------------------------------------------------------------ */
+const tokenForm = useForm({ name: '' });
+
+const createToken = () => {
+    tokenForm.post(route('settings.api-tokens.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            tokenForm.reset('name');
+            activeTab.value = 'api';
+        },
+    });
+};
+
+const revokeToken = (id) => {
+    if (!confirm('Cabut token ini? Aplikasi yang memakainya akan langsung kehilangan akses.')) return;
+    router.delete(route('settings.api-tokens.destroy', id), { preserveScroll: true });
+};
+
+// Token plain-text yang baru dibuat (hanya muncul sekali via flash dari server).
+const newToken = computed(() => props.api?.new_token ?? null);
+
+const copied = ref(null);
+const copyText = async (text, key) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        copied.value = key;
+        setTimeout(() => { if (copied.value === key) copied.value = null; }, 1500);
+    } catch {
+        /* clipboard tak tersedia — abaikan */
+    }
+};
 </script>
 
 <template>
@@ -319,6 +373,73 @@ const lastSent = computed(() =>
                 </div>
 
                 <!-- ========================== TAB: TELEGRAM ========================== -->
+                <!-- ============================ TAB: ACS / TR069 ============================ -->
+                <form v-show="activeTab === 'acs'" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="submitAcs">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                            <Cloud class="h-5 w-5 text-cyan-300" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-white">Endpoint ACS / TR069</h3>
+                            <p class="text-sm text-slate-400">Dipakai fitur "Aktifkan TR069 Massal" di halaman ONU per port (OLT ZTE).</p>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
+                        <div class="lg:col-span-2">
+                            <InputLabel for="acs_url" value="ACS URL" />
+                            <TextInput
+                                id="acs_url"
+                                v-model="acsForm.url"
+                                type="text"
+                                class="mt-1 block w-full font-mono"
+                                autocomplete="off"
+                                :placeholder="acs.default_url || 'http://acs.contoh.net:7547'"
+                            />
+                            <InputError :message="acsForm.errors.url" class="mt-2" />
+                            <p class="mt-1 text-xs text-slate-400">Alamat lengkap server ACS beserta port, mis. <span class="font-mono text-cyan-300">http://acs.bmkv.net:7547</span>.</p>
+                        </div>
+
+                        <div>
+                            <InputLabel for="acs_username" value="Username ACS" />
+                            <TextInput
+                                id="acs_username"
+                                v-model="acsForm.username"
+                                type="text"
+                                class="mt-1 block w-full"
+                                autocomplete="off"
+                                :placeholder="acs.default_username || 'mis. cms'"
+                            />
+                            <InputError :message="acsForm.errors.username" class="mt-2" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="acs_password" value="Password ACS" />
+                            <TextInput
+                                id="acs_password"
+                                v-model="acsForm.password"
+                                type="password"
+                                class="mt-1 block w-full"
+                                autocomplete="new-password"
+                                :placeholder="acs.password_set ? '•••••••• (tersimpan — kosongkan untuk mempertahankan)' : 'Masukkan password ACS'"
+                            />
+                            <InputError :message="acsForm.errors.password" class="mt-2" />
+                            <p class="mt-1 text-xs text-slate-400">Kosongkan untuk mempertahankan password lama.</p>
+                        </div>
+
+                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400 lg:col-span-2">
+                            <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
+                            <span>
+                                Scan TR069 massal menandai ONU sebagai <span class="text-slate-200">sudah aktif</span> hanya bila TR069-nya aktif <span class="text-slate-200">dan</span> URL + username-nya sama persis dengan nilai di atas. ONU yang belum aktif atau mengarah ke ACS berbeda akan ditulis ulang dengan URL, username, dan password ini.
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
+                            <PrimaryButton :disabled="acsForm.processing">Simpan</PrimaryButton>
+                        </div>
+                    </div>
+                </form>
+
                 <form v-show="activeTab === 'telegram'" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="submit">
                     <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                         <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
@@ -488,6 +609,168 @@ const lastSent = computed(() =>
                         </div>
                     </div>
                 </form>
+
+                <!-- ============================ TAB: API & TOKEN ============================ -->
+                <div v-show="activeTab === 'api'" class="space-y-6">
+                    <!-- API sedang dinonaktifkan di server -->
+                    <div v-if="!api.enabled" class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-5 py-4 shadow-lg shadow-black/30">
+                        <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
+                        <div class="min-w-0">
+                            <h4 class="text-sm font-semibold text-white">API sedang dinonaktifkan</h4>
+                            <p class="mt-0.5 text-xs text-amber-200/90">
+                                Seluruh endpoint <span class="font-mono">/api</span> dimatikan demi keamanan (nol permukaan serangan) karena belum dipakai aplikasi mana pun.
+                                Token tetap bisa disiapkan, tapi baru berfungsi setelah API diaktifkan di server: ubah <span class="font-mono">$apiEnabled = true</span> di <span class="font-mono">routes/api.php</span> lalu reload PHP-FPM.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Akses API + URL -->
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                                <KeyRound class="h-5 w-5 text-cyan-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">Akses API</h3>
+                                <p class="text-sm text-slate-400">Token untuk memanggil data NMS dari web aplikasi lain atau Android.</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 p-5 sm:p-6">
+                            <div>
+                                <InputLabel value="Base URL API" />
+                                <div class="mt-1 flex items-stretch gap-2">
+                                    <input :value="api.base_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
+                                    <SecondaryButton type="button" @click="copyText(api.base_url, 'base')">
+                                        <component :is="copied === 'base' ? Check : Copy" class="h-4 w-4" :class="copied === 'base' ? 'text-emerald-400' : ''" />
+                                    </SecondaryButton>
+                                </div>
+                                <p class="mt-1 text-xs text-slate-400">Endpoint ber-token, mis. <span class="font-mono text-slate-300">{{ api.base_url }}/onus</span>. Kirim header <span class="font-mono text-cyan-300">Authorization: Bearer &lt;token&gt;</span>.</p>
+                            </div>
+
+                            <div>
+                                <InputLabel value="Status publik (tanpa token)" />
+                                <div class="mt-1 flex items-stretch gap-2">
+                                    <input :value="api.public_status_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
+                                    <SecondaryButton type="button" @click="copyText(api.public_status_url, 'pub')">
+                                        <component :is="copied === 'pub' ? Check : Copy" class="h-4 w-4" :class="copied === 'pub' ? 'text-emerald-400' : ''" />
+                                    </SecondaryButton>
+                                </div>
+                                <p class="mt-1 text-xs text-slate-400">Angka agregat tanpa data pelanggan — aman untuk widget di web lain. Dokumentasi lengkap: <span class="font-mono text-slate-300">docs/API.md</span>.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Token baru dibuat (tampil sekali) -->
+                    <div v-if="newToken" class="overflow-hidden rounded-lg border border-emerald-500/40 bg-emerald-500/10 shadow-lg shadow-black/30">
+                        <div class="flex items-start gap-3 px-5 py-4 sm:px-6">
+                            <CheckCircle2 class="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-300" />
+                            <div class="min-w-0 flex-1">
+                                <h4 class="text-sm font-semibold text-white">Token baru dibuat — salin sekarang</h4>
+                                <p class="mt-0.5 text-xs text-emerald-200/80">Demi keamanan, token <strong>hanya ditampilkan satu kali</strong>. Simpan di tempat aman (mis. <span class="font-mono">.env</span> server aplikasi lain).</p>
+                                <div class="mt-3 flex items-stretch gap-2">
+                                    <input :value="newToken" readonly class="block w-full rounded-lg border-emerald-500/30 bg-slate-950/70 font-mono text-xs text-emerald-200 focus:border-emerald-500 focus:ring-emerald-500" @focus="$event.target.select()" />
+                                    <SecondaryButton type="button" @click="copyText(newToken, 'new')">
+                                        <component :is="copied === 'new' ? Check : Copy" class="mr-2 h-4 w-4" :class="copied === 'new' ? 'text-emerald-400' : ''" />
+                                        {{ copied === 'new' ? 'Tersalin' : 'Salin' }}
+                                    </SecondaryButton>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Buat token + daftar token -->
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30">
+                                <KeyRound class="h-5 w-5 text-violet-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">Token Akses Personal</h3>
+                                <p class="text-sm text-slate-400">Setiap token mewakili akses sebagai akun Anda. Cabut kapan saja.</p>
+                            </div>
+                        </div>
+
+                        <div class="p-5 sm:p-6">
+                            <form class="flex flex-col gap-3 sm:flex-row sm:items-end" @submit.prevent="createToken">
+                                <div class="flex-1">
+                                    <InputLabel for="token_name" value="Nama token" />
+                                    <TextInput
+                                        id="token_name"
+                                        v-model="tokenForm.name"
+                                        type="text"
+                                        class="mt-1 block w-full"
+                                        maxlength="60"
+                                        placeholder="mis. Web Billing, App Android Teknisi"
+                                    />
+                                    <InputError :message="tokenForm.errors.name" class="mt-2" />
+                                </div>
+                                <PrimaryButton :disabled="tokenForm.processing || !tokenForm.name.trim() || !api.enabled" class="shrink-0">
+                                    <Plus class="mr-2 h-4 w-4" />
+                                    Buat Token
+                                </PrimaryButton>
+                            </form>
+                            <p v-if="!api.enabled" class="mt-2 text-xs text-amber-300/90">Aktifkan API di server dulu sebelum membuat token.</p>
+
+                            <!-- Daftar token -->
+                            <div class="mt-6">
+                                <div v-if="api.tokens.length === 0" class="rounded-lg border border-dashed border-white/10 bg-slate-950/40 px-4 py-8 text-center">
+                                    <KeyRound class="mx-auto h-7 w-7 text-slate-600" />
+                                    <p class="mt-2 text-sm text-slate-400">Belum ada token. Buat satu di atas untuk mulai memakai API dari aplikasi lain.</p>
+                                </div>
+
+                                <!-- Desktop: tabel -->
+                                <div v-else class="hidden overflow-hidden rounded-lg border border-white/10 sm:block">
+                                    <table class="min-w-full divide-y divide-white/10 text-sm">
+                                        <thead class="bg-slate-950/40 text-xs uppercase tracking-wide text-slate-500">
+                                            <tr>
+                                                <th class="px-4 py-2.5 text-left font-medium">Nama</th>
+                                                <th class="px-4 py-2.5 text-left font-medium">Dibuat</th>
+                                                <th class="px-4 py-2.5 text-left font-medium">Terakhir dipakai</th>
+                                                <th class="px-4 py-2.5 text-right font-medium">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-white/5">
+                                            <tr v-for="t in api.tokens" :key="t.id" class="hover:bg-white/5">
+                                                <td class="px-4 py-3 font-medium text-white">{{ t.name }}</td>
+                                                <td class="px-4 py-3 text-slate-400">{{ formatDateTime(t.created_at) }}</td>
+                                                <td class="px-4 py-3 text-slate-400">{{ t.last_used_at ? formatDateTime(t.last_used_at) : 'Belum pernah' }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <button type="button" class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10" @click="revokeToken(t.id)">
+                                                        <Trash2 class="h-3.5 w-3.5" />
+                                                        Cabut
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Mobile: kartu -->
+                                <div v-if="api.tokens.length > 0" class="space-y-3 sm:hidden">
+                                    <div v-for="t in api.tokens" :key="t.id" class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <p class="min-w-0 break-words font-medium text-white">{{ t.name }}</p>
+                                            <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10" @click="revokeToken(t.id)">
+                                                <Trash2 class="h-3.5 w-3.5" />
+                                                Cabut
+                                            </button>
+                                        </div>
+                                        <dl class="mt-2 space-y-1 text-xs text-slate-400">
+                                            <div class="flex justify-between gap-3"><dt>Dibuat</dt><dd class="text-slate-300">{{ formatDateTime(t.created_at) }}</dd></div>
+                                            <div class="flex justify-between gap-3"><dt>Terakhir dipakai</dt><dd class="text-slate-300">{{ t.last_used_at ? formatDateTime(t.last_used_at) : 'Belum pernah' }}</dd></div>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                                <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                                <p class="text-xs text-amber-200/90">Token bersifat rahasia seperti kata sandi. Jangan taruh di kode yang bisa dilihat publik/browser. Untuk web lain, simpan di server (mis. <span class="font-mono">.env</span>) dan panggil API dari sisi server.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </AuthenticatedLayout>

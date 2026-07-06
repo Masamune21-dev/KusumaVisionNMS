@@ -46,7 +46,7 @@ const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCas
 const navLinks = computed(() => {
     const links = [
         { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
-        { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*'], except: 'smartolt.unconfigured-all' },
+        { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*'], except: 'smartolt.unconfigured-all' },
         { name: 'ONU Monitoring', icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
         { name: 'Peta ONU', icon: MapPin, href: route('map.index'), match: 'map.*' },
         { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },

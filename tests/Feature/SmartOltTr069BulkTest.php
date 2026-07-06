@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\Tr069BulkConfigJob;
+use App\Models\AcsSetting;
 use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Models\User;
@@ -104,6 +105,36 @@ class SmartOltTr069BulkTest extends TestCase
         $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!', $joined);
         // ONU 5 yang sudah aktif tidak ikut ditulis.
         $this->assertStringNotContainsString(':5', $joined);
+    }
+
+    public function test_uses_acs_endpoint_configured_in_settings(): void
+    {
+        // ACS target dari Pengaturan berbeda dari yang sekarang terpasang di ONU.
+        $acs = AcsSetting::instance();
+        $acs->url = 'http://acs.custom.net:7547';
+        $acs->username = 'operator';
+        $acs->password = 'rahasia123';
+        $acs->save();
+
+        $olt = $this->makeOlt(['ip' => '10.31.0.16']);
+        // ONU 5 "aktif" tapi mengarah ke acs.bmkv.net/cms (lama) → karena target kini
+        // berbeda, ONU 5 TIDAK di-skip, ikut ditulis ulang dengan ACS baru.
+        $fake = $this->fakeExecutor(activeOnuIds: [5]);
+
+        $task = $this->makeTask($olt, execute: true);
+        (new Tr069BulkConfigJob($task->id))->handle(app(ZteTr069BulkService::class));
+
+        $task->refresh();
+        $this->assertSame('completed', $task->status);
+        $this->assertSame(0, $task->skipped_count);   // tak ada yang cocok target baru
+        $this->assertSame(3, $task->applied_count);    // ketiganya ditulis ulang
+
+        $joined = implode("\n", $fake->writes);
+        $this->assertStringContainsString(
+            'tr069-mgmt 1 acs http://acs.custom.net:7547 validate basic username operator password rahasia123',
+            $joined,
+        );
+        $this->assertStringNotContainsString('acs.bmkv.net', $joined);
     }
 
     public function test_incomplete_read_is_marked_failed_not_applied(): void

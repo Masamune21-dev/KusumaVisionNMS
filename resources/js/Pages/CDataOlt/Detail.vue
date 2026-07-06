@@ -34,6 +34,9 @@ const onuTotals = computed(() => {
 
 const portsUp = computed(() => ports.value.filter((p) => p.oper_status === 'up').length);
 
+// HiOSO punya tab inventory sendiri — kembali ke tab yang sesuai.
+const indexTab = computed(() => (props.olt.driver === 'hioso-epon-25355' ? 'hioso' : 'cdata'));
+
 const portCount = (p) => counts.value[`${p.slot}_${p.port}`] ?? { count: 0, online: 0 };
 
 const scan = () => router.post(route('cdata-olt.refresh', props.olt.id), {}, { preserveScroll: true });
@@ -47,7 +50,7 @@ const fmt = (v) => formatDateTime(v);
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-3">
-                    <Link :href="route('smartolt.index', { tab: 'cdata' })" class="text-slate-400 hover:text-white">
+                    <Link :href="route('smartolt.index', { tab: indexTab })" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
                     </Link>
                     <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ olt.name }}</h2>

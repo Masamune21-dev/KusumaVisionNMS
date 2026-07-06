@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
+use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\ProfileController;
@@ -56,7 +57,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
 
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::post('/settings/api-tokens', [SettingsController::class, 'createApiToken'])->name('settings.api-tokens.store');
+        Route::delete('/settings/api-tokens/{token}', [SettingsController::class, 'revokeApiToken'])->whereNumber('token')->name('settings.api-tokens.destroy');
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+        Route::put('/settings/acs', [SettingsController::class, 'updateAcs'])->name('settings.acs.update');
         Route::put('/settings/telegram', [SettingsController::class, 'updateTelegram'])->name('settings.telegram.update');
         Route::post('/settings/telegram/test', [SettingsController::class, 'testTelegram'])->name('settings.telegram.test');
         Route::post('/settings/telegram/webhook/register', [SettingsController::class, 'registerWebhook'])->name('settings.telegram.webhook.register');
@@ -78,6 +82,22 @@ Route::middleware('auth')->group(function () {
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [CDataOltController::class, 'updateOnuInfo'])->name('cdata-olt.onu.info');
     Route::delete('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [CDataOltController::class, 'deleteOnu'])->name('cdata-olt.onu.delete');
+
+    // OLT HiOSO / V-Sol EPON (enterprise 25355, mis. HA7304) — inventori + rename/reboot ONU (CLI).
+    Route::get('/hioso-olt', [HiosoOltController::class, 'index'])->name('hioso-olt.index');
+    Route::get('/hioso-olt/create', [HiosoOltController::class, 'create'])->name('hioso-olt.create');
+    Route::post('/hioso-olt', [HiosoOltController::class, 'store'])->name('hioso-olt.store');
+    Route::get('/hioso-olt/{olt}/edit', [HiosoOltController::class, 'edit'])->name('hioso-olt.edit');
+    Route::put('/hioso-olt/{olt}', [HiosoOltController::class, 'update'])->name('hioso-olt.update');
+    Route::delete('/hioso-olt/{olt}', [HiosoOltController::class, 'destroy'])->name('hioso-olt.destroy');
+    Route::post('/hioso-olt/{olt}/test', [HiosoOltController::class, 'test'])->name('hioso-olt.test');
+    Route::get('/hioso-olt/{olt}/detail', [HiosoOltController::class, 'detail'])->name('hioso-olt.detail');
+    Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->name('hioso-olt.refresh');
+    Route::get('/hioso-olt/{olt}/ports/{slot}/{port}/onus', [HiosoOltController::class, 'portOnus'])->name('hioso-olt.port-onus');
+    Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HiosoOltController::class, 'refreshPortOnus'])->name('hioso-olt.port-onus.refresh');
+    Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HiosoOltController::class, 'rebootOnu'])->name('hioso-olt.onu.reboot');
+    Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HiosoOltController::class, 'updateOnuInfo'])->name('hioso-olt.onu.info');
+    Route::delete('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HiosoOltController::class, 'deleteOnu'])->name('hioso-olt.onu.delete');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');

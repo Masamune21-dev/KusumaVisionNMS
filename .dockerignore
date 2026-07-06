@@ -1,0 +1,47 @@
+# Konteks build Docker — kecualikan artefak yang dibangun ulang, rahasia, & file host-only.
+
+# VCS & tooling editor
+.git
+.github
+.gitignore
+.idea
+.vscode
+.claude
+
+# Dependensi yang dibangun ulang di dalam image
+vendor/
+node_modules/
+bin/
+
+# Artefak build frontend & symlink — disuplai stage frontend / entrypoint
+public/build/
+public/hot
+public/storage
+
+# Rahasia / env host (runtime pakai environment dari compose). .env.example tetap
+# dibutuhkan build (composer boot) → jangan dikecualikan.
+.env
+.env.*
+!.env.example
+.env.bak.*
+
+# Data runtime storage (skeleton .gitignore tetap, isi bulky dibuang; entrypoint
+# membangun ulang di volume saat start)
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*.php
+storage/app/public/*
+!storage/**/.gitignore
+
+# Tes, dokumentasi, skrip host — tak dipakai runtime
+tests/
+phpunit.xml
+.phpunit.result.cache
+docs/
+*.md
+install.sh
+scripts/
+
+# Misc
+.DS_Store

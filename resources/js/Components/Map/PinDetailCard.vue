@@ -22,7 +22,8 @@ const caps = computed(() => props.pin.capabilities ?? {});
 const busy = ref(false);
 
 const portOnuHref = computed(() => {
-    const name = props.pin.olt_cdata ? 'cdata-olt.port-onus' : 'smartolt.port-onus';
+    // port_route sudah menentukan family (smartolt / cdata-olt / hioso-olt) dari server.
+    const name = props.pin.port_route ?? 'smartolt.port-onus';
     return `${route(name, [props.pin.snmp_olt_id, props.pin.slot, props.pin.port])}?focus=${props.pin.onu_id}`;
 });
 

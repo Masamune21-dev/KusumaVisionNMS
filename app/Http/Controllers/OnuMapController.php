@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\OnuMapPin;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
+use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\OnuInventoryService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -36,7 +37,8 @@ class OnuMapController extends Controller
                 'olt' => $olt,
                 'driver' => $driver,
                 'capabilities' => SmartOltSupport::capabilities($driver, $olt),
-                'is_cdata' => SmartOltSupport::isCData($driver),
+                'is_cdata' => SmartOltSupport::isNonZte($driver),
+                'port_route' => SmartOltSupport::inventoryRoutePrefix($driver).'.port-onus',
             ];
         }
 
@@ -138,14 +140,18 @@ class OnuMapController extends Controller
      * Reboot ONU dari detail pin — delegasi ke service ZTE / C-Data, lalu balik ke peta
      * (berbeda dari rute smartolt/cdata yang redirect ke halaman Port ONUs).
      */
-    public function rebootPin(OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata): RedirectResponse
+    public function rebootPin(OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): RedirectResponse
     {
         $olt = $pin->olt;
         $back = redirect()->route('map.index');
         $this->assertPinCapability($olt, 'supports_reboot');
 
         try {
-            if ($this->isCdata($olt)) {
+            if ($this->isHioso($olt)) {
+                $result = $hioso->reboot($olt, $pin->port, $pin->onu_id);
+                $ok = (bool) ($result['ok'] ?? false);
+                $error = $result['error'] ?? null;
+            } elseif ($this->isCdata($olt)) {
                 $result = $cdata->reboot($olt, $this->ifaceKeyword($olt), $pin->slot, $pin->port, $pin->onu_id);
                 $ok = (bool) ($result['ok'] ?? false);
                 $error = $result['error'] ?? null;
@@ -167,7 +173,7 @@ class OnuMapController extends Controller
     /**
      * Ganti nama ONU dari detail pin — delegasi ke service ZTE / C-Data, lalu balik ke peta.
      */
-    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata): RedirectResponse
+    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): RedirectResponse
     {
         $olt = $pin->olt;
         $back = redirect()->route('map.index');
@@ -177,7 +183,12 @@ class OnuMapController extends Controller
         $name = trim((string) ($data['name'] ?? ''));
 
         try {
-            if ($this->isCdata($olt)) {
+            if ($this->isHioso($olt)) {
+                $result = $hioso->setName($olt, $pin->port, $pin->onu_id, $name);
+                if (! ($result['ok'] ?? false)) {
+                    return $back->with('error', 'Ubah nama ONU gagal: '.($result['error'] ?? ''));
+                }
+            } elseif ($this->isCdata($olt)) {
                 $result = $cdata->setDescription($olt, $this->ifaceKeyword($olt), $pin->slot, $pin->port, $pin->onu_id, $name);
                 if (! ($result['ok'] ?? false)) {
                     return $back->with('error', 'Ubah nama ONU gagal: '.($result['error'] ?? ''));
@@ -296,6 +307,8 @@ class OnuMapController extends Controller
             'snmp_olt_id' => $pin->snmp_olt_id,
             'olt_name' => $olt?->name,
             'olt_cdata' => $meta['is_cdata'] ?? false,
+            // Nama rute halaman ONU per port (per family) untuk link "buka di Port ONUs".
+            'port_route' => $meta['port_route'] ?? 'smartolt.port-onus',
             'capabilities' => $meta['capabilities'] ?? [],
             'slot' => $pin->slot,
             'port' => $pin->port,
@@ -391,6 +404,11 @@ class OnuMapController extends Controller
     private function isCdata(SnmpOlt $olt): bool
     {
         return SmartOltSupport::isCData($this->driverOf($olt));
+    }
+
+    private function isHioso(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isHioso($this->driverOf($olt));
     }
 
     private function ifaceKeyword(SnmpOlt $olt): string

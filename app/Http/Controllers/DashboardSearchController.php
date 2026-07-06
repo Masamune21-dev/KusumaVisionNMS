@@ -33,7 +33,7 @@ class DashboardSearchController extends Controller
                 'id' => $olt->id,
                 'label' => $olt->name,
                 'sublabel' => $olt->ip,
-                'url' => route(SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.detail' : 'smartolt.detail', $olt->id),
+                'url' => route(SmartOltSupport::inventoryRoutePrefix(SmartOltSupport::driverKey($olt)).'.detail', $olt->id),
             ];
         }
 
@@ -57,7 +57,8 @@ class DashboardSearchController extends Controller
 
         $olts = SnmpOlt::query()->get(['id', 'name', 'vendor', 'last_test_result']);
         foreach ($olts as $olt) {
-            $portRouteName = SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.port-onus' : 'smartolt.port-onus';
+            $routePrefix = SmartOltSupport::inventoryRoutePrefix(SmartOltSupport::driverKey($olt));
+            $portRouteName = $routePrefix.'.port-onus';
             $portOnus = collect($olt->last_test_result['port_onus'] ?? []);
             foreach ($portOnus as $port) {
                 foreach (($port['onus'] ?? []) as $onu) {
@@ -101,7 +102,7 @@ class DashboardSearchController extends Controller
                                 'q' => $serialValue !== '' ? $serialValue : ($onu['name'] ?? ''),
                                 'focus' => $onu['onu_id'] ?? $onu['id'] ?? null,
                             ])
-                            : route(SmartOltSupport::isCData(SmartOltSupport::driverKey($olt)) ? 'cdata-olt.detail' : 'smartolt.detail', $olt->id),
+                            : route($routePrefix.'.detail', $olt->id),
                     ];
 
                     if (count($matches) >= $limit) {

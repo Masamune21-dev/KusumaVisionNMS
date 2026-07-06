@@ -148,6 +148,35 @@ class CDataOltInventoryTest extends TestCase
                 ->has('cdataOlts', 1));
     }
 
+    public function test_same_ip_allowed_with_different_snmp_port(): void
+    {
+        $user = User::factory()->create();
+        $this->fakeScanDriver();
+
+        $payload = fn (string $name, int $port): array => [
+            'name' => $name,
+            'vendor' => 'C-Data GPON 34592',
+            'ip' => '10.20.0.9',
+            'snmp_port' => $port,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+            'polling_enabled' => true,
+            'poll_interval_minutes' => 5,
+            'rx_poll_interval_minutes' => 5,
+        ];
+
+        // IP sama, port beda → boleh (dua OLT tersimpan).
+        $this->actingAs($user)->post(route('cdata-olt.store'), $payload('OLT-A', 161))->assertSessionHasNoErrors();
+        $this->actingAs($user)->post(route('cdata-olt.store'), $payload('OLT-B', 1161))->assertSessionHasNoErrors();
+        $this->assertSame(2, SnmpOlt::where('ip', '10.20.0.9')->count());
+
+        // IP sama, port sama → ditolak.
+        $this->actingAs($user)
+            ->post(route('cdata-olt.store'), $payload('OLT-C', 161))
+            ->assertSessionHasErrors('ip');
+        $this->assertSame(2, SnmpOlt::where('ip', '10.20.0.9')->count());
+    }
+
     public function test_detail_and_port_onus_pages_render(): void
     {
         $user = User::factory()->create();
@@ -299,6 +328,32 @@ class CDataOltInventoryTest extends TestCase
             ->get(route('smartolt.index'))
             ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')
                 ->has('olts', 1)
-                ->has('cdataOlts', 0));
+                ->has('cdataOlts', 0)
+                ->has('hiosoOlts', 0));
+    }
+
+    public function test_hioso_olt_appears_in_hioso_tab_not_cdata_or_zte(): void
+    {
+        $user = User::factory()->create();
+
+        $olt = SnmpOlt::create([
+            'name' => 'OLT-HIOSO-NDOKATON',
+            'vendor' => 'HiOSO EPON 25355',
+            'ip' => '10.30.0.9',
+            'snmp_port' => 2238,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $this->assertSame(SmartOltSupport::DRIVER_HIOSO_EPON, SmartOltSupport::driverKey($olt));
+
+        // Tab HiOSO terpisah: muncul di hiosoOlts, bukan di cdataOlts maupun olts (ZTE).
+        $this->actingAs($user)
+            ->get(route('smartolt.index'))
+            ->assertInertia(fn ($page) => $page->component('SmartOlt/Index')
+                ->has('olts', 0)
+                ->has('cdataOlts', 0)
+                ->has('hiosoOlts', 1)
+                ->where('hiosoOlts.0.driver', SmartOltSupport::DRIVER_HIOSO_EPON));
     }
 }

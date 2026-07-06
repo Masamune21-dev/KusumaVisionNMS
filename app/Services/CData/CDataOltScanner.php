@@ -4,7 +4,9 @@ namespace App\Services\CData;
 
 use App\Http\Controllers\CDataOltController;
 use App\Models\SnmpOlt;
+use App\Services\Hioso\HiosoFaceplateService;
 use App\Services\SmartOltSnmpServiceResolver;
+use App\Support\SmartOltSupport;
 use Throwable;
 
 /**
@@ -21,6 +23,7 @@ class CDataOltScanner
     public function __construct(
         private readonly SmartOltSnmpServiceResolver $resolver,
         private readonly CDataFaceplateService $faceplate,
+        private readonly HiosoFaceplateService $hiosoFaceplate,
     ) {}
 
     /**
@@ -38,6 +41,24 @@ class CDataOltScanner
         foreach ($onus as $onu) {
             $byPort["{$onu['slot']}_{$onu['port']}"][] = $onu;
         }
+
+        // Sebagian driver (HiOSO) tak bisa membaca status PON via SNMP (ifOperStatus tak reliable →
+        // 'unknown'). Untuk itu, turunkan status dari jumlah ONU online (guide §6): ada ONU online =
+        // up; ada ONU tapi semua offline = down; tak ada ONU = biarkan 'unknown'. Port yang statusnya
+        // sudah diketahui driver (C-Data up/down) tak diubah.
+        foreach ($ports as $i => $portRow) {
+            if (($portRow['oper_status'] ?? null) !== 'unknown') {
+                continue;
+            }
+
+            $bucket = $byPort["{$portRow['slot']}_{$portRow['port']}"] ?? [];
+            $online = count(array_filter($bucket, static fn ($o) => ! empty($o['online'])));
+
+            if ($bucket !== []) {
+                $ports[$i]['oper_status'] = $online > 0 ? 'up' : 'down';
+            }
+        }
+
         $portRows = [];
         foreach ($ports as $portRow) {
             $portRows["{$portRow['slot']}_{$portRow['port']}"] = $portRow;
@@ -50,8 +71,14 @@ class CDataOltScanner
         data_set($snapshot, 'onu_scanned_at', $now);
 
         // Faceplate (panel depan) — best-effort; kegagalan tak boleh menggagalkan scan/polling.
+        // HiOSO punya layout panel sendiri (HA7304) + status PON dari ONU online ($ports turunan).
         try {
-            if (($panel = $this->faceplate->collect($olt)) !== null) {
+            $isHioso = SmartOltSupport::isHioso($this->resolver->driverKey($olt));
+            $panel = $isHioso
+                ? $this->hiosoFaceplate->build($olt, $ports)
+                : $this->faceplate->collect($olt);
+
+            if ($panel !== null) {
                 data_set($snapshot, 'panel', $panel);
             }
         } catch (Throwable) {

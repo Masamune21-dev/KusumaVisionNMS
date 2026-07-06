@@ -1,0 +1,89 @@
+# KusumaVision NMS — stack "appliance" (install lengkap di 1 PC seperti NetNumen).
+#
+#   cp .env.docker.example .env      # sekali, lalu edit password bila perlu
+#   docker compose up -d --build     # bangun & jalankan
+#   buka  http://localhost:8080
+#
+# Data (DB, Redis, storage/upload/log) tersimpan di named volume → aman antar restart.
+# Nilai yang bisa diubah user ada di file .env (host-side); lihat .env.docker.example.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kusumavision/nms:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:80"
+    # env_file membawa nilai tunable user (APP_URL, DB_*, ACS_*, ADMIN_*).
+    env_file:
+      - .env
+    # environment menyetel config infrastruktur tetap (nama service jaringan compose,
+    # driver redis, poller go) — menimpa nilai apa pun dari env_file.
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_LOCALE: id
+      LOG_LEVEL: warning
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: "5432"
+      SESSION_DRIVER: redis
+      SESSION_ENCRYPT: "true"
+      QUEUE_CONNECTION: redis
+      CACHE_STORE: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SNMP_POLLER_DRIVER: go
+      SNMP_POLLER_BINARY: bin/kv-snmp-poller
+      TELNET_PROXY_HOST: 127.0.0.1
+      TELNET_PROXY_PORT: "6002"
+      TELNET_PROXY_WS_URL: /telnet-ws
+    volumes:
+      - app_storage:/var/www/html/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-kusumavision_nms}
+      POSTGRES_USER: ${DB_USERNAME:-kusumavision}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kusumavision}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-kusumavision} -d ${DB_DATABASE:-kusumavision_nms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  app_storage:

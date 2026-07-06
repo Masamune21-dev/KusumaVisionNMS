@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\SnmpOlt;
+use App\Services\SmartOltSnmpServiceResolver;
 
 class SmartOltSupport
 {
@@ -11,6 +12,8 @@ class SmartOltSupport
     public const DRIVER_CDATA_EPON = 'cdata-epon-17409';
 
     public const DRIVER_CDATA_GPON = 'cdata-gpon-34592';
+
+    public const DRIVER_HIOSO_EPON = 'hioso-epon-25355';
 
     public const DRIVER_UNKNOWN = 'unknown';
 
@@ -27,6 +30,13 @@ class SmartOltSupport
         foreach (['zte', '3902', 'c300', 'c320', 'c600'] as $needle) {
             if (str_contains($haystack, $needle)) {
                 return self::DRIVER_ZTE;
+            }
+        }
+
+        // HiOSO / V-Sol EPON (enterprise 25355) — vendor distinct, diperiksa sebelum needle "epon" C-Data.
+        foreach (['hioso', 'ha7304', '25355', 'v-sol', 'vsol', 'v-solution'] as $needle) {
+            if (str_contains($haystack, $needle)) {
+                return self::DRIVER_HIOSO_EPON;
             }
         }
 
@@ -57,6 +67,40 @@ class SmartOltSupport
     public static function isCData(string $driver): bool
     {
         return in_array($driver, [self::DRIVER_CDATA_EPON, self::DRIVER_CDATA_GPON], true);
+    }
+
+    public static function isHioso(string $driver): bool
+    {
+        return $driver === self::DRIVER_HIOSO_EPON;
+    }
+
+    /**
+     * Family non-ZTE yang digerakkan {@see SmartOltSnmpServiceResolver} + scanner
+     * (C-Data EPON/GPON & HiOSO). Dipakai untuk routing/pengelompokan (tab inventory, halaman
+     * `cdata-olt.*`, jalur polling scanner, link search/monitoring/peta) — bukan gating write,
+     * yang tetap memakai {@see self::isCData()} karena CLI write masih spesifik C-Data.
+     */
+    public static function isNonZte(string $driver): bool
+    {
+        return self::isCData($driver) || self::isHioso($driver);
+    }
+
+    /**
+     * Prefix nama rute inventori untuk sebuah driver: `hioso-olt` (HiOSO), `cdata-olt` (C-Data),
+     * atau `smartolt` (ZTE + unknown). Sumber tunggal pemilihan rute detail/port-onus lintas halaman
+     * (global search, peta, ONU monitoring) sehingga tiap family memakai controller-nya sendiri.
+     */
+    public static function inventoryRoutePrefix(string $driver): string
+    {
+        if (self::isHioso($driver)) {
+            return 'hioso-olt';
+        }
+
+        if (self::isCData($driver)) {
+            return 'cdata-olt';
+        }
+
+        return 'smartolt';
     }
 
     /**
@@ -112,6 +156,10 @@ class SmartOltSupport
 
         if ($driver === self::DRIVER_CDATA_GPON) {
             return self::cdataGponCapabilities($olt);
+        }
+
+        if ($driver === self::DRIVER_HIOSO_EPON) {
+            return self::hiosoEponCapabilities();
         }
 
         if ($driver !== self::DRIVER_ZTE) {
@@ -218,6 +266,40 @@ class SmartOltSupport
             'description_mode' => 'cli_cdata',
             'supports_onu_toggle' => false,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',
+        ];
+    }
+
+    /**
+     * HiOSO / V-Sol EPON 25355 — inventory + Rx via SNMP; aksi tulis ONU (rename, reboot & delete) via
+     * CLI telnet `conf t` → `interface epon 0/{port}` → `onu {id} name|reboot` / `no onu {id}`
+     * (rename/reboot guide §5.5; delete `no onu {id}` guide §5.6 — verifikasi live via UI). Provisioning belum ada.
+     *
+     * @return array<string, mixed>
+     */
+    private static function hiosoEponCapabilities(): array
+    {
+        return [
+            'driver' => self::DRIVER_HIOSO_EPON,
+            'vendor_family' => 'HiOSO / V-Sol EPON',
+            'pon_label' => 'EPON',
+            'port_label' => 'EPON Port',
+            'port_name_prefix' => 'epon 0',
+            'onu_interface_pattern' => 'epon 0/%d/%d:%d',
+            'is_c600' => false,
+            'read_only' => false,
+            'supports_snmp_rx' => true,
+            'supports_cli_rx' => false,
+            'supports_cli_onu_detail' => false,
+            'supports_cli_onu_configure' => false,
+            'supports_reboot' => true,
+            'reboot_mode' => 'cli_hioso',
+            'supports_provisioning' => false,
+            'supports_onu_delete' => true,
+            'supports_separate_description' => false,
+            'supports_onu_info_write' => true,
+            'description_mode' => 'cli_hioso',
+            'supports_onu_toggle' => false,
+            'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
 

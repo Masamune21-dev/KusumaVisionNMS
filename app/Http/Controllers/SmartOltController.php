@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\CopyOnusToPortJob;
 use App\Jobs\Tr069BulkConfigJob;
+use App\Models\AcsSetting;
 use App\Models\CopyOnuTask;
 use App\Models\OnuMapPin;
 use App\Models\OnuRxSample;
@@ -37,17 +38,16 @@ class SmartOltController extends Controller
 {
     public function index(): Response
     {
-        // Satu halaman dua tab: OLT ZTE (+ unknown) dan OLT C-Data. Pisahkan berdasarkan driver.
+        // Tiga tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO. Pisahkan berdasarkan driver.
         $rows = SnmpOlt::query()
             ->orderBy('name')
             ->get()
             ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt));
 
-        [$cdataOlts, $olts] = $rows->partition(fn (array $row) => SmartOltSupport::isCData($row['driver']));
-
         return Inertia::render('SmartOlt/Index', [
-            'olts' => $olts->values(),
-            'cdataOlts' => $cdataOlts->values(),
+            'olts' => $rows->reject(fn (array $row) => SmartOltSupport::isNonZte($row['driver']))->values(),
+            'cdataOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isCData($row['driver']))->values(),
+            'hiosoOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isHioso($row['driver']))->values(),
         ]);
     }
 
@@ -99,8 +99,8 @@ class SmartOltController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn (SnmpOlt $olt) => $this->serializeOlt($olt))
-            // OLT C-Data tidak punya alur provisioning di sini; hanya ZTE + unknown yang tampil.
-            ->reject(fn (array $row) => SmartOltSupport::isCData($row['driver']))
+            // OLT non-ZTE (C-Data/HiOSO) tidak punya alur provisioning di sini; hanya ZTE + unknown yang tampil.
+            ->reject(fn (array $row) => SmartOltSupport::isNonZte($row['driver']))
             ->values();
 
         $selectedOlt = null;
@@ -258,6 +258,8 @@ class SmartOltController extends Controller
             'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
             'initial_search' => (string) $request->query('q', ''),
             'focus_onu_id' => $request->query('focus') !== null ? (int) $request->query('focus') : null,
+            // Target ACS untuk modal TR069 massal (tanpa password).
+            'acs' => collect(AcsSetting::resolved())->only(['url', 'username'])->all(),
             'pinned_onu_ids' => OnuMapPin::query()
                 ->where('snmp_olt_id', $olt->id)
                 ->where('slot', $slot)
@@ -287,13 +289,13 @@ class SmartOltController extends Controller
     {
         $back = redirect()->route('monitoring.onu', ['olt_id' => $olt->id]);
 
-        // OLT C-Data (non-ZTE) discan via driver resolver; tulis cache port_onus bentuk sama.
+        // OLT non-ZTE (C-Data/HiOSO) discan via driver resolver; tulis cache port_onus bentuk sama.
         $driver = SmartOltSupport::driverKey(
             $olt,
             data_get($olt->last_test_result, 'system.sys_descr'),
             data_get($olt->last_test_result, 'system.sys_object_id'),
         );
-        if (SmartOltSupport::isCData($driver)) {
+        if (SmartOltSupport::isNonZte($driver)) {
             return $this->refreshCdataMonitor($olt, $resolver, $back);
         }
 
@@ -1360,7 +1362,9 @@ class SmartOltController extends Controller
             'ip' => [
                 'required',
                 'ip',
-                Rule::unique('snmp_olts', 'ip')->ignore($olt),
+                Rule::unique('snmp_olts', 'ip')
+                    ->where(fn ($query) => $query->where('snmp_port', $request->integer('snmp_port')))
+                    ->ignore($olt),
             ],
             'snmp_port' => ['required', 'integer', 'between:1,65535'],
             'snmp_read_community' => [$olt ? 'nullable' : 'required', 'string', 'max:255'],
@@ -1373,6 +1377,8 @@ class SmartOltController extends Controller
             'polling_enabled' => ['boolean'],
             'poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
             'rx_poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
+        ], [
+            'ip.unique' => 'Kombinasi IP + SNMP port ini sudah dipakai OLT lain. Ubah SNMP port bila ingin memakai IP yang sama.',
         ]);
     }
 

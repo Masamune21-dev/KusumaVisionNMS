@@ -8,6 +8,8 @@ const props = defineProps({
 const groups = computed(() => props.panel?.groups ?? []);
 const leds = computed(() => props.panel?.leds ?? []);
 const device = computed(() => props.panel?.device ?? {});
+// Port fisik RJ45 di luar SNMP (MGMT/Console). Default MGMT saja (C-Data); HiOSO kirim MGMT+Console.
+const fixedPorts = computed(() => props.panel?.fixed_ports ?? [{ label: 'MGMT', num: 'M' }]);
 
 // Ringkasan port untuk badge atas chassis.
 const summary = computed(() => {
@@ -66,18 +68,18 @@ const legend = [
                         </div>
                     </div>
 
-                    <!-- CONSOLE + MGMT (fixed) -->
-                    <div class="fp-group">
-                        <div class="fp-bracket fp-bracket--plain">MGMT</div>
+                    <!-- Port fisik non-SNMP: MGMT (+ Console utk HiOSO) -->
+                    <div v-for="fx in fixedPorts" :key="fx.label" class="fp-group">
+                        <div class="fp-bracket fp-bracket--plain">{{ fx.label }}</div>
                         <div class="fp-ports">
                             <div class="fp-port-cell">
-                                <div class="fp-port is-up kind-copper" title="Management · up">
+                                <div class="fp-port is-up kind-copper" :title="`${fx.label} · up`">
                                     <svg viewBox="0 0 24 24" class="fp-ico">
                                         <path d="M6 5h12v9.5l-2.5 3.5h-7L6 14.5V5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
                                         <path d="M9 5v2M12 5v2M15 5v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
                                     </svg>
                                 </div>
-                                <span class="fp-num">M</span>
+                                <span class="fp-num">{{ fx.num }}</span>
                             </div>
                         </div>
                     </div>

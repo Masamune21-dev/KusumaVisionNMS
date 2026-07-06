@@ -43,6 +43,7 @@ class CDataOltController extends Controller
     {
         return Inertia::render('CDataOlt/Create', [
             'defaults' => [
+                'family' => 'cdata',
                 'vendor' => 'C-Data GPON 34592',
                 'snmp_port' => 161,
                 'snmp_version' => 'v2c',
@@ -61,9 +62,9 @@ class CDataOltController extends Controller
         try {
             $count = $scanner->scan($olt);
 
-            return $redirect->with('success', sprintf('OLT C-Data ditambahkan. Scan awal: %s ONU.', $count));
+            return $redirect->with('success', sprintf('OLT ditambahkan. Scan awal: %s ONU.', $count));
         } catch (Throwable $exception) {
-            return $redirect->with('success', 'OLT C-Data ditambahkan. Scan awal gagal ('.$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
+            return $redirect->with('success', 'OLT ditambahkan. Scan awal gagal ('.$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
         }
     }
 
@@ -439,7 +440,13 @@ class CDataOltController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'vendor' => ['required', 'string', 'max:100'],
-            'ip' => ['required', 'ip', Rule::unique('snmp_olts', 'ip')->ignore($olt)],
+            'ip' => [
+                'required',
+                'ip',
+                Rule::unique('snmp_olts', 'ip')
+                    ->where(fn ($query) => $query->where('snmp_port', $request->integer('snmp_port')))
+                    ->ignore($olt),
+            ],
             'snmp_port' => ['required', 'integer', 'between:1,65535'],
             'snmp_read_community' => [$olt ? 'nullable' : 'required', 'string', 'max:255'],
             'snmp_write_community' => ['nullable', 'string', 'max:255'],
@@ -451,6 +458,8 @@ class CDataOltController extends Controller
             'polling_enabled' => ['boolean'],
             'poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
             'rx_poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
+        ], [
+            'ip.unique' => 'Kombinasi IP + SNMP port ini sudah dipakai OLT lain. Ubah SNMP port bila ingin memakai IP yang sama.',
         ]);
     }
 

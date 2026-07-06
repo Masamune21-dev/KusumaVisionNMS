@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AcsSetting;
 use App\Models\SnmpOlt;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
@@ -318,11 +319,8 @@ class ZteTr069BulkService
      */
     private function acs(): array
     {
-        return [
-            'url' => (string) config('services.acs.url', 'http://acs.bmkv.net:7547'),
-            'username' => (string) config('services.acs.username', 'cms'),
-            'password' => (string) config('services.acs.password', 'kusuma123!'),
-        ];
+        // Endpoint tersimpan di Pengaturan (AcsSetting), fallback ke config/env.
+        return AcsSetting::resolved();
     }
 
     /**

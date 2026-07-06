@@ -44,9 +44,9 @@ class PollOltJob implements ShouldQueue
             return;
         }
 
-        // OLT C-Data dipoll lewat jalur driver C-Data (SNMP/CLI), bukan poller ZTE (Go/OltSnmpClient).
-        if (SmartOltSupport::isCData(SmartOltSupport::driverKey($olt))) {
-            $this->pollCData($olt, $alarms, $cdataScanner ?? app(CDataOltScanner::class));
+        // OLT non-ZTE (C-Data EPON/GPON, HiOSO) dipoll lewat scanner+resolver, bukan poller ZTE (Go/OltSnmpClient).
+        if (SmartOltSupport::isNonZte(SmartOltSupport::driverKey($olt))) {
+            $this->pollViaScanner($olt, $alarms, $cdataScanner ?? app(CDataOltScanner::class));
 
             return;
         }
@@ -161,11 +161,12 @@ class PollOltJob implements ShouldQueue
     }
 
     /**
-     * Poll OLT C-Data: scan penuh lewat {@see CDataOltScanner} (driver SNMP/CLI menulis
-     * `last_test_result.port_onus` dgn bentuk sama spt ZTE), lalu samakan housekeeping ZTE —
-     * tandai `ok`/error utk AlarmEvaluator, catat sampel RX, evaluasi alarm, & log PollingEvent.
+     * Poll OLT non-ZTE (C-Data EPON/GPON & HiOSO): scan penuh lewat {@see CDataOltScanner} (driver
+     * SNMP/CLI menulis `last_test_result.port_onus` dgn bentuk sama spt ZTE), lalu samakan
+     * housekeeping ZTE — tandai `ok`/error utk AlarmEvaluator, catat sampel RX, evaluasi alarm,
+     * & log PollingEvent.
      */
-    private function pollCData(SnmpOlt $olt, AlarmEvaluator $alarms, CDataOltScanner $scanner): void
+    private function pollViaScanner(SnmpOlt $olt, AlarmEvaluator $alarms, CDataOltScanner $scanner): void
     {
         $now = now();
         $previousSnapshot = $olt->last_test_result ?? [];
