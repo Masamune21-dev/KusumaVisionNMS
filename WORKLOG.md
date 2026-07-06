@@ -3394,3 +3394,38 @@ Notes:
   (480 assertions); Pint bersih; 0 alarm aktif tersisa di OLT 411.
 - **Deploy**: perubahan menyentuh service/job yang dijalankan worker `kusumavision-worker` →
   `php artisan queue:restart` agar worker memuat kode baru (fix belum aktif tanpa restart).
+
+### Bot Telegram: tombol Reboot ONU di layar detail ONU
+
+Changed:
+
+- `app/Services/Telegram/TelegramKeyboard.php` — builder callback baru `onuReboot()` (`rb:`) dan
+  `onuRebootExecute()` (`rbx:`), argumen identik `onuDetail()` (olt/slot/port/onu/src/scope/page)
+  supaya layar konfirmasi bisa "Batal" kembali ke detail yang sama; tetap <64 byte.
+- `app/Services/Telegram/TelegramCommandHandler.php` — layar detail ONU (navigasi menu, hasil
+  /search tunggal, detail dari daftar hasil search) kini menampilkan tombol "🔄 Reboot ONU" bila
+  driver OLT `supports_reboot` (`onuActionRows()` + `supportsReboot()`/`oltDriver()`). Alur dua
+  langkah: `rb:` = layar konfirmasi (✅ Ya, Reboot Sekarang / ❌ Batal — tap nyasar tak langsung
+  me-restart pelanggan), `rbx:` = eksekusi, cermin `OnuMapController::rebootPin`: ZTE via
+  `ZteRemoteOnuService`, C-Data via `CDataCliWriteService` (iface epon/gpon dari driver), HiOSO via
+  `HiosoCliWriteService`; hasil (sukses/error/exception) dilaporkan + tombol kembali ke detail.
+  /help ditambah baris cara reboot; docblock kelas diperbarui (tak lagi murni read-only).
+- `tests/Feature/TelegramWebhookTest.php` — +4 test: detail ONU menawarkan tombol `rb:`; callback
+  `rb:` menampilkan konfirmasi TANPA mengeksekusi (mock `shouldNotReceive`); `rbx:` memanggil
+  reboot ZTE sekali dengan slot/port/onu benar dan melaporkan sukses; OLT driver unknown → tanpa
+  tombol dan `rbx:` paksa ditolak "tidak didukung".
+- `tests/Unit/TelegramKeyboardTest.php` — builder `rb:`/`rbx:` mirror konteks `u:` + cek batas 64 byte.
+- `docs/handbook/10-alarm-telegram.md` — blok "Reboot ONU dari bot"; klaim "/refresh satu-satunya
+  non-read-only" dikoreksi jadi dua aksi.
+
+Notes:
+
+- Callback reboot hanya memuat argumen numerik → dari detail hasil pencarian (token cache), konteks
+  token tidak terbawa; back setelah reboot jatuh ke Menu (`SRC_MENU`). Trade-off diterima demi skema
+  callback tetap sederhana.
+- Eksekusi sinkron di request webhook (telnet beberapa detik) — konsisten dengan /refresh yang sudah
+  sinkron; gerbang keamanan = allow-list chat (dicek ulang di `handleCallback`) + konfirmasi 2 langkah
+  + gating `supports_reboot` per driver.
+- Verifikasi: suite penuh **252 passed** (1383 assertions), Pint bersih.
+- **Deploy**: perubahan di service yang dipakai request web (webhook) → cukup opcache (php-fpm);
+  tidak menyentuh worker/scheduler.

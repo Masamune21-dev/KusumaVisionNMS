@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use App\Models\User;
 use App\Services\CData\CDataOltScanner;
+use App\Services\ZteRemoteOnuService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -358,6 +359,95 @@ class TelegramWebhookTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'answerCallbackQuery'));
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'editMessageText'));
+    }
+
+    public function test_onu_detail_callback_offers_reboot_button(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedOltWithOnus();
+
+        $this->postWebhook($this->callbackUpdate('111', "u:{$olt->id}:1:1:1:0:0:0"))->assertOk();
+
+        Http::assertSent(function ($request) use ($olt) {
+            if (! str_contains($request->url(), 'editMessageText')) {
+                return false;
+            }
+
+            $buttons = collect($request['reply_markup']['inline_keyboard'] ?? [])->flatten(1);
+
+            return $buttons->contains(fn ($b) => ($b['callback_data'] ?? '') === "rb:{$olt->id}:1:1:1:0:0:0");
+        });
+    }
+
+    public function test_reboot_callback_asks_confirmation_without_executing(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedOltWithOnus();
+
+        $this->mock(ZteRemoteOnuService::class)->shouldNotReceive('reboot');
+
+        $this->postWebhook($this->callbackUpdate('111', "rb:{$olt->id}:1:1:1:0:0:0"))->assertOk();
+
+        Http::assertSent(function ($request) use ($olt) {
+            if (! str_contains($request->url(), 'editMessageText')) {
+                return false;
+            }
+
+            $buttons = collect($request['reply_markup']['inline_keyboard'] ?? [])->flatten(1);
+
+            return str_contains($request['text'], 'Reboot ONU?')
+                && $buttons->contains(fn ($b) => ($b['callback_data'] ?? '') === "rbx:{$olt->id}:1:1:1:0:0:0");
+        });
+    }
+
+    public function test_reboot_execute_callback_reboots_and_reports(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+        $olt = $this->seedOltWithOnus();
+
+        $this->mock(ZteRemoteOnuService::class, function ($mock) {
+            $mock->shouldReceive('reboot')
+                ->once()
+                ->withArgs(fn (SnmpOlt $olt, int $slot, int $port, int $onuId) => $slot === 1 && $port === 1 && $onuId === 1)
+                ->andReturn(['ok' => true, 'output' => '', 'error' => null]);
+        });
+
+        $this->postWebhook($this->callbackUpdate('111', "rbx:{$olt->id}:1:1:1:0:0:0"))->assertOk();
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && str_contains($request['text'], 'Perintah reboot terkirim'));
+    }
+
+    public function test_reboot_is_blocked_for_unsupported_olt(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+        $this->configureBot(['chat_id' => '111']);
+
+        $olt = SnmpOlt::create([
+            'name' => 'OLT-MISC', 'vendor' => 'Generic', 'ip' => '10.0.0.9',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+            'last_test_result' => ['ok' => true, 'port_onus' => ['1_1' => ['slot' => 1, 'port' => 1, 'count' => 1, 'onus' => [[
+                'slot' => 1, 'port' => 1, 'onu_id' => 1, 'online' => true, 'phase_state' => 'Working',
+            ]]]]],
+        ]);
+
+        $this->mock(ZteRemoteOnuService::class)->shouldNotReceive('reboot');
+
+        // Layar detail tidak menawarkan tombol reboot untuk driver unknown …
+        $this->postWebhook($this->callbackUpdate('111', "u:{$olt->id}:1:1:1:0:0:0"))->assertOk();
+        Http::assertNotSent(function ($request) {
+            $buttons = collect($request['reply_markup']['inline_keyboard'] ?? [])->flatten(1);
+
+            return $buttons->contains(fn ($b) => str_starts_with($b['callback_data'] ?? '', 'rb:'));
+        });
+
+        // … dan callback eksekusi yang dipaksakan tetap ditolak.
+        $this->postWebhook($this->callbackUpdate('111', "rbx:{$olt->id}:1:1:1:0:0:0"))->assertOk();
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'editMessageText')
+            && str_contains($request['text'], 'tidak didukung'));
     }
 
     private function seedManyOnus(int $count): SnmpOlt

@@ -24,6 +24,13 @@ class TelegramKeyboardTest extends TestCase
         $this->assertSame('u:65535:9:16:127:4:65535:99', $longest);
     }
 
+    public function test_reboot_builders_mirror_onu_detail_context(): void
+    {
+        $this->assertSame('rb:5:1:2:7:3:0:4', TelegramKeyboard::onuReboot(5, 1, 2, 7, 3, 0, 4));
+        $this->assertSame('rbx:5:1:2:7:3:0:4', TelegramKeyboard::onuRebootExecute(5, 1, 2, 7, 3, 0, 4));
+        $this->assertLessThanOrEqual(64, strlen(TelegramKeyboard::onuRebootExecute(65535, 9, 16, 127, 4, 65535, 99)));
+    }
+
     public function test_pager_hidden_for_single_page(): void
     {
         $this->assertSame([], TelegramKeyboard::pager(0, 1, fn ($p) => "x:{$p}"));

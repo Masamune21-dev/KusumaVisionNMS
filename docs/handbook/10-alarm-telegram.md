@@ -120,6 +120,14 @@ Cari ONU / Alarm. Daftar OLT → detail OLT → pilih Port PON (grid, paginasi) 
 (paginasi ⬅️➡️ + filter Semua/🔴 LOS/📉 Redaman) → detail ONU. LOS & Redaman bisa global
 (semua OLT) atau per-OLT, paginasi, tiap baris bisa ditekan ke detail ONU.
 
+**Reboot ONU dari bot**: layar detail ONU (semua jalur: menu, /search, /los, /redaman) menampilkan
+tombol "🔄 Reboot ONU" bila driver OLT `supports_reboot` (`SmartOltSupport::capabilities`). Dua
+langkah: `rb:` membuka layar konfirmasi (✅ Ya / ❌ Batal, argumen back-context sama dengan `u:`),
+`rbx:` mengeksekusi — cermin `OnuMapController::rebootPin`: ZTE via `ZteRemoteOnuService`, C-Data
+via `CDataCliWriteService` (iface epon/gpon dari driver), HiOSO via `HiosoCliWriteService`. Sinkron
+di request webhook (telnet beberapa detik, seperti /refresh). Dari detail hasil pencarian, konteks
+token tidak terbawa ke callback numerik → back setelah reboot jatuh ke Menu (`SRC_MENU`).
+
 **Pencarian global** (`/search`/`/cari`, juga `/onu`/`/cek`): substring match lintas-OLT atas
 serial/nama/customer/interface (`runSearch`, cap `SEARCH_LIMIT=60`). 0 hasil → "tidak ditemukan",
 1 hasil → langsung detail, >1 → daftar tombol **berpaginasi**. Karena `callback_data` tak muat
@@ -133,9 +141,10 @@ hasil). Token kedaluwarsa → minta kirim ulang. Tombol "🔎 Cari ONU" di menu 
 `<nama|serial>`, `/alarm`, `/onu` (`/cek`) `<serial|nama>`, `/prov`, `/refresh` (`/segarkan`)
 `[nama|id]`, `/id`. Hanya chat di allow-list
 (`isChatAuthorized`) boleh menjalankan command/tombol data — termasuk `callback_query` (dicek ulang
-di `handleCallback`); selain itu `accessDenied`. **`/refresh` adalah satu-satunya command non-read-only**:
-men-scan ulang OLT C-Data via `CDataOltScanner` (sinkron — EPON SNMP cepat, GPON V3 CLI ~10 dtk/OLT) lalu
-menulis cache `port_onus`, supaya menu/port tampil terbaru. OLT ZTE diabaikan (sudah dipoll background).
+di `handleCallback`); selain itu `accessDenied`. **Dua aksi non-read-only**: `/refresh` men-scan ulang
+OLT C-Data via `CDataOltScanner` (sinkron — EPON SNMP cepat, GPON V3 CLI ~10 dtk/OLT) lalu menulis cache
+`port_onus`, supaya menu/port tampil terbaru (OLT ZTE diabaikan — sudah dipoll background); dan tombol
+"🔄 Reboot ONU" di detail ONU (lihat blok di atas — konfirmasi dua langkah, gated `supports_reboot`).
 
 ### Catatan keamanan
 - `bot_token` & `webhook_secret` terenkripsi + `$hidden`.

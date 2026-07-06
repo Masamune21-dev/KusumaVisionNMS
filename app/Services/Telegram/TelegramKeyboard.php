@@ -90,6 +90,18 @@ class TelegramKeyboard
         return "u:{$oltId}:{$slot}:{$port}:{$onuId}:{$src}:{$scope}:{$page}";
     }
 
+    /** Reboot confirmation screen; carries the same back-context as {@see self::onuDetail()}. */
+    public static function onuReboot(int $oltId, int $slot, int $port, int $onuId, int $src, int $scope, int $page): string
+    {
+        return "rb:{$oltId}:{$slot}:{$port}:{$onuId}:{$src}:{$scope}:{$page}";
+    }
+
+    /** Actually execute the reboot (only ever reachable from the confirmation screen). */
+    public static function onuRebootExecute(int $oltId, int $slot, int $port, int $onuId, int $src, int $scope, int $page): string
+    {
+        return "rbx:{$oltId}:{$slot}:{$port}:{$onuId}:{$src}:{$scope}:{$page}";
+    }
+
     public static function losList(int $scope = 0, int $page = 0): string
     {
         return "los:{$scope}:{$page}";

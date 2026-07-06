@@ -5,8 +5,11 @@ namespace App\Services\Telegram;
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
+use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
 use App\Services\Dashboard\DashboardStatsService;
+use App\Services\Hioso\HiosoCliWriteService;
+use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -19,8 +22,10 @@ use Throwable;
  *
  * Actions are READ-ONLY (query the same cached/persisted data the web UI reads —
  * snmp_olts.last_test_result, alarm_events) so the bot stays consistent with the dashboard.
- * Satu-satunya pengecualian: /refresh men-scan ulang OLT C-Data (via {@see CDataOltScanner})
- * untuk menyegarkan cache sebelum menu/port ditampilkan — tetap tidak mengubah konfigurasi OLT.
+ * Dua pengecualian: /refresh men-scan ulang OLT C-Data (via {@see CDataOltScanner}) untuk
+ * menyegarkan cache — tetap tidak mengubah konfigurasi OLT — dan tombol "Reboot ONU" di layar
+ * detail ONU (dua langkah: konfirmasi dulu, gated `supports_reboot`, delegasi ke service
+ * write per-family seperti pin peta di OnuMapController).
  *
  * Every reply is a {@see TelegramReply} (text + optional inline keyboard), so the same
  * screen renderers feed either a fresh sendMessage (command) or an in-place
@@ -38,6 +43,9 @@ class TelegramCommandHandler
         private readonly DashboardStatsService $stats,
         private readonly TelegramOnuQueryService $onus,
         private readonly CDataOltScanner $scanner,
+        private readonly ZteRemoteOnuService $zteWrite,
+        private readonly CDataCliWriteService $cdataWrite,
+        private readonly HiosoCliWriteService $hiosoWrite,
     ) {}
 
     /**
@@ -121,6 +129,8 @@ class TelegramCommandHandler
             'pl' => $this->portListScreen($a[0] ?? 0, $a[1] ?? 0),
             'on' => $this->portOnuScreen($a[0] ?? 0, $a[1] ?? 0, $a[2] ?? 0, $a[3] ?? 0, $a[4] ?? 0),
             'u' => $this->onuDetailScreen($a[0] ?? 0, $a[1] ?? 0, $a[2] ?? 0, $a[3] ?? 0, $a[4] ?? 0, $a[5] ?? 0, $a[6] ?? 0),
+            'rb' => $this->onuRebootConfirmScreen($a[0] ?? 0, $a[1] ?? 0, $a[2] ?? 0, $a[3] ?? 0, $a[4] ?? 0, $a[5] ?? 0, $a[6] ?? 0),
+            'rbx' => $this->onuRebootExecute($a[0] ?? 0, $a[1] ?? 0, $a[2] ?? 0, $a[3] ?? 0, $a[4] ?? 0, $a[5] ?? 0, $a[6] ?? 0),
             'los' => $this->losScreen($a[0] ?? 0, $a[1] ?? 0),
             'rx' => $this->rxScreen($a[0] ?? 0, $a[1] ?? 0),
             'al' => $this->alarmsScreen($a[0] ?? 0),
@@ -155,7 +165,8 @@ class TelegramCommandHandler
 
             ."🔄 <b>Aksi</b>\n"
             ."/refresh <i>[nama OLT]</i> — Scan ulang OLT C-Data agar menu/port tampil terbaru (alias: /segarkan). Kosong = semua OLT C-Data.\n"
-            ."   contoh: <code>/refresh</code> · <code>/refresh fd1608</code>\n\n"
+            ."   contoh: <code>/refresh</code> · <code>/refresh fd1608</code>\n"
+            ."Reboot ONU — buka detail ONU (dari menu, /search, /los, /redaman) lalu tekan tombol 🔄 <b>Reboot ONU</b>; ada konfirmasi sebelum dieksekusi.\n\n"
 
             ."📦 <b>Lainnya</b>\n"
             ."/prov — Ringkasan antrian provisioning\n"
@@ -415,7 +426,88 @@ class TelegramCommandHandler
             return TelegramReply::make('ONU tidak ditemukan di cache.', [TelegramKeyboard::backRow($back)]);
         }
 
-        return TelegramReply::make($this->onuDetailText($onu, $oltId), [TelegramKeyboard::backRow($back)]);
+        $rows = $this->onuActionRows($oltId, $slot, $port, $onuId, $src, $scope, $page);
+        $rows[] = TelegramKeyboard::backRow($back);
+
+        return TelegramReply::make($this->onuDetailText($onu, $oltId), $rows);
+    }
+
+    /**
+     * Reboot confirmation screen ("rb:" callback) — the button on the ONU detail never
+     * reboots directly; it lands here first so a stray tap cannot restart a customer.
+     */
+    private function onuRebootConfirmScreen(int $oltId, int $slot, int $port, int $onuId, int $src, int $scope, int $page): TelegramReply
+    {
+        $onu = $this->onus->onu($oltId, $slot, $port, $onuId);
+        $detail = TelegramKeyboard::onuDetail($oltId, $slot, $port, $onuId, $src, $scope, $page);
+
+        if ($onu === null) {
+            return TelegramReply::make('ONU tidak ditemukan di cache.', [TelegramKeyboard::backRow(null)]);
+        }
+
+        if (! $this->supportsReboot($oltId)) {
+            return TelegramReply::make('⛔ Reboot ONU tidak didukung untuk OLT ini.', [TelegramKeyboard::backRow($detail)]);
+        }
+
+        $title = $onu['customer'] ?: ($onu['serial_number'] ?: ($onu['interface'] ?: ('ONU '.$onuId)));
+
+        $text = "🔄 <b>Reboot ONU?</b>\n\n"
+            .TelegramOnuQueryService::statusIcon($onu).' <b>'.$this->escape((string) $title)."</b>\n"
+            .'OLT: '.$this->escape((string) $onu['olt_name'])."\n"
+            .'Interface: '.$this->escape((string) ($onu['interface'] ?: "Slot {$slot} / PON {$port} / ONU {$onuId}"))."\n\n"
+            .'⚠️ ONU akan restart dan pelanggan terputus ±30–60 detik.';
+
+        $keyboard = [
+            [TelegramKeyboard::button('✅ Ya, Reboot Sekarang', TelegramKeyboard::onuRebootExecute($oltId, $slot, $port, $onuId, $src, $scope, $page))],
+            [TelegramKeyboard::button('❌ Batal', $detail)],
+        ];
+
+        return TelegramReply::make($text, $keyboard);
+    }
+
+    /**
+     * Execute the reboot ("rbx:" callback, only reachable via the confirmation screen).
+     * Mirrors OnuMapController::rebootPin(): capability-gated, branch per driver family.
+     */
+    private function onuRebootExecute(int $oltId, int $slot, int $port, int $onuId, int $src, int $scope, int $page): TelegramReply
+    {
+        $olt = $this->onus->findOlt($oltId);
+        $detail = TelegramKeyboard::onuDetail($oltId, $slot, $port, $onuId, $src, $scope, $page);
+        $back = [
+            [TelegramKeyboard::button('📶 Detail ONU', $detail)],
+            TelegramKeyboard::backRow($this->onuBack($oltId, $slot, $port, $src, $scope, $page)),
+        ];
+
+        if ($olt === null) {
+            return TelegramReply::make('OLT tidak ditemukan.', [TelegramKeyboard::backRow(null)]);
+        }
+
+        if (! $this->supportsReboot($oltId)) {
+            return TelegramReply::make('⛔ Reboot ONU tidak didukung untuk OLT ini.', $back);
+        }
+
+        $driver = $this->oltDriver($olt);
+        $label = 'ONU '.$slot.'/'.$port.':'.$onuId.' — '.$olt->name;
+
+        try {
+            if (SmartOltSupport::isHioso($driver)) {
+                $result = $this->hiosoWrite->reboot($olt, $port, $onuId);
+            } elseif (SmartOltSupport::isCData($driver)) {
+                $iface = $driver === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';
+                $result = $this->cdataWrite->reboot($olt, $iface, $slot, $port, $onuId);
+            } else {
+                $result = $this->zteWrite->reboot($olt, $slot, $port, $onuId);
+            }
+
+            $ok = (bool) ($result['ok'] ?? false);
+            $text = $ok
+                ? '✅ <b>Perintah reboot terkirim.</b>'."\n".$this->escape($label)."\nONU restart ±30–60 detik.\n🕒 ".$this->now()
+                : '⚠️ <b>Reboot selesai dengan indikasi error.</b>'."\n".$this->escape($label)."\n".$this->escape($this->truncate((string) ($result['error'] ?? ''), 200));
+        } catch (Throwable $e) {
+            $text = '❌ <b>Reboot ONU gagal.</b>'."\n".$this->escape($label)."\n".$this->escape($this->truncate($e->getMessage(), 200));
+        }
+
+        return TelegramReply::make($text, $back);
     }
 
     private function losScreen(int $scope, int $page): TelegramReply
@@ -625,7 +717,10 @@ class TelegramCommandHandler
         if (count($matches) === 1) {
             $m = $matches[0];
 
-            return TelegramReply::make($this->onuDetailText($m, $m['olt_id']), [TelegramKeyboard::backRow(null)]);
+            $rows = $this->onuActionRows($m['olt_id'], $m['slot'], $m['port'], $m['onu_id'], TelegramKeyboard::SRC_MENU, 0, 0);
+            $rows[] = TelegramKeyboard::backRow(null);
+
+            return TelegramReply::make($this->onuDetailText($m, $m['olt_id']), $rows);
         }
 
         // Stash the query so the result pages (callbacks) can re-run it.
@@ -658,7 +753,12 @@ class TelegramCommandHandler
             return TelegramReply::make('ONU tidak ditemukan di cache.', [TelegramKeyboard::backRow($back)]);
         }
 
-        return TelegramReply::make($this->onuDetailText($onu, $oltId), [TelegramKeyboard::backRow($back)]);
+        // Callback reboot hanya memuat argumen numerik, jadi konteks token pencarian tidak
+        // ikut terbawa — dari alur reboot, "kembali" jatuh ke Menu (SRC_MENU).
+        $rows = $this->onuActionRows($oltId, $slot, $port, $onuId, TelegramKeyboard::SRC_MENU, 0, 0);
+        $rows[] = TelegramKeyboard::backRow($back);
+
+        return TelegramReply::make($this->onuDetailText($onu, $oltId), $rows);
     }
 
     /**
@@ -764,6 +864,45 @@ class TelegramCommandHandler
             TelegramKeyboard::button($mark(TelegramKeyboard::FILTER_LOS, '🔴 LOS'), TelegramKeyboard::portOnus($oltId, $slot, $port, TelegramKeyboard::FILTER_LOS, 0)),
             TelegramKeyboard::button($mark(TelegramKeyboard::FILTER_RX, '📉 Redaman'), TelegramKeyboard::portOnus($oltId, $slot, $port, TelegramKeyboard::FILTER_RX, 0)),
         ];
+    }
+
+    /**
+     * Action-button rows shown on an ONU detail screen (currently just Reboot when the
+     * OLT's driver supports it). The back-context args are forwarded so the confirmation
+     * screen's "Batal" returns to the exact same detail view.
+     *
+     * @return array<int, array<int, array<string, string>>>
+     */
+    private function onuActionRows(int $oltId, int $slot, int $port, int $onuId, int $src, int $scope, int $page): array
+    {
+        if (! $this->supportsReboot($oltId)) {
+            return [];
+        }
+
+        return [[TelegramKeyboard::button(
+            '🔄 Reboot ONU',
+            TelegramKeyboard::onuReboot($oltId, $slot, $port, $onuId, $src, $scope, $page),
+        )]];
+    }
+
+    private function supportsReboot(int $oltId): bool
+    {
+        $olt = $this->onus->findOlt($oltId);
+
+        if ($olt === null) {
+            return false;
+        }
+
+        return (bool) (SmartOltSupport::capabilities($this->oltDriver($olt), $olt)['supports_reboot'] ?? false);
+    }
+
+    private function oltDriver(SnmpOlt $olt): string
+    {
+        return SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        );
     }
 
     private function onuBack(int $oltId, int $slot, int $port, int $src, int $scope, int $page): ?string
