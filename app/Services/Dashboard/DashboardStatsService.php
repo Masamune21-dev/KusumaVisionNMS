@@ -6,6 +6,7 @@ use App\Models\AlarmEvent;
 use App\Models\PollingEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -161,25 +162,25 @@ class DashboardStatsService
     }
 
     /**
-     * Group OLTs by detected model (C300/C320/C600/Unknown) with up/down counts.
+     * List every OLT individually (name + detected model + reachability) so the
+     * dashboard inventory card shows each unit instead of collapsing them into a
+     * "Lainnya" bucket. Per-row unit/up/down (0/1) keep the footer totals summable.
      */
-    public function oltInventoryByModel(): Collection
+    public function oltInventoryList(): Collection
     {
-        $olts = SnmpOlt::query()->get();
-        $byModel = [];
+        return SnmpOlt::query()->orderBy('name')->get()->map(function (SnmpOlt $olt) {
+            $reachable = (bool) ($olt->last_test_result['ok'] ?? false);
 
-        foreach ($olts as $olt) {
-            $model = $this->detectOltModel($olt);
-            $reachable = (bool) (($olt->last_test_result['ok'] ?? false));
-
-            if (! isset($byModel[$model])) {
-                $byModel[$model] = ['model' => $model, 'unit' => 0, 'up' => 0, 'down' => 0];
-            }
-            $byModel[$model]['unit']++;
-            $byModel[$model][$reachable ? 'up' : 'down']++;
-        }
-
-        return collect(array_values($byModel))->sortBy('model')->values();
+            return [
+                'id' => $olt->id,
+                'name' => $olt->name,
+                'model' => $this->detectOltModel($olt),
+                'reachable' => $reachable,
+                'unit' => 1,
+                'up' => $reachable ? 1 : 0,
+                'down' => $reachable ? 0 : 1,
+            ];
+        })->values();
     }
 
     /**
@@ -346,7 +347,9 @@ class DashboardStatsService
             }
         }
 
-        return 'Lainnya';
+        // Fall back to the detected vendor family (C-Data / HiOSO / ZTE GPON) so
+        // non-ZTE OLTs are labelled properly instead of a generic "Lainnya".
+        return SmartOltSupport::capabilities(SmartOltSupport::driverKey($olt), $olt)['vendor_family'] ?? 'Lainnya';
     }
 
     private function deriveLocation(AlarmEvent $alarm): string

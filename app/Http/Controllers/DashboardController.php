@@ -9,9 +9,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly DashboardStatsService $stats)
-    {
-    }
+    public function __construct(private readonly DashboardStatsService $stats) {}
 
     public function index(Request $request): Response
     {
@@ -22,7 +20,7 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'cards' => $this->stats->statCards(),
             'polling_trend' => $this->stats->pollingTrend($range),
-            'olt_inventory' => $this->stats->oltInventoryByModel(),
+            'olt_inventory' => $this->stats->oltInventoryList(),
             'olts' => $this->stats->oltStatuses(),
             'recent_alarms' => $this->stats->recentAlarms(5),
             'provisioning' => $this->stats->provisioningSummary(),

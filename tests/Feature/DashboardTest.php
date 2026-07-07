@@ -74,10 +74,13 @@ class DashboardTest extends TestCase
             ->where('cards.alarms.total', 1)
             ->has('polling_trend.labels')
             ->has('olt_inventory', 1, fn ($row) => $row
+                ->where('name', 'PATI-ZTE-C320')
                 ->where('model', 'ZTE C320')
+                ->where('reachable', true)
                 ->where('unit', 1)
                 ->where('up', 1)
                 ->where('down', 0)
+                ->etc()
             )
             ->has('olts', 1)
             ->has('provisioning', 4)

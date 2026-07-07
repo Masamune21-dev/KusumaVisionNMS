@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-07-07
+
+### Role "Partner" — OLT ter-assign, alarm ter-scope, bot Telegram sendiri, mobile ikut
+
+**Permintaan user:** buat role **partner** yang hanya bisa mengelola (lihat + edit) OLT yang admin
+izinkan, hanya menerima alarm dari OLT itu, punya **bot Telegram sendiri** yang partner daftarkan,
+dan di **mobile** otomatis dibatasi ke OLT yang dipilihkan admin.
+
+**Desain inti:** satu **global scope** `PartnerOltScope` pada `SnmpOlt` (meniru `DemoScope`) menyembunyikan
+OLT non-assigned di seluruh app (web+API+peta+search+report+alarm) & memberi **404** via route-model
+binding — tanpa menyentuh tiap controller. Partner = setara operator, TAPI hanya pada OLT ter-assign;
+**tidak** boleh tambah/hapus device OLT, **tidak** akses Users/Settings/Audit.
+
+**Created:**
+- `app/Models/Scopes/PartnerOltScope.php` — batasi partner ke `olt_user` (kolom `id` utk SnmpOlt,
+  `snmp_olt_id` utk model lain); no-op utk admin/operator/demo & konteks console/queue.
+- Migrasi `..._create_olt_user_table.php` (pivot `user_id`×`snmp_olt_id`) & `..._create_partner_telegram_bots_table.php`.
+- `app/Contracts/Telegram/TelegramBotConfig.php` + `app/Models/Concerns/TelegramBotConfigTrait.php` —
+  kontrak & logika bot bersama; `TelegramSetting` (global) & `PartnerTelegramBot` (per-partner) implement.
+- `app/Http/Controllers/Partner/TelegramBotController.php` + `resources/js/Pages/Partner/TelegramBot.vue`
+  (halaman self-service "Bot Telegram Saya", rute `partner.telegram.*` middleware `role:partner`).
+- Test `tests/Feature/PartnerRoleTest.php` (11) & `PartnerTelegramBotTest.php` (5) — semua hijau.
+
+**Changed:**
+- `UserRole` enum + `User` (relasi `partnerOlts`, `telegramBot`, `allowedOltIds()` [query pivot langsung
+  demi hindari **rekursi** dgn scope], `isPartner()`, `canManageOlt()` +partner, `canManageOltInventory()`).
+- `SnmpOlt`/`AlarmEvent`/`PollingEvent`/`SmartOltOnuRegistration`/`OnuMapPin` — daftar `PartnerOltScope`.
+- `routes/web.php` — create/store/destroy device OLT (3 controller) di-gate `role:admin,operator`;
+  webhook jadi `/telegram/webhook/{bot?}` (partner bot); grup `partner.telegram.*`.
+- `TelegramNotifier::notify()` — kirim ke bot global + tiap bot partner yg assigned ke OLT; `sendTo/
+  editMessage/answerCallback/sendTest/dispatch` terima `?TelegramBotConfig`. `TelegramWebhookManager` &
+  `TelegramCommandHandler` generik atas `TelegramBotConfig`. `TelegramWebhookController` memetakan
+  `{bot}`→PartnerTelegramBot + `Auth::setUser(partner)` (scope OLT command otomatis).
+- `FcmAlarmNotifier::notify()` — penerima dibatasi admin+operator ∪ partner assigned ke OLT (bukan broadcast).
+- `HandleInertiaRequests` share `auth.can.{is_partner,manage_olt_inventory}`; `Users/Index.vue` multiselect
+  OLT utk partner; `SmartOlt/Index.vue` tombol Tambah/Hapus OLT digate `manage_olt_inventory`; sidebar
+  "Bot Telegram Saya"; `bootstrap/app.php` CSRF-exempt `telegram/webhook/*`.
+- API: grup tulis `role:admin,operator,partner`; mobile `user.dart` `canWrite` +partner.
+
+**Notes/verifikasi:** `php artisan test` (sqlite in-memory) — 16 test baru hijau + suite lama.
+**Gotcha:** test nyasar ke pgsql krn config ter-cache → `config:clear` sebelum test, `config:cache` sesudah
+(lihat [[project_prod_deploy_gotchas]]). **Bug halus yg diperbaiki:** `allowedOltIds()` sempat query relasi
+`partnerOlts()` (SnmpOlt) → memicu PartnerOltScope → rekursi tak terhingga; diganti query tabel `olt_user`
+langsung. Setelah deploy: `config:cache` + `queue:restart` + daftar-ulang webhook bot (global & partner).
+
 ## 2026-07-06
 
 ### Docker appliance — hardening lintas-perangkat (Windows) + regenerasi paket distribusi
@@ -3613,3 +3658,27 @@ Notes:
   (bump versi supaya sideload dikenali sebagai update).
 - APK di-rebuild via `bin/build-apk.sh` (server 8GB, heap 2g, tak swap-thrash) → 54,5 MB →
   `public/downloads/kusumavision-nms.apk`. Tidak build sebagai www-data.
+
+### Dashboard: card Inventory OLT daftar semua OLT + scroll (tinggi tetap)
+
+Changed:
+
+- `app/Services/Dashboard/DashboardStatsService.php` — `oltInventoryByModel()` diganti
+  `oltInventoryList()`: kembalikan **tiap OLT sebagai baris sendiri** (id/name/model/reachable +
+  unit/up/down 0/1 untuk total footer), diurut per nama — tidak lagi dikelompokkan jadi bucket
+  "Lainnya"/"ZTE C300"/"ZTE C320". `detectOltModel()` fallback non-ZTE bukan "Lainnya" lagi tapi
+  `SmartOltSupport::capabilities()['vendor_family']` (C-Data EPON/GPON, HiOSO/V-Sol, ZTE GPON).
+- `app/Http/Controllers/DashboardController.php` — panggil `oltInventoryList()`.
+- `resources/js/Components/Dashboard/OltInventoryList.vue` — render per-OLT (nama tebal + family
+  sub-teks + pill Up/Down per unit). List dibungkus `relative min-h-0 flex-1` dengan
+  `ul absolute inset-0 overflow-y-auto` + card `overflow-hidden` → **card tak bertambah tinggi**
+  berapa pun jumlah OLT, isinya di-scroll di ruang tersisa. Judul jadi "Inventory OLT".
+- `tests/Feature/DashboardTest.php` — assert bentuk per-OLT baru (name/reachable + `->etc()`).
+
+Notes:
+
+- Permintaan user: dashboard tampilkan semua OLT (jangan collapse ke "Lainnya"), bikin scroll supaya
+  tinggi card tidak nambah. Pola scroll: item flex `min-h-0` + child absolut inset-0 → card ikut
+  tinggi kartu tetangga di baris (PollingTrend/OnuDonut), bukan mendorong baris jadi tinggi.
+- Test sempat gagal karena config prod ter-cache (nyasar ke PostgreSQL) — di-`config:clear` untuk
+  test lalu `config:cache` ulang. `php artisan test` DashboardTest hijau, `npm run build` sukses.
