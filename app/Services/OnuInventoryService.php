@@ -58,6 +58,30 @@ class OnuInventoryService
     }
 
     /**
+     * Seluruh ONU pada satu PON port sebuah OLT (bentuk ter-normalisasi), untuk API mobile.
+     *
+     * @return array{onus: array<int, array<string, mixed>>, refreshed_at: ?string, count: int}
+     */
+    public function forPort(SnmpOlt $olt, int $slot, int $port): array
+    {
+        $routePrefix = $this->routePrefix($olt);
+        $entry = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+
+        $onus = [];
+        foreach (data_get($entry, 'onus', []) as $onu) {
+            $onus[] = $this->normalize($olt, $routePrefix, $onu);
+        }
+
+        usort($onus, fn (array $a, array $b) => $a['onu_id'] <=> $b['onu_id']);
+
+        return [
+            'onus' => $onus,
+            'refreshed_at' => data_get($entry, 'refreshed_at'),
+            'count' => count($onus),
+        ];
+    }
+
+    /**
      * Cari satu ONU di cache OLT dan kembalikan bentuk ter-normalisasi (untuk enrich pin peta).
      *
      * @return array<string, mixed>|null

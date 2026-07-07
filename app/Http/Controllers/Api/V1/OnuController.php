@@ -77,6 +77,28 @@ class OnuController extends Controller
     }
 
     /**
+     * GET /api/v1/olts/{olt}/ports/{slot}/{port}/onus — daftar ONU satu PON port.
+     *
+     * Sumber: snapshot `last_test_result.port_onus.{slot}_{port}` (sama dgn halaman web
+     * per port). `meta.refreshed_at` = kapan port itu terakhir di-scan.
+     */
+    public function portIndex(SnmpOlt $olt, int $slot, int $port): JsonResponse
+    {
+        $result = $this->inventory->forPort($olt, $slot, $port);
+
+        return response()->json([
+            'data' => $result['onus'],
+            'meta' => [
+                'olt_id' => $olt->id,
+                'slot' => $slot,
+                'port' => $port,
+                'count' => $result['count'],
+                'refreshed_at' => $result['refreshed_at'],
+            ],
+        ]);
+    }
+
+    /**
      * GET /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId} — detail satu ONU.
      */
     public function show(SnmpOlt $olt, int $slot, int $port, int $onuId): JsonResponse

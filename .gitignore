@@ -34,3 +34,4 @@ Thumbs.db
 /kusumavision-nms-docker.zip
 /kusumavision-nms-image.tar
 /kusumavision-nms-image.tar.gz
+public/downloads/*.apk

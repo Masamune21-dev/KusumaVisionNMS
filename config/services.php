@@ -42,6 +42,13 @@ return [
         'password' => env('ACS_PASSWORD', 'kusuma123!'),
     ],
 
+    // Firebase Cloud Messaging — push alarm ke aplikasi Android. Dormant sampai
+    // service-account JSON di-drop ke path ini (fitur tetap aman tanpa kredensial).
+    'fcm' => [
+        'credentials' => env('FIREBASE_CREDENTIALS', storage_path('app/firebase/service-account.json')),
+        'min_severity' => env('FCM_MIN_SEVERITY', 'major'),
+    ],
+
     'snmp_poller' => [
         'driver' => env('SNMP_POLLER_DRIVER', 'php'),
         'binary' => env('SNMP_POLLER_BINARY', base_path('bin/kv-snmp-poller')),

@@ -65,6 +65,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/telegram/test', [SettingsController::class, 'testTelegram'])->name('settings.telegram.test');
         Route::post('/settings/telegram/webhook/register', [SettingsController::class, 'registerWebhook'])->name('settings.telegram.webhook.register');
         Route::post('/settings/telegram/webhook/delete', [SettingsController::class, 'deleteWebhook'])->name('settings.telegram.webhook.delete');
+        Route::put('/settings/fcm', [SettingsController::class, 'updateFcm'])->name('settings.fcm.update');
+        Route::post('/settings/fcm/send', [SettingsController::class, 'sendFcmManual'])->name('settings.fcm.send');
     });
 
     // OLT C-Data (non-ZTE: EPON 17409 & GPON 34592) — v1 read-only monitoring.

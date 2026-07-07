@@ -48,8 +48,17 @@ class OltController extends Controller
             ];
         })->values();
 
+        $driver = SmartOltSupport::driverKey(
+            $olt,
+            data_get($result, 'system.sys_descr'),
+            data_get($result, 'system.sys_object_id'),
+        );
+
         return response()->json([
             'data' => array_merge($this->summary($olt), [
+                // Peta kapabilitas per-driver — klien pakai untuk menampilkan/menyembunyikan
+                // aksi (registrasi ZTE-only, reboot/rename, unconfigured discovery, dll).
+                'capabilities' => SmartOltSupport::capabilities($driver, $olt),
                 'system' => [
                     'sys_name' => data_get($result, 'system.sys_name'),
                     'sys_descr' => data_get($result, 'system.sys_descr'),

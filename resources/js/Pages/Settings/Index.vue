@@ -8,7 +8,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Trash2, Upload } from '@lucide/vue';
+import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps({
@@ -16,6 +16,7 @@ const props = defineProps({
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
     acs: { type: Object, default: () => ({ url: '', username: '', password_set: false, default_url: '', default_username: '' }) },
     telegram: { type: Object, required: true },
+    fcm: { type: Object, required: true },
     api: { type: Object, default: () => ({ enabled: false, base_url: '', public_status_url: '', new_token: null, tokens: [] }) },
     severityOptions: { type: Array, default: () => [] },
     alarmTypeOptions: { type: Array, default: () => [] },
@@ -28,6 +29,7 @@ const tabs = [
     { key: 'general', label: 'Umum', icon: SlidersHorizontal },
     { key: 'acs', label: 'ACS / TR069', icon: Cloud },
     { key: 'telegram', label: 'Bot Telegram', icon: Send },
+    { key: 'fcm', label: 'Notifikasi Mobile', icon: Smartphone },
     { key: 'api', label: 'API & Token', icon: KeyRound },
 ];
 const activeTab = ref('general');
@@ -176,6 +178,45 @@ const deleteWebhook = () => {
 
 const lastSent = computed(() =>
     props.telegram.last_sent_at ? formatDateTime(props.telegram.last_sent_at) : null,
+);
+
+/* ------------------------------------------------------------------ */
+/* Tab: Notifikasi Mobile (FCM)                                        */
+/* ------------------------------------------------------------------ */
+const fcmForm = useForm({
+    enabled: props.fcm.enabled,
+    min_severity: props.fcm.min_severity,
+    notify_on_raise: props.fcm.notify_on_raise,
+    notify_on_clear: props.fcm.notify_on_clear,
+    notify_types: [...(props.fcm.notify_types ?? [])],
+});
+
+const isFcmTypeSelected = (value) => fcmForm.notify_types.includes(value);
+const toggleFcmType = (value) => {
+    fcmForm.notify_types = isFcmTypeSelected(value)
+        ? fcmForm.notify_types.filter((v) => v !== value)
+        : [...fcmForm.notify_types, value];
+};
+const allFcmTypesSelected = computed(
+    () => props.alarmTypeOptions.length > 0 && fcmForm.notify_types.length === props.alarmTypeOptions.length,
+);
+const toggleAllFcmTypes = () => {
+    fcmForm.notify_types = allFcmTypesSelected.value ? [] : props.alarmTypeOptions.map((opt) => opt.value);
+};
+const submitFcm = () => {
+    fcmForm.put(route('settings.fcm.update'), { preserveScroll: true });
+};
+
+const fcmSendForm = useForm({ title: '', body: '' });
+const sendFcmManual = () => {
+    fcmSendForm.post(route('settings.fcm.send'), {
+        preserveScroll: true,
+        onSuccess: () => fcmSendForm.reset(),
+    });
+};
+
+const fcmLastSent = computed(() =>
+    props.fcm.last_sent_at ? formatDateTime(props.fcm.last_sent_at) : null,
 );
 
 /* ------------------------------------------------------------------ */
@@ -609,6 +650,150 @@ const copyText = async (text, key) => {
                         </div>
                     </div>
                 </form>
+
+                <!-- ============================ TAB: NOTIFIKASI MOBILE (FCM) ============================ -->
+                <div v-show="activeTab === 'fcm'" class="space-y-6">
+                    <form class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="submitFcm">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                                <Smartphone class="h-5 w-5 text-cyan-300" />
+                            </div>
+                            <div class="flex-1">
+                                <h3 class="text-base font-semibold text-white">Notifikasi Aplikasi Mobile (Android)</h3>
+                                <p class="text-sm text-slate-400">Pilih alarm mana yang dikirim sebagai push ke aplikasi Android via Firebase (FCM).</p>
+                            </div>
+                            <span
+                                class="hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline"
+                                :class="fcm.device_count > 0 ? 'bg-cyan-500/15 text-cyan-300' : 'bg-slate-500/15 text-slate-400'"
+                            >
+                                {{ fcm.device_count }} perangkat
+                            </span>
+                        </div>
+
+                        <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
+                            <div v-if="!fcm.credentials_ready" class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 lg:col-span-2">
+                                <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
+                                <p class="text-sm text-amber-200">
+                                    Kredensial Firebase belum dipasang di server (service-account JSON + <span class="font-mono text-xs">FIREBASE_CREDENTIALS</span>). Push tidak akan terkirim sampai itu diatur.
+                                </p>
+                            </div>
+
+                            <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
+                                <span>
+                                    <span class="block text-sm font-medium text-white">Aktifkan push alarm ke mobile</span>
+                                    <span class="block text-xs text-slate-400">Bila nonaktif, alarm tetap tersimpan tetapi tidak dikirim ke aplikasi mobile.</span>
+                                </span>
+                                <Checkbox v-model:checked="fcmForm.enabled" class="h-5 w-5" />
+                            </label>
+
+                            <div>
+                                <InputLabel for="fcm_min_severity" value="Severity minimum" />
+                                <select
+                                    id="fcm_min_severity"
+                                    v-model="fcmForm.min_severity"
+                                    class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
+                                >
+                                    <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                </select>
+                                <InputError :message="fcmForm.errors.min_severity" class="mt-2" />
+                                <p class="mt-1 text-xs text-slate-400">Hanya alarm dengan severity ini atau lebih tinggi yang dikirim.</p>
+                            </div>
+
+                            <div>
+                                <InputLabel value="Pemicu notifikasi" />
+                                <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                    <label class="flex items-start gap-3">
+                                        <Checkbox v-model:checked="fcmForm.notify_on_raise" class="mt-0.5" />
+                                        <span>
+                                            <span class="block text-sm font-medium text-white">Kirim saat alarm baru muncul</span>
+                                            <span class="block text-xs text-slate-400">Push ketika alarm baru ter-trigger.</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-3">
+                                        <Checkbox v-model:checked="fcmForm.notify_on_clear" class="mt-0.5" />
+                                        <span>
+                                            <span class="block text-sm font-medium text-white">Kirim saat alarm pulih (cleared)</span>
+                                            <span class="block text-xs text-slate-400">Push ketika alarm kembali normal.</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="lg:col-span-2">
+                                <div class="flex items-center justify-between gap-3">
+                                    <InputLabel value="Jenis alarm yang dikirim" />
+                                    <button type="button" class="text-xs font-medium text-cyan-300 hover:text-cyan-200" @click="toggleAllFcmTypes">
+                                        {{ allFcmTypesSelected ? 'Kosongkan semua' : 'Pilih semua' }}
+                                    </button>
+                                </div>
+                                <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
+                                    <label
+                                        v-for="opt in alarmTypeOptions"
+                                        :key="opt.value"
+                                        class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
+                                    >
+                                        <Checkbox :checked="isFcmTypeSelected(opt.value)" class="h-4 w-4" @update:checked="toggleFcmType(opt.value)" />
+                                        <span class="text-sm text-slate-200">{{ opt.label }}</span>
+                                    </label>
+                                </div>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    Hanya jenis alarm yang dicentang yang dikirim.
+                                    <span v-if="fcmForm.notify_types.length === 0" class="text-amber-400">Tidak ada yang dicentang — semua push alarm dimatikan.</span>
+                                </p>
+                                <InputError :message="fcmForm.errors.notify_types" class="mt-2" />
+                            </div>
+
+                            <div v-if="fcmLastSent || fcm.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
+                                <p v-if="fcmLastSent" class="text-slate-400">Terakhir terkirim: <span class="text-slate-200">{{ fcmLastSent }}</span></p>
+                                <p v-if="fcm.last_error" class="mt-1 text-red-400">Galat terakhir: {{ fcm.last_error }}</p>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
+                                <PrimaryButton :disabled="fcmForm.processing">Simpan</PrimaryButton>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Kirim notifikasi manual -->
+                    <form class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="sendFcmManual">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Bell class="h-5 w-5 text-sky-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">Kirim Notifikasi Manual</h3>
+                                <p class="text-sm text-slate-400">Broadcast pesan ke semua aplikasi mobile terdaftar ({{ fcm.device_count }} perangkat).</p>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-x-6 gap-y-5 p-5 sm:p-6">
+                            <div>
+                                <InputLabel for="fcm_title" value="Judul" />
+                                <TextInput id="fcm_title" v-model="fcmSendForm.title" type="text" class="mt-1 block w-full" maxlength="120" placeholder="mis. Pemeliharaan jaringan" />
+                                <InputError :message="fcmSendForm.errors.title" class="mt-2" />
+                            </div>
+                            <div>
+                                <InputLabel for="fcm_body" value="Isi pesan" />
+                                <textarea
+                                    id="fcm_body"
+                                    v-model="fcmSendForm.body"
+                                    rows="3"
+                                    maxlength="500"
+                                    class="mt-1 block w-full rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
+                                    placeholder="Tulis pesan yang akan muncul di notifikasi HP…"
+                                ></textarea>
+                                <InputError :message="fcmSendForm.errors.body" class="mt-2" />
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3">
+                                <PrimaryButton :disabled="fcmSendForm.processing || !fcm.credentials_ready || fcm.device_count === 0">
+                                    <Bell class="mr-2 h-4 w-4" />
+                                    {{ fcmSendForm.processing ? 'Mengirim…' : 'Kirim ke Semua Perangkat' }}
+                                </PrimaryButton>
+                                <span v-if="fcm.device_count === 0" class="text-xs text-slate-500">Belum ada perangkat terdaftar (user login di app dulu).</span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
 
                 <!-- ============================ TAB: API & TOKEN ============================ -->
                 <div v-show="activeTab === 'api'" class="space-y-6">

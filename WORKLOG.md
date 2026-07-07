@@ -3467,3 +3467,104 @@ Notes:
   bot tidak menulis cache sama sekali.
 - Verifikasi: suite penuh **259 passed** (1403 assertions), Pint bersih.
 - **Deploy**: hanya jalur request web (webhook) → cukup opcache php-fpm, tanpa restart worker.
+
+## Aplikasi Android (Flutter) + ekstensi REST API v1 + FCM — 2026-07-06
+
+Aplikasi Android pendamping di `mobile/` (Flutter 3.44, Riverpod v2, dio, go_router,
+Material 3 dark-glass cyan) plus toolchain build di server & perluasan REST API v1
+(baca + tulis) dan push notifikasi FCM. Referensi desain: NOC dashboard dark glassmorphism.
+
+Created:
+
+- **Toolchain server** (`/opt`): OpenJDK 17, Android SDK (cmdline-tools, platform-tools,
+  platforms;android-35/36, build-tools;35/36), Flutter stable 3.44.4, `/etc/profile.d/flutter.sh`.
+  `bin/build-apk.sh` (build+analyze+salin ke `public/downloads/kusumavision-nms.apk`).
+- **API baca**: `app/Services/GlobalSearchService.php` (dipakai bersama web `DashboardSearchController`
+  + `Api/V1/SearchController`), `Api/V1/{UnconfiguredOnuController,OnuRegistrationController}`,
+  `OnuController@portIndex` (+ `OnuInventoryService::forPort`), `app/Services/Zte/OnuRegistrationFormDefaults.php`.
+  `OltController@show` kini kirim `capabilities`. Throttle `throttle:api` (120/mnt) dipasang + login `10/1`.
+- **API tulis** (grup `role:admin,operator` + `BlockDemoWrites`): `Api/V1/OnuActionController`
+  (reboot/rename/refresh-port/refresh-unconfigured), `OnuRegistrationController@preview|store`,
+  `app/Services/Zte/OnuRegistrationService.php` (build script → audit → optional execute).
+- **FCM**: `fcm_device_tokens` (migration+model), `Api/V1/DeviceController` (POST/DELETE `/devices`),
+  `app/Services/Fcm/FcmAlarmNotifier.php` + `app/Jobs/SendFcmAlarmNotifications.php` (kreait/laravel-firebase);
+  hook di `AlarmEvaluator` di samping dispatch Telegram. `config/services.php` → `fcm` (dormant tanpa kredensial).
+- **Flutter** `mobile/lib/`: auth (Sanctum+secure storage), dashboard, search, OLT list/detail,
+  ONU per port/detail (RX berwarna), unconfigured (+discovery), alarm (filter severity), registrasi
+  ONU (options→form→preview→eksekusi), aksi reboot/rename, FCM (channel `alarms`, deep-link tap).
+  Shim ikon `core/icons.dart` (Material Icons; `lucide_icons` tak kompatibel IconData final).
+
+Changed:
+
+- `routes/api.php`: `$apiEnabled=true`, rute baca+tulis+devices, throttle.
+- `DashboardSearchController` → delegasi `GlobalSearchService`. `docs/API.md` diperbarui (write + FCM).
+- `mobile/android`: `applicationId net.kusumavision.nms`, minSdk 23, desugaring, google-services
+  bersyarat (apply hanya bila `google-services.json` ada), signing key.properties opsional.
+  `gradle.properties` dikonstrain server 8GB (heap 2g, daemon off, worker 2).
+
+Notes:
+
+- **APK release build sukses 54.2MB** (`flutter build apk --release`, dgn firebase deps + desugaring).
+- **Verifikasi API live** (token nyata, OLT id=1 OLT-C320-PATI): olts/detail(+capabilities)/port-onus
+  (RX -13.842 dBm, nama pelanggan)/unconfigured/search/register-options/**register preview** (script CLI
+  ZTE valid dari profil nyata). Device register→delete→0 rows. Demo diblokir (403/404). Throttle header aktif.
+- **Test**: suite penuh **275 passed**; +16 test API (`ApiV1ReadExtrasTest`, `ApiV1DeviceTest`,
+  `ApiV1WriteTest`). `flutter analyze` bersih, unit test model lulus. Pint bersih.
+- **Gotcha terkonfirmasi**: `php artisan config:cache` (prod) membuat test nyasar ke config prod
+  (27 gagal) → `config:clear` sebelum test, `config:cache` sesudah. DB test ter-seed data demo →
+  asersi registrasi pakai `registration_id`/`withoutGlobalScopes`, bukan `firstOrFail`.
+- **Insiden**: build Gradle awal (`-Xmx8G` default template) memicu swap-thrash → guest reboot;
+  diperbaiki dengan konstrain gradle.properties. Prod pulih penuh (php-fpm/nginx/postgres/redis active).
+- **Deploy**: `migrate --force` (fcm_device_tokens), `config:cache` + reload php-fpm (rute API baru +
+  config fcm), `queue:restart` (worker rujuk job FCM baru). API kini AKTIF (`$apiEnabled=true`).
+- **FCM aktivasi**: taruh `mobile/android/app/google-services.json` + `storage/app/firebase/service-account.json`
+  + `FIREBASE_CREDENTIALS` di `.env`, rebuild APK, `config:cache`+`queue:restart`. Tanpa itu app tetap jalan.
+
+## 2026-07-07
+
+### Halaman Akun mobile + pengaturan & kirim-manual notifikasi FCM dari web
+
+Created:
+
+- `app/Models/FcmSetting.php` — singleton pengaturan push mobile (enabled, min_severity,
+  notify_on_raise/clear, notify_types) + default atribut (enabled/raise/major) agar aktif out-of-the-box.
+- `database/migrations/2026_07_07_000000_create_fcm_settings_table.php` — tabel `fcm_settings`.
+- `mobile/lib/features/account/account_screen.dart` — halaman Akun: info akun (nama/email/role/badge),
+  info aplikasi (versi via package_info_plus), tombol **Tes Push Notifikasi**, tombol **Keluar**.
+- `tests/Feature/SettingsFcmTest.php` — 5 test (default setting, update admin, non-admin 403,
+  kirim manual tanpa device → error, validasi title/body).
+
+Changed:
+
+- `mobile/android/app/build.gradle.kts` — **fix crash**: `namespace` dikembalikan ke
+  `net.kusumavision.kusumavision_nms` (cocok package `MainActivity.kt`) sedangkan `applicationId`
+  tetap `net.kusumavision.nms`. Sebelumnya mismatch → `.MainActivity` me-resolve ke class tak ada →
+  `ClassNotFoundException` → app close seketika saat icon dipencet (terverifikasi via `aapt dump badging`).
+- `app/Services/Fcm/FcmAlarmNotifier.php` — `active()` (kredensial + saklar Settings), `broadcast()`
+  (kirim manual ke semua device), `sendTest()`; `notify()` kini baca `FcmSetting` (severity/raise/clear/tipe)
+  + catat `last_sent_at`/`last_error`.
+- `app/Http/Controllers/Api/V1/DeviceController.php` — endpoint `POST /devices/test` (kirim tes ke
+  perangkat user; lapor "belum terdaftar"/"FCM belum dikonfigurasi").
+- `app/Services/AlarmEvaluator.php` — dispatch job FCM pakai `active()` (hormati saklar Settings).
+- `app/Http/Controllers/SettingsController.php` — payload `fcm` (+device_count, credentials_ready),
+  `updateFcm()`, `sendFcmManual()`.
+- `resources/js/Pages/Settings/Index.vue` — tab baru **"Notifikasi Mobile"**: form pengaturan
+  (severity/raise-clear/jenis alarm) + kartu **Kirim Notifikasi Manual** (judul+isi → broadcast).
+- `routes/{web,api}.php` — `settings.fcm.update|send`, `api.devices.test`.
+- `mobile/lib/{router,app,main}.dart` + `core/{fcm/fcm_service,api/nms_api,icons}.dart`,
+  `features/shell/home_shell.dart` — tab **Akun**, `testPush()`, ikon user/info, `main()` bungkus
+  `runZonedGuarded` + ErrorWidget (crash startup tampil di layar, bukan close diam).
+- `mobile/pubspec.yaml` — +`package_info_plus`.
+
+Notes:
+
+- **Insiden crash startup**: penyebabnya namespace≠package MainActivity (bawaan dari perubahan
+  applicationId di Fase 3), bukan Firebase. Firebase/`google-services.json` valid & konsisten.
+  Setelah fix, `launchable-activity` = `net.kusumavision.kusumavision_nms.MainActivity` (class ada di dex).
+- **Diagnosa tanpa device**: server ini tak ada `/dev/kvm` (emulator tak praktis) & HP tak tercolok;
+  root cause ditemukan via inspeksi APK (`aapt`), bukan logcat.
+- **Verifikasi live**: FCM `credentials=YA active=YA devices=1` (HP user sukses daftar token saat login).
+  Endpoint `devices/test` & rute `settings.fcm.*` terdaftar; site 200. Push default: major+ saat raise, semua tipe.
+- **Test**: suite terkait **91 passed** + `SettingsFcmTest` 5 passed; `flutter analyze` bersih. Pint bersih.
+- **Deploy**: `migrate --force` (fcm_settings), `npm run build` (tab Settings), `config:cache` +
+  reload php-fpm + `queue:restart`. APK di-rebuild (halaman Akun) → `public/downloads/kusumavision-nms.apk`.

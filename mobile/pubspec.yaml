@@ -1,0 +1,50 @@
+name: kusumavision_nms
+description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring & provisioning OLT/ONU FTTH GPON."
+publish_to: 'none'
+
+# versionName+versionCode APK. Bump saat rilis.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management — Riverpod v2 (tanpa codegen).
+  flutter_riverpod: ^2.6.1
+
+  # HTTP client + interceptor Bearer token.
+  dio: ^5.7.0
+
+  # Navigasi + deep-link (dipakai FCM tap → detail ONU).
+  go_router: ^14.6.2
+
+  # Penyimpanan token aman (Keystore Android).
+  flutter_secure_storage: ^9.2.2
+
+  # Firebase Cloud Messaging (Fase 4). firebase_core wajib menyertai.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.5
+  flutter_local_notifications: ^18.0.1
+
+  # Nama device untuk label token & registrasi.
+  device_info_plus: ^11.2.0
+
+  # Versi & info aplikasi (halaman Akun).
+  package_info_plus: ^8.1.2
+
+
+  # Format tanggal relatif ("5 menit lalu").
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

@@ -223,7 +223,38 @@ Ringkasan:
 | GET    | `/olts/{olt}`                                       | Detail 1 OLT (system, port, ONU)        |
 | GET    | `/onus`                                            | Daftar ONU lintas-OLT (filter+paginasi) |
 | GET    | `/olts/{olt}/onus/{slot}/{port}/{onuId}`           | Detail 1 ONU                            |
+| GET    | `/olts/{olt}/ports/{slot}/{port}/onus`             | Daftar ONU 1 PON port (aplikasi mobile) |
+| GET    | `/olts/{olt}/unconfigured`                          | ONU unconfigured (autofind, ZTE)        |
+| GET    | `/olts/{olt}/register/options`                      | Profil + default form registrasi ONU    |
+| GET    | `/search?q=`                                        | Pencarian global OLT + ONU              |
 | GET    | `/alarms`                                          | Daftar alarm                            |
+| POST   | `/devices`                                          | Daftarkan token FCM (push Android)      |
+| DELETE | `/devices`                                          | Cabut token FCM                         |
+
+**Aksi tulis** (butuh role `admin`/`operator`; user `demo` diblokir — 403):
+
+| Method | Path                                                    | Fungsi                          |
+|--------|---------------------------------------------------------|---------------------------------|
+| POST   | `/olts/{olt}/register/preview`                          | Preview script CLI (tanpa OLT)  |
+| POST   | `/olts/{olt}/register`                                  | Registrasi ONU (`execute` bool) |
+| POST   | `/olts/{olt}/unconfigured/refresh`                      | Discovery unconfigured live     |
+| POST   | `/olts/{olt}/ports/{slot}/{port}/refresh`               | Re-scan ONU 1 port (live SNMP)  |
+| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot`         | Reboot ONU                      |
+| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name`           | Ubah nama/deskripsi ONU         |
+
+> **Catatan mobile:** endpoint baca `/search`, `/olts/{olt}/ports/.../onus`, `/olts/{olt}/unconfigured`,
+> `/olts/{olt}/register/options` + aksi tulis di atas ditambahkan untuk aplikasi Android (`mobile/`).
+> `GET /olts/{olt}` kini menyertakan `capabilities` (mis. `supports_provisioning`, `supports_reboot`)
+> agar klien menampilkan/menyembunyikan aksi per-driver. Registrasi ONU **ZTE-only** (mode dasar);
+> aksi write mengeksekusi Telnet/SNMP sinkron (timeout klien ~120 dtk). Push FCM: lihat §7.
+
+### Push notifikasi FCM (Firebase)
+
+Aplikasi mendaftarkan token perangkat via `POST /devices` setelah login. Saat `AlarmEvaluator`
+menaikkan/menurunkan alarm, server men-dispatch job (`SendFcmAlarmNotifications`) yang mengirim
+push ke semua token (filter minimal severity `FCM_MIN_SEVERITY`, default `major`). Aktif setelah
+service-account JSON dipasang di `storage/app/firebase/service-account.json` + `FIREBASE_CREDENTIALS`
+di `.env`; tanpa itu fitur dormant (tak memengaruhi polling).
 
 ### 3.1. `GET /summary` — ringkasan dashboard
 

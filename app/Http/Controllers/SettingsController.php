@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AcsSetting;
 use App\Models\AlarmEvent;
+use App\Models\FcmDeviceToken;
+use App\Models\FcmSetting;
 use App\Models\GeneralSetting;
 use App\Models\TelegramSetting;
+use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\Telegram\TelegramWebhookManager;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +27,7 @@ class SettingsController extends Controller
         $setting = TelegramSetting::instance();
         $general = GeneralSetting::instance();
         $acs = AcsSetting::instance();
+        $fcm = FcmSetting::instance();
 
         return Inertia::render('Settings/Index', [
             'api' => [
@@ -60,6 +64,18 @@ class SettingsController extends Controller
                 'webhook_set' => filled($setting->webhook_secret),
                 'last_sent_at' => $setting->last_sent_at?->toIso8601String(),
                 'last_error' => $setting->last_error,
+            ],
+            'fcm' => [
+                // Kredensial Firebase terpasang di server (kapabilitas teknis).
+                'credentials_ready' => app(FcmAlarmNotifier::class)->enabled(),
+                'enabled' => (bool) $fcm->enabled,
+                'min_severity' => $fcm->min_severity ?? AlarmEvent::SEVERITY_MAJOR,
+                'notify_on_raise' => (bool) $fcm->notify_on_raise,
+                'notify_on_clear' => (bool) $fcm->notify_on_clear,
+                'notify_types' => $fcm->notifyTypes(),
+                'device_count' => FcmDeviceToken::query()->count(),
+                'last_sent_at' => $fcm->last_sent_at?->toIso8601String(),
+                'last_error' => $fcm->last_error,
             ],
             'severityOptions' => [
                 ['value' => AlarmEvent::SEVERITY_WARNING, 'label' => 'Warning (semua alarm)'],
@@ -269,6 +285,73 @@ class SettingsController extends Controller
         }
 
         return back()->with('error', 'Gagal menghapus webhook: '.$result['message']);
+    }
+
+    /**
+     * Simpan pengaturan push notifikasi mobile (FCM).
+     */
+    public function updateFcm(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'enabled' => ['boolean'],
+            'min_severity' => ['required', Rule::in([
+                AlarmEvent::SEVERITY_WARNING,
+                AlarmEvent::SEVERITY_MINOR,
+                AlarmEvent::SEVERITY_MAJOR,
+                AlarmEvent::SEVERITY_CRITICAL,
+            ])],
+            'notify_on_raise' => ['boolean'],
+            'notify_on_clear' => ['boolean'],
+            'notify_types' => ['array'],
+            'notify_types.*' => [Rule::in(AlarmEvent::types())],
+        ]);
+
+        $setting = FcmSetting::instance();
+
+        $setting->fill([
+            'enabled' => (bool) ($validated['enabled'] ?? false),
+            'min_severity' => $validated['min_severity'],
+            'notify_on_raise' => (bool) ($validated['notify_on_raise'] ?? false),
+            'notify_on_clear' => (bool) ($validated['notify_on_clear'] ?? false),
+        ]);
+
+        if ($request->has('notify_types')) {
+            $setting->notify_types = array_values(
+                array_intersect(AlarmEvent::types(), $validated['notify_types'] ?? [])
+            );
+        }
+
+        $setting->save();
+
+        return back()->with('success', 'Pengaturan notifikasi mobile tersimpan.');
+    }
+
+    /**
+     * Kirim notifikasi manual dari web ke semua aplikasi mobile terdaftar.
+     */
+    public function sendFcmManual(Request $request, FcmAlarmNotifier $notifier): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:120'],
+            'body' => ['required', 'string', 'max:500'],
+        ]);
+
+        if (! $notifier->enabled()) {
+            return back()->with('error', 'Push FCM belum dikonfigurasi di server (kredensial Firebase belum dipasang).');
+        }
+
+        $res = $notifier->broadcast($validated['title'], $validated['body']);
+
+        if ($res['ok']) {
+            return back()->with('success', 'Notifikasi terkirim ke '.$res['sent'].' perangkat.');
+        }
+
+        $reason = match ($res['reason'] ?? null) {
+            'no_tokens' => 'Belum ada perangkat mobile yang terdaftar.',
+            default => 'Gagal mengirim: '.($res['error'] ?? 'tidak diketahui'),
+        };
+
+        return back()->with('error', $reason);
     }
 
     /**

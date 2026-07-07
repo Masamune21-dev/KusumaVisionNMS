@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Jobs\SendFcmAlarmNotifications;
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
+use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
@@ -443,6 +445,16 @@ class AlarmEvaluator
         if ($raisedAlarms !== [] || $clearedAlarms !== []) {
             ($this->telegram ??= app(TelegramNotifier::class))
                 ->notify($olt, $raisedAlarms, $clearedAlarms);
+
+            // Push FCM ke aplikasi Android — di queue agar tak menahan polling.
+            // Hanya di-dispatch bila kredensial ada DAN diaktifkan admin di Settings.
+            if (app(FcmAlarmNotifier::class)->active()) {
+                SendFcmAlarmNotifications::dispatch(
+                    $olt->id,
+                    array_map(fn (AlarmEvent $a) => $a->id, $raisedAlarms),
+                    array_map(fn (AlarmEvent $a) => $a->id, $clearedAlarms),
+                );
+            }
         }
 
         return [
