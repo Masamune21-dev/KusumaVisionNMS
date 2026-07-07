@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Api;
 
+use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteRemoteOnuService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -164,5 +166,29 @@ class ApiV1WriteTest extends TestCase
 
         $olt->refresh();
         $this->assertSame('Baru', $olt->last_test_result['port_onus']['1_1']['onus'][0]['name']);
+    }
+
+    public function test_refresh_port_non_zte_queries_driver(): void
+    {
+        $olt = $this->seedOlt();
+        $operator = User::factory()->create();
+
+        $driver = Mockery::mock(SmartOltSnmpDriver::class);
+        $driver->shouldReceive('getRegisteredOnusByPort')->once()
+            ->andReturn([['onu_id' => 9, 'slot' => 1, 'port' => 1, 'online' => true]]);
+
+        $resolver = Mockery::mock(SmartOltSnmpServiceResolver::class);
+        $resolver->shouldReceive('isNonZte')->andReturn(true);
+        $resolver->shouldReceive('resolve')->andReturn($driver);
+        $this->app->instance(SmartOltSnmpServiceResolver::class, $resolver);
+
+        $this->actingAs($operator, 'sanctum')
+            ->postJson("/api/v1/olts/{$olt->id}/ports/1/1/refresh")
+            ->assertOk()
+            ->assertJsonPath('data.ok', true)
+            ->assertJsonPath('data.count', 1);
+
+        $olt->refresh();
+        $this->assertSame(9, $olt->last_test_result['port_onus']['1_1']['onus'][0]['onu_id']);
     }
 }

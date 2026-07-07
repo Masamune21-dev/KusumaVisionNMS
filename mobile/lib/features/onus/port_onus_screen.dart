@@ -65,11 +65,9 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(portOnusProvider(_arg));
-    // Refresh live hanya untuk OLT ZTE (endpoint dijaga non-ZTE) + user boleh tulis.
-    // Tampil optimistis selagi detail OLT belum termuat; sembunyi hanya bila jelas non-ZTE.
-    final canWrite = ref.watch(authControllerProvider).user?.canWrite ?? false;
-    final oltDetail = ref.watch(oltDetailProvider(widget.oltId)).valueOrNull;
-    final canRefreshLive = canWrite && (oltDetail == null || oltDetail.summary.driver == 'zte');
+    // Refresh live per-port didukung semua family (ZTE: walk subtree; non-ZTE: query
+    // per-port lewat driver). Cukup gate izin tulis (admin/operator, non-demo).
+    final canRefreshLive = ref.watch(authControllerProvider).user?.canWrite ?? false;
 
     return Scaffold(
       appBar: AppBar(

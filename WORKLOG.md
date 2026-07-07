@@ -2,48 +2,22 @@
 
 ## 2026-07-07
 
-### Role "Partner" — OLT ter-assign, alarm ter-scope, bot Telegram sendiri, mobile ikut
+### API/mobile — refresh live per-port untuk OLT non-ZTE (C-Data/HiOSO)
 
-**Permintaan user:** buat role **partner** yang hanya bisa mengelola (lihat + edit) OLT yang admin
-izinkan, hanya menerima alarm dari OLT itu, punya **bot Telegram sendiri** yang partner daftarkan,
-dan di **mobile** otomatis dibatasi ke OLT yang dipilihkan admin.
+Changed:
 
-**Desain inti:** satu **global scope** `PartnerOltScope` pada `SnmpOlt` (meniru `DemoScope`) menyembunyikan
-OLT non-assigned di seluruh app (web+API+peta+search+report+alarm) & memberi **404** via route-model
-binding — tanpa menyentuh tiap controller. Partner = setara operator, TAPI hanya pada OLT ter-assign;
-**tidak** boleh tambah/hapus device OLT, **tidak** akses Users/Settings/Audit.
+- `app/Http/Controllers/Api/V1/OnuActionController.php` — `refreshPort` kini mendukung non-ZTE:
+  bila `SmartOltSnmpServiceResolver::isNonZte`, ambil ONU per-port lewat driver
+  (`getRegisteredOnusByPort`) dan tulis `port_onus.{slot}_{port}` bentuk-ZTE; ZTE tetap walk subtree.
+- `mobile/lib/features/onus/port_onus_screen.dart` — tombol refresh live tampil untuk SEMUA family
+  (tak lagi khusus ZTE); cukup gate izin tulis (`canWrite`).
+- `mobile/pubspec.yaml` — bump versi APK 1.0.1+2 → 1.0.2+3.
+- `tests/Feature/Api/ApiV1WriteTest.php` — tambah `test_refresh_port_non_zte_queries_driver`
+  (verifikasi jalur driver non-ZTE menulis cache port).
 
-**Created:**
-- `app/Models/Scopes/PartnerOltScope.php` — batasi partner ke `olt_user` (kolom `id` utk SnmpOlt,
-  `snmp_olt_id` utk model lain); no-op utk admin/operator/demo & konteks console/queue.
-- Migrasi `..._create_olt_user_table.php` (pivot `user_id`×`snmp_olt_id`) & `..._create_partner_telegram_bots_table.php`.
-- `app/Contracts/Telegram/TelegramBotConfig.php` + `app/Models/Concerns/TelegramBotConfigTrait.php` —
-  kontrak & logika bot bersama; `TelegramSetting` (global) & `PartnerTelegramBot` (per-partner) implement.
-- `app/Http/Controllers/Partner/TelegramBotController.php` + `resources/js/Pages/Partner/TelegramBot.vue`
-  (halaman self-service "Bot Telegram Saya", rute `partner.telegram.*` middleware `role:partner`).
-- Test `tests/Feature/PartnerRoleTest.php` (11) & `PartnerTelegramBotTest.php` (5) — semua hijau.
+Notes:
 
-**Changed:**
-- `UserRole` enum + `User` (relasi `partnerOlts`, `telegramBot`, `allowedOltIds()` [query pivot langsung
-  demi hindari **rekursi** dgn scope], `isPartner()`, `canManageOlt()` +partner, `canManageOltInventory()`).
-- `SnmpOlt`/`AlarmEvent`/`PollingEvent`/`SmartOltOnuRegistration`/`OnuMapPin` — daftar `PartnerOltScope`.
-- `routes/web.php` — create/store/destroy device OLT (3 controller) di-gate `role:admin,operator`;
-  webhook jadi `/telegram/webhook/{bot?}` (partner bot); grup `partner.telegram.*`.
-- `TelegramNotifier::notify()` — kirim ke bot global + tiap bot partner yg assigned ke OLT; `sendTo/
-  editMessage/answerCallback/sendTest/dispatch` terima `?TelegramBotConfig`. `TelegramWebhookManager` &
-  `TelegramCommandHandler` generik atas `TelegramBotConfig`. `TelegramWebhookController` memetakan
-  `{bot}`→PartnerTelegramBot + `Auth::setUser(partner)` (scope OLT command otomatis).
-- `FcmAlarmNotifier::notify()` — penerima dibatasi admin+operator ∪ partner assigned ke OLT (bukan broadcast).
-- `HandleInertiaRequests` share `auth.can.{is_partner,manage_olt_inventory}`; `Users/Index.vue` multiselect
-  OLT utk partner; `SmartOlt/Index.vue` tombol Tambah/Hapus OLT digate `manage_olt_inventory`; sidebar
-  "Bot Telegram Saya"; `bootstrap/app.php` CSRF-exempt `telegram/webhook/*`.
-- API: grup tulis `role:admin,operator,partner`; mobile `user.dart` `canWrite` +partner.
-
-**Notes/verifikasi:** `php artisan test` (sqlite in-memory) — 16 test baru hijau + suite lama.
-**Gotcha:** test nyasar ke pgsql krn config ter-cache → `config:clear` sebelum test, `config:cache` sesudah
-(lihat [[project_prod_deploy_gotchas]]). **Bug halus yg diperbaiki:** `allowedOltIds()` sempat query relasi
-`partnerOlts()` (SnmpOlt) → memicu PartnerOltScope → rekursi tak terhingga; diganti query tabel `olt_user`
-langsung. Setelah deploy: `config:cache` + `queue:restart` + daftar-ulang webhook bot (global & partner).
+- Melengkapi tombol refresh per-port di halaman web C-Data/HiOSO agar paritas fungsional di mobile.
 
 ## 2026-07-06
 

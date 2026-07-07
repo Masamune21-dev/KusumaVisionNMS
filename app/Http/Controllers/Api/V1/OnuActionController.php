@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\SnmpOlt;
+use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -84,13 +85,33 @@ class OnuActionController extends Controller
     }
 
     /**
-     * POST /api/v1/olts/{olt}/ports/{slot}/{port}/refresh — walk live subtree port ini.
+     * POST /api/v1/olts/{olt}/ports/{slot}/{port}/refresh — refresh ONU 1 port secara live.
+     *
+     * ZTE: walk subtree ONU-table port ini ({@see OltSnmpClient::portOnusSnapshot}).
+     * Non-ZTE (C-Data EPON/GPON, HiOSO): query per-port lewat driver SNMP
+     * ({@see SmartOltSnmpDriver::getRegisteredOnusByPort}) — sama seperti tombol refresh
+     * per-port di halaman web C-Data/HiOSO. Keduanya menulis `port_onus.{slot}_{port}`
+     * berbentuk-ZTE yang dibaca endpoint GET port-onus.
      */
-    public function refreshPort(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): JsonResponse
+    public function refreshPort(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, SmartOltSnmpServiceResolver $resolver): JsonResponse
     {
-        $this->assertNonZteGuard($olt);
-
-        $result = $client->portOnusSnapshot($olt, $slot, $port);
+        if ($resolver->isNonZte($olt)) {
+            try {
+                $onus = $resolver->resolve($olt)->getRegisteredOnusByPort($olt, $slot, $port);
+                $result = [
+                    'ok' => true,
+                    'slot' => $slot,
+                    'port' => $port,
+                    'onus' => $onus,
+                    'count' => count($onus),
+                    'error' => null,
+                ];
+            } catch (\Throwable $e) {
+                $result = ['ok' => false, 'slot' => $slot, 'port' => $port, 'onus' => [], 'count' => 0, 'error' => $e->getMessage()];
+            }
+        } else {
+            $result = $client->portOnusSnapshot($olt, $slot, $port);
+        }
         $result['refreshed_at'] = now()->toIso8601String();
 
         $snapshot = $olt->last_test_result ?? [];
