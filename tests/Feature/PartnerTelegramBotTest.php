@@ -9,6 +9,7 @@ use App\Models\TelegramSetting;
 use App\Models\User;
 use App\Services\Telegram\TelegramNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -90,6 +91,41 @@ class PartnerTelegramBotTest extends TestCase
         app(TelegramNotifier::class)->notify($other, [$this->alarmFor($other)], []);
 
         // Global tetap dapat; bot partner TIDAK (OLT-B bukan miliknya).
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/bot123:GLOBAL/sendMessage'));
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/bot999:PARTNER/'));
+    }
+
+    public function test_admin_alarm_off_silences_global_but_partner_still_receives(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $olt->forceFill(['alarms_enabled' => false])->save(); // admin matikan alarm OLT
+        $this->globalBot();
+        $this->partnerBot($olt); // saklar partner default on
+
+        app(TelegramNotifier::class)->notify($olt, [$this->alarmFor($olt)], []);
+
+        // Admin (bot global) TIDAK dapat; partner TETAP dapat (independen dari saklar admin).
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/bot123:GLOBAL/'));
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/bot999:PARTNER/sendMessage') && $r['chat_id'] === '222');
+    }
+
+    public function test_partner_alarm_off_silences_partner_bot_but_not_global(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1'); // saklar OLT (admin) default on
+        $this->globalBot();
+        $bot = $this->partnerBot($olt);
+        DB::table('olt_user') // partner matikan alarm webhook-nya sendiri utk OLT ini
+            ->where('user_id', $bot->user_id)
+            ->where('snmp_olt_id', $olt->id)
+            ->update(['alarms_enabled' => false]);
+
+        app(TelegramNotifier::class)->notify($olt, [$this->alarmFor($olt)], []);
+
+        // Global (admin) tetap dapat; bot partner TIDAK.
         Http::assertSent(fn ($r) => str_contains($r->url(), '/bot123:GLOBAL/sendMessage'));
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '/bot999:PARTNER/'));
     }

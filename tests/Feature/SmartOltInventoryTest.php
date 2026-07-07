@@ -10,6 +10,7 @@ use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuRxPowerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SmartOltInventoryTest extends TestCase
@@ -23,6 +24,52 @@ class SmartOltInventoryTest extends TestCase
         $response = $this->actingAs($user)->get(route('smartolt.index'));
 
         $response->assertOk();
+    }
+
+    public function test_alarms_toggle_flips_flag_per_olt(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.30.0.9',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $this->assertTrue($olt->alarms_enabled);
+
+        $this->actingAs($user)->post(route('smartolt.alarms.toggle', $olt))->assertRedirect();
+        $this->assertFalse($olt->fresh()->alarms_enabled);
+
+        $this->actingAs($user)->post(route('smartolt.alarms.toggle', $olt))->assertRedirect();
+        $this->assertTrue($olt->fresh()->alarms_enabled);
+    }
+
+    public function test_alarms_toggle_partner_flips_own_pivot_not_olt_flag(): void
+    {
+        $partner = User::factory()->partner()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'PATI-ZTE-C320',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.30.0.10',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+        $partner->partnerOlts()->sync([$olt->id]);
+
+        $pivot = fn () => (bool) DB::table('olt_user')
+            ->where('user_id', $partner->id)->where('snmp_olt_id', $olt->id)->value('alarms_enabled');
+
+        $this->assertTrue($pivot());
+
+        $this->actingAs($partner)->post(route('smartolt.alarms.toggle', $olt))->assertRedirect();
+
+        // Saklar partner (pivot) mati; saklar OLT (admin) TIDAK ikut berubah.
+        $this->assertFalse($pivot());
+        $this->assertTrue((bool) $olt->fresh()->alarms_enabled);
     }
 
     public function test_smartolt_detail_can_be_rendered(): void

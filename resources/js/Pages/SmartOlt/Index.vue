@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
+import { BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
@@ -89,6 +89,27 @@ const createHref = computed(() => {
 const telnetOlt = ref(null);
 const openTelnet = (olt) => {
     telnetOlt.value = { id: olt.id, name: olt.name, ip: olt.ip };
+};
+
+/* ------------------------------------------------------------------ */
+/* Toggle alarm per-OLT (mute) — satu route untuk semua family.        */
+/* ------------------------------------------------------------------ */
+const toggleAlarms = (olt) => {
+    router.post(route('smartolt.alarms.toggle', olt.id), {}, {
+        preserveScroll: true,
+    });
+};
+// Partner mengatur saklar webhook-nya sendiri; admin/operator mengatur saklar OLT.
+const isPartnerViewer = computed(() => Boolean(page.props.auth?.can?.is_partner));
+const alarmTitle = (olt) => {
+    if (isPartnerViewer.value) {
+        return olt.alarms_enabled
+            ? 'Alarm webhook Anda aktif — klik untuk matikan'
+            : 'Alarm webhook Anda mati — klik untuk aktifkan';
+    }
+    return olt.alarms_enabled
+        ? 'Alarm aktif — klik untuk matikan'
+        : 'Alarm mati — klik untuk aktifkan';
 };
 
 /* ------------------------------------------------------------------ */
@@ -254,6 +275,12 @@ const formatDate = (value) => formatDateTime(value);
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Alarm</span>
+                                        <span class="kv-mobile-value" :class="olt.alarms_enabled ? 'text-emerald-400' : 'text-amber-400'">
+                                            {{ olt.alarms_enabled ? 'On' : 'Off' }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">Test</span>
                                         <span
                                             class="kv-mobile-value font-semibold"
@@ -275,6 +302,14 @@ const formatDate = (value) => formatDateTime(value);
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <IconButton :href="route('smartolt.detail', olt.id)" title="Detail">
                                         <Eye class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canManageOlt"
+                                        :variant="olt.alarms_enabled ? 'success' : 'warning'"
+                                        :title="alarmTitle(olt)"
+                                        @click="toggleAlarms(olt)"
+                                    >
+                                        <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton title="Test SNMP" @click="testOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
@@ -342,6 +377,16 @@ const formatDate = (value) => formatDateTime(value);
                                                 ></span>
                                                 Auto-poll: {{ olt.polling_enabled ? 'On' : 'Off' }}
                                             </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="olt.alarms_enabled ? 'text-emerald-400' : 'text-amber-400'"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="olt.alarms_enabled ? 'bg-emerald-400' : 'bg-amber-400'"
+                                                ></span>
+                                                Alarm: {{ olt.alarms_enabled ? 'On' : 'Off' }}
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-4">
@@ -371,6 +416,14 @@ const formatDate = (value) => formatDateTime(value);
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :href="route('smartolt.detail', olt.id)" title="Detail">
                                                 <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt"
+                                                :variant="olt.alarms_enabled ? 'success' : 'warning'"
+                                                :title="alarmTitle(olt)"
+                                                @click="toggleAlarms(olt)"
+                                            >
+                                                <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton title="Test SNMP" @click="testOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
@@ -478,11 +531,25 @@ const formatDate = (value) => formatDateTime(value);
                                             {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
                                         </span>
                                     </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">Alarm</span>
+                                        <span class="kv-mobile-value" :class="olt.alarms_enabled ? 'text-emerald-400' : 'text-amber-400'">
+                                            {{ olt.alarms_enabled ? 'On' : 'Off' }}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <IconButton :href="nonZteRoute('detail', olt.id)" title="Detail">
                                         <Eye class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canManageOlt"
+                                        :variant="olt.alarms_enabled ? 'success' : 'warning'"
+                                        :title="alarmTitle(olt)"
+                                        @click="toggleAlarms(olt)"
+                                    >
+                                        <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
                                         title="Refresh ONU (scan penuh)"
@@ -553,6 +620,16 @@ const formatDate = (value) => formatDateTime(value);
                                                 ></span>
                                                 Auto-poll: {{ olt.polling_enabled ? `On · ${olt.poll_interval_minutes}m` : 'Off' }}
                                             </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="olt.alarms_enabled ? 'text-emerald-400' : 'text-amber-400'"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="olt.alarms_enabled ? 'bg-emerald-400' : 'bg-amber-400'"
+                                                ></span>
+                                                Alarm: {{ olt.alarms_enabled ? 'On' : 'Off' }}
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-4">
@@ -582,6 +659,14 @@ const formatDate = (value) => formatDateTime(value);
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :href="nonZteRoute('detail', olt.id)" title="Detail">
                                                 <Eye class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt"
+                                                :variant="olt.alarms_enabled ? 'success' : 'warning'"
+                                                :title="alarmTitle(olt)"
+                                                @click="toggleAlarms(olt)"
+                                            >
+                                                <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 title="Refresh ONU (scan penuh)"

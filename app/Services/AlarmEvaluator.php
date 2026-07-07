@@ -36,6 +36,9 @@ class AlarmEvaluator
      */
     public function evaluate(SnmpOlt $olt, array $previous = []): array
     {
+        // Evaluasi SELALU jalan (event tetap tercatat). Saklar alarm per-OLT/per-partner
+        // hanya menentukan SIAPA yang menerima notifikasi — di-gerbang di TelegramNotifier
+        // & FcmAlarmNotifier (bukan di sini).
         $snapshot = $olt->last_test_result ?? [];
         $active = $this->activeAlarms($olt);
 

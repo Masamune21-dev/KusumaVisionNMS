@@ -112,8 +112,10 @@ class CDataOltController extends Controller
             ];
         }
 
+        // Test hanya cek koneksi — TIDAK memuat port_onus. Merge ke cache scan terakhir
+        // supaya inventori ONU tak terhapus saat menekan Test.
         $olt->forceFill([
-            'last_test_result' => $result,
+            'last_test_result' => array_merge($olt->last_test_result ?? [], $result),
             'last_tested_at' => now(),
         ])->save();
 

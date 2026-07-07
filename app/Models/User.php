@@ -85,7 +85,9 @@ class User extends Authenticatable
      */
     public function partnerOlts(): BelongsToMany
     {
-        return $this->belongsToMany(SnmpOlt::class, 'olt_user')->withTimestamps();
+        return $this->belongsToMany(SnmpOlt::class, 'olt_user')
+            ->withPivot('alarms_enabled')
+            ->withTimestamps();
     }
 
     /**

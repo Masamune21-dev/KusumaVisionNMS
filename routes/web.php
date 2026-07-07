@@ -158,6 +158,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/smartolt/{olt}', [SmartOltController::class, 'destroy'])->middleware('role:admin,operator')->name('smartolt.destroy');
     Route::post('/smartolt/{olt}/telnet/token', [TelnetSessionController::class, 'token'])->name('smartolt.telnet.token');
     Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->name('smartolt.test');
+    // Toggle alarm per-OLT (mute) — dipakai semua family (ZTE/C-Data/HiOSO), hanya membalik flag SnmpOlt.
+    Route::post('/smartolt/{olt}/alarms/toggle', [SmartOltController::class, 'toggleAlarms'])->name('smartolt.alarms.toggle');
     Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->name('smartolt.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/copy', [SmartOltController::class, 'copyOnusToPort'])->name('smartolt.port-onus.copy');

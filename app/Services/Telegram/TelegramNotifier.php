@@ -58,13 +58,16 @@ class TelegramNotifier
     {
         $configs = [];
 
+        // Bot global admin (dipakai admin & operator) hanya bila saklar alarm OLT on.
         $global = TelegramSetting::instance();
-        if ($global->isReady()) {
+        if ($olt->alarms_enabled && $global->isReady()) {
             $configs[] = $global;
         }
 
+        // Bot partner hanya bila OLT di-assign ke partner tsb DAN saklar alarm partner utk OLT itu on.
         $partnerBots = PartnerTelegramBot::query()
-            ->whereHas('user.partnerOlts', fn ($q) => $q->whereKey($olt->id))
+            ->whereHas('user.partnerOlts', fn ($q) => $q->whereKey($olt->id)
+                ->where('olt_user.alarms_enabled', true))
             ->get();
 
         foreach ($partnerBots as $bot) {

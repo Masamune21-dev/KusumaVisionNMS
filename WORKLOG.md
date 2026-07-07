@@ -2,6 +2,55 @@
 
 ## 2026-07-07
 
+### Tombol aksi per-OLT: alarm On/Off — per-PENERIMA (admin/operator vs partner)
+
+**Permintaan user:** tombol per-OLT nyalakan/matikan alarm. Refinement: **partner** (punya webhook
+sendiri) bisa on/off alarm OLT yang di-assign ke dia — memengaruhi HANYA webhook/FCM partner tsb.
+**Admin** punya saklarnya sendiri: saat admin off, admin tak menerima, tapi partner tetap menerima
+bila saklar partner-nya on. **Operator** "ngikut administrator" (pakai saklar admin, tanpa toggle sendiri).
+
+**Keputusan penting:** saklar **bukan** mute evaluasi. Evaluasi alarm SELALU jalan (event tetap
+tercatat, dashboard akurat); yang di-gerbang hanya **pengiriman notifikasi** per-penerima.
+- `snmp_olts.alarms_enabled` = saklar **admin/operator** → gerbang bot global Telegram + FCM admin/operator.
+- `olt_user.alarms_enabled` (pivot) = saklar **per-partner-per-OLT** → gerbang bot Telegram partner + FCM partner.
+Independen satu sama lain. Berlaku semua family (ZTE, C-Data, HiOSO); satu route lintas tab.
+
+**Perubahan:**
+1. Migrasi `...add_alarms_enabled_to_snmp_olts_table` (kolom OLT) + `...add_alarms_enabled_to_olt_user_table`
+   (kolom pivot), keduanya boolean default `true`, non-destruktif.
+2. `app/Models/SnmpOlt.php` — `alarms_enabled` fillable+cast; `$attributes` default true (instance baru konsisten).
+3. `app/Models/User.php` — `partnerOlts()` `->withPivot('alarms_enabled')`.
+4. `app/Services/AlarmEvaluator.php` — hapus mute; evaluasi selalu jalan (gating pindah ke notifier).
+5. `app/Services/Telegram/TelegramNotifier.php` — `configsFor()`: bot global hanya bila `$olt->alarms_enabled`;
+   bot partner hanya bila pivot `olt_user.alarms_enabled=true`.
+6. `app/Services/Fcm/FcmAlarmNotifier.php` — `recipientUserIds()`: admin+operator hanya bila `$olt->alarms_enabled`;
+   partner independen, hanya bila pivot on.
+7. `app/Http/Controllers/SmartOltController.php` — `toggleAlarms(Request,SnmpOlt)` bercabang role (partner→pivot,
+   admin/operator→flag OLT); `serializeOlt.alarms_enabled` jadi **viewer-effective** via `viewerAlarmsEnabled()`
+   (partner lihat pivot-nya, memoized anti-N+1).
+8. `routes/web.php` — `POST smartolt/{olt}/alarms/toggle` → `smartolt.alarms.toggle`.
+9. `resources/js/Pages/SmartOlt/Index.vue` — IconButton toggle (`BellRing`/`BellOff`, judul role-aware
+   `alarmTitle()` — partner: "Alarm webhook Anda …") + indikator "Alarm: On/Off" di 4 lokasi.
+
+**Tests (hijau, 64+55):** `AlarmEngineTest::test_alarms_disabled_olt_still_records_events`;
+`PartnerTelegramBotTest::test_admin_alarm_off_silences_global_but_partner_still_receives` &
+`…partner_alarm_off_silences_partner_bot_but_not_global`; `SmartOltInventoryTest::…toggle_flips_flag_per_olt`
+& `…partner_flips_own_pivot_not_olt_flag`. Verifikasi live: `recipientUserIds(OLT564 admin-off)` = hanya
+partner. Build vite + `config:cache`/`route:cache` + `queue:restart` + reload php-fpm.
+
+### Fix: tombol "Test SNMP" menghapus inventori (ports/ONU jadi 0)
+
+**Keluhan user:** setelah menekan Test SNMP, GPON Port & Total ONU jadi 0 (dikira efek mematikan alarm —
+ternyata bukan; polling tetap jalan normal).
+
+**Diagnosis:** `test()` mengembalikan hanya `ok/driver/latency/system/error` (tanpa `ports`/`port_onus`),
+lalu controller **menimpa** seluruh `last_test_result` → inventori hasil poll terhapus sampai poll berikutnya.
+`PollOltJob` justru `array_merge`. Terpicu saat user menekan Test; independen dari fitur alarm.
+
+**Perbaikan:** `SmartOltController::test()`, `CDataOltController::test()`, `HiosoOltController::test()` kini
+`array_merge($olt->last_test_result ?? [], $result)` — cek koneksi memperbarui ok/system/latency tanpa
+menghapus ports/port_onus. Data OLT-564 dipulihkan via satu poll sinkron (8 ports/ONU). Reload php-fpm.
+
 ### Role "Operator" — bisa di-assign OLT (opsional) seperti partner
 
 **Permintaan user:** di form Tambah/Edit User, role **operator** bisa di-assign OLT juga seperti

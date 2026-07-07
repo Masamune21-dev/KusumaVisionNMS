@@ -13,9 +13,11 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
+use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\OnuInventoryService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Telegram\TelegramNotifier;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuDetailService;
@@ -30,12 +32,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SmartOltController extends Controller
 {
+    /**
+     * Cache saklar alarm partner per-OLT untuk request ini (id OLT → bool), agar
+     * serialisasi daftar OLT tak N+1. Hanya di-isi bila viewer seorang partner.
+     *
+     * @var array<int, bool>|null
+     */
+    private ?array $partnerAlarmMap = null;
+
     public function index(): Response
     {
         // Tiga tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO. Pisahkan berdasarkan driver.
@@ -527,8 +538,10 @@ class SmartOltController extends Controller
     {
         $result = $client->test($olt);
 
+        // Test hanya cek koneksi (ok/driver/latency/system) — TIDAK memuat ports/port_onus.
+        // Merge ke cache poll terakhir supaya inventori (GPON port & ONU) tak terhapus.
         $olt->forceFill([
-            'last_test_result' => $result,
+            'last_test_result' => array_merge($olt->last_test_result ?? [], $result),
             'last_tested_at' => now(),
         ])->save();
 
@@ -547,6 +560,53 @@ class SmartOltController extends Controller
         return redirect()
             ->route('smartolt.index')
             ->with($result['ok'] ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Nyalakan/matikan alarm untuk satu OLT — per-penerima, bukan mute evaluasi:
+     * - PARTNER → membalik saklar alarm miliknya sendiri (`olt_user.alarms_enabled`) untuk OLT
+     *   yang di-assign; hanya memengaruhi webhook/FCM partner tsb (independen dari admin).
+     * - ADMIN/OPERATOR → membalik saklar OLT (`snmp_olts.alarms_enabled`) yang menggerbang bot
+     *   global + FCM admin/operator. Operator "ngikut administrator" (saklar yang sama).
+     *
+     * Evaluasi alarm tetap jalan (event tercatat) — yang di-gerbang hanya pengiriman notifikasi
+     * di {@see TelegramNotifier} & {@see FcmAlarmNotifier}.
+     * Berlaku semua family (ZTE, C-Data, HiOSO). Route-model-binding + PartnerOltScope menjamin
+     * partner hanya bisa menyentuh OLT yang di-assign ke dia.
+     */
+    public function toggleAlarms(Request $request, SnmpOlt $olt): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->isPartner()) {
+            $current = (bool) (DB::table('olt_user')
+                ->where('user_id', $user->id)
+                ->where('snmp_olt_id', $olt->id)
+                ->value('alarms_enabled') ?? true);
+            $enabled = ! $current;
+
+            DB::table('olt_user')
+                ->where('user_id', $user->id)
+                ->where('snmp_olt_id', $olt->id)
+                ->update(['alarms_enabled' => $enabled, 'updated_at' => now()]);
+
+            return back()->with(
+                'success',
+                $enabled
+                    ? "Alarm OLT {$olt->name} diaktifkan untuk webhook Anda."
+                    : "Alarm OLT {$olt->name} dimatikan untuk webhook Anda.",
+            );
+        }
+
+        $enabled = ! $olt->alarms_enabled;
+        $olt->update(['alarms_enabled' => $enabled]);
+
+        return back()->with(
+            'success',
+            $enabled
+                ? "Alarm untuk OLT {$olt->name} diaktifkan."
+                : "Alarm untuk OLT {$olt->name} dimatikan.",
+        );
     }
 
     public function refresh(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
@@ -1600,6 +1660,28 @@ class SmartOltController extends Controller
     }
 
     /**
+     * Saklar alarm efektif untuk viewer saat ini terhadap OLT ini:
+     * - partner → saklar webhook-nya sendiri (`olt_user.alarms_enabled`, default true),
+     * - admin/operator (atau tanpa auth) → saklar OLT (`snmp_olts.alarms_enabled`).
+     */
+    private function viewerAlarmsEnabled(SnmpOlt $olt): bool
+    {
+        $user = request()->user();
+
+        if ($user && $user->isPartner()) {
+            $this->partnerAlarmMap ??= DB::table('olt_user')
+                ->where('user_id', $user->id)
+                ->pluck('alarms_enabled', 'snmp_olt_id')
+                ->map(fn ($v) => (bool) $v)
+                ->all();
+
+            return $this->partnerAlarmMap[$olt->id] ?? true;
+        }
+
+        return (bool) $olt->alarms_enabled;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serializeOlt(SnmpOlt $olt): array
@@ -1621,6 +1703,9 @@ class SmartOltController extends Controller
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
             'polling_enabled' => (bool) $olt->polling_enabled,
+            // Efektif per-penerima: partner lihat saklar webhook-nya sendiri (pivot),
+            // admin/operator lihat saklar OLT.
+            'alarms_enabled' => $this->viewerAlarmsEnabled($olt),
             'poll_interval_minutes' => $olt->pollIntervalMinutes(),
             'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),
             'driver' => $driver,

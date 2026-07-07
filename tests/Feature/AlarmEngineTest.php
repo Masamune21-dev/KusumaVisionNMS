@@ -118,6 +118,22 @@ class AlarmEngineTest extends TestCase
         $this->assertSame(1, AlarmEvent::where('snmp_olt_id', $olt->id)->where('type', 'dying_gasp')->count());
     }
 
+    public function test_alarms_disabled_olt_still_records_events(): void
+    {
+        // Saklar alarm OLT off HANYA menggerbang pengiriman notifikasi (Telegram/FCM);
+        // evaluasi tetap jalan sehingga event tercatat & alarm dashboard tetap akurat.
+        $onlineSnap = $this->onuSnapshot(true);
+        $offlineSnap = $this->onuSnapshot(false);
+
+        $olt = $this->makeOlt($offlineSnap);
+        $olt->forceFill(['alarms_enabled' => false])->save();
+
+        $result = (new AlarmEvaluator)->evaluate($olt, $onlineSnap);
+
+        $this->assertSame(1, $result['raised']);
+        $this->assertSame(1, AlarmEvent::where('status', 'active')->count());
+    }
+
     public function test_disabled_onu_does_not_raise_offline_alarm(): void
     {
         $olt = $this->makeOlt($this->snapshotWithOnu([

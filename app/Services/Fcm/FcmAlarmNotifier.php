@@ -212,19 +212,36 @@ class FcmAlarmNotifier
      */
     private function recipientUserIds(SnmpOlt $olt): array
     {
-        return User::query()
-            ->where(function ($q) use ($olt) {
-                // Admin: semua OLT.
-                $q->where('role', UserRole::Admin->value)
-                    // Operator tanpa assignment: semua OLT.
-                    ->orWhere(fn ($p) => $p->where('role', UserRole::Operator->value)
-                        ->whereDoesntHave('partnerOlts'))
-                    // Operator/partner dengan assignment: hanya OLT yang di-assign.
-                    ->orWhere(fn ($p) => $p->whereIn('role', [UserRole::Operator->value, UserRole::Partner->value])
-                        ->whereHas('partnerOlts', fn ($r) => $r->whereKey($olt->id)));
-            })
+        $ids = [];
+
+        // Admin & operator mengikuti saklar alarm OLT (`snmp_olts.alarms_enabled`) — operator
+        // "ngikut administrator". Saat off, admin+operator tak menerima push untuk OLT ini.
+        if ($olt->alarms_enabled) {
+            $ids = User::query()
+                ->where(function ($q) use ($olt) {
+                    // Admin: semua OLT.
+                    $q->where('role', UserRole::Admin->value)
+                        // Operator tanpa assignment: semua OLT.
+                        ->orWhere(fn ($p) => $p->where('role', UserRole::Operator->value)
+                            ->whereDoesntHave('partnerOlts'))
+                        // Operator dengan assignment: hanya OLT yang di-assign.
+                        ->orWhere(fn ($p) => $p->where('role', UserRole::Operator->value)
+                            ->whereHas('partnerOlts', fn ($r) => $r->whereKey($olt->id)));
+                })
+                ->pluck('id')
+                ->all();
+        }
+
+        // Partner: independen dari saklar admin — hanya bila di-assign ke OLT ini DAN saklar
+        // alarm partner utk OLT itu on (`olt_user.alarms_enabled`).
+        $partnerIds = User::query()
+            ->where('role', UserRole::Partner->value)
+            ->whereHas('partnerOlts', fn ($r) => $r->whereKey($olt->id)
+                ->where('olt_user.alarms_enabled', true))
             ->pluck('id')
             ->all();
+
+        return array_values(array_unique([...$ids, ...$partnerIds]));
     }
 
     private function buildMessage(SnmpOlt $olt, AlarmEvent $alarm, string $event): CloudMessage

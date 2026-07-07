@@ -26,6 +26,16 @@ class SnmpOlt extends Model
         'last_rx_polled_at',
     ];
 
+    /**
+     * Default atribut untuk instance baru — mencerminkan default kolom DB sehingga
+     * model yang belum di-refresh (mis. hasil create() tanpa set flag) tetap konsisten.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'alarms_enabled' => true,
+    ];
+
     protected $fillable = [
         'name',
         'vendor',
@@ -39,6 +49,7 @@ class SnmpOlt extends Model
         'cli_username',
         'cli_password',
         'polling_enabled',
+        'alarms_enabled',
         'poll_interval_minutes',
         'rx_poll_interval_minutes',
         'last_test_result',
@@ -79,6 +90,7 @@ class SnmpOlt extends Model
             'snmp_write_community' => 'encrypted',
             'cli_password' => 'encrypted',
             'polling_enabled' => 'boolean',
+            'alarms_enabled' => 'boolean',
             'is_demo' => 'boolean',
             'poll_interval_minutes' => 'integer',
             'rx_poll_interval_minutes' => 'integer',

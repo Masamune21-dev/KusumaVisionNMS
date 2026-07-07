@@ -95,8 +95,10 @@ class HiosoOltController extends Controller
         // sysDescr/sysObjectID = MIB-II standar (vendor-neutral); driverKey memetakan ke family HiOSO 25355.
         $result = $client->test($olt);
 
+        // Test hanya cek koneksi — TIDAK memuat port_onus. Merge ke cache scan terakhir
+        // supaya inventori ONU tak terhapus saat menekan Test.
         $olt->forceFill([
-            'last_test_result' => $result,
+            'last_test_result' => array_merge($olt->last_test_result ?? [], $result),
             'last_tested_at' => now(),
         ])->save();
 
