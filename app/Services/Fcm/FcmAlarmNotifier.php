@@ -68,8 +68,8 @@ class FcmAlarmNotifier
             return;
         }
 
-        // Penerima: admin & operator (semua OLT) + partner yang di-assign ke OLT ini.
-        // Partner tidak boleh menerima alarm OLT di luar assignment-nya.
+        // Penerima: admin + operator tanpa-assignment (semua OLT) + operator/partner
+        // yang di-assign ke OLT ini. Yang di-scope tak menerima alarm di luar assignment.
         $tokens = FcmDeviceToken::query()
             ->whereIn('user_id', $this->recipientUserIds($olt))
             ->pluck('token')
@@ -203,8 +203,10 @@ class FcmAlarmNotifier
     }
 
     /**
-     * Id user yang berhak menerima push alarm untuk OLT ini:
-     * admin + operator (semua OLT) ∪ partner yang OLT-nya termasuk assignment.
+     * Id user yang berhak menerima push alarm untuk OLT ini (selaras {@see User::isOltScoped()}):
+     * - admin → semua OLT,
+     * - operator TANPA assignment → semua OLT (assignment opsional),
+     * - operator/partner DENGAN assignment → hanya OLT yang termasuk assignment-nya.
      *
      * @return array<int, int>
      */
@@ -212,8 +214,13 @@ class FcmAlarmNotifier
     {
         return User::query()
             ->where(function ($q) use ($olt) {
-                $q->whereIn('role', [UserRole::Admin->value, UserRole::Operator->value])
-                    ->orWhere(fn ($p) => $p->where('role', UserRole::Partner->value)
+                // Admin: semua OLT.
+                $q->where('role', UserRole::Admin->value)
+                    // Operator tanpa assignment: semua OLT.
+                    ->orWhere(fn ($p) => $p->where('role', UserRole::Operator->value)
+                        ->whereDoesntHave('partnerOlts'))
+                    // Operator/partner dengan assignment: hanya OLT yang di-assign.
+                    ->orWhere(fn ($p) => $p->whereIn('role', [UserRole::Operator->value, UserRole::Partner->value])
                         ->whereHas('partnerOlts', fn ($r) => $r->whereKey($olt->id)));
             })
             ->pluck('id')

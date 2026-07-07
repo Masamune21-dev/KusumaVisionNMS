@@ -3,14 +3,17 @@
 namespace App\Models\Scopes;
 
 use App\Models\SnmpOlt;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 
 /**
- * Membatasi user role "partner" hanya pada OLT yang di-assign kepadanya:
- * - user partner → hanya baris yang OLT-nya ada di daftar assignment (olt_user),
- * - selain itu (admin/operator/demo, atau konteks console/queue tanpa auth) → tidak dibatasi.
+ * Membatasi user yang di-scope (lihat {@see User::isOltScoped()}) hanya pada
+ * OLT yang di-assign kepadanya:
+ * - partner → selalu dibatasi (tanpa assignment = tidak lihat OLT apa pun),
+ * - operator → dibatasi hanya bila punya assignment (tanpa assignment = akses penuh),
+ * - selain itu (admin/demo, atau konteks console/queue tanpa auth) → tidak dibatasi.
  *
  * Dipasang pada {@see SnmpOlt} (kolom id) dan model ber-`snmp_olt_id`
  * (AlarmEvent, PollingEvent, SmartOltOnuRegistration, OnuMapPin). Digabung AND
@@ -22,7 +25,7 @@ class PartnerOltScope implements Scope
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->isPartner()) {
+        if (! $user || ! $user->isOltScoped()) {
             return;
         }
 

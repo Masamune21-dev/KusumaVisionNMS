@@ -2,6 +2,34 @@
 
 ## 2026-07-07
 
+### Role "Operator" — bisa di-assign OLT (opsional) seperti partner
+
+**Permintaan user:** di form Tambah/Edit User, role **operator** bisa di-assign OLT juga seperti
+partner, agar aksesnya bisa dipersempit ke OLT tertentu.
+
+**Keputusan (ditanyakan ke user):** (1) operator TANPA assignment = **lihat semua OLT**
+(assignment opsional/pembatas, backward-compatible — operator lama tak kehilangan akses);
+(2) operator yang di-scope **tetap boleh** mengelola inventori OLT (tambah/hapus device).
+Beda dari partner yang: tanpa assignment = tak lihat apa pun, dan tak boleh kelola inventori.
+
+**Perubahan:**
+1. `app/Models/User.php` — helper baru `isOltScoped()`: partner selalu true; operator true hanya
+   bila punya assignment; admin/demo false. Relasi `partnerOlts` kini dipakai partner + operator.
+2. `app/Models/Scopes/PartnerOltScope.php` — gerbang scope dari `isPartner()` → `isOltScoped()`,
+   jadi operator ber-assignment ikut dibatasi (SnmpOlt + AlarmEvent/PollingEvent/registrasi/pin peta).
+3. `app/Http/Controllers/UserController.php` — `syncPartnerOlts` kini sync assignment untuk
+   partner **dan** operator (role lain tetap dikosongkan).
+4. `app/Services/Fcm/FcmAlarmNotifier.php` — `recipientUserIds` diselaraskan: operator ber-assignment
+   hanya terima push alarm dari OLT-nya (bukan semua) → tutup bocor info & spam notifikasi.
+5. `resources/js/Pages/Users/Index.vue` — picker OLT muncul untuk operator juga (`showOltAssignment`),
+   hint teks role-aware, badge "N OLT di-assign" di daftar untuk operator ber-assignment.
+
+**Tests:** `tests/Feature/OperatorOltScopeTest.php` (baru, 6 test): tanpa-assignment lihat semua,
+ber-assignment ter-scope + 404 OLT lain, alarm ter-scope, tetap bisa kelola inventori, admin
+menyimpan assignment operator. 22/22 hijau (operator + partner + partner-telegram).
+Build vite sukses. (Test dijalankan dengan `APP_CONFIG_CACHE` di-bypass — config prod ter-cache
+memaksa env production→419 CSRF, gotcha lama.)
+
 ### Fix polling HiOSO tak lengkap — walk per-PON + carry-forward roster ONU
 
 **Keluhan user:** hasil polling ONU OLT HiOSO tak lengkap & berubah-ubah — kadang satu port ke-poll

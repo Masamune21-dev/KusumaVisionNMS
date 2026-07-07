@@ -100,13 +100,16 @@ class UserController extends Controller
     }
 
     /**
-     * Assignment OLT hanya relevan untuk partner; role lain di-kosongkan.
+     * Assignment OLT relevan untuk partner & operator; role lain di-kosongkan.
+     * (Operator tanpa assignment = akses penuh; lihat {@see User::isOltScoped()}.)
      *
      * @param  array<string, mixed>  $data
      */
     private function syncPartnerOlts(User $user, array $data): void
     {
-        $oltIds = $user->role === UserRole::Partner ? ($data['olt_ids'] ?? []) : [];
+        $oltIds = in_array($user->role, [UserRole::Partner, UserRole::Operator], true)
+            ? ($data['olt_ids'] ?? [])
+            : [];
 
         $user->partnerOlts()->sync($oltIds);
     }

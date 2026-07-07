@@ -79,7 +79,7 @@ class User extends Authenticatable
     }
 
     /**
-     * OLT yang di-assign ke user (dipakai role "partner" untuk membatasi akses).
+     * OLT yang di-assign ke user untuk membatasi akses (role "partner"; opsional untuk "operator").
      *
      * @return BelongsToMany<SnmpOlt, $this>
      */
@@ -138,6 +138,22 @@ class User extends Authenticatable
     public function isDemo(): bool
     {
         return $this->role === UserRole::Demo;
+    }
+
+    /**
+     * Apakah visibilitas OLT user ini dibatasi ke daftar assignment ({@see PartnerOltScope}).
+     * - Partner: SELALU dibatasi (tanpa assignment = tidak lihat OLT apa pun).
+     * - Operator: dibatasi HANYA bila punya assignment eksplisit; tanpa assignment =
+     *   akses penuh ke semua OLT (assignment bersifat opsional/pembatas).
+     * - Admin/Demo/lainnya: tidak dibatasi oleh scope ini.
+     */
+    public function isOltScoped(): bool
+    {
+        if ($this->isPartner()) {
+            return true;
+        }
+
+        return $this->isOperator() && count($this->allowedOltIds()) > 0;
     }
 
     /**

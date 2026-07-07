@@ -65,7 +65,26 @@ const roleBadgeClass = (value) => {
     }
 };
 
-const isPartnerForm = computed(() => form.role === 'partner');
+// Assignment OLT tersedia untuk partner (wajib membatasi) & operator (opsional membatasi).
+const showOltAssignment = computed(() => form.role === 'partner' || form.role === 'operator');
+
+const oltAssignmentHint = computed(() =>
+    form.role === 'operator'
+        ? 'Operator dibatasi ke OLT yang dicentang. Kosongkan untuk memberi akses ke semua OLT.'
+        : 'Partner hanya bisa melihat & mengedit OLT yang dicentang di sini.',
+);
+
+// Label ringkas cakupan OLT di daftar user. Operator tanpa assignment = akses penuh (tak ditampilkan).
+const oltScopeText = (user) => {
+    const count = assignedCount(user);
+    if (user.role === 'partner') {
+        return `${count} OLT di-assign`;
+    }
+    if (user.role === 'operator' && count > 0) {
+        return `${count} OLT di-assign`;
+    }
+    return null;
+};
 
 const toggleOlt = (id) => {
     const idx = form.olt_ids.indexOf(id);
@@ -218,8 +237,8 @@ const deleteUser = async (user) => {
                                             <span :class="['inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
                                                 {{ roleLabel(user.role) }}
                                             </span>
-                                            <span v-if="user.role === 'partner'" class="ml-2 text-xs text-slate-500">
-                                                {{ assignedCount(user) }} OLT
+                                            <span v-if="oltScopeText(user)" class="ml-2 text-xs text-slate-500">
+                                                {{ oltScopeText(user) }}
                                             </span>
                                         </span>
                                     </div>
@@ -274,8 +293,8 @@ const deleteUser = async (user) => {
                                         <span :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
                                             {{ roleLabel(user.role) }}
                                         </span>
-                                        <div v-if="user.role === 'partner'" class="mt-1 text-xs text-slate-500">
-                                            {{ assignedCount(user) }} OLT di-assign
+                                        <div v-if="oltScopeText(user)" class="mt-1 text-xs text-slate-500">
+                                            {{ oltScopeText(user) }}
                                         </div>
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-500">
@@ -357,11 +376,11 @@ const deleteUser = async (user) => {
                         <InputError :message="form.errors.role" class="mt-1" />
                     </div>
 
-                    <!-- OLT yang boleh dikelola partner -->
-                    <div v-if="isPartnerForm">
+                    <!-- OLT yang di-assign (wajib untuk partner, opsional untuk operator) -->
+                    <div v-if="showOltAssignment">
                         <InputLabel value="OLT yang di-assign" />
                         <p class="mt-0.5 text-xs text-slate-500">
-                            Partner hanya bisa melihat & mengedit OLT yang dicentang di sini.
+                            {{ oltAssignmentHint }}
                         </p>
                         <div
                             v-if="oltOptions.length"
