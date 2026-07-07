@@ -52,6 +52,7 @@ class SettingsController extends Controller
                 'default_username' => (string) config('services.acs.username', ''),
             ],
             'appInfo' => $this->appInfoPayload(),
+            'mobileApk' => $this->mobileApkPayload(),
             'telegram' => [
                 'enabled' => (bool) $setting->enabled,
                 'bot_token_set' => filled($setting->bot_token),
@@ -375,5 +376,54 @@ class SettingsController extends Controller
                 ['label' => 'Server', 'value' => php_uname('s').' '.php_uname('r')],
             ],
         ];
+    }
+
+    /**
+     * Info APK Android terbaru untuk tombol unduh di Settings.
+     * File "latest" disalin oleh bin/build-apk.sh ke public/downloads/kusumavision-nms.apk.
+     */
+    private function mobileApkPayload(): array
+    {
+        $path = public_path('downloads/kusumavision-nms.apk');
+        $exists = is_file($path);
+
+        return [
+            'available' => $exists,
+            'url' => $exists ? url('/downloads/kusumavision-nms.apk') : null,
+            'version' => $this->mobileAppVersion(),
+            'size' => $exists ? $this->humanFilesize((int) filesize($path)) : null,
+            'updated_at' => $exists
+                ? \Illuminate\Support\Carbon::createFromTimestamp((int) filemtime($path))->toIso8601String()
+                : null,
+        ];
+    }
+
+    /** Baca "version:" dari mobile/pubspec.yaml (mis. 1.1.4+8) bila repo mobile tersedia. */
+    private function mobileAppVersion(): ?string
+    {
+        $pubspec = base_path('mobile/pubspec.yaml');
+        if (! is_file($pubspec)) {
+            return null;
+        }
+
+        $contents = @file_get_contents($pubspec);
+        if ($contents !== false && preg_match('/^version:\s*(.+)$/m', $contents, $m)) {
+            return trim($m[1]);
+        }
+
+        return null;
+    }
+
+    private function humanFilesize(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $size = (float) $bytes;
+        $i = 0;
+        while ($size >= 1024 && $i < count($units) - 1) {
+            $size /= 1024;
+            $i++;
+        }
+
+        return round($size, $i === 0 ? 0 : 1).' '.$units[$i];
     }
 }

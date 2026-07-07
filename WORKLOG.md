@@ -3813,3 +3813,16 @@ Notes:
 - Tiap fase diverifikasi `flutter analyze` (No issues) + `flutter build bundle` (exit 0); APK rilis `flutter build apk --release` sukses (55,2 MB, `1.1.4+8`).
 - **Fix refresh backend sudah live** via `systemctl reload php8.3-fpm` (opcache) — tak perlu update APK. Diagnosa dari `storage/logs/laravel.log` (`Call to undefined method …::isNonZte()` @ `OnuActionController.php:98`); `php -l` bersih; jalur non-ZTE (`getRegisteredOnusByPort`) ada di interface + implementasi C-Data/HiOSO.
 - `versionCode` di-bump tiap iterasi (hingga `+8`) karena versionCode identik membuat Android menolak update; APK juga disalin ber-nama versi (`kusumavision-nms-v{N}.apk`) untuk cache-bust unduhan.
+
+### Tombol unduh APK Android di Settings web
+
+Changed:
+
+- `app/Http/Controllers/SettingsController.php` — payload `mobileApk` di `edit()` + helper `mobileApkPayload()` (cek `public/downloads/kusumavision-nms.apk`, URL, ukuran, mtime), `mobileAppVersion()` (baca `version:` dari `mobile/pubspec.yaml`), dan `humanFilesize()`.
+- `resources/js/Pages/Settings/Index.vue` — prop `mobileApk` + kartu "Aplikasi Android" di tab Umum (bawah Informasi Sistem): tombol **Unduh APK** (link `/downloads/kusumavision-nms.apk`) dengan versi/ukuran/waktu-diperbarui, atau peringatan + petunjuk build bila APK belum ada; import ikon `Download`.
+
+Notes:
+
+- Link "latest" tetap `/downloads/kusumavision-nms.apk` (kopi terbaru dari `bin/build-apk.sh`, saat ini `1.1.4+8`); file ber-versi `-v{N}.apk` hanya arsip.
+- Versi dibaca dari `mobile/pubspec.yaml` saat render (fallback `null` bila repo mobile tak ada di server); waktu & ukuran dari mtime/filesize file jadi selalu mengikuti build terakhir tanpa perlu di-hardcode.
+- Diverifikasi: `php -l` bersih, `npm run build` sukses (template Vue kompilasi), ikon `Download` ada di `@lucide/vue`; `php8.3-fpm` di-reload agar opcache mengambil payload baru.

@@ -8,12 +8,13 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
+import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, Download, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
 
 const props = defineProps({
     general: { type: Object, required: true },
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
+    mobileApk: { type: Object, default: () => ({ available: false, url: null, version: null, size: null, updated_at: null }) },
     acs: { type: Object, default: () => ({ url: '', username: '', password_set: false, default_url: '', default_username: '' }) },
     telegram: { type: Object, required: true },
     fcm: { type: Object, required: true },
@@ -408,6 +409,52 @@ const copyText = async (text, key) => {
                                         <dd class="truncate text-right text-sm font-medium text-slate-200">{{ item.value }}</dd>
                                     </div>
                                 </dl>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Unduh aplikasi Android (APK) -->
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                                <Smartphone class="h-5 w-5 text-cyan-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">Aplikasi Android</h3>
+                                <p class="text-sm text-slate-400">Unduh & pasang aplikasi mobile KusumaVision NMS.</p>
+                            </div>
+                        </div>
+
+                        <div class="p-5 sm:p-6">
+                            <div v-if="mobileApk.available" class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="flex items-start gap-3">
+                                    <Smartphone class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-white">
+                                            KusumaVision NMS
+                                            <span v-if="mobileApk.version" class="text-slate-400">v{{ mobileApk.version }}</span>
+                                        </p>
+                                        <p class="text-xs text-slate-500">
+                                            <span v-if="mobileApk.size">{{ mobileApk.size }}</span>
+                                            <span v-if="mobileApk.updated_at"> · diperbarui {{ formatDateTime(mobileApk.updated_at) }}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <a
+                                    :href="mobileApk.url"
+                                    download
+                                    class="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400"
+                                >
+                                    <Download class="h-4 w-4" />
+                                    Unduh APK
+                                </a>
+                            </div>
+                            <div v-else class="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                                <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-amber-200">APK belum tersedia</p>
+                                    <p class="text-xs text-slate-400">Build dulu di server dengan <span class="font-mono">bash bin/build-apk.sh</span>; hasilnya otomatis tersalin ke <span class="font-mono">public/downloads/</span>.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
