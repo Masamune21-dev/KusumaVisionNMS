@@ -438,7 +438,7 @@ const copyText = async (text, key) => {
                                 :placeholder="acs.default_url || 'http://acs.contoh.net:7547'"
                             />
                             <InputError :message="acsForm.errors.url" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">Alamat lengkap server ACS beserta port, mis. <span class="font-mono text-cyan-300">http://acs.bmkv.net:7547</span>.</p>
+                            <p class="mt-1 text-xs text-slate-400">Alamat lengkap server ACS beserta port, mis. <span class="font-mono text-cyan-300">http://acs.example.net:7547</span>.</p>
                         </div>
 
                         <div>

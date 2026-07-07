@@ -86,6 +86,14 @@ class SmartOltTr069BulkTest extends TestCase
     public function test_execute_skips_already_active_and_writes_the_rest(): void
     {
         $olt = $this->makeOlt(['ip' => '10.31.0.12']);
+        // Target ACS (kini tidak lagi punya default hardcoded) di-set eksplisit,
+        // sama dengan yang sudah terpasang di ONU 5 → ONU 5 di-skip.
+        $acs = AcsSetting::instance();
+        $acs->url = 'http://acs.example.net:7547';
+        $acs->username = 'acsuser';
+        $acs->password = 'acspass123!';
+        $acs->save();
+
         $fake = $this->fakeExecutor(activeOnuIds: [5]); // ONU 5 sudah aktif → skip
 
         $task = $this->makeTask($olt, execute: true);
@@ -102,7 +110,7 @@ class SmartOltTr069BulkTest extends TestCase
         $joined = implode("\n", $fake->writes);
         $this->assertStringContainsString('pon-onu-mng gpon-onu_1/2/3:6', $joined);
         $this->assertStringContainsString('pon-onu-mng gpon-onu_1/2/4:1', $joined);
-        $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!', $joined);
+        $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.example.net:7547 validate basic username acsuser password acspass123!', $joined);
         // ONU 5 yang sudah aktif tidak ikut ditulis.
         $this->assertStringNotContainsString(':5', $joined);
     }
@@ -117,8 +125,8 @@ class SmartOltTr069BulkTest extends TestCase
         $acs->save();
 
         $olt = $this->makeOlt(['ip' => '10.31.0.16']);
-        // ONU 5 "aktif" tapi mengarah ke acs.bmkv.net/cms (lama) → karena target kini
-        // berbeda, ONU 5 TIDAK di-skip, ikut ditulis ulang dengan ACS baru.
+        // ONU 5 "aktif" tapi mengarah ke acs.example.net/acsuser (lama) → karena target
+        // kini berbeda, ONU 5 TIDAK di-skip, ikut ditulis ulang dengan ACS baru.
         $fake = $this->fakeExecutor(activeOnuIds: [5]);
 
         $task = $this->makeTask($olt, execute: true);
@@ -134,7 +142,7 @@ class SmartOltTr069BulkTest extends TestCase
             'tr069-mgmt 1 acs http://acs.custom.net:7547 validate basic username operator password rahasia123',
             $joined,
         );
-        $this->assertStringNotContainsString('acs.bmkv.net', $joined);
+        $this->assertStringNotContainsString('acs.example.net', $joined);
     }
 
     public function test_incomplete_read_is_marked_failed_not_applied(): void
@@ -245,7 +253,7 @@ class SmartOltTr069BulkTest extends TestCase
                         $out .= "pon-onu-mng {$m[1]}\n  service ServiceName gemport 1 cos 0 vlan 100\n";
                         if (in_array((int) $m[2], $this->activeOnuIds, true)) {
                             $out .= "  tr069-mgmt 1 state unlock\n"
-                                ."  tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!\n";
+                                ."  tr069-mgmt 1 acs http://acs.example.net:7547 validate basic username acsuser password acspass123!\n";
                         }
                         $out .= "  wan-ip 1 mode dhcp host 1\n";
                     }

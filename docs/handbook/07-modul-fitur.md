@@ -48,7 +48,7 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   1. **Dry-run** (`execute=false`): pindai running-config tiap ONU per port (1 sesi telnet/port via `ZteOnuRunningConfigService::fetchMany`), laporkan mana yang **akan diaktifkan** vs **sudah aktif (skip)** vs **gagal baca** — tanpa menulis apa pun ke OLT.
   2. **Eksekusi** (`execute=true`): pindai ulang lalu tulis `tr069-mgmt 1 state unlock` + `tr069-mgmt 1 acs … validate basic username … password …` ke ONU yang belum aktif (1 sesi tulis/port; satu blok `pon-onu-mng` per ONU).
 - **Skip rule**: ONU dilewati bila TR069 sudah `unlock` **dan** ACS url + username sudah mengarah ke target. Password tidak dipakai sebagai syarat skip (sebagian firmware memasking-nya di `show running-config`), tapi acs line yang ditulis selalu menyertakan password.
-- **Default ACS**: `config('services.acs')` → `ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` (default `http://acs.bmkv.net:7547` / `cms` / `kusuma123!`).
+- **Default ACS**: `config('services.acs')` → di-set lewat `ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` di `.env` (atau tab Settings). Tidak ada nilai bawaan yang di-hardcode di repo — kredensial asli jangan ditulis di kode/dokumen.
 - Progress di-poll mirip Copy ONU; total = jumlah ONU di cache `port_onus` OLT itu (Refresh SNMP dulu agar lengkap).
 
 ## 5. Detail Port (per-interface)

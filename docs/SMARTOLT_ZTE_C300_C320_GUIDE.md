@@ -391,7 +391,7 @@ Detail varian `wan-ip 1`:
 - PPPoE default: kalau `pppoe_username` kosong → di-normalize dari `name` (`[a-z0-9]+`, max 32 char)
 - PPPoE default: kalau `pppoe_password` kosong → sama dengan username
 - Mask static: input form bisa angka (mask length 1-32) atau dotted IP; converter [`subnetLengthToNetmask`](../app/Services/ZteCliProvisionService.php#L1246-L1252) ubah ke dotted untuk command CLI
-- ACS default: `http://acs.bmkv.net:7547` / user `cms` / pass `kusuma123!` (override per call)
+- ACS default: di-set lewat `ACS_URL` / `ACS_USERNAME` / `ACS_PASSWORD` di `.env` (override per call). Kredensial asli tidak ditulis di repo.
 
 ### 5.4 Write Commands — Reconfigure ONU Existing
 

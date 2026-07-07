@@ -300,11 +300,11 @@ running-config di-mask firmware). User setuju ini cukup — password selalu meng
   jadi URL/username **dan** password dari Pengaturan dipakai di skip-check & script tulis.
 - **Pengaturan:** tab baru "ACS / TR069" (`Settings/Index.vue`) + `SettingsController::updateAcs`
   + route `PUT settings/acs` (`settings.acs.update`). Password kosong = pertahankan lama.
-- **Modal TR069 massal** (`Tr069BulkModal.vue`) tak lagi hardcode `acs.bmkv.net`/`cms` — terima prop
+- **Modal TR069 massal** (`Tr069BulkModal.vue`) tak lagi hardcode endpoint/user ACS — terima prop
   `acs` (url+username, tanpa password) dari `SmartOltController::portOnus` → `PortOnus.vue`.
 - **Test:** `SmartOltTr069BulkTest::test_uses_acs_endpoint_configured_in_settings` — set ACS custom,
   ONU yg dulu "aktif" ke ACS lama kini ikut ditulis ulang dgn ACS baru (skip=0, applied=3, script
-  memuat url/user/pass baru, tak ada `acs.bmkv.net`).
+  memuat url/user/pass baru, tak ada host ACS lama).
 
 **Verifikasi:** tinker round-trip — fallback→config, simpan→dipakai, password TERENKRIPSI di DB (raw
 200 char, tanpa plaintext), service baca nilai sama. Migrasi dijalankan di DB live. Full test TR069
@@ -1835,7 +1835,7 @@ Changed:
 
 Notes:
 
-- TR069 default follows the SmartOLT guide: ACS URL `http://acs.bmkv.net:7547`, user `cms`, password `kusuma123!`.
+- TR069 default follows the SmartOLT guide: ACS URL/user/password di-set lewat `.env` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`) — kredensial asli tidak ditulis di repo.
 
 ### Phase 10 - Profile Delete Scope and Live ONU ID Suggestion
 
@@ -3179,13 +3179,13 @@ Changed:
 
 - `app/Http/Controllers/SmartOltController.php` — method `tr069Bulk` (POST, gate `supports_cli_onu_configure`, antrikan job, total = `cachedOnuCount`) + `tr069BulkStatus` (GET poll). Import job/model/service.
 - `routes/web.php` — route `smartolt.tr069-bulk` (POST) + `smartolt.tr069-bulk.status` (GET).
-- `config/services.php` — blok `acs` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`, default `http://acs.bmkv.net:7547`/`cms`/`kusuma123!`).
+- `config/services.php` — blok `acs` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`, di-set lewat `.env`; tanpa kredensial hardcoded).
 - `resources/js/Pages/SmartOlt/GponPorts.vue` — tombol "TR069 Massal" di header (gate kapabilitas ZTE) + mount modal.
 - `CLAUDE.md`, `docs/handbook/07-modul-fitur.md` — dokumentasi fitur (batch job baru, skip rule, alur 2 fase, default ACS).
 
 Notes:
 
-- Atas permintaan user: aktifkan TR069 di semua ONU OLT ZTE dengan ACS `http://acs.bmkv.net:7547` / `cms` / `kusuma123!`; yang sudah aktif di-skip. Default ACS ini kebetulan persis default di guide §5.3.
+- Atas permintaan user: aktifkan TR069 di semua ONU OLT ZTE dengan ACS dari `.env` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`); yang sudah aktif di-skip. Nilai ACS mengikuti default di guide §5.3.
 - **Skip rule**: ONU dilewati bila TR069 sudah `unlock` DAN acs url + username sudah mengarah ke target. Password sengaja TIDAK dipakai sebagai syarat skip (sebagian firmware memasking-nya di `show running-config`), tapi acs line yang ditulis tetap menyertakan password.
 - Keputusan UX (dikonfirmasi user): **dry-run dulu lalu eksekusi**, dan **tombol per-OLT** (bukan halaman lintas-OLT). Eksekusi mem-pindai ulang sendiri (tidak bergantung hasil dry-run) agar aman bila state berubah.
 - Deteksi sukses per-ONU = agregat per port (executor balas satu ok/error per sesi tulis); kalau script port error, semua ONU di port itu ditandai gagal dengan pesan error.
@@ -3736,3 +3736,46 @@ Notes:
   tinggi kartu tetangga di baris (PollingTrend/OnuDonut), bukan mendorong baris jadi tinggi.
 - Test sempat gagal karena config prod ter-cache (nyasar ke PostgreSQL) — di-`config:clear` untuk
   test lalu `config:cache` ulang. `php artisan test` DashboardTest hijau, `npm run build` sukses.
+
+### Link GitHub di kontak halaman Welcome
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — tambah baris kontak GitHub di footer (link ke
+  `https://github.com/Masamune21-dev/KusumaVisionNMS`, `target=_blank` + `rel=noopener`).
+
+Notes:
+
+- Ikon `Github` dari `@lucide/vue` sudah dihapus di versi ini (brand icon di-drop) → build gagal
+  saat mengimpornya. Diganti SVG inline mark GitHub (`fill=currentColor` supaya ikut warna cyan
+  seperti ikon kontak lain). `npm run build` sukses.
+
+### Hapus kredensial ACS hardcoded dari repo (repo publik)
+
+Changed:
+
+- `config/services.php` — default blok `acs` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD`) jadi string
+  kosong; nilai asli tidak lagi di-hardcode.
+- `app/Http/Controllers/SmartOltController.php` — 2 blok form default (mode dasar & lanjutan)
+  baca `config('services.acs.*')`, bukan literal.
+- `app/Models/AcsSetting.php`, `app/Http/Controllers/SettingsController.php`,
+  `app/Services/Zte/OnuRegistrationFormDefaults.php` — fallback ACS jadi kosong.
+- `resources/js/Pages/Settings/Index.vue` — contoh URL hint → `acs.example.net`.
+- `.env.docker.example` — placeholder generik (host contoh, user/pass kosong).
+- `CLAUDE.md`, `docs/handbook/07-modul-fitur.md`, `docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`,
+  `WORKLOG.md` — redaksi URL/user/password ACS asli jadi referensi `.env`.
+- `tests/Feature/SmartOltInventoryTest.php`, `tests/Feature/SmartOltTr069BulkTest.php`,
+  `tests/Unit/ZteOnuConfigureTest.php` — fixture kredensial ganti nilai palsu
+  (`acs.example.net`/`acsuser`/`acspass123!`); `SmartOltTr069BulkTest::test_execute_skips…`
+  kini set `AcsSetting` eksplisit (karena default sudah tak ada) supaya skip-rule tetap tervalidasi.
+
+Notes:
+
+- Nilai ACS asli dipindah ke `.env` (gitignored) — perilaku aplikasi identik; `config:cache`
+  memverifikasi `services.acs.*` termuat dari env.
+- **PENTING:** kredensial (`kusuma123!`/`cms`/`acs.bmkv.net`) SUDAH terlanjur ada di GitHub (di
+  `origin/main` dan history sejak commit `87aca52`). Scrub ini hanya mencegah bocor di commit
+  berikutnya — password ACS wajib di-rotate karena harus dianggap sudah bocor. Purge history
+  (`git filter-repo` + force-push) opsional, belum dilakukan.
+- `git grep 'acs.bmkv|kusuma123'` di file tracked → bersih. `php artisan test` (Tr069Bulk +
+  ZteOnuConfigure + SmartOltInventory) 59 hijau, `npm run build` sukses.

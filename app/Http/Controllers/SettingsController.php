@@ -48,8 +48,8 @@ class SettingsController extends Controller
                 'url' => $acs->url ?? '',
                 'username' => $acs->username ?? '',
                 'password_set' => filled($acs->password),
-                'default_url' => (string) config('services.acs.url', 'http://acs.bmkv.net:7547'),
-                'default_username' => (string) config('services.acs.username', 'cms'),
+                'default_url' => (string) config('services.acs.url', ''),
+                'default_username' => (string) config('services.acs.username', ''),
             ],
             'appInfo' => $this->appInfoPayload(),
             'telegram' => [

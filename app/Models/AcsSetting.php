@@ -69,13 +69,13 @@ class AcsSetting extends Model
         return [
             'url' => filled($setting->url)
                 ? (string) $setting->url
-                : (string) config('services.acs.url', 'http://acs.bmkv.net:7547'),
+                : (string) config('services.acs.url', ''),
             'username' => filled($setting->username)
                 ? (string) $setting->username
-                : (string) config('services.acs.username', 'cms'),
+                : (string) config('services.acs.username', ''),
             'password' => filled($setting->password)
                 ? (string) $setting->password
-                : (string) config('services.acs.password', 'kusuma123!'),
+                : (string) config('services.acs.password', ''),
         ];
     }
 }

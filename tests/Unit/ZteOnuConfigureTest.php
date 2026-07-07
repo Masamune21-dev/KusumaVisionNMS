@@ -38,7 +38,7 @@ pon-onu-mng gpon-onu_1/2/1:3
   service ServiceName gemport 1 cos 0 vlan 22
   wan-ip 1 mode pppoe username serversemampir password rahasia vlan-profile PPPOEPATI host 1
   tr069-mgmt 1 state unlock
-  tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!
+  tr069-mgmt 1 acs http://acs.example.net:7547 validate basic username acsuser password acspass123!
   security-mgmt 212 state enable mode forward protocol web
 RAW;
     }
@@ -71,7 +71,7 @@ RAW;
         $this->assertFalse($config['wan_ips'][0]['traceroute_response']);
 
         $this->assertTrue($config['tr069']);
-        $this->assertSame('cms', $config['acs_username']);
+        $this->assertSame('acsuser', $config['acs_username']);
 
         $this->assertTrue($config['remote_ont']);
         $this->assertSame(212, $config['remote_ont_id']);

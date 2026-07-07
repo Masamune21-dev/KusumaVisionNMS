@@ -522,9 +522,9 @@ OUT,
             'service_name' => 'ServiceName',
             'wan_mode' => 'dhcp',
             'tr069_enabled' => true,
-            'acs_url' => 'http://acs.bmkv.net:7547',
-            'acs_username' => 'cms',
-            'acs_password' => 'kusuma123!',
+            'acs_url' => 'http://acs.example.net:7547',
+            'acs_username' => 'acsuser',
+            'acs_password' => 'acspass123!',
             'remote_ont_enabled' => true,
             'remote_ont_id' => 1,
             'remote_ont_mode' => 'forward',
@@ -540,7 +540,7 @@ OUT,
         $this->assertTrue($registration->tr069_enabled);
         $this->assertTrue($registration->remote_ont_enabled);
         $this->assertStringContainsString('tr069-mgmt 1 state unlock', $registration->cli_script);
-        $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.bmkv.net:7547 validate basic username cms password kusuma123!', $registration->cli_script);
+        $this->assertStringContainsString('tr069-mgmt 1 acs http://acs.example.net:7547 validate basic username acsuser password acspass123!', $registration->cli_script);
         $this->assertStringContainsString('security-mgmt 1 state enable mode forward protocol web', $registration->cli_script);
     }
 

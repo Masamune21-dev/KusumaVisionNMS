@@ -36,10 +36,11 @@ return [
     ],
 
     // ACS / TR069 default endpoint dipakai fitur "Aktifkan TR069 Massal" (ZTE).
+    // Nilai asli TIDAK di-hardcode di sini (repo publik) — set lewat .env / Settings.
     'acs' => [
-        'url' => env('ACS_URL', 'http://acs.bmkv.net:7547'),
-        'username' => env('ACS_USERNAME', 'cms'),
-        'password' => env('ACS_PASSWORD', 'kusuma123!'),
+        'url' => env('ACS_URL', ''),
+        'username' => env('ACS_USERNAME', ''),
+        'password' => env('ACS_PASSWORD', ''),
     ],
 
     // Firebase Cloud Messaging — push alarm ke aplikasi Android. Dormant sampai
