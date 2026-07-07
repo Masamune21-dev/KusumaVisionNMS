@@ -24,6 +24,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    oltOptions: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -40,6 +44,7 @@ const form = useForm({
     email: '',
     role: defaultRole.value,
     password: '',
+    olt_ids: [],
 });
 
 const roleLabel = (value) =>
@@ -51,6 +56,8 @@ const roleBadgeClass = (value) => {
             return 'border-cyan-500/30 bg-cyan-500/15 text-cyan-300';
         case 'operator':
             return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300';
+        case 'partner':
+            return 'border-violet-500/30 bg-violet-500/15 text-violet-300';
         case 'demo':
             return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
         default:
@@ -58,10 +65,24 @@ const roleBadgeClass = (value) => {
     }
 };
 
+const isPartnerForm = computed(() => form.role === 'partner');
+
+const toggleOlt = (id) => {
+    const idx = form.olt_ids.indexOf(id);
+    if (idx === -1) {
+        form.olt_ids.push(id);
+    } else {
+        form.olt_ids.splice(idx, 1);
+    }
+};
+
+const assignedCount = (user) => (user.assigned_olt_ids ?? []).length;
+
 const openCreate = () => {
     editingUser.value = null;
     form.reset();
     form.role = defaultRole.value;
+    form.olt_ids = [];
     form.clearErrors();
     showModal.value = true;
 };
@@ -72,6 +93,7 @@ const openEdit = (user) => {
     form.email = user.email;
     form.role = user.role ?? defaultRole.value;
     form.password = '';
+    form.olt_ids = [...(user.assigned_olt_ids ?? [])];
     form.clearErrors();
     showModal.value = true;
 };
@@ -196,6 +218,9 @@ const deleteUser = async (user) => {
                                             <span :class="['inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
                                                 {{ roleLabel(user.role) }}
                                             </span>
+                                            <span v-if="user.role === 'partner'" class="ml-2 text-xs text-slate-500">
+                                                {{ assignedCount(user) }} OLT
+                                            </span>
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
@@ -249,6 +274,9 @@ const deleteUser = async (user) => {
                                         <span :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
                                             {{ roleLabel(user.role) }}
                                         </span>
+                                        <div v-if="user.role === 'partner'" class="mt-1 text-xs text-slate-500">
+                                            {{ assignedCount(user) }} OLT di-assign
+                                        </div>
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-500">
                                         {{ formatDate(user.created_at) }}
@@ -327,6 +355,39 @@ const deleteUser = async (user) => {
                             </option>
                         </select>
                         <InputError :message="form.errors.role" class="mt-1" />
+                    </div>
+
+                    <!-- OLT yang boleh dikelola partner -->
+                    <div v-if="isPartnerForm">
+                        <InputLabel value="OLT yang di-assign" />
+                        <p class="mt-0.5 text-xs text-slate-500">
+                            Partner hanya bisa melihat & mengedit OLT yang dicentang di sini.
+                        </p>
+                        <div
+                            v-if="oltOptions.length"
+                            class="mt-2 max-h-48 space-y-1 overflow-y-auto rounded-lg border border-white/10 bg-slate-900/60 p-2 shadow-inner shadow-black/20"
+                        >
+                            <label
+                                v-for="olt in oltOptions"
+                                :key="olt.value"
+                                class="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/[0.04]"
+                            >
+                                <input
+                                    type="checkbox"
+                                    :checked="form.olt_ids.includes(olt.value)"
+                                    class="h-4 w-4 rounded border-white/20 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                                    @change="toggleOlt(olt.value)"
+                                />
+                                <span class="min-w-0">
+                                    <span class="block truncate text-sm text-slate-100">{{ olt.label }}</span>
+                                    <span class="block truncate text-xs text-slate-500">{{ olt.ip }}</span>
+                                </span>
+                            </label>
+                        </div>
+                        <p v-else class="mt-2 text-sm text-slate-500">
+                            Belum ada OLT terdaftar. Tambahkan OLT lebih dulu.
+                        </p>
+                        <InputError :message="form.errors.olt_ids" class="mt-1" />
                     </div>
 
                     <div>

@@ -30,6 +30,9 @@ const props = defineProps({
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
+// Tambah/hapus device OLT hanya admin+operator (partner tidak). Aksi lain (edit/telnet)
+// tetap pakai canManageOlt.
+const canManageInventory = computed(() => Boolean(page.props.auth?.can?.manage_olt_inventory));
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
@@ -162,7 +165,7 @@ const formatDate = (value) => formatDateTime(value);
                 <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
                     SmartOLT
                 </h2>
-                <Link v-if="canManageOlt" :href="createHref" class="sm:w-auto">
+                <Link v-if="canManageInventory" :href="createHref" class="sm:w-auto">
                     <PrimaryButton class="w-full sm:w-auto">
                         <Plus class="mr-2 h-4 w-4" />
                         Tambah OLT
@@ -211,7 +214,7 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan OLT pertama untuk mulai test SNMP.</p>
-                        <div v-if="canManageOlt" class="mt-5">
+                        <div v-if="canManageInventory" class="mt-5">
                             <Link :href="route('smartolt.create')">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
@@ -290,7 +293,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                    <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                 </div>
@@ -386,7 +389,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                            <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
                                         </div>
@@ -418,7 +421,7 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">{{ nonZteEmpty.title }}</h3>
                         <p class="mt-1 text-sm text-slate-500">{{ nonZteEmpty.subtitle }}</p>
-                        <div v-if="canManageOlt" class="mt-5">
+                        <div v-if="canManageInventory" class="mt-5">
                             <Link :href="createHref">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
@@ -502,7 +505,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
+                                    <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                 </div>
@@ -601,7 +604,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
+                                            <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
                                         </div>

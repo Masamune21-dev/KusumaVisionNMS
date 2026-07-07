@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\PartnerOltScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OnuMapPin extends Model
 {
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new PartnerOltScope);
+    }
+
     protected $fillable = [
         'snmp_olt_id',
         'slot',

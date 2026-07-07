@@ -2,9 +2,9 @@
 
 namespace App\Services\Telegram;
 
+use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
-use App\Models\TelegramSetting;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
 use App\Services\Dashboard\DashboardStatsService;
@@ -54,7 +54,7 @@ class TelegramCommandHandler
     /**
      * Resolve an inbound text message to a reply, or null when it should be ignored.
      */
-    public function handle(string $text, string $chatId, TelegramSetting $setting): ?TelegramReply
+    public function handle(string $text, string $chatId, TelegramBotConfig $setting): ?TelegramReply
     {
         $text = trim($text);
 
@@ -105,7 +105,7 @@ class TelegramCommandHandler
      * Resolve a callback_data string (button press) to a reply. The caller must already
      * have authorized the chat; null = nothing to render (e.g. the page-indicator button).
      */
-    public function handleCallback(string $data, string $chatId, TelegramSetting $setting): ?TelegramReply
+    public function handleCallback(string $data, string $chatId, TelegramBotConfig $setting): ?TelegramReply
     {
         if (! $setting->isChatAuthorized($chatId)) {
             return TelegramReply::make($this->accessDenied($chatId));
@@ -186,7 +186,7 @@ class TelegramCommandHandler
         return TelegramReply::make($text, [[TelegramKeyboard::button('🏠 Buka Menu', TelegramKeyboard::menu())]]);
     }
 
-    private function chatId(string $chatId, TelegramSetting $setting): string
+    private function chatId(string $chatId, TelegramBotConfig $setting): string
     {
         $line = '🆔 Chat ID Anda: <code>'.$this->escape($chatId).'</code>';
 

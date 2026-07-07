@@ -2,16 +2,17 @@
 
 namespace App\Services\Telegram;
 
+use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\TelegramSetting;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Str;
 use Throwable;
 
 /**
  * Registers / inspects / removes the Telegram webhook for inbound commands.
  *
- * Shared by the telegram:webhook artisan command and the Settings UI buttons so the
- * setup logic lives in one place.
+ * Shared by the telegram:webhook artisan command, the Settings UI buttons, and the
+ * partner self-service page so the setup logic lives in one place. Beroperasi atas
+ * {@see TelegramBotConfig} — bot global (default) atau bot partner.
  */
 class TelegramWebhookManager
 {
@@ -22,25 +23,21 @@ class TelegramWebhookManager
      *
      * @return array{ok: bool, message: string, url?: string}
      */
-    public function register(): array
+    public function register(?TelegramBotConfig $config = null): array
     {
-        $setting = TelegramSetting::instance();
+        $config ??= TelegramSetting::instance();
 
-        if (blank($setting->bot_token)) {
+        if ($config->botToken() === '') {
             return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
         }
 
-        if (blank($setting->webhook_secret)) {
-            $setting->webhook_secret = Str::random(48);
-        }
-        $setting->commands_enabled = true;
-        $setting->save();
+        $config->markCommandsEnabled();
 
-        $url = route('telegram.webhook');
+        $url = $config->webhookUrl();
 
-        $result = $this->call($setting->bot_token, 'setWebhook', [
+        $result = $this->call($config->botToken(), 'setWebhook', [
             'url' => $url,
-            'secret_token' => $setting->webhook_secret,
+            'secret_token' => $config->webhookSecret(),
             'allowed_updates' => ['message', 'callback_query'],
             'drop_pending_updates' => true,
         ]);
@@ -55,15 +52,15 @@ class TelegramWebhookManager
     /**
      * @return array{ok: bool, message: string, info?: array<string, mixed>}
      */
-    public function info(): array
+    public function info(?TelegramBotConfig $config = null): array
     {
-        $setting = TelegramSetting::instance();
+        $config ??= TelegramSetting::instance();
 
-        if (blank($setting->bot_token)) {
+        if ($config->botToken() === '') {
             return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
         }
 
-        $result = $this->call($setting->bot_token, 'getWebhookInfo');
+        $result = $this->call($config->botToken(), 'getWebhookInfo');
 
         if (! $result['ok']) {
             return $result;
@@ -75,22 +72,21 @@ class TelegramWebhookManager
     /**
      * @return array{ok: bool, message: string}
      */
-    public function delete(): array
+    public function delete(?TelegramBotConfig $config = null): array
     {
-        $setting = TelegramSetting::instance();
+        $config ??= TelegramSetting::instance();
 
-        if (blank($setting->bot_token)) {
+        if ($config->botToken() === '') {
             return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
         }
 
-        $result = $this->call($setting->bot_token, 'deleteWebhook', ['drop_pending_updates' => false]);
+        $result = $this->call($config->botToken(), 'deleteWebhook', ['drop_pending_updates' => false]);
 
         if (! $result['ok']) {
             return $result;
         }
 
-        $setting->commands_enabled = false;
-        $setting->save();
+        $config->markCommandsDisabled();
 
         return ['ok' => true, 'message' => 'Webhook dihapus.'];
     }

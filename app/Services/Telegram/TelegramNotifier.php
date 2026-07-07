@@ -2,7 +2,9 @@
 
 namespace App\Services\Telegram;
 
+use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\AlarmEvent;
+use App\Models\PartnerTelegramBot;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use Illuminate\Support\Carbon;
@@ -41,19 +43,54 @@ class TelegramNotifier
             return;
         }
 
-        $setting = TelegramSetting::instance();
+        // Bot global (semua OLT) + tiap bot partner yang di-assign ke OLT ini.
+        foreach ($this->configsFor($olt) as $config) {
+            $this->notifyConfig($config, $olt, $raised, $cleared);
+        }
+    }
 
-        if (! $setting->isReady()) {
-            return;
+    /**
+     * Semua bot yang harus menerima alarm OLT ini: global admin + bot partner ter-assign.
+     *
+     * @return array<int, TelegramBotConfig>
+     */
+    private function configsFor(SnmpOlt $olt): array
+    {
+        $configs = [];
+
+        $global = TelegramSetting::instance();
+        if ($global->isReady()) {
+            $configs[] = $global;
         }
 
+        $partnerBots = PartnerTelegramBot::query()
+            ->whereHas('user.partnerOlts', fn ($q) => $q->whereKey($olt->id))
+            ->get();
+
+        foreach ($partnerBots as $bot) {
+            if ($bot->isReady()) {
+                $configs[] = $bot;
+            }
+        }
+
+        return $configs;
+    }
+
+    /**
+     * Kirim batch alarm ke satu bot dengan filter severity/jenis milik bot tsb.
+     *
+     * @param  array<int, AlarmEvent>  $raised
+     * @param  array<int, AlarmEvent>  $cleared
+     */
+    private function notifyConfig(TelegramBotConfig $config, SnmpOlt $olt, array $raised, array $cleared): void
+    {
         $sections = [];
 
-        if ($setting->notify_on_raise) {
-            $eligible = $this->filterBySeverity($raised, $setting->minSeverityRank());
+        if ($config->notifyOnRaise()) {
+            $eligible = $this->filterBySeverity($raised, $config->minSeverityRank());
 
             foreach ($eligible as $alarm) {
-                if (! $setting->shouldNotifyType($alarm->type)) {
+                if (! $config->shouldNotifyType($alarm->type)) {
                     continue;
                 }
 
@@ -61,9 +98,9 @@ class TelegramNotifier
             }
         }
 
-        if ($setting->notify_on_clear) {
+        if ($config->notifyOnClear()) {
             foreach ($cleared as $alarm) {
-                if (! $setting->shouldNotifyType($alarm->type)) {
+                if (! $config->shouldNotifyType($alarm->type)) {
                     continue;
                 }
 
@@ -87,7 +124,7 @@ class TelegramNotifier
                     .($total > 1 ? ' ('.($index + 1).'/'.$total.')' : '')."\n"
                     .'OLT: <b>'.$this->escape((string) $olt->name).'</b>';
 
-                $this->dispatch($setting, $header."\n\n".implode("\n\n", $chunk)."\n\n🕒 ".$timestamp);
+                $this->dispatch($config, $header."\n\n".implode("\n\n", $chunk)."\n\n🕒 ".$timestamp);
             }
         } catch (Throwable $exception) {
             Log::warning('Telegram alarm notification failed', [
@@ -102,11 +139,11 @@ class TelegramNotifier
      *
      * @return array{ok: bool, error: ?string}
      */
-    public function sendTest(): array
+    public function sendTest(?TelegramBotConfig $config = null): array
     {
-        $setting = TelegramSetting::instance();
+        $config ??= TelegramSetting::instance();
 
-        if (! $setting->isConfigured()) {
+        if (! $config->isConfigured()) {
             return ['ok' => false, 'error' => 'Bot token dan chat ID harus diisi terlebih dahulu.'];
         }
 
@@ -115,7 +152,7 @@ class TelegramNotifier
             ."\n\n🕒 ".Carbon::now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->translatedFormat('d M Y H:i').' WIB';
 
         try {
-            return $this->dispatch($setting, $text);
+            return $this->dispatch($config, $text);
         } catch (Throwable $exception) {
             return ['ok' => false, 'error' => $exception->getMessage()];
         }
@@ -131,9 +168,9 @@ class TelegramNotifier
      * @param  array<int, array<int, array<string, string>>>|null  $keyboard
      * @return array{ok: bool, error: ?string}
      */
-    public function sendTo(string $chatId, string $text, ?array $keyboard = null): array
+    public function sendTo(string $chatId, string $text, ?array $keyboard = null, ?TelegramBotConfig $config = null): array
     {
-        $token = (string) TelegramSetting::instance()->bot_token;
+        $token = ($config ?? TelegramSetting::instance())->botToken();
 
         if ($token === '') {
             return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
@@ -161,9 +198,9 @@ class TelegramNotifier
      * @param  array<int, array<int, array<string, string>>>|null  $keyboard
      * @return array{ok: bool, error: ?string}
      */
-    public function editMessage(string $chatId, int $messageId, string $text, ?array $keyboard = null): array
+    public function editMessage(string $chatId, int $messageId, string $text, ?array $keyboard = null, ?TelegramBotConfig $config = null): array
     {
-        $token = (string) TelegramSetting::instance()->bot_token;
+        $token = ($config ?? TelegramSetting::instance())->botToken();
 
         if ($token === '') {
             return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
@@ -193,16 +230,16 @@ class TelegramNotifier
         }
 
         // Anything else (message too old / deleted) — fall back to a new message.
-        return $this->sendTo($chatId, $text, $keyboard);
+        return $this->sendTo($chatId, $text, $keyboard, $config);
     }
 
     /**
      * Acknowledge a callback query so Telegram stops showing the button spinner.
      * Best-effort: failures are swallowed (the reply itself already went out).
      */
-    public function answerCallback(string $callbackId, ?string $text = null): void
+    public function answerCallback(string $callbackId, ?string $text = null, ?TelegramBotConfig $config = null): void
     {
-        $token = (string) TelegramSetting::instance()->bot_token;
+        $token = ($config ?? TelegramSetting::instance())->botToken();
 
         if ($token === '') {
             return;
@@ -249,12 +286,12 @@ class TelegramNotifier
      *
      * @return array{ok: bool, error: ?string}
      */
-    private function dispatch(TelegramSetting $setting, string $text): array
+    private function dispatch(TelegramBotConfig $config, string $text): array
     {
-        $token = (string) $setting->bot_token;
+        $token = $config->botToken();
         $error = null;
 
-        foreach ($setting->chatIds() as $chatId) {
+        foreach ($config->chatIds() as $chatId) {
             $response = Http::asJson()
                 ->timeout(10)
                 ->post(self::API_BASE."/bot{$token}/sendMessage", [
@@ -270,10 +307,7 @@ class TelegramNotifier
             }
         }
 
-        $setting->forceFill([
-            'last_sent_at' => Carbon::now(),
-            'last_error' => $error,
-        ])->save();
+        $config->recordDelivery($error);
 
         return ['ok' => $error === null, 'error' => $error];
     }

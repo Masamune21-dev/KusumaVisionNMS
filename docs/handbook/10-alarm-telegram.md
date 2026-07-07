@@ -59,6 +59,23 @@ labelnya ada di `AlarmEvent::TYPE_LABELS` (sumber tunggal; `AlarmEvent::types()`
 `notify_types = null` berarti **semua jenis** (default/kompat lama); array eksplisit (termasuk
 kosong = semua dibisukan) dihormati apa adanya.
 
+### Multi-bot: bot global (admin) + bot partner (self-service)
+`telegram_settings` = bot **global** (alarm SEMUA OLT, command lintas-OLT). Selain itu tiap user role
+`partner` bisa punya **bot sendiri** (`partner_telegram_bots`, 1 baris/partner) yang hanya menerima alarm
+& melayani command untuk OLT yang di-assign ke partner ([11 — RBAC](11-keamanan-rbac-audit.md)). Keduanya
+mengimplementasikan kontrak `App\Contracts\Telegram\TelegramBotConfig` (logika bersama di trait
+`App\Models\Concerns\TelegramBotConfigTrait`) sehingga notifier/manager/handler memperlakukannya seragam:
+- **Push** — `TelegramNotifier::notify($olt,…)` mengumpulkan bot global (bila ready) + tiap bot partner
+  yang partner-nya assigned ke `$olt`, lalu kirim per-bot dengan filter severity/jenis milik bot itu.
+- **Webhook** — rute `POST /telegram/webhook/{bot?}`. `{bot}` kosong = bot global; `{bot}`=id =
+  `PartnerTelegramBot`. Untuk bot partner, controller memanggil `Auth::setUser($partner)` sehingga
+  `SnmpOlt::query()` di `TelegramCommandHandler`/`TelegramOnuQueryService` **otomatis ter-scope**
+  `PartnerOltScope` — command handler tak perlu tahu soal partner. Secret diverifikasi per-bot.
+- **Setup partner** — halaman **Bot Telegram Saya** (`Pages/Partner/TelegramBot.vue`, rute
+  `partner.telegram.*`): isi token + allow-list chat + register webhook sendiri. `TelegramWebhookManager`
+  mendaftarkan webhook per-bot ke URL yang menyisipkan id-nya. Setelah upgrade: **daftar-ulang webhook**
+  tiap bot (allowed_updates butuh `callback_query`).
+
 ### Push — `TelegramNotifier`
 `app/Services/Telegram/TelegramNotifier.php`.
 - `notify($olt, $raised, $cleared)` — kirim alarm baru/clear bila `isReady()`; filter berdasar

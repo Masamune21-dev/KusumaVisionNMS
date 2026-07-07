@@ -31,6 +31,8 @@ class HandleInertiaRequests extends Middleware
                 'can' => [
                     'manage_users' => (bool) $user?->canManageUsers(),
                     'manage_olt' => (bool) $user?->canManageOlt(),
+                    'manage_olt_inventory' => (bool) $user?->canManageOltInventory(),
+                    'is_partner' => (bool) $user?->isPartner(),
                     'is_demo' => (bool) $user?->isDemo(),
                 ],
             ],

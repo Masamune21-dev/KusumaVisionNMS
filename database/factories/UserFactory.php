@@ -54,4 +54,9 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['role' => UserRole::Demo]);
     }
+
+    public function partner(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Partner]);
+    }
 }

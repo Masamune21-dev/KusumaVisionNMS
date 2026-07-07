@@ -5,14 +5,16 @@ namespace App\Models;
 use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\TelegramBotConfigTrait;
+use App\Models\Scopes\PartnerOltScope;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Bot Telegram GLOBAL (admin) — mendapat alarm dari SEMUA OLT & command lintas-OLT.
- * Bot per-partner ada di {@see PartnerTelegramBot}. Keduanya berbagi
- * {@see TelegramBotConfigTrait} dan memenuhi {@see TelegramBotConfig}.
+ * Bot Telegram milik seorang partner (1 bot per partner). Menerima alarm & melayani
+ * command HANYA untuk OLT yang di-assign ke partner tsb (webhook menyetel auth user =
+ * partner sehingga {@see PartnerOltScope} membatasi query OLT).
  */
-class TelegramSetting extends Model implements TelegramBotConfig
+class PartnerTelegramBot extends Model implements TelegramBotConfig
 {
     use Auditable, TelegramBotConfigTrait;
 
@@ -23,15 +25,16 @@ class TelegramSetting extends Model implements TelegramBotConfig
 
     public function auditLabel(): string
     {
-        return 'Pengaturan Telegram';
+        return 'Bot Telegram Partner';
     }
 
     public function auditTitle(): string
     {
-        return '';
+        return (string) ($this->user?->name ?? $this->user_id);
     }
 
     protected $fillable = [
+        'user_id',
         'enabled',
         'bot_token',
         'chat_id',
@@ -65,10 +68,29 @@ class TelegramSetting extends Model implements TelegramBotConfig
     }
 
     /**
-     * The singleton settings row (or a fresh unsaved instance if none exists yet).
+     * @return BelongsTo<User, $this>
      */
-    public static function instance(): self
+    public function user(): BelongsTo
     {
-        return static::query()->firstOrNew([]);
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Bot partner didaftarkan pada URL webhook yang menyisipkan id-nya, sehingga update
+     * dari Telegram bisa dipetakan kembali ke bot (dan partner) yang tepat.
+     *
+     * @return array<string, mixed>
+     */
+    public function webhookRouteParameters(): array
+    {
+        return ['bot' => $this->id];
+    }
+
+    /**
+     * Ambil / buat baris bot untuk user (dipakai halaman self-service partner).
+     */
+    public static function forUser(User $user): self
+    {
+        return static::query()->firstOrNew(['user_id' => $user->id]);
     }
 }

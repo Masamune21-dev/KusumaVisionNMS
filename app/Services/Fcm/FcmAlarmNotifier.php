@@ -2,10 +2,12 @@
 
 namespace App\Services\Fcm;
 
+use App\Enums\UserRole;
 use App\Models\AlarmEvent;
 use App\Models\FcmDeviceToken;
 use App\Models\FcmSetting;
 use App\Models\SnmpOlt;
+use App\Models\User;
 use App\Services\AlarmEvaluator;
 use App\Services\Telegram\TelegramNotifier;
 use Illuminate\Support\Collection;
@@ -66,7 +68,12 @@ class FcmAlarmNotifier
             return;
         }
 
-        $tokens = FcmDeviceToken::query()->pluck('token')->all();
+        // Penerima: admin & operator (semua OLT) + partner yang di-assign ke OLT ini.
+        // Partner tidak boleh menerima alarm OLT di luar assignment-nya.
+        $tokens = FcmDeviceToken::query()
+            ->whereIn('user_id', $this->recipientUserIds($olt))
+            ->pluck('token')
+            ->all();
         if ($tokens === []) {
             return;
         }
@@ -193,6 +200,24 @@ class FcmAlarmNotifier
 
             return ['ok' => false, 'sent' => 0, 'failed' => 0, 'reason' => 'error', 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Id user yang berhak menerima push alarm untuk OLT ini:
+     * admin + operator (semua OLT) ∪ partner yang OLT-nya termasuk assignment.
+     *
+     * @return array<int, int>
+     */
+    private function recipientUserIds(SnmpOlt $olt): array
+    {
+        return User::query()
+            ->where(function ($q) use ($olt) {
+                $q->whereIn('role', [UserRole::Admin->value, UserRole::Operator->value])
+                    ->orWhere(fn ($p) => $p->where('role', UserRole::Partner->value)
+                        ->whereHas('partnerOlts', fn ($r) => $r->whereKey($olt->id)));
+            })
+            ->pluck('id')
+            ->all();
     }
 
     private function buildMessage(SnmpOlt $olt, AlarmEvent $alarm, string $event): CloudMessage

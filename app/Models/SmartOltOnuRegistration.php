@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\DemoScope;
+use App\Models\Scopes\PartnerOltScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -78,6 +79,7 @@ class SmartOltOnuRegistration extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new DemoScope);
+        static::addGlobalScope(new PartnerOltScope);
     }
 
     protected function casts(): array

@@ -9,10 +9,27 @@
 |------|-------|-----------|
 | Administrator | `admin` | Semua: kelola user, audit logs, settings, kelola OLT |
 | Operator | `operator` | Kelola OLT (CRUD, provisioning, telnet) — **tanpa** user/settings/audit |
+| Partner | `partner` | Setara operator **TAPI hanya pada OLT yang di-assign admin** (edit, provisioning, telnet, reboot/rename/delete ONU). **Tidak** boleh tambah/hapus device OLT, **tidak** akses user/settings/audit. Punya bot Telegram sendiri (self-service). |
 | Demo | `demo` | **Read-only**, hanya melihat data demo (`is_demo=true`) |
 
-Helper di `User`: `isAdmin()`, `isOperator()`, `isDemo()`, `canManageOlt()` (admin+operator),
-`canManageUsers()` (admin).
+Helper di `User`: `isAdmin()`, `isOperator()`, `isPartner()`, `isDemo()`, `canManageOlt()`
+(admin+operator+**partner**), `canManageOltInventory()` (admin+operator — gate tambah/hapus **device**
+OLT), `canManageUsers()` (admin). Partner: `partnerOlts()` (OLT ter-assign, pivot `olt_user`),
+`allowedOltIds()` (id OLT boleh diakses — **query pivot langsung**, bukan relasi, agar tak memicu
+scope rekursif).
+
+### Cakupan OLT partner — `App\Models\Scopes\PartnerOltScope`
+Global scope (pola sama `DemoScope`) yang membatasi user `partner` hanya ke OLT ter-assign. Dipasang di
+`SnmpOlt` (kolom `id`) dan model ber-`snmp_olt_id` (`AlarmEvent`, `PollingEvent`,
+`SmartOltOnuRegistration`, `OnuMapPin`). Karena **setiap controller memakai route-model binding
+`SnmpOlt $olt`**, satu scope ini otomatis: (a) menyaring daftar/detail/edit/refresh/telnet/API/peta/
+search/report, (b) mengembalikan **404** saat partner membuka OLT non-assigned, (c) menyaring alarm
+(bell, halaman Alarms, API) ke OLT partner saja. No-op untuk admin/operator/demo & konteks console/queue
+(poller tetap memoll semua OLT). Assignment dikelola admin di halaman **Users** (multiselect OLT saat
+role = partner). Aksi tambah/hapus device OLT di-gate `role:admin,operator` di `routes/web.php`.
+
+**Alarm ke partner:** `FcmAlarmNotifier` membatasi penerima push ke admin+operator ∪ partner yang
+assigned ke OLT tsb (bukan broadcast). Bot Telegram partner: lihat [10 — Alarm & Telegram](10-alarm-telegram.md).
 
 ### Penegakan akses (3 lapis)
 1. **Middleware route** — `role:admin` (`EnsureUserRole`) membungkus grup Users/Audit/Settings.

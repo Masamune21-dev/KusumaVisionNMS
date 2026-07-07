@@ -78,8 +78,9 @@ Route::prefix('v1')->group(function () {
 
         Route::get('alarms', [AlarmController::class, 'index'])->name('api.alarms.index');
 
-        // --- Aksi TULIS (admin & operator; demo diblokir). ZTE-only di controller. ---
-        Route::middleware(['role:admin,operator', BlockDemoWrites::class])->group(function () {
+        // --- Aksi TULIS (admin, operator & partner; demo diblokir). ZTE-only di controller.
+        //     Partner otomatis dibatasi ke OLT yang di-assign (PartnerOltScope → 404 di luar itu). ---
+        Route::middleware(['role:admin,operator,partner', BlockDemoWrites::class])->group(function () {
             Route::post('olts/{olt}/register/preview', [OnuRegistrationController::class, 'preview'])
                 ->name('api.olts.register.preview');
             Route::post('olts/{olt}/register', [OnuRegistrationController::class, 'store'])

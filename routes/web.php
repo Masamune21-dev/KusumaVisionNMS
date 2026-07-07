@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OnuMapController;
+use App\Http\Controllers\Partner\TelegramBotController as PartnerTelegramBotController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
@@ -31,8 +32,11 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
 
 // Inbound Telegram bot commands. Public (no auth) — guarded by the secret token header;
-// CSRF-exempt (see bootstrap/app.php).
-Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle'])->name('telegram.webhook');
+// CSRF-exempt (see bootstrap/app.php). {bot} kosong = bot global admin; {bot}=id =
+// bot milik partner (webhook menyetel auth user = partner untuk membatasi query OLT).
+Route::post('/telegram/webhook/{bot?}', [TelegramWebhookController::class, 'handle'])
+    ->whereNumber('bot')
+    ->name('telegram.webhook');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -69,13 +73,23 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/fcm/send', [SettingsController::class, 'sendFcmManual'])->name('settings.fcm.send');
     });
 
+    // Bot Telegram self-service milik partner (bot sendiri, terbatas OLT yang di-assign).
+    Route::middleware('role:partner')->group(function () {
+        Route::get('/partner/telegram', [PartnerTelegramBotController::class, 'edit'])->name('partner.telegram.edit');
+        Route::put('/partner/telegram', [PartnerTelegramBotController::class, 'update'])->name('partner.telegram.update');
+        Route::post('/partner/telegram/test', [PartnerTelegramBotController::class, 'test'])->name('partner.telegram.test');
+        Route::post('/partner/telegram/webhook/register', [PartnerTelegramBotController::class, 'registerWebhook'])->name('partner.telegram.webhook.register');
+        Route::post('/partner/telegram/webhook/delete', [PartnerTelegramBotController::class, 'deleteWebhook'])->name('partner.telegram.webhook.delete');
+    });
+
     // OLT C-Data (non-ZTE: EPON 17409 & GPON 34592) — v1 read-only monitoring.
     Route::get('/cdata-olt', [CDataOltController::class, 'index'])->name('cdata-olt.index');
-    Route::get('/cdata-olt/create', [CDataOltController::class, 'create'])->name('cdata-olt.create');
-    Route::post('/cdata-olt', [CDataOltController::class, 'store'])->name('cdata-olt.store');
+    // Tambah/hapus device OLT = admin+operator (partner hanya memakai OLT yang di-assign).
+    Route::get('/cdata-olt/create', [CDataOltController::class, 'create'])->middleware('role:admin,operator')->name('cdata-olt.create');
+    Route::post('/cdata-olt', [CDataOltController::class, 'store'])->middleware('role:admin,operator')->name('cdata-olt.store');
     Route::get('/cdata-olt/{olt}/edit', [CDataOltController::class, 'edit'])->name('cdata-olt.edit');
     Route::put('/cdata-olt/{olt}', [CDataOltController::class, 'update'])->name('cdata-olt.update');
-    Route::delete('/cdata-olt/{olt}', [CDataOltController::class, 'destroy'])->name('cdata-olt.destroy');
+    Route::delete('/cdata-olt/{olt}', [CDataOltController::class, 'destroy'])->middleware('role:admin,operator')->name('cdata-olt.destroy');
     Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->name('cdata-olt.test');
     Route::get('/cdata-olt/{olt}/detail', [CDataOltController::class, 'detail'])->name('cdata-olt.detail');
     Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->name('cdata-olt.refresh');
@@ -87,11 +101,11 @@ Route::middleware('auth')->group(function () {
 
     // OLT HiOSO / V-Sol EPON (enterprise 25355, mis. HA7304) — inventori + rename/reboot ONU (CLI).
     Route::get('/hioso-olt', [HiosoOltController::class, 'index'])->name('hioso-olt.index');
-    Route::get('/hioso-olt/create', [HiosoOltController::class, 'create'])->name('hioso-olt.create');
-    Route::post('/hioso-olt', [HiosoOltController::class, 'store'])->name('hioso-olt.store');
+    Route::get('/hioso-olt/create', [HiosoOltController::class, 'create'])->middleware('role:admin,operator')->name('hioso-olt.create');
+    Route::post('/hioso-olt', [HiosoOltController::class, 'store'])->middleware('role:admin,operator')->name('hioso-olt.store');
     Route::get('/hioso-olt/{olt}/edit', [HiosoOltController::class, 'edit'])->name('hioso-olt.edit');
     Route::put('/hioso-olt/{olt}', [HiosoOltController::class, 'update'])->name('hioso-olt.update');
-    Route::delete('/hioso-olt/{olt}', [HiosoOltController::class, 'destroy'])->name('hioso-olt.destroy');
+    Route::delete('/hioso-olt/{olt}', [HiosoOltController::class, 'destroy'])->middleware('role:admin,operator')->name('hioso-olt.destroy');
     Route::post('/hioso-olt/{olt}/test', [HiosoOltController::class, 'test'])->name('hioso-olt.test');
     Route::get('/hioso-olt/{olt}/detail', [HiosoOltController::class, 'detail'])->name('hioso-olt.detail');
     Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->name('hioso-olt.refresh');
@@ -102,8 +116,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HiosoOltController::class, 'deleteOnu'])->name('hioso-olt.onu.delete');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
-    Route::get('/smartolt/create', [SmartOltController::class, 'create'])->name('smartolt.create');
-    Route::post('/smartolt', [SmartOltController::class, 'store'])->name('smartolt.store');
+    Route::get('/smartolt/create', [SmartOltController::class, 'create'])->middleware('role:admin,operator')->name('smartolt.create');
+    Route::post('/smartolt', [SmartOltController::class, 'store'])->middleware('role:admin,operator')->name('smartolt.store');
     Route::get('/smartolt/unconfigured', [SmartOltController::class, 'unconfiguredGlobal'])->name('smartolt.unconfigured-all');
     Route::get('/onu-monitoring', [SmartOltController::class, 'onuMonitor'])->name('monitoring.onu');
     Route::post('/onu-monitoring/{olt}/refresh', [SmartOltController::class, 'refreshOnuMonitor'])->name('monitoring.onu.refresh');
@@ -141,7 +155,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/smartolt/{olt}/profiles/{profile}', [SmartOltProfileController::class, 'destroy'])->name('smartolt.profiles.destroy');
     Route::get('/smartolt/{olt}/edit', [SmartOltController::class, 'edit'])->name('smartolt.edit');
     Route::put('/smartolt/{olt}', [SmartOltController::class, 'update'])->name('smartolt.update');
-    Route::delete('/smartolt/{olt}', [SmartOltController::class, 'destroy'])->name('smartolt.destroy');
+    Route::delete('/smartolt/{olt}', [SmartOltController::class, 'destroy'])->middleware('role:admin,operator')->name('smartolt.destroy');
     Route::post('/smartolt/{olt}/telnet/token', [TelnetSessionController::class, 'token'])->name('smartolt.telnet.token');
     Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->name('smartolt.test');
     Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->name('smartolt.refresh');

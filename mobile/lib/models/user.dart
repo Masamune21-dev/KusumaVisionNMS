@@ -20,8 +20,10 @@ class AppUser {
   final bool isDemo;
 
   /// Boleh melakukan aksi tulis (registrasi/reboot/rename). Sesuai gating server:
-  /// admin & operator boleh, demo tidak.
-  bool get canWrite => !isDemo && (role == 'admin' || role == 'operator');
+  /// admin, operator & partner boleh, demo tidak. Partner otomatis dibatasi ke OLT
+  /// yang di-assign (server mengembalikan hanya OLT tsb + 404 di luarnya).
+  bool get canWrite =>
+      !isDemo && (role == 'admin' || role == 'operator' || role == 'partner');
 
   factory AppUser.fromJson(Map<String, dynamic> j) => AppUser(
         id: J.asInt(j['id']),

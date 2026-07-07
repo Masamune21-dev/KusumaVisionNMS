@@ -9,7 +9,7 @@ import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Settings, User, Users, WifiOff } from '@lucide/vue';
+import { BellRing, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, WifiOff } from '@lucide/vue';
 
 // Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
 // Chunk async (lihat catatan di Welcome.vue) agar key manifest tidak hilang saat build.
@@ -58,6 +58,10 @@ const navLinks = computed(() => {
         links.push({ name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' });
         links.push({ name: 'Audit Logs', icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
         links.push({ name: 'Pengaturan', icon: Settings, href: route('settings.edit'), match: 'settings.*' });
+    }
+
+    if (can.value.is_partner) {
+        links.push({ name: 'Bot Telegram Saya', icon: Send, href: route('partner.telegram.edit'), match: 'partner.telegram.*' });
     }
 
     return links;
