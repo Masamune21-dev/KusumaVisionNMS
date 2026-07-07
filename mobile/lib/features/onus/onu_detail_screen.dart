@@ -14,6 +14,8 @@ import '../../models/onu.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_controller.dart';
 
+const _tnum = [FontFeature.tabularFigures()];
+
 class OnuDetailScreen extends ConsumerStatefulWidget {
   const OnuDetailScreen({
     super.key,
@@ -38,7 +40,7 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? AppColors.danger.withValues(alpha: 0.9) : AppColors.success.withValues(alpha: 0.9),
+      backgroundColor: error ? AppColors.danger.withValues(alpha: 0.95) : AppColors.success.withValues(alpha: 0.95),
     ));
   }
 
@@ -46,12 +48,15 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.bgElevated,
         title: const Text('Reboot ONU?'),
         content: const Text('ONU akan restart selama 30–60 detik.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reboot')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: const Color(0xFF241A00)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reboot'),
+          ),
         ],
       ),
     );
@@ -72,7 +77,6 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.bgElevated,
         title: const Text('Ubah nama ONU'),
         content: TextField(
           controller: controller,
@@ -111,6 +115,8 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
       appBar: AppBar(title: const Text('Detail ONU')),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(onuDetailProvider(_arg).future),
+        color: AppColors.primary,
+        backgroundColor: AppColors.surfaceAlt,
         child: AsyncView<Onu>(
           value: data,
           onRetry: () => ref.refresh(onuDetailProvider(_arg)),
@@ -119,22 +125,18 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
             children: [
               _Header(onu: o),
               const SizedBox(height: 14),
+              SectionTitle('Informasi', icon: LucideIcons.info),
               _Info(onu: o),
               if (canReboot || canRename) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     if (canRename)
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _busy ? null : () => _rename(o),
-                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          icon: const Icon(LucideIcons.edit, size: 18),
                           label: const Text('Ubah nama'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.secondary,
-                            side: const BorderSide(color: AppColors.border),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
                         ),
                       ),
                     if (canRename && canReboot) const SizedBox(width: 12),
@@ -144,9 +146,10 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
                           onPressed: _busy ? null : _reboot,
                           icon: _busy
                               ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Icon(Icons.restart_alt, size: 18),
+                              : const Icon(LucideIcons.restart, size: 18),
                           label: const Text('Reboot'),
-                          style: FilledButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: const Color(0xFF241A00)),
+                          style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.warning, foregroundColor: const Color(0xFF241A00)),
                         ),
                       ),
                   ],
@@ -166,21 +169,48 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = onu.online ? AppColors.success : AppColors.danger;
     return GlassCard(
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(onu.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-          const SizedBox(height: 4),
-          Text('${onu.interface ?? 'ONU ${onu.onuId}'} · ${onu.oltName ?? ''}',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
-          const SizedBox(height: 14),
           Row(
             children: [
+              Container(
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                ),
+                child: Icon(LucideIcons.router, color: color, size: 24),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(onu.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: -0.3)),
+                    const SizedBox(height: 3),
+                    Text('${onu.interface ?? 'ONU ${onu.onuId}'} · ${onu.oltName ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
               StatusChip.online(onu.online),
-              const SizedBox(width: 8),
               RxPowerBadge(dbm: onu.rxPowerDbm, online: onu.online),
-              const Spacer(),
               if (onu.rxMarginal && onu.online)
                 const StatusChip(
                     label: 'RX marginal', color: AppColors.warning, icon: LucideIcons.alertTriangle),
@@ -198,41 +228,47 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = <(String, String?)>[
-      ('Serial Number', onu.serialNumber),
-      ('MAC', onu.mac),
-      ('Tipe ONU', onu.typeName),
-      ('Nama', onu.name),
-      ('Deskripsi', onu.description),
-      ('Pelanggan', onu.customerName),
-      ('Admin state', onu.adminState),
-      ('Phase state', onu.phaseState),
-      ('RX power', onu.online ? Fmt.rx(onu.rxPowerDbm) : '— (offline)'),
-      ('Penyebab down', onu.lastDownCause),
-      ('Slot / Port / ID', '${onu.slot} / ${onu.port} / ${onu.onuId}'),
-    ];
+    final rows = <(String, String?, bool)>[
+      ('Serial Number', onu.serialNumber, true),
+      ('MAC', onu.mac, true),
+      ('Tipe ONU', onu.typeName, false),
+      ('Nama', onu.name, false),
+      ('Deskripsi', onu.description, false),
+      ('Pelanggan', onu.customerName, false),
+      ('Admin state', onu.adminState, false),
+      ('Phase state', onu.phaseState, false),
+      ('RX power', onu.online ? Fmt.rx(onu.rxPowerDbm) : '— (offline)', true),
+      ('Penyebab down', onu.lastDownCause, false),
+      ('Slot / Port / ID', '${onu.slot} / ${onu.port} / ${onu.onuId}', true),
+    ].where((r) => (r.$2 ?? '').trim().isNotEmpty).toList();
 
     return GlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
         children: [
-          for (final r in rows)
-            if ((r.$2 ?? '').trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 130,
-                      child: Text(r.$1, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 130,
+                    child: Text(rows[i].$1, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
+                  ),
+                  Expanded(
+                    child: SelectableText(
+                      rows[i].$2!,
+                      style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600, height: 1.3,
+                          fontFeatures: rows[i].$3 ? _tnum : null),
                     ),
-                    Expanded(
-                      child: Text(r.$2!,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
+          ],
         ],
       ),
     );

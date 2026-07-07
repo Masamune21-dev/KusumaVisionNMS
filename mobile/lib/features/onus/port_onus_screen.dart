@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/format.dart';
+import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/rx_power_badge.dart';
@@ -11,6 +13,9 @@ import '../../core/widgets/status_chip.dart';
 import '../../data/read_providers.dart';
 import '../../models/onu.dart';
 import '../../theme/app_theme.dart';
+import '../auth/auth_controller.dart';
+
+const _tnum = [FontFeature.tabularFigures()];
 
 class PortOnusScreen extends ConsumerStatefulWidget {
   const PortOnusScreen({
@@ -30,42 +35,102 @@ class PortOnusScreen extends ConsumerStatefulWidget {
 
 class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
   String _filter = '';
+  bool _refreshing = false;
+
+  PortArg get _arg => (oltId: widget.oltId, slot: widget.slot, port: widget.port);
+
+  /// Walk SNMP live subtree port ini (bukan baca cache polling) lalu muat ulang.
+  Future<void> _refreshLive() async {
+    setState(() => _refreshing = true);
+    try {
+      final res = await ref.read(nmsApiProvider).refreshPort(widget.oltId, widget.slot, widget.port);
+      ref.invalidate(portOnusProvider(_arg));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Data live diperbarui — ${res['count'] ?? 0} ONU.'),
+        backgroundColor: AppColors.success.withValues(alpha: 0.95),
+      ));
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message),
+          backgroundColor: AppColors.danger.withValues(alpha: 0.95),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final arg = (oltId: widget.oltId, slot: widget.slot, port: widget.port);
-    final data = ref.watch(portOnusProvider(arg));
+    final data = ref.watch(portOnusProvider(_arg));
+    // Refresh live hanya untuk OLT ZTE (endpoint dijaga non-ZTE) + user boleh tulis.
+    // Tampil optimistis selagi detail OLT belum termuat; sembunyi hanya bila jelas non-ZTE.
+    final canWrite = ref.watch(authControllerProvider).user?.canWrite ?? false;
+    final oltDetail = ref.watch(oltDetailProvider(widget.oltId)).valueOrNull;
+    final canRefreshLive = canWrite && (oltDetail == null || oltDetail.summary.driver == 'zte');
 
     return Scaffold(
-      appBar: AppBar(title: Text('Port ${widget.slot}/${widget.port}')),
+      appBar: AppBar(
+        title: Text('Port ${widget.slot}/${widget.port}'),
+        actions: [
+          if (canRefreshLive)
+            IconButton(
+              tooltip: 'Ambil data terbaru (live)',
+              onPressed: _refreshing ? null : _refreshLive,
+              icon: _refreshing
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(LucideIcons.refreshCw, size: 20),
+            ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.refresh(portOnusProvider(arg).future),
+        onRefresh: () async => ref.refresh(portOnusProvider(_arg).future),
+        color: AppColors.primary,
+        backgroundColor: AppColors.surfaceAlt,
         child: AsyncView<({List<Onu> onus, String? refreshedAt})>(
           value: data,
-          onRetry: () => ref.refresh(portOnusProvider(arg)),
+          onRetry: () => ref.refresh(portOnusProvider(_arg)),
           data: (res) {
             final onus = _apply(res.onus);
+            final online = res.onus.where((o) => o.online).length;
             return Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                   child: TextField(
                     decoration: const InputDecoration(
                       hintText: 'Cari SN / nama / interface',
-                      prefixIcon: Icon(LucideIcons.search, size: 18),
+                      prefixIcon: Icon(LucideIcons.search, size: 19),
                       isDense: true,
                     ),
                     onChanged: (v) => setState(() => _filter = v.toLowerCase()),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+                  padding: const EdgeInsets.fromLTRB(18, 2, 18, 6),
                   child: Row(
                     children: [
                       Text('${onus.length} ONU',
-                          style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                          style: const TextStyle(
+                              color: AppColors.text, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: Text('$online online',
+                            style: const TextStyle(
+                                color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
+                      ),
                       const Spacer(),
-                      Text('Refresh: ${Fmt.relative(res.refreshedAt)}',
+                      const Icon(LucideIcons.refreshCw, size: 12, color: AppColors.faint),
+                      const SizedBox(width: 4),
+                      Text(Fmt.relative(res.refreshedAt),
                           style: const TextStyle(color: AppColors.faint, fontSize: 11.5)),
                     ],
                   ),
@@ -74,7 +139,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                   child: onus.isEmpty
                       ? const EmptyState(message: 'Tidak ada ONU cocok.', icon: LucideIcons.router)
                       : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
                           itemCount: onus.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 10),
                           itemBuilder: (_, i) => _OnuRow(
@@ -109,11 +174,23 @@ class _OnuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = GlassCard(
+    return GlassCard(
+      accent: highlight ? AppColors.primary : null,
       onTap: () => context.push(
           '/olts/${onu.oltId}/ports/${onu.slot}/${onu.port}/onus/${onu.onuId}'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       child: Row(
         children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (onu.online ? AppColors.success : AppColors.danger).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.chip),
+            ),
+            child: Icon(LucideIcons.router,
+                size: 16, color: onu.online ? AppColors.success : AppColors.danger),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,7 +204,7 @@ class _OnuRow extends StatelessWidget {
                   '#${onu.onuId} · ${onu.serialNumber ?? onu.mac ?? '-'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
                 ),
               ],
             ),
@@ -136,22 +213,13 @@ class _OnuRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              StatusChip.online(onu.online),
+              StatusChip.online(onu.online, dense: true),
               const SizedBox(height: 6),
               RxPowerBadge(dbm: onu.rxPowerDbm, online: onu.online),
             ],
           ),
         ],
       ),
-    );
-
-    if (!highlight) return card;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.7), width: 1.5),
-      ),
-      child: card,
     );
   }
 }

@@ -3568,3 +3568,48 @@ Notes:
 - **Test**: suite terkait **91 passed** + `SettingsFcmTest` 5 passed; `flutter analyze` bersih. Pint bersih.
 - **Deploy**: `migrate --force` (fcm_settings), `npm run build` (tab Settings), `config:cache` +
   reload php-fpm + `queue:restart`. APK di-rebuild (halaman Akun) → `public/downloads/kusumavision-nms.apk`.
+
+### Rombak UI/UX aplikasi Android + tombol refresh live per-port
+
+Changed:
+
+- `mobile/lib/theme/app_theme.dart` — fondasi desain baru bergaya dark OLED: background diperdalam
+  (`#070D18`), kartu jadi **surface solid ter-elevasi** (bukan lagi bergantung border), token
+  `AppRadius`/`AppShadow` (+ glow aksen), input filled, nav bar filled/outline, dialog/snackbar/chip.
+- `mobile/lib/core/widgets/glass_card.dart` — `GlassCard` jadi kartu ter-elevasi (gradient sheen +
+  shadow lembut, **buang BackdropFilter per-kartu** → scroll daftar ribuan ONU mulus); + `SectionTitle`.
+- `mobile/lib/core/widgets/{status_chip,rx_power_badge,async_view}.dart` — badge pill titik-glow +
+  factory `reachable`; RX badge ber-ikon sinyal (tabular figures); `AsyncView` pakai **skeleton
+  shimmer** (hormati reduce-motion) + empty/error state lebih rapi.
+- `mobile/lib/core/icons.dart` — tambah varian filled untuk nav + ikon baru (signal/activity/zap/dll).
+- `mobile/lib/features/shell/home_shell.dart` — bottom nav ikon **outline non-aktif, filled + cyan aktif**.
+- `mobile/lib/features/dashboard/dashboard_screen.dart` — angka metrik besar & extra-bold (tabular),
+  kartu stat dengan **watermark ikon**, progress "ONU online" tebal-membulat + glow, rincian alarm
+  jadi **bar proporsi tersegmentasi**; skeleton khusus dashboard.
+- `mobile/lib/features/olts/{olt_list,olt_detail}_screen.dart` — chip ikon, badge reachable titik-glow,
+  mini-bar proporsi ONU/port.
+- `mobile/lib/features/alarms/alarm_list_screen.dart` — ganti garis vertikal + teks caps polos jadi
+  **ikon severity dalam chip + badge solid** transparan; filter chip dot-berwarna beranimasi.
+- `mobile/lib/features/onus/port_onus_screen.dart` — **tombol refresh live per-port** di AppBar:
+  panggil `POST …/ports/{slot}/{port}/refresh` (SNMP walk live, bukan cache polling) lalu
+  `invalidate(portOnusProvider)`; digate `canWrite` + OLT **ZTE** (`driver=='zte'`, tampil optimistis
+  selagi detail OLT belum termuat). Plus header hitung online + baris ONU direstyle.
+- `mobile/lib/features/onus/onu_detail_screen.dart` — header ikon + info key-value berdivider (mono),
+  tombol aksi direstyle.
+- `mobile/lib/features/register/register_screen.dart` — field filled dikelompokkan `SectionTitle`
+  (Identitas / Profil & Layanan / Koneksi WAN); preview script dalam kotak mono.
+- `mobile/lib/features/{auth/login,account/account}_screen.dart` — logo & avatar dengan glow ring cyan.
+- `mobile/pubspec.yaml` — bump versi `1.0.0+1` → `1.0.1+2`.
+
+Notes:
+
+- Backend & client Dart untuk refresh live per-port **sudah ada sebelumnya** (route
+  `api.olts.port.refresh` → `OnuActionController::refreshPort` = `portOnusSnapshot`, gated
+  admin/operator + BlockDemoWrites, ZTE-only; `NmsApi.refreshPort`) — sesi ini hanya menambah tombolnya.
+- Palet brand cyan/sky dipertahankan (konsisten `kv-*` web); skill ui-ux-pro-max mengonfirmasi mode
+  dark OLED cocok. `flutter analyze` **No issues found** di tiap iterasi.
+- **Insiden "tombol belum muncul"**: dua penyebab diperbaiki — gate sempat bergantung `oltDetailProvider`
+  yang belum termuat (diganti optimistis via `driver`), dan dua APK sebelumnya ber-versionCode sama `1`
+  (bump versi supaya sideload dikenali sebagai update).
+- APK di-rebuild via `bin/build-apk.sh` (server 8GB, heap 2g, tak swap-thrash) → 54,5 MB →
+  `public/downloads/kusumavision-nms.apk`. Tidak build sebagai www-data.

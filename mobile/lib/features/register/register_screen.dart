@@ -104,11 +104,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          backgroundColor: AppColors.bgElevated,
           title: const Text('Preview script CLI'),
-          content: SingleChildScrollView(
-            child: SelectableText(script,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12, color: AppColors.text)),
+          content: Container(
+            width: double.maxFinite,
+            constraints: const BoxConstraints(maxHeight: 380),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.bg,
+              borderRadius: BorderRadius.circular(AppRadius.control),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(script,
+                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.5, color: AppColors.text)),
+            ),
           ),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
         ),
@@ -182,8 +191,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           return Form(
             key: _formKey,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
               children: [
+                SectionTitle('Identitas ONU', icon: LucideIcons.router),
                 GlassCard(
                   child: Column(
                     children: [
@@ -199,7 +209,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
+                SectionTitle('Profil & Layanan', icon: LucideIcons.network),
                 GlassCard(
                   child: Column(
                     children: [
@@ -214,7 +225,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 18),
+                SectionTitle('Koneksi WAN', icon: LucideIcons.zap),
                 GlassCard(
                   child: Column(
                     children: [
@@ -233,7 +245,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(

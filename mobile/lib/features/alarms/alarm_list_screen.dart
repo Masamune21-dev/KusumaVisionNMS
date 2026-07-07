@@ -31,34 +31,55 @@ class AlarmListScreen extends ConsumerWidget {
       body: Column(
         children: [
           SizedBox(
-            height: 46,
-            child: ListView(
+            height: 50,
+            child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              children: _severities.map((s) {
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: _severities.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final s = _severities[i];
                 final active = selected == s.$1;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(s.$2),
-                    selected: active,
-                    onSelected: (_) => ref.read(alarmSeverityProvider.notifier).state = s.$1,
-                    backgroundColor: AppColors.surface.withValues(alpha: 0.5),
-                    selectedColor: AppColors.primary.withValues(alpha: 0.22),
-                    side: BorderSide(
-                        color: active ? AppColors.primary : AppColors.border),
-                    labelStyle: TextStyle(
-                        color: active ? AppColors.primary : AppColors.muted,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.5),
+                final tint = s.$1 == null ? AppColors.primary : AppColors.severity(s.$1!);
+                return GestureDetector(
+                  onTap: () => ref.read(alarmSeverityProvider.notifier).state = s.$1,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: active ? tint.withValues(alpha: 0.16) : AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      border: Border.all(color: active ? tint.withValues(alpha: 0.6) : AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (s.$1 != null) ...[
+                          Container(
+                            width: 7, height: 7,
+                            decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                        Text(s.$2,
+                            style: TextStyle(
+                                color: active ? tint : AppColors.muted,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5)),
+                      ],
+                    ),
                   ),
                 );
-              }).toList(),
+              },
             ),
           ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async => ref.refresh(alarmsProvider.future),
+              color: AppColors.primary,
+              backgroundColor: AppColors.surfaceAlt,
               child: AsyncView<({List<Alarm> alarms, int total})>(
                 value: data,
                 onRetry: () => ref.refresh(alarmsProvider),
@@ -66,11 +87,11 @@ class AlarmListScreen extends ConsumerWidget {
                   if (res.alarms.isEmpty) {
                     return ListView(children: const [
                       SizedBox(height: 80),
-                      EmptyState(message: 'Tidak ada alarm aktif. 🎉', icon: LucideIcons.bellOff),
+                      EmptyState(message: 'Tidak ada alarm aktif.', icon: LucideIcons.checkCircle),
                     ]);
                   }
                   return ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: res.alarms.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => _AlarmCard(alarm: res.alarms[i]),
@@ -89,6 +110,12 @@ class _AlarmCard extends StatelessWidget {
   const _AlarmCard({required this.alarm});
   final Alarm alarm;
 
+  IconData get _icon => switch (alarm.severity) {
+        'critical' || 'major' => LucideIcons.alertTriangle,
+        'warning' => LucideIcons.signal,
+        _ => LucideIcons.bellRing,
+      };
+
   @override
   Widget build(BuildContext context) {
     final color = AppColors.severity(alarm.severity);
@@ -99,11 +126,18 @@ class _AlarmCard extends StatelessWidget {
           ? () => context.push(
               '/olts/${alarm.oltId}/ports/${alarm.slot}/${alarm.port}/onus/${alarm.onuId}')
           : (alarm.oltId != null ? () => context.push('/olts/${alarm.oltId}') : null),
+      padding: const EdgeInsets.all(14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(width: 4, height: 42, decoration: BoxDecoration(
-              color: color, borderRadius: BorderRadius.circular(4))),
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.chip),
+            ),
+            child: Icon(_icon, color: color, size: 18),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -111,31 +145,61 @@ class _AlarmCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(alarm.severity.toUpperCase(),
-                        style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 11)),
-                    const SizedBox(width: 8),
-                    Text(alarm.typeLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    _SevBadge(severity: alarm.severity, color: color),
                     const Spacer(),
                     Text(Fmt.relative(alarm.lastSeenAt),
                         style: const TextStyle(color: AppColors.faint, fontSize: 11)),
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 7),
+                Text(alarm.typeLabel,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                const SizedBox(height: 3),
                 Text(alarm.message ?? '-',
-                    style: const TextStyle(color: AppColors.text, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    alarm.oltName,
-                    if (alarm.serialNumber != null) alarm.serialNumber,
-                  ].whereType<String>().join(' · '),
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11.5),
+                    style: const TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.35)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(LucideIcons.server, size: 12, color: AppColors.faint),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        [
+                          alarm.oltName,
+                          if (alarm.serialNumber != null) alarm.serialNumber,
+                        ].whereType<String>().join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.faint, fontSize: 11.5),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SevBadge extends StatelessWidget {
+  const _SevBadge({required this.severity, required this.color});
+  final String severity;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        severity.toUpperCase(),
+        style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 10.5, letterSpacing: 0.5),
       ),
     );
   }

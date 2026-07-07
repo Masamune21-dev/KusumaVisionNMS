@@ -76,12 +76,19 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           GlassCard(
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                  child: Text(
-                    (user?.name.isNotEmpty ?? false) ? user!.name[0].toUpperCase() : '?',
-                    style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.w800),
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
+                    boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.25, blur: 22),
+                  ),
+                  child: CircleAvatar(
+                    radius: 32,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                    child: Text(
+                      (user?.name.isNotEmpty ?? false) ? user!.name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.w900),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

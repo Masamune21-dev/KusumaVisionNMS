@@ -42,7 +42,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF0B1220), Color(0xFF0E1A2E), Color(0xFF0B1220)],
+            colors: [Color(0xFF070D18), Color(0xFF0D1B30), Color(0xFF070D18)],
           ),
         ),
         child: SafeArea(
@@ -55,17 +55,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                         border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+                        boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.35, blur: 28),
                       ),
                       child: const Icon(LucideIcons.radioTower, color: AppColors.primary, size: 34),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
                     const Text('KusumaVision NMS',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.text)),
+                        style: TextStyle(
+                            fontSize: 23, fontWeight: FontWeight.w900, color: AppColors.text, letterSpacing: -0.5)),
                     const SizedBox(height: 4),
                     const Text('Monitoring & provisioning FTTH GPON',
                         style: TextStyle(color: AppColors.muted, fontSize: 13)),
