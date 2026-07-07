@@ -1,17 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/format.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
-import '../../core/widgets/status_chip.dart';
+import '../../core/widgets/pulse_dot.dart';
+import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
 import '../../models/olt.dart';
 import '../../theme/app_theme.dart';
 
 const _tnum = [FontFeature.tabularFigures()];
+
+/// Warna badge family per driver.
+Color _familyColor(String driver) => switch (driver) {
+      'zte' => AppColors.secondary,
+      'cdata-epon-17409' || 'cdata-gpon-34592' => const Color(0xFF34D399),
+      'hioso-epon-25355' => const Color(0xFFA78BFA),
+      _ => AppColors.muted,
+    };
 
 class OltListScreen extends ConsumerWidget {
   const OltListScreen({super.key});
@@ -19,27 +30,41 @@ class OltListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final olts = ref.watch(oltsProvider);
+    final topInset = MediaQuery.of(context).padding.top + kToolbarHeight + 8;
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 88;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventory OLT')),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.refresh(oltsProvider.future),
-        color: AppColors.primary,
-        backgroundColor: AppColors.surfaceAlt,
-        child: AsyncView<List<OltSummary>>(
-          value: olts,
-          onRetry: () => ref.refresh(oltsProvider),
-          data: (list) {
-            if (list.isEmpty) {
-              return const EmptyState(message: 'Belum ada OLT terdaftar.', icon: LucideIcons.server);
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, i) => OltCard(olt: list[i]),
-            );
-          },
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Inventory OLT'),
+      ),
+      body: AuroraBackground(
+        intensity: 0.7,
+        child: RefreshIndicator(
+          onRefresh: () async => ref.refresh(oltsProvider.future),
+          color: AppColors.primary,
+          backgroundColor: AppColors.surfaceAlt,
+          child: AsyncView<List<OltSummary>>(
+            value: olts,
+            onRetry: () => ref.refresh(oltsProvider),
+            data: (list) {
+              if (list.isEmpty) {
+                return ListView(children: const [
+                  SizedBox(height: 120),
+                  EmptyState(message: 'Belum ada OLT terdaftar.', icon: LucideIcons.server),
+                ]);
+              }
+              return AnimationLimiter(
+                child: ListView.separated(
+                  padding: EdgeInsets.fromLTRB(16, topInset, 16, bottomInset),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => staggeredItem(i, OltCard(olt: list[i])),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -52,6 +77,8 @@ class OltCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final famColor = _familyColor(olt.driver);
     return GlassCard(
       onTap: () => context.push('/olts/${olt.id}'),
       child: Column(
@@ -73,29 +100,18 @@ class OltCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(olt.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                    const SizedBox(height: 3),
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: t.titleMedium),
+                    const SizedBox(height: 4),
                     Row(children: [
-                      Text(olt.ip,
-                          style: const TextStyle(color: AppColors.muted, fontSize: 12, fontFeatures: _tnum)),
-                      const SizedBox(width: 7),
-                      Container(width: 3, height: 3, decoration: const BoxDecoration(
-                          color: AppColors.faint, shape: BoxShape.circle)),
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(olt.familyLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.secondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                      ),
+                      Text(olt.ip, style: AppText.mono(size: 12, color: AppColors.muted)),
+                      const SizedBox(width: 8),
+                      _FamilyBadge(label: olt.familyLabel, color: famColor),
                     ]),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              StatusChip.reachable(olt.reachable),
+              _ReachChip(reachable: olt.reachable),
             ],
           ),
           const SizedBox(height: 14),
@@ -124,6 +140,54 @@ class OltCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FamilyBadge extends StatelessWidget {
+  const _FamilyBadge({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+class _ReachChip extends StatelessWidget {
+  const _ReachChip({required this.reachable});
+  final bool reachable;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = reachable ? AppColors.success : AppColors.danger;
+    return Container(
+      padding: const EdgeInsets.only(left: 6, right: 10, top: 4, bottom: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: color.withValues(alpha: 0.36)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        PulseDot(color: color, size: 7, pulse: reachable),
+        const SizedBox(width: 3),
+        Text(reachable ? 'Reachable' : 'Down',
+            style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+      ]),
     );
   }
 }
@@ -158,7 +222,8 @@ class _MiniStat extends StatelessWidget {
             Icon(icon, size: 14, color: color),
             const SizedBox(width: 6),
             Text(value,
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: color, fontFeatures: _tnum)),
+                style: TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 14, color: color, fontFeatures: _tnum)),
           ]),
           const SizedBox(height: 2),
           Text(label, style: const TextStyle(color: AppColors.faint, fontSize: 11)),

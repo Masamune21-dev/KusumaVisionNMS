@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/format.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/count_up_text.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/signal_ring.dart';
 import '../../data/read_providers.dart';
 import '../../models/summary.dart';
 import '../../theme/app_theme.dart';
@@ -22,15 +26,21 @@ class DashboardScreen extends ConsumerWidget {
     final summary = ref.watch(summaryProvider);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
         titleSpacing: 16,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dashboard',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            Text('Halo, ${user?.name ?? ''}'.trim(),
+                style: const TextStyle(
+                    fontFamily: AppFont.display,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3)),
             if (user != null)
-              Text('${user.name} · ${user.roleLabel}',
+              Text(user.roleLabel,
                   style: const TextStyle(fontSize: 12, color: AppColors.muted)),
           ],
         ),
@@ -43,20 +53,24 @@ class DashboardScreen extends ConsumerWidget {
           const SizedBox(width: 4),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.refresh(summaryProvider.future),
-        color: AppColors.primary,
-        backgroundColor: AppColors.surfaceAlt,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-          children: [
-            AsyncView<DashboardSummary>(
-              value: summary,
-              onRetry: () => ref.refresh(summaryProvider),
-              loading: () => const _DashboardSkeleton(),
-              data: (s) => _SummaryBody(summary: s),
-            ),
-          ],
+      body: AuroraBackground(
+        intensity: 0.85,
+        child: RefreshIndicator(
+          onRefresh: () async => ref.refresh(summaryProvider.future),
+          color: AppColors.primary,
+          backgroundColor: AppColors.surfaceAlt,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+                16, MediaQuery.of(context).padding.top + kToolbarHeight + 8, 16, 28),
+            children: [
+              AsyncView<DashboardSummary>(
+                value: summary,
+                onRetry: () => ref.refresh(summaryProvider),
+                loading: () => const _DashboardSkeleton(),
+                data: (s) => _SummaryBody(summary: s),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -71,7 +85,8 @@ class DashboardScreen extends ConsumerWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.danger, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               ref.read(authControllerProvider.notifier).logout();
@@ -90,18 +105,24 @@ class _SummaryBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Entrance sekali: fade + naik halus, di-stagger antar seksi.
+    Widget seq(int i, Widget child) => child
+        .animate(delay: (i * 70).ms)
+        .fadeIn(duration: AppMotion.base)
+        .slideY(begin: 0.12, curve: AppMotion.enter);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _OnlineShareCard(summary: summary),
+        seq(0, _HealthHero(summary: summary)),
         const SizedBox(height: 12),
-        Row(children: [
+        seq(1, Row(children: [
           Expanded(
             child: _StatCard(
               icon: LucideIcons.server,
               watermark: LucideIcons.serverFilled,
               label: 'OLT total',
-              value: Fmt.int(summary.oltTotal),
+              value: summary.oltTotal,
               sub: '${summary.oltOnline} online · ${summary.oltOffline} offline',
               color: AppColors.secondary,
             ),
@@ -112,20 +133,20 @@ class _SummaryBody extends StatelessWidget {
               icon: LucideIcons.router,
               watermark: LucideIcons.router,
               label: 'ONU total',
-              value: Fmt.int(summary.onuTotal),
+              value: summary.onuTotal,
               sub: '${Fmt.int(summary.onuOnline)} online',
               color: AppColors.primary,
             ),
           ),
-        ]),
+        ])),
         const SizedBox(height: 12),
-        Row(children: [
+        seq(2, Row(children: [
           Expanded(
             child: _StatCard(
               icon: LucideIcons.wifiOff,
               watermark: LucideIcons.wifiOff,
               label: 'ONU offline',
-              value: Fmt.int(summary.onuOffline),
+              value: summary.onuOffline,
               sub: '${Fmt.int(summary.onuWarning)} warning RX',
               color: AppColors.danger,
             ),
@@ -136,85 +157,94 @@ class _SummaryBody extends StatelessWidget {
               icon: LucideIcons.bellRing,
               watermark: LucideIcons.bellFilled,
               label: 'Alarm aktif',
-              value: Fmt.int(summary.alarmTotal),
+              value: summary.alarmTotal,
               sub: '${summary.alarmCritical} kritis',
               color: AppColors.warning,
               onTap: () => context.go('/alarms'),
             ),
           ),
-        ]),
+        ])),
         const SizedBox(height: 16),
-        _AlarmBreakdown(summary: summary),
+        seq(3, _AlarmBreakdown(summary: summary)),
       ],
     );
   }
 }
 
-class _OnlineShareCard extends StatelessWidget {
-  const _OnlineShareCard({required this.summary});
+class _HealthHero extends StatelessWidget {
+  const _HealthHero({required this.summary});
   final DashboardSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final share = (summary.onlineShare.toDouble()).clamp(0, 100).toDouble();
+    final share = summary.onlineShare.toDouble().clamp(0, 100).toDouble();
+    final t = Theme.of(context).textTheme;
+    final healthColor = share >= 95
+        ? AppColors.success
+        : share >= 80
+            ? AppColors.warning
+            : AppColors.danger;
+
     return GlassCard(
+      blur: true,
       padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: const [
-                    Icon(LucideIcons.activity, size: 15, color: AppColors.success),
-                    SizedBox(width: 7),
-                    Text('ONU online', style: TextStyle(color: AppColors.muted, fontSize: 13.5)),
-                  ]),
-                  const SizedBox(height: 2),
-                  Text('${Fmt.int(summary.onuOnline)} dari ${Fmt.int(summary.onuTotal)} aktif',
-                      style: const TextStyle(color: AppColors.faint, fontSize: 12, fontFeatures: _tnum)),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                '${share.toStringAsFixed(1)}%',
-                style: const TextStyle(
-                  color: AppColors.success,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 38,
-                  height: 1,
-                  letterSpacing: -1.5,
-                  fontFeatures: _tnum,
-                  shadows: [Shadow(color: Color(0x8034D399), blurRadius: 18)],
+          SignalRing(percent: share, size: 118, color: healthColor),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  Icon(LucideIcons.activity, size: 15, color: healthColor),
+                  const SizedBox(width: 7),
+                  Text('Kesehatan jaringan',
+                      style: t.labelMedium?.copyWith(color: AppColors.muted)),
+                ]),
+                const SizedBox(height: 8),
+                CountUpText(
+                  summary.onuOnline,
+                  style: t.displaySmall?.copyWith(color: AppColors.text, fontFeatures: _tnum),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: Stack(children: [
-              Container(height: 12, color: AppColors.bg),
-              FractionallySizedBox(
-                widthFactor: (share / 100).clamp(0.0, 1.0),
-                child: Container(
-                  height: 12,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), AppColors.success],
-                    ),
-                    boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.5), blurRadius: 8)],
-                  ),
-                ),
-              ),
-            ]),
+                Text('ONU online dari ${Fmt.int(summary.onuTotal)}',
+                    style: t.bodySmall?.copyWith(color: AppColors.faint, fontFeatures: _tnum)),
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 6, children: [
+                  _MiniStat(color: AppColors.danger, label: '${Fmt.int(summary.onuOffline)} offline'),
+                  _MiniStat(color: AppColors.warning, label: '${Fmt.int(summary.onuWarning)} warning'),
+                ]),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(
+                color: color, fontSize: 11.5, fontWeight: FontWeight.w600, fontFeatures: _tnum)),
+      ]),
     );
   }
 }
@@ -231,19 +261,21 @@ class _StatCard extends StatelessWidget {
   });
 
   final IconData icon, watermark;
-  final String label, value, sub;
+  final String label, sub;
+  final num value;
   final Color color;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
     return GlassCard(
       onTap: onTap,
       padding: EdgeInsets.zero,
       child: Stack(
         clipBehavior: Clip.hardEdge,
+        alignment: Alignment.topCenter,
         children: [
-          // Watermark ikon besar transparan di latar.
           Positioned(
             right: -14,
             bottom: -16,
@@ -252,7 +284,7 @@ class _StatCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -263,16 +295,19 @@ class _StatCard extends StatelessWidget {
                   child: Icon(icon, color: color, size: 18),
                 ),
                 const SizedBox(height: 12),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 30, fontWeight: FontWeight.w900, height: 1, letterSpacing: -1, fontFeatures: _tnum)),
+                CountUpText(
+                  value,
+                  style: t.displaySmall?.copyWith(fontSize: 30, color: AppColors.text, fontFeatures: _tnum),
+                ),
                 const SizedBox(height: 5),
-                Text(label, style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(label,
+                    textAlign: TextAlign.center, style: t.titleSmall?.copyWith(color: AppColors.text)),
                 const SizedBox(height: 2),
                 Text(sub,
                     maxLines: 1,
+                    textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.faint, fontSize: 11.5, fontFeatures: _tnum)),
+                    style: t.bodySmall?.copyWith(color: AppColors.faint, fontFeatures: _tnum)),
               ],
             ),
           ),
@@ -295,18 +330,18 @@ class _AlarmBreakdown extends StatelessWidget {
       ('Warning', summary.alarmWarning, AppColors.severity('warning')),
     ];
     final total = items.fold<int>(0, (a, e) => a + e.$2);
+    final t = Theme.of(context).textTheme;
 
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: const [
-            Icon(LucideIcons.bellRing, size: 16, color: AppColors.warning),
-            SizedBox(width: 8),
-            Text('Rincian alarm aktif', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          Row(children: [
+            const Icon(LucideIcons.bellRing, size: 16, color: AppColors.warning),
+            const SizedBox(width: 8),
+            Text('Rincian alarm aktif', style: t.titleMedium),
           ]),
           const SizedBox(height: 14),
-          // Bar proporsi tersegmentasi.
           ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.pill),
             child: SizedBox(
@@ -334,11 +369,13 @@ class _AlarmBreakdown extends StatelessWidget {
                 .map((e) => Expanded(
                       child: Column(
                         children: [
-                          Text(Fmt.int(e.$2),
-                              style: TextStyle(
-                                  color: e.$3, fontWeight: FontWeight.w900, fontSize: 22, fontFeatures: _tnum)),
+                          CountUpText(
+                            e.$2,
+                            style: t.headlineSmall?.copyWith(
+                                color: e.$3, fontWeight: FontWeight.w800, fontFeatures: _tnum),
+                          ),
                           const SizedBox(height: 2),
-                          Text(e.$1, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                          Text(e.$1, style: t.bodySmall?.copyWith(color: AppColors.muted)),
                         ],
                       ),
                     ))
@@ -364,18 +401,27 @@ class _DashboardSkeleton extends StatelessWidget {
             Skeleton(width: 90, height: 12),
           ]),
         );
-    return Column(children: [
-      const GlassCard(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Skeleton(width: 120, height: 14), Spacer(), Skeleton(width: 90, height: 34)]),
-          SizedBox(height: 16),
-          Skeleton(height: 12, radius: 999),
+    return SkeletonShimmer(
+        child: Column(children: [
+      GlassCard(
+        child: Row(children: const [
+          Skeleton(width: 118, height: 118, radius: 999),
+          SizedBox(width: 18),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Skeleton(width: 120, height: 12),
+              SizedBox(height: 12),
+              Skeleton(width: 90, height: 30),
+              SizedBox(height: 10),
+              Skeleton(width: 140, height: 12),
+            ]),
+          ),
         ]),
       ),
       const SizedBox(height: 12),
       Row(children: [Expanded(child: tile()), const SizedBox(width: 12), Expanded(child: tile())]),
       const SizedBox(height: 12),
       Row(children: [Expanded(child: tile()), const SizedBox(width: 12), Expanded(child: tile())]),
-    ]);
+    ]));
   }
 }

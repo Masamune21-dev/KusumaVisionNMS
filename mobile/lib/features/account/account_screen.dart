@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -7,7 +9,9 @@ import '../../core/api/api_exception.dart';
 import '../../core/env.dart';
 import '../../core/fcm/fcm_service.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../models/user.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_controller.dart';
 
@@ -24,7 +28,6 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   Future<void> _testPush() async {
     setState(() => _testing = true);
     try {
-      // Pastikan token perangkat terdaftar dulu (minta izin + kirim token).
       await ref.read(fcmServiceProvider).onLogin();
       final res = await ref.read(nmsApiProvider).testPush();
       if (!mounted) return;
@@ -45,16 +48,30 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     }
   }
 
+  void _copy(String label, String value) {
+    Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('$label disalin'),
+      backgroundColor: AppColors.surfaceAlt,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
   Future<void> _logout() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppColors.bgElevated,
         title: const Text('Keluar?'),
         content: const Text('Anda akan keluar dari sesi ini.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Keluar')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Keluar'),
+          ),
         ],
       ),
     );
@@ -66,140 +83,131 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).user;
+    final t = Theme.of(context).textTheme;
+    final topInset = MediaQuery.of(context).padding.top + kToolbarHeight + 8;
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 110;
+
+    Widget seq(int i, Widget child) => child
+        .animate(delay: (i * 70).ms)
+        .fadeIn(duration: AppMotion.base)
+        .slideY(begin: 0.12, curve: AppMotion.enter);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Akun')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          // --- Info akun ---
-          GlassCard(
-            child: Column(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
-                    boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.25, blur: 22),
-                  ),
-                  child: CircleAvatar(
-                    radius: 32,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                    child: Text(
-                      (user?.name.isNotEmpty ?? false) ? user!.name[0].toUpperCase() : '?',
-                      style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(user?.name ?? '-', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text(user?.email ?? '-', style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    _badge(user?.roleLabel ?? '-', AppColors.secondary),
-                    if (user?.isAdmin ?? false) _badge('Admin', AppColors.primary),
-                    if (user?.isDemo ?? false) _badge('Demo (read-only)', AppColors.warning),
-                    if (!(user?.canWrite ?? false)) _badge('Tak bisa aksi tulis', AppColors.faint),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Akun')),
+      body: AuroraBackground(
+        intensity: 0.7,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(16, topInset, 16, bottomInset),
+          children: [
+            seq(0, _ProfileCard(user: user)),
+            const SizedBox(height: 14),
 
-          // --- Notifikasi / tes push ---
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            // --- Notifikasi / tes push ---
+            seq(
+              1,
+              GlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(LucideIcons.bellRing, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    const Text('Notifikasi', style: TextStyle(fontWeight: FontWeight.w700)),
-                    const Spacer(),
-                    _badge(
-                      FcmService.available ? 'FCM aktif' : 'FCM tak aktif',
-                      FcmService.available ? AppColors.success : AppColors.faint,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Kirim notifikasi tes untuk memastikan push masuk ke HP ini.',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12.5),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _testing ? null : _testPush,
-                    icon: _testing
-                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(LucideIcons.bellRing, size: 18),
-                    label: Text(_testing ? 'Mengirim…' : 'Tes Push Notifikasi'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          // --- Info aplikasi ---
-          GlassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: const [
-                    Icon(LucideIcons.info, size: 18, color: AppColors.secondary),
-                    SizedBox(width: 8),
-                    Text('Info Aplikasi', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                FutureBuilder<PackageInfo>(
-                  future: PackageInfo.fromPlatform(),
-                  builder: (_, snap) {
-                    final p = snap.data;
-                    return Column(
+                    Row(
                       children: [
-                        _kv('Aplikasi', p?.appName ?? 'KusumaVision NMS'),
-                        _kv('Versi', p == null ? '…' : '${p.version} (build ${p.buildNumber})'),
-                        _kv('Package', p?.packageName ?? 'net.kusumavision.nms'),
-                        _kv('Server API', Env.apiBaseUrl),
+                        _leadIcon(LucideIcons.bellRing, AppColors.primary),
+                        const SizedBox(width: 10),
+                        Text('Notifikasi', style: t.titleMedium),
+                        const Spacer(),
+                        _badge(
+                          FcmService.available ? 'FCM aktif' : 'FCM tak aktif',
+                          FcmService.available ? AppColors.success : AppColors.faint,
+                        ),
                       ],
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Kirim notifikasi tes untuk memastikan push masuk ke HP ini.',
+                        style: t.bodySmall?.copyWith(color: AppColors.muted)),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _testing ? null : _testPush,
+                        icon: _testing
+                            ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(LucideIcons.bellRing, size: 18),
+                        label: Text(_testing ? 'Mengirim…' : 'Tes Push Notifikasi'),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 14),
 
-          // --- Logout ---
-          OutlinedButton.icon(
-            onPressed: _logout,
-            icon: const Icon(LucideIcons.logOut, size: 18),
-            label: const Text('Keluar'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.danger,
-              side: BorderSide(color: AppColors.danger.withValues(alpha: 0.5)),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+            // --- Info aplikasi ---
+            seq(
+              2,
+              GlassCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      _leadIcon(LucideIcons.smartphone, AppColors.secondary),
+                      const SizedBox(width: 10),
+                      Text('Info Aplikasi', style: t.titleMedium),
+                    ]),
+                    const SizedBox(height: 6),
+                    FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (_, snap) {
+                        final p = snap.data;
+                        return Column(
+                          children: [
+                            _kv('Aplikasi', p?.appName ?? 'KusumaVision NMS'),
+                            _kv('Versi', p == null ? '…' : '${p.version} (build ${p.buildNumber})', mono: true),
+                            _kv('Package', p?.packageName ?? 'net.kusumavision.nms', mono: true, copyable: true),
+                            _kv('Server API', Env.apiBaseUrl, mono: true, copyable: true),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text('PT Berkah Media Kusuma Vision',
-                style: TextStyle(color: AppColors.faint, fontSize: 11)),
-          ),
-        ],
+            const SizedBox(height: 22),
+
+            // --- Logout (dipisah, warna danger) ---
+            seq(
+              3,
+              OutlinedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(LucideIcons.logOut, size: 18),
+                label: const Text('Keluar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: BorderSide(color: AppColors.danger.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: Text('PT Berkah Media Kusuma Vision',
+                  style: t.labelSmall?.copyWith(color: AppColors.faint)),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _leadIcon(IconData icon, Color color) => Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(AppRadius.chip),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      );
 
   Widget _badge(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -211,14 +219,125 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         child: Text(text, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
       );
 
-  Widget _kv(String k, String v) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+  Widget _kv(String k, String v, {bool mono = false, bool copyable = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(width: 96, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
-            Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+            SizedBox(width: 92, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
+            Expanded(
+              child: Text(v,
+                  style: mono
+                      ? AppText.mono(size: 12.5, weight: FontWeight.w600, color: AppColors.text)
+                      : const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            if (copyable)
+              InkWell(
+                onTap: () => _copy(k, v),
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(LucideIcons.copy, size: 15, color: AppColors.faint),
+                ),
+              ),
           ],
         ),
       );
+}
+
+/// Kartu hero profil — avatar cincin-gradient + nama + chip peran tunggal.
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard({required this.user});
+  final AppUser? user;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final initial = (user?.name.isNotEmpty ?? false) ? user!.name[0].toUpperCase() : '?';
+    final admin = user?.isAdmin ?? false;
+    final roleColor = admin ? AppColors.primary : AppColors.secondary;
+
+    return GlassCard(
+      blur: true,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: AppGradient.accent,
+              boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.35, blur: 26),
+            ),
+            child: CircleAvatar(
+              radius: 36,
+              backgroundColor: AppColors.bgElevated,
+              child: Text(initial,
+                  style: const TextStyle(
+                      fontFamily: AppFont.display,
+                      color: AppColors.primary,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(user?.name ?? '-', style: t.titleLarge, textAlign: TextAlign.center),
+          const SizedBox(height: 3),
+          Text(user?.email ?? '-',
+              style: t.bodyMedium?.copyWith(color: AppColors.muted), textAlign: TextAlign.center),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _RoleChip(
+                label: user?.roleLabel ?? '-',
+                color: roleColor,
+                icon: admin ? LucideIcons.shieldCheck : LucideIcons.user,
+              ),
+              if (user?.isDemo ?? false)
+                _capBadge('Demo · read-only', AppColors.warning)
+              else if (!(user?.canWrite ?? false))
+                _capBadge('Read-only', AppColors.faint),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _capBadge(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.13),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.36)),
+        ),
+        child: Text(text, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+      );
+}
+
+class _RoleChip extends StatelessWidget {
+  const _RoleChip({required this.label, required this.color, required this.icon});
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.only(left: 9, right: 13, top: 6, bottom: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.42)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w700)),
+      ]),
+    );
+  }
 }

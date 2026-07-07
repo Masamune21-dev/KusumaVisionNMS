@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
@@ -8,7 +9,9 @@ import '../../core/format.dart';
 import '../../core/json.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_controller.dart';
@@ -67,7 +70,10 @@ class _UnconfiguredScreenState extends ConsumerState<UnconfiguredScreen> {
             ),
         ],
       ),
-      body: RefreshIndicator(
+      body: AuroraBackground(
+        animate: false,
+        intensity: 0.5,
+        child: RefreshIndicator(
         onRefresh: () async => ref.refresh(unconfiguredProvider(widget.oltId).future),
         child: AsyncView<({List<Map<String, dynamic>> onus, bool ok, String? refreshedAt})>(
           value: data,
@@ -84,23 +90,29 @@ class _UnconfiguredScreenState extends ConsumerState<UnconfiguredScreen> {
                 ],
               );
             }
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: res.onus.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) {
-                if (i == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text('${res.onus.length} ONU · refresh ${Fmt.relative(res.refreshedAt)}',
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+            return AnimationLimiter(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                itemCount: res.onus.length + 1,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) {
+                  if (i == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('${res.onus.length} ONU · refresh ${Fmt.relative(res.refreshedAt)}',
+                          style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                    );
+                  }
+                  return staggeredItem(
+                    i,
+                    _UnconfiguredCard(oltId: widget.oltId, data: res.onus[i - 1], canRegister: canWrite),
                   );
-                }
-                return _UnconfiguredCard(oltId: widget.oltId, data: res.onus[i - 1], canRegister: canWrite);
-              },
+                },
+              ),
             );
           },
         ),
+      ),
       ),
     );
   }

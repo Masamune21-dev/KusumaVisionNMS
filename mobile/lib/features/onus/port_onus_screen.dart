@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
@@ -7,8 +8,10 @@ import '../../core/api/api_exception.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/rx_power_badge.dart';
+import '../../core/widgets/stagger.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../data/read_providers.dart';
 import '../../models/onu.dart';
@@ -84,7 +87,11 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: RefreshIndicator(
+      body: AuroraBackground(
+        animate: false,
+        particles: false,
+        intensity: 0.5,
+        child: RefreshIndicator(
         onRefresh: () async => ref.refresh(portOnusProvider(_arg).future),
         color: AppColors.primary,
         backgroundColor: AppColors.surfaceAlt,
@@ -136,13 +143,18 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                 Expanded(
                   child: onus.isEmpty
                       ? const EmptyState(message: 'Tidak ada ONU cocok.', icon: LucideIcons.router)
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-                          itemCount: onus.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _OnuRow(
-                            onu: onus[i],
-                            highlight: onus[i].onuId == widget.focusOnuId,
+                      : AnimationLimiter(
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
+                            itemCount: onus.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (_, i) => staggeredItem(
+                              i,
+                              _OnuRow(
+                                onu: onus[i],
+                                highlight: onus[i].onuId == widget.focusOnuId,
+                              ),
+                            ),
                           ),
                         ),
                 ),
@@ -150,6 +162,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }

@@ -61,7 +61,110 @@ class AppShadow {
       ];
 }
 
+/// Keluarga font (di-bundle sebagai aset variable-weight di `assets/fonts/`).
+/// - [display] Sora  → heading, angka besar (geometric, modern).
+/// - [body]    Inter → body & label (netral, tabular figures).
+/// - [mono]    JetBrainsMono → data teknis: serial ONU, RX dBm, IP, uptime.
+class AppFont {
+  static const display = 'Sora';
+  static const body = 'Inter';
+  static const mono = 'JetBrainsMono';
+}
+
+/// Token durasi & kurva gerak — dipakai seragam agar animasi punya ritme sama.
+class AppMotion {
+  static const fast = Duration(milliseconds: 180);
+  static const base = Duration(milliseconds: 260);
+  static const slow = Duration(milliseconds: 420);
+
+  /// Jeda antar item saat daftar/grid masuk (stagger).
+  static const stagger = Duration(milliseconds: 45);
+
+  static const enter = Curves.easeOutCubic; // elemen masuk
+  static const exit = Curves.easeInCubic; // elemen keluar
+  static const spring = Curves.easeOutBack; // pop/press
+}
+
+/// Gradient aksen — dipakai bar, badge, tombol terpilih, teks glow.
+class AppGradient {
+  static const accent = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.primary, AppColors.secondary],
+  );
+  static const success = LinearGradient(colors: [Color(0xFF10B981), AppColors.success]);
+  static const warn = LinearGradient(colors: [Color(0xFFF59E0B), AppColors.warning]);
+  static const danger = LinearGradient(colors: [Color(0xFFF43F5E), AppColors.danger]);
+
+  /// Warna aurora latar (dipakai oleh AuroraBackground).
+  static const aurora = [
+    Color(0xFF0E7490), // cyan deep
+    Color(0xFF1D4ED8), // blue
+    Color(0xFF6D28D9), // indigo/violet
+  ];
+}
+
+const _tnum = [FontFeature.tabularFigures()];
+
+/// Helper gaya teks monospace untuk data teknis (rata kolom, tabular).
+class AppText {
+  static TextStyle mono({
+    double size = 13,
+    FontWeight weight = FontWeight.w500,
+    Color? color,
+    double? letterSpacing,
+    double? height,
+  }) =>
+      TextStyle(
+        fontFamily: AppFont.mono,
+        fontFeatures: _tnum,
+        fontSize: size,
+        fontWeight: weight,
+        color: color,
+        letterSpacing: letterSpacing,
+        height: height,
+      );
+}
+
 class AppTheme {
+  /// Skala tipografi Material 3 dengan pemetaan 3-keluarga (Sora/Inter).
+  static TextTheme _textTheme(Color color) {
+    TextStyle sora(double size, FontWeight w, double tracking) => TextStyle(
+          fontFamily: AppFont.display,
+          fontSize: size,
+          fontWeight: w,
+          letterSpacing: tracking,
+          height: 1.05,
+          color: color,
+        );
+    TextStyle inter(double size, FontWeight w, {double h = 1.45, double tracking = 0}) => TextStyle(
+          fontFamily: AppFont.body,
+          fontSize: size,
+          fontWeight: w,
+          height: h,
+          letterSpacing: tracking,
+          color: color,
+        );
+
+    return TextTheme(
+      displayLarge: sora(40, FontWeight.w800, -1.4),
+      displayMedium: sora(32, FontWeight.w800, -1.0),
+      displaySmall: sora(28, FontWeight.w700, -0.7),
+      headlineLarge: sora(26, FontWeight.w700, -0.5),
+      headlineMedium: sora(23, FontWeight.w700, -0.4),
+      headlineSmall: sora(20, FontWeight.w700, -0.3),
+      titleLarge: sora(18, FontWeight.w700, -0.2),
+      titleMedium: inter(15.5, FontWeight.w600, h: 1.3),
+      titleSmall: inter(13.5, FontWeight.w600, h: 1.3),
+      bodyLarge: inter(15.5, FontWeight.w400, h: 1.5),
+      bodyMedium: inter(14, FontWeight.w400, h: 1.5),
+      bodySmall: inter(12.5, FontWeight.w400, h: 1.45),
+      labelLarge: inter(14, FontWeight.w600, h: 1.2),
+      labelMedium: inter(12.5, FontWeight.w600, h: 1.2, tracking: 0.2),
+      labelSmall: inter(11, FontWeight.w600, h: 1.1, tracking: 0.4),
+    );
+  }
+
   static ThemeData dark() {
     const scheme = ColorScheme.dark(
       primary: AppColors.primary,
@@ -80,7 +183,7 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.bg,
-      fontFamily: 'Roboto',
+      fontFamily: AppFont.body,
       splashFactory: InkSparkle.splashFactory,
     );
 
@@ -92,10 +195,11 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
+          fontFamily: AppFont.display,
           color: AppColors.text,
           fontSize: 20,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.2,
+          letterSpacing: -0.3,
         ),
         iconTheme: IconThemeData(color: AppColors.text),
       ),
@@ -199,7 +303,7 @@ class AppTheme {
         insetPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.primary),
-      textTheme: base.textTheme.apply(bodyColor: AppColors.text, displayColor: AppColors.text),
+      textTheme: _textTheme(AppColors.text),
     );
   }
 }

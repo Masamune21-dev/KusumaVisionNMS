@@ -3,7 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.0.2+3
+version: 1.1.4+8
 
 environment:
   sdk: ^3.12.2
@@ -41,6 +41,15 @@ dependencies:
   # Format tanggal relatif ("5 menit lalu").
   intl: ^0.19.0
 
+  # Animasi deklaratif (.animate()) — micro-interaction, reveal, stagger.
+  flutter_animate: ^4.5.0
+
+  # Stagger masuk untuk daftar/grid (animate sekali via AnimationLimiter).
+  flutter_staggered_animations: ^1.1.1
+
+  # Skeleton bercahaya saat loading.
+  shimmer: ^3.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -48,3 +57,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Font bundle (offline-first, variable-weight). fontWeight dipetakan ke axis
+  # `wght` otomatis oleh engine untuk font variable — cukup deklarasi 1 aset.
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf

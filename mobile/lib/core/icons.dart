@@ -46,4 +46,7 @@ class LucideIcons {
   static const IconData edit = Icons.edit_outlined;
   static const IconData restart = Icons.restart_alt_rounded;
   static const IconData x = Icons.close_rounded;
+  static const IconData shieldCheck = Icons.verified_user_outlined;
+  static const IconData copy = Icons.copy_rounded;
+  static const IconData smartphone = Icons.smartphone_outlined;
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kusumavision_nms/core/icons.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../theme/app_theme.dart';
 import 'glass_card.dart';
@@ -32,8 +34,9 @@ class AsyncView<T> extends StatelessWidget {
   }
 }
 
-/// Kotak skeleton berkedip lembut (menghormati reduce-motion).
-class Skeleton extends StatefulWidget {
+/// Kotak dasar skeleton (warna solid). Beri efek kilau dengan membungkus
+/// grup-nya dalam [SkeletonShimmer].
+class Skeleton extends StatelessWidget {
   const Skeleton({super.key, this.width, this.height = 14, this.radius = 8});
 
   final double? width;
@@ -41,36 +44,33 @@ class Skeleton extends StatefulWidget {
   final double radius;
 
   @override
-  State<Skeleton> createState() => _SkeletonState();
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Container(color: AppColors.surfaceAlt.withValues(alpha: 0.75)),
+      ),
+    );
+  }
 }
 
-class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
+/// Membungkus sekelompok [Skeleton] dengan kilau shimmer bergerak (satu fase
+/// seragam). Hormati reduced-motion (tampil statis).
+class SkeletonShimmer extends StatelessWidget {
+  const SkeletonShimmer({super.key, required this.child});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final box = ClipRRect(
-      borderRadius: BorderRadius.circular(widget.radius),
-      child: SizedBox(
-        width: widget.width,
-        height: widget.height,
-        child: Container(color: AppColors.surfaceAlt.withValues(alpha: 0.7)),
-      ),
-    );
-    if (reduce) return box;
-    return FadeTransition(
-      opacity: Tween(begin: 0.45, end: 0.9).animate(
-        CurvedAnimation(parent: _c, curve: Curves.easeInOut),
-      ),
-      child: box,
+    if (reduce) return child;
+    return Shimmer.fromColors(
+      baseColor: AppColors.surfaceAlt.withValues(alpha: 0.55),
+      highlightColor: AppColors.surfaceHi.withValues(alpha: 0.95),
+      period: const Duration(milliseconds: 1500),
+      child: child,
     );
   }
 }
@@ -80,24 +80,26 @@ class _SkeletonList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-      itemCount: 6,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, __) => GlassCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Row(children: [
-              Skeleton(width: 150, height: 15),
-              Spacer(),
-              Skeleton(width: 68, height: 22, radius: 999),
-            ]),
-            SizedBox(height: 12),
-            Skeleton(width: 110, height: 12),
-            SizedBox(height: 14),
-            Skeleton(height: 12),
-          ],
+    return SkeletonShimmer(
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        itemCount: 6,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, __) => GlassCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Row(children: [
+                Skeleton(width: 150, height: 15),
+                Spacer(),
+                Skeleton(width: 68, height: 22, radius: 999),
+              ]),
+              SizedBox(height: 12),
+              Skeleton(width: 110, height: 12),
+              SizedBox(height: 14),
+              Skeleton(height: 12),
+            ],
+          ),
         ),
       ),
     );
@@ -160,22 +162,40 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+
+    Widget badge = Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.surfaceHi.withValues(alpha: 0.8),
+            AppColors.surface.withValues(alpha: 0.6),
+          ],
+        ),
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.borderStrong),
+        boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.12, blur: 26),
+      ),
+      child: Icon(icon, color: AppColors.muted, size: 34),
+    );
+    // Melayang lembut (naik-turun) — dimatikan saat reduced-motion.
+    if (!reduce) {
+      badge = badge
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .moveY(begin: 0, end: -7, duration: 1900.ms, curve: Curves.easeInOut);
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Icon(icon, color: AppColors.faint, size: 32),
-            ),
-            const SizedBox(height: 16),
+            badge,
+            const SizedBox(height: 18),
             Text(
               message,
               textAlign: TextAlign.center,
@@ -184,6 +204,9 @@ class EmptyState extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: AppMotion.base).scale(
+          begin: const Offset(0.94, 0.94),
+          curve: AppMotion.enter,
+        );
   }
 }

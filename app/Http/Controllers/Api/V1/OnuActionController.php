@@ -95,7 +95,7 @@ class OnuActionController extends Controller
      */
     public function refreshPort(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, SmartOltSnmpServiceResolver $resolver): JsonResponse
     {
-        if ($resolver->isNonZte($olt)) {
+        if (SmartOltSupport::isNonZte($this->driver($olt))) {
             try {
                 $onus = $resolver->resolve($olt)->getRegisteredOnusByPort($olt, $slot, $port);
                 $result = [

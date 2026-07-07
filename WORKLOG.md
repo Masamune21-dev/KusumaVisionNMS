@@ -3779,3 +3779,37 @@ Notes:
   (`git filter-repo` + force-push) opsional, belum dilakukan.
 - `git grep 'acs.bmkv|kusuma123'` di file tracked → bersih. `php artisan test` (Tr069Bulk +
   ZteOnuConfigure + SmartOltInventory) 59 hijau, `npm run build` sukses.
+
+### Rombak total UI/UX aplikasi mobile (Flutter) + fix 500 tombol refresh Port ONU
+
+Created:
+
+- `mobile/assets/fonts/{Sora,Inter,JetBrainsMono}.ttf` — font variable di-bundle (offline-first, dideklarasi di `pubspec.yaml`).
+- `mobile/lib/core/widgets/aurora_background.dart` — latar hidup: aurora mesh + jala node-fiber (CustomPainter, RepaintBoundary, hormati reduced-motion, flag `animate` untuk daftar panjang).
+- `mobile/lib/core/widgets/pulse_logo.dart` — lambang menara memancar sinyal (cincin konsentris) untuk Splash/Login.
+- `mobile/lib/core/widgets/pulse_dot.dart` — titik status berdenyut (online pulse / offline diam).
+- `mobile/lib/core/widgets/signal_ring.dart` — gauge melingkar (busur gradient + glow) untuk % kesehatan.
+- `mobile/lib/core/widgets/count_up_text.dart` — angka menghitung naik (TweenAnimationBuilder, hormati reduced-motion).
+- `mobile/lib/core/widgets/stagger.dart` — helper `staggeredItem()` via flutter_staggered_animations.
+- `mobile/DESIGN_REVAMP_PLAN.md` — rencana rombak 6 fase (arah desain, library, font).
+
+Changed:
+
+- `mobile/pubspec.yaml` — + `flutter_animate`, `flutter_staggered_animations`, `shimmer`; deklarasi 3 font bundle; versi `1.0.2+3` → `1.1.4+8`.
+- `mobile/lib/theme/app_theme.dart` — `AppFont` (Sora/Inter/JetBrainsMono), `AppMotion` (durasi/easing/stagger), `AppGradient` (accent/aurora), `AppText.mono`, `TextTheme` M3 3-keluarga.
+- `mobile/lib/core/widgets/glass_card.dart` — GlassCard v2: opsi `blur` frosted + press-scale. **Fix penting:** buang bungkus `Stack`+sheen yang menyusutkan isi & menempelkannya ke kiri-atas → isi kartu kembali lebar penuh (center/start bekerja benar; memperbaiki kartu profil Akun, stat OLT detail, dsb).
+- `mobile/lib/core/widgets/async_view.dart` — Skeleton → shimmer (+`SkeletonShimmer`); `EmptyState` animatif (badge melayang + reveal fade/scale, hormati reduced-motion).
+- `mobile/lib/features/**` — 12 layar dirombak: Splash, Login (aurora + kartu frosted), Dashboard (hero SignalRing + stat count-up center + stagger), Home shell (floating glass nav + immersive), OLT list (family badge + PulseDot + stagger), OLT detail (hero ring + port PulseDot), ONU detail (status pulse header), Port ONU (aurora statis + stagger), Alarm/Cari/Unconfigured/Register/Akun.
+- `mobile/lib/features/account/account_screen.dart` — kartu profil hero (avatar cincin-gradient, chip peran tunggal — buang badge "Admin" redundan), Info Aplikasi mono + tombol salin.
+- `mobile/lib/features/dashboard/dashboard_screen.dart` — `_StatCard` isi center via `Stack(alignment: topCenter)` (watermark pojok tetap).
+- `mobile/lib/core/icons.dart` — + `shieldCheck`, `copy`, `smartphone`.
+- `app/Http/Controllers/Api/V1/OnuActionController.php` — **fix 500 tombol refresh Port ONU** (semua OLT): `refreshPort` salah panggil `$resolver->isNonZte()` (method tak ada) → `SmartOltSupport::isNonZte($this->driver($olt))`.
+- `CLAUDE.md` — sinkron: catatan design system mobile baru (font bundle, aurora, deps animasi, rencana).
+
+Notes:
+
+- Font di-bundle sebagai aset (bukan `google_fonts` runtime) demi offline-first di lapangan; font variable → `fontWeight` dipetakan ke axis `wght` otomatis oleh engine.
+- Aurora & node-fiber di-hand-roll (CustomPainter) alih-alih paket `mesh_gradient`/`particles_network` demi kendali performa & reduced-motion; Rive ditunda ke iterasi lanjut.
+- Tiap fase diverifikasi `flutter analyze` (No issues) + `flutter build bundle` (exit 0); APK rilis `flutter build apk --release` sukses (55,2 MB, `1.1.4+8`).
+- **Fix refresh backend sudah live** via `systemctl reload php8.3-fpm` (opcache) — tak perlu update APK. Diagnosa dari `storage/logs/laravel.log` (`Call to undefined method …::isNonZte()` @ `OnuActionController.php:98`); `php -l` bersih; jalur non-ZTE (`getRegisteredOnusByPort`) ada di interface + implementasi C-Data/HiOSO.
+- `versionCode` di-bump tiap iterasi (hingga `+8`) karena versionCode identik membuat Android menolak update; APK juga disalin ber-nama versi (`kusumavision-nms-v{N}.apk`) untuk cache-bust unduhan.

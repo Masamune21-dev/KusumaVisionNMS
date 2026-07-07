@@ -7,6 +7,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/read_providers.dart';
 import '../../theme/app_theme.dart';
@@ -174,7 +175,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Registrasi ONU')),
-      body: AsyncView<Map<String, dynamic>>(
+      body: AuroraBackground(
+        animate: false,
+        intensity: 0.45,
+        child: AsyncView<Map<String, dynamic>>(
         value: options,
         onRetry: () => ref.refresh(registerOptionsProvider(arg)),
         data: (data) {
@@ -276,6 +280,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           );
         },
+      ),
       ),
     );
   }

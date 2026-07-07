@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
 import '../../models/search_result.dart';
 import '../../theme/app_theme.dart';
@@ -20,12 +23,20 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+  final _focus = FocusNode();
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -49,54 +60,79 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final query = ref.watch(searchQueryProvider);
     final results = ref.watch(searchProvider);
+    final topInset = MediaQuery.of(context).padding.top + kToolbarHeight;
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 88;
+    final focused = _focus.hasFocus;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pencarian global')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _controller,
-              autofocus: true,
-              decoration: InputDecoration(
-                hintText: 'Cari OLT, SN ONU, nama pelanggan…',
-                prefixIcon: const Icon(LucideIcons.search, size: 18),
-                suffixIcon: _controller.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(LucideIcons.x, size: 18),
-                        onPressed: () {
-                          _controller.clear();
-                          ref.read(searchQueryProvider.notifier).state = '';
-                        },
-                      ),
-              ),
-              onChanged: _onChanged,
-            ),
-          ),
-          Expanded(
-            child: query.trim().length < 2
-                ? const EmptyState(
-                    message: 'Ketik minimal 2 karakter untuk mencari.',
-                    icon: LucideIcons.search)
-                : AsyncView<List<SearchResult>>(
-                    value: results,
-                    onRetry: () => ref.refresh(searchProvider),
-                    data: (list) {
-                      if (list.isEmpty) {
-                        return const EmptyState(message: 'Tidak ada hasil.', icon: LucideIcons.searchX);
-                      }
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        itemCount: list.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => _ResultRow(result: list[i], onTap: () => _open(list[i])),
-                      );
-                    },
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Pencarian global')),
+      body: AuroraBackground(
+        intensity: 0.65,
+        child: Column(
+          children: [
+            SizedBox(height: topInset),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: AnimatedContainer(
+                duration: AppMotion.base,
+                curve: AppMotion.enter,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                  boxShadow: focused ? AppShadow.glow(AppColors.primary, alpha: 0.28, blur: 22) : null,
+                ),
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focus,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Cari OLT, SN ONU, nama pelanggan…',
+                    prefixIcon: Icon(LucideIcons.search,
+                        size: 18, color: focused ? AppColors.primary : AppColors.faint),
+                    suffixIcon: _controller.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(LucideIcons.x, size: 18),
+                            onPressed: () {
+                              _controller.clear();
+                              ref.read(searchQueryProvider.notifier).state = '';
+                              setState(() {});
+                            },
+                          ),
                   ),
-          ),
-        ],
+                  onChanged: (v) {
+                    _onChanged(v);
+                    setState(() {});
+                  },
+                ),
+              ),
+            ),
+            Expanded(
+              child: query.trim().length < 2
+                  ? const EmptyState(
+                      message: 'Ketik minimal 2 karakter untuk mencari.', icon: LucideIcons.search)
+                  : AsyncView<List<SearchResult>>(
+                      value: results,
+                      onRetry: () => ref.refresh(searchProvider),
+                      data: (list) {
+                        if (list.isEmpty) {
+                          return const EmptyState(
+                              message: 'Tidak ada hasil.', icon: LucideIcons.searchX);
+                        }
+                        return AnimationLimiter(
+                          child: ListView.separated(
+                            padding: EdgeInsets.fromLTRB(16, 4, 16, bottomInset),
+                            itemCount: list.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (_, i) =>
+                                staggeredItem(i, _ResultRow(result: list[i], onTap: () => _open(list[i]))),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -110,6 +146,7 @@ class _ResultRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOnu = result.isOnu;
+    final t = Theme.of(context).textTheme;
     return GlassCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -130,14 +167,12 @@ class _ResultRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(result.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: t.titleSmall),
                 if (result.sublabel != null)
                   Text(result.sublabel!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                      style: t.bodySmall?.copyWith(color: AppColors.muted)),
               ],
             ),
           ),

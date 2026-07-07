@@ -6,7 +6,9 @@ import '../../core/api/api_exception.dart';
 import '../../core/format.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/pulse_dot.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../data/read_providers.dart';
@@ -113,7 +115,9 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detail ONU')),
-      body: RefreshIndicator(
+      body: AuroraBackground(
+        intensity: 0.5,
+        child: RefreshIndicator(
         onRefresh: () async => ref.refresh(onuDetailProvider(_arg).future),
         color: AppColors.primary,
         backgroundColor: AppColors.surfaceAlt,
@@ -159,6 +163,7 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 }
@@ -177,13 +182,23 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(11),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
-                ),
-                child: Icon(LucideIcons.router, color: color, size: 24),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(11),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.13),
+                      borderRadius: BorderRadius.circular(AppRadius.chip),
+                    ),
+                    child: Icon(LucideIcons.router, color: color, size: 24),
+                  ),
+                  Positioned(
+                    right: -3,
+                    top: -3,
+                    child: PulseDot(color: color, size: 9, pulse: onu.online),
+                  ),
+                ],
               ),
               const SizedBox(width: 13),
               Expanded(
