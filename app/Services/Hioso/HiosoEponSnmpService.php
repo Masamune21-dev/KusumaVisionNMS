@@ -41,6 +41,9 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     /** MAC slot hantu (ONU tak terdaftar) di tabel nama `.37.1`. */
     private const ZERO_MAC = '00:00:00:00:00:00';
 
+    /** Berapa poll beruntun sebuah ONU boleh absen dari walk sebelum dilepas dari roster (carry-forward). */
+    private const MAX_MISSED_POLLS = 12;
+
     public function __construct(private readonly HiosoSnmp $snmp) {}
 
     public function ping(SnmpOlt $olt): bool
@@ -100,11 +103,24 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
     public function getRegisteredOnus(SnmpOlt $olt): array
     {
+        // Daftar PON dari ifDescr (walk kecil & stabil). Dipakai untuk men-scope walk tabel ONU per
+        // PON — walk seluruh tabel sering terpotong link WAN pada port padat sehingga hitungan ONU &
+        // kelengkapan nama/Rx berubah-ubah antar poll (lihat {@see walkTable}).
+        $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
+
+        // Roster ONU dari poll SEBELUMNYA — dipakai carry-forward: poll yang terpotong link lossy hanya
+        // boleh MENAMBAH/meng-update ONU, tak pernah menghapus ONU yang sudah dikenal. Registrasi EPON
+        // stabil (MAC menetap meski ONU mati → ONU offline tetap terbaca 'na'), jadi baris MAC yang
+        // benar-benar hilang dari walk = walk tak sampai, BUKAN ONU terhapus. ONU yang hilang
+        // MAX_MISSED_POLLS poll beruntun (indikasi benar-benar di-delete) baru dilepas. Ini menstabilkan
+        // total ONU/PON di link terburuk, melengkapi walk per-PON.
+        $previous = $this->previousOnus($olt);
+
         // Tabel MAC = sumber kebenaran registrasi. Tabel nama `.37.1` memuat slot HANTU (ONU pernah
         // terdaftar/ter-reserve) ber-MAC `000000000000` yang bukan ONU nyata; hitungan web OLT hanya
         // menghitung slot ber-MAC non-nol.
-        $macRows = $this->robustWalk($olt, self::ONU_MAC);
-        if ($macRows === []) {
+        $macRows = $this->walkTable($olt, self::ONU_MAC, $ports);
+        if ($macRows === [] && $previous === []) {
             return [];
         }
 
@@ -129,14 +145,11 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             $registered["{$port}.{$onuId}"] = [$port, $onuId, $mac];
         }
 
-        if ($registered === []) {
-            return [];
-        }
-
+        // Walk Nama & Rx hanya bila ada ONU terbaca cycle ini; `$onuKeys` = TARGET kelengkapan agar
+        // {@see robustWalk} mengulang sampai semua ONU per PON ter-cover (Rx/nama tak bolong).
         $onuKeys = array_keys($registered);
-        $nameByKey = $this->indexByPonOnu($this->robustWalk($olt, self::ONU_NAME, $onuKeys));
-        $rxScan = $this->rxScan($olt, $onuKeys);
-        $previous = $this->previousOnuState($olt);
+        $nameByKey = $onuKeys === [] ? [] : $this->indexByPonOnu($this->walkTable($olt, self::ONU_NAME, $ports, $onuKeys));
+        $rxScan = $onuKeys === [] ? ['valid' => [], 'seen' => []] : $this->rxScan($olt, $ports, $onuKeys);
 
         $onus = [];
 
@@ -157,39 +170,99 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 // sampai. Pertahankan status terakhir dari snapshot poll sebelumnya; Rx dibawa sebagai
                 // 'snmp_stale' agar tampil kontinu tapi TAK dicatat ke time-series (lihat PollOltJob).
                 $prev = $previous[$key] ?? null;
-                $online = $prev['online'] ?? true; // tak ada acuan → MAC terdaftar, asumsikan up
-                $rx = $prev['rx'] ?? null;
-                $rxLabel = $prev['rx_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
+                $online = (bool) ($prev['online'] ?? true); // tak ada acuan → MAC terdaftar, asumsikan up
+                $rx = $this->prevRx($prev);
+                $rxLabel = $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
                 $rxSource = $rx !== null ? 'snmp_stale' : null;
             }
 
-            $onus[] = [
-                'onu_key' => $key,
-                'if_index' => null,
-                'slot' => 1,
-                'port' => $port,
-                'onu_id' => $onuId,
-                'interface' => sprintf('epon 0/1/%d:%d', $port, $onuId),
-                'type_name' => null,
-                'name' => $name,
-                'description' => null,
-                // EPON tak punya serial tradisional — MAC adalah identifier ONU (guide §7.8).
-                'serial_number' => $mac,
-                'mac' => $mac,
-                'vendor_id' => null,
-                'admin_state' => 'unknown',
-                'phase_state' => $online ? 'Online' : 'Offline',
-                'online' => $online,
-                'last_down_cause' => null,
-                'rx_power_dbm' => $rx,
-                'rx_power_label' => $rxLabel,
-                'rx_power_source' => $rxSource,
-            ];
+            // Nama kadang absen dari walk (truncation) walau ONU terbaca di MAC → pertahankan nama lama.
+            $name ??= HiosoValue::clean($previous[$key]['name'] ?? null);
+
+            $onus[$key] = $this->buildOnu($port, $onuId, $mac, $name, $online, $rx, $rxLabel, $rxSource, 0);
         }
 
+        // Carry-forward roster: ONU yang dikenal poll lalu tapi ABSEN dari walk MAC cycle ini (link
+        // lossy memangkasnya) dipertahankan pakai data terakhir, Rx ditandai 'snmp_stale'. Dilepas
+        // hanya setelah hilang MAX_MISSED_POLLS poll beruntun (indikasi benar-benar di-delete di OLT).
+        foreach ($previous as $key => $prev) {
+            if (isset($onus[$key])) {
+                continue; // sudah terbaca segar cycle ini
+            }
+
+            $segments = HiosoValue::oidLastSegments((string) $key, 2);
+            if ($segments === null) {
+                continue;
+            }
+
+            $missed = (int) ($prev['missed_polls'] ?? 0) + 1;
+            if ($missed > self::MAX_MISSED_POLLS) {
+                continue; // dianggap benar-benar dihapus dari OLT → lepas dari roster
+            }
+
+            [$port, $onuId] = $segments;
+            $rx = $this->prevRx($prev);
+            $onus[$key] = $this->buildOnu(
+                $port,
+                $onuId,
+                $prev['mac'] ?? ($prev['serial_number'] ?? null),
+                HiosoValue::clean($prev['name'] ?? null),
+                (bool) ($prev['online'] ?? true),
+                $rx,
+                $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null),
+                $rx !== null ? 'snmp_stale' : null,
+                $missed,
+            );
+        }
+
+        $onus = array_values($onus);
         usort($onus, fn ($a, $b) => [$a['slot'], $a['port'], $a['onu_id']] <=> [$b['slot'], $b['port'], $b['onu_id']]);
 
         return $onus;
+    }
+
+    /**
+     * Rakit satu record ONU bentuk-ZTE (dipakai baik ONU terbaca segar maupun carry-forward).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildOnu(int $port, int $onuId, ?string $mac, ?string $name, bool $online, ?float $rx, ?string $rxLabel, ?string $rxSource, int $missedPolls): array
+    {
+        return [
+            'onu_key' => "{$port}.{$onuId}",
+            'if_index' => null,
+            'slot' => 1,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'interface' => sprintf('epon 0/1/%d:%d', $port, $onuId),
+            'type_name' => null,
+            'name' => $name,
+            'description' => null,
+            // EPON tak punya serial tradisional — MAC adalah identifier ONU (guide §7.8).
+            'serial_number' => $mac,
+            'mac' => $mac,
+            'vendor_id' => null,
+            'admin_state' => 'unknown',
+            'phase_state' => $online ? 'Online' : 'Offline',
+            'online' => $online,
+            'last_down_cause' => null,
+            'rx_power_dbm' => $rx,
+            'rx_power_label' => $rxLabel,
+            'rx_power_source' => $rxSource,
+            'missed_polls' => $missedPolls,
+        ];
+    }
+
+    /**
+     * Rx numerik dari record ONU poll sebelumnya (untuk carry-forward), atau null.
+     *
+     * @param  array<string, mixed>|null  $prev
+     */
+    private function prevRx(?array $prev): ?float
+    {
+        $rx = $prev['rx_power_dbm'] ?? null;
+
+        return is_numeric($rx) ? (float) $rx : null;
     }
 
     public function getRegisteredOnusByPort(SnmpOlt $olt, int $slot, int $port): array
@@ -202,15 +275,18 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
     public function getPortRxMap(SnmpOlt $olt): array
     {
-        return $this->rxScan($olt)['valid'];
+        $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
+
+        return $this->rxScan($olt, $ports)['valid'];
     }
 
     public function countRegisteredOnus(SnmpOlt $olt): int
     {
         try {
             // Hanya slot dgn MAC non-nol = ONU terdaftar sungguhan (tabel nama memuat slot hantu).
+            $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
             $count = 0;
-            foreach ($this->robustWalk($olt, self::ONU_MAC) as $value) {
+            foreach ($this->walkTable($olt, self::ONU_MAC, $ports) as $value) {
                 $mac = HiosoValue::macFromHex($value);
                 if ($mac !== null && $mac !== self::ZERO_MAC) {
                     $count++;
@@ -227,6 +303,46 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     {
         // Autofind/unconfigured HA7304 belum dipetakan — fitur kandidat (guide §13).
         return [];
+    }
+
+    /**
+     * Walk sebuah tabel kanonik ONU **per PON** (`{base}.{PON}`) lalu gabung, alih-alih satu walk
+     * seluruh tabel. Walk penuh tabel besar (port padat, mis. 27 ONU) sering terpotong link WAN →
+     * hitungan ONU/kelengkapan nama-Rx berubah-ubah antar poll; walk yang di-scope per PON jauh lebih
+     * kecil sehingga hampir selalu utuh (terverifikasi live: full walk truncate, per-PON stabil).
+     * Untuk sisa truncation langka, `$targetKeys` (`{PON}.{ONU}` dari tabel MAC) memaksa {@see
+     * robustWalk} mengulang sampai PON itu ter-cover.
+     *
+     * PON yang walk-nya gagal total (timeout) di-skip — port lain tetap ter-scan; PON itu pulih di
+     * poll berikutnya (untuk Rx, status terakhir dipertahankan {@see previousOnuState}). Bila daftar
+     * port kosong (ifDescr gagal) → fallback walk seluruh tabel (perilaku lama).
+     *
+     * @param  array<int, int>  $ports  nomor PON
+     * @param  array<int, string>  $targetKeys  `{PON}.{ONU}` (dikelompokkan per PON di sini)
+     * @return array<string, string>
+     */
+    private function walkTable(SnmpOlt $olt, string $baseOid, array $ports, array $targetKeys = []): array
+    {
+        if ($ports === []) {
+            return $this->robustWalk($olt, $baseOid, $targetKeys);
+        }
+
+        $targetsByPort = [];
+        foreach ($targetKeys as $key) {
+            [$port] = explode('.', $key);
+            $targetsByPort[(int) $port][] = $key;
+        }
+
+        $merged = [];
+        foreach ($ports as $port) {
+            try {
+                $merged += $this->robustWalk($olt, "{$baseOid}.{$port}", $targetsByPort[$port] ?? []);
+            } catch (Throwable) {
+                continue; // PON ini gagal total → biar port lain tetap ter-scan
+            }
+        }
+
+        return $merged;
     }
 
     /**
@@ -263,6 +379,12 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
             if ($this->coversKeys($merged, $targetKeys)) {
                 break; // semua ONU target ter-cover → lengkap
+            }
+
+            // Subtree kosong (PON tanpa ONU) → walk pertama balik [] (agen menjawab, bukan timeout yg
+            // melempar) & tak ada target untuk dikejar → berhenti; hindari 5× walk sia-sia per PON kosong.
+            if ($rows === [] && $merged === [] && $targetKeys === []) {
+                break;
             }
 
             if ($before > 0 && count($merged) === $before) {
@@ -316,15 +438,16 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
      *              walk terpotong link lossy (bukan bukti ONU mati). Pemisahan ini yang mencegah port
      *              ber-ONU sedikit "flapping" saat walk sesekali tak sampai (lihat getRegisteredOnus).
      *
+     * @param  array<int, int>  $ports  nomor PON untuk men-scope walk per PON (lihat walkTable)
      * @param  array<int, string>  $onuKeys  target kelengkapan `{PON}.{ONU}` (lihat getRegisteredOnus)
      * @return array{valid: array<string, float>, seen: array<string, bool>}
      */
-    private function rxScan(SnmpOlt $olt, array $onuKeys = []): array
+    private function rxScan(SnmpOlt $olt, array $ports = [], array $onuKeys = []): array
     {
         $valid = [];
         $seen = [];
 
-        foreach ($this->robustWalk($olt, self::ONU_RX, $onuKeys) as $oid => $value) {
+        foreach ($this->walkTable($olt, self::ONU_RX, $ports, $onuKeys) as $oid => $value) {
             $segments = HiosoValue::oidLastSegments($oid, 2);
             if ($segments === null) {
                 continue;
@@ -343,30 +466,24 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     }
 
     /**
-     * Status ONU dari snapshot poll SEBELUMNYA (`last_test_result.port_onus`), di-key `{PON}.{ONU}`.
-     * Dipakai sebagai fallback saat walk Rx tak menyertakan baris sebuah ONU (truncation) → status
-     * terakhir dipertahankan alih-alih mengarang "offline". Aman: saat getRegisteredOnus dipanggil,
+     * Roster ONU dari snapshot poll SEBELUMNYA (`last_test_result.port_onus`), di-key `{PON}.{ONU}` →
+     * record ONU mentah. Dipakai untuk (a) mempertahankan status/nama saat baris sebuah ONU absen dari
+     * walk (truncation), dan (b) carry-forward roster: ONU yang absen total dari walk MAC tetap
+     * dipertahankan alih-alih hilang (lihat getRegisteredOnus). Aman: saat getRegisteredOnus dipanggil,
      * scanner belum menimpa `last_test_result` (masih berisi hasil poll sebelumnya).
      *
-     * @return array<string, array{online: bool, rx: float|null, rx_label: string|null}>
+     * @return array<string, array<string, mixed>>
      */
-    private function previousOnuState(SnmpOlt $olt): array
+    private function previousOnus(SnmpOlt $olt): array
     {
         $state = [];
 
         foreach ((array) data_get($olt->last_test_result, 'port_onus', []) as $port) {
             foreach ((array) ($port['onus'] ?? []) as $onu) {
                 $key = $onu['onu_key'] ?? null;
-                if (! is_string($key)) {
-                    continue;
+                if (is_string($key)) {
+                    $state[$key] = $onu;
                 }
-
-                $rx = $onu['rx_power_dbm'] ?? null;
-                $state[$key] = [
-                    'online' => (bool) ($onu['online'] ?? false),
-                    'rx' => is_numeric($rx) ? (float) $rx : null,
-                    'rx_label' => $onu['rx_power_label'] ?? null,
-                ];
             }
         }
 

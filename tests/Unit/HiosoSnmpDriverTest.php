@@ -261,4 +261,112 @@ class HiosoSnmpDriverTest extends TestCase
         $this->assertSame('Offline', $onu['phase_state']);
         $this->assertNull($onu['rx_power_dbm']);
     }
+
+    /**
+     * Regresi: walk seluruh tabel MAC/Nama/Rx sering terpotong link WAN pada PON padat sehingga
+     * hitungan ONU & kelengkapan nama/Rx berubah-ubah antar poll. Bila ifDescr tersedia, driver harus
+     * men-scope walk PER PON (`{base}.{PON}`) & menggabung — walk kecil per PON hampir selalu utuh.
+     * Di sini HANYA OID ber-scope (`{base}.1`, `{base}.2`) yang berisi data; walk seluruh-tabel telanjang
+     * kosong → ONU hanya muncul kalau driver benar-benar memakai jalur per-PON.
+     */
+    public function test_per_port_walk_scopes_by_pon_and_merges(): void
+    {
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        $snmp = new FakeHiosoSnmp([
+            // ifDescr → dua PON (Pon-Nni1, Pon-Nni2); walk seluruh tabel ONU sengaja TAK diisi.
+            $ifd => ["{$ifd}.1" => 'Pon-Nni1', "{$ifd}.2" => 'Pon-Nni2'],
+            "{$mac}.1" => ["{$mac}.1.1" => 'ec237bd78071'],
+            "{$mac}.2" => ["{$mac}.2.3" => 'd05fafd2a10d'],
+            "{$name}.1" => ["{$name}.1.1" => 'onu-p1'],
+            "{$name}.2" => ["{$name}.2.3" => 'onu-p2'],
+            "{$rx}.1" => ["{$rx}.1.1" => '-20.36'],
+            "{$rx}.2" => ["{$rx}.2.3" => '-22.10'],
+        ]);
+
+        $onus = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($this->olt());
+        $byKey = collect($onus)->keyBy('onu_key');
+
+        $this->assertCount(2, $onus, 'ONU dari kedua PON harus tergabung dari walk per-PON');
+
+        $this->assertSame('onu-p1', $byKey['1.1']['name']);
+        $this->assertSame(-20.36, $byKey['1.1']['rx_power_dbm']);
+        $this->assertTrue($byKey['1.1']['online']);
+
+        $this->assertSame([1, 2, 3], [$byKey['2.3']['slot'], $byKey['2.3']['port'], $byKey['2.3']['onu_id']]);
+        $this->assertSame('onu-p2', $byKey['2.3']['name']);
+        $this->assertSame(-22.10, $byKey['2.3']['rx_power_dbm']);
+        $this->assertTrue($byKey['2.3']['online']);
+    }
+
+    /**
+     * Regresi (gejala utama user): di link terburuk, walk MAC sesekali memangkas ONU sebuah PON
+     * (hitungan ONU/port melompat-lompat). Carry-forward: ONU yang dikenal poll lalu tapi ABSEN dari
+     * walk MAC cycle ini TETAP dipertahankan (data terakhir, Rx 'snmp_stale') alih-alih hilang — total
+     * ONU/PON jadi stabil. `missed_polls` bertambah tiap absen.
+     */
+    public function test_missing_mac_row_carries_onu_forward_from_previous_roster(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        // Walk MAC hanya mengembalikan 1.1; ONU 1.5 (ada di snapshot lalu) terpotong dari walk.
+        $snmp = new FakeHiosoSnmp([
+            $mac => ["{$mac}.1.1" => 'ec237bd78071'],
+            $name => ["{$name}.1.1" => 'onu-a'],
+            $rx => ["{$rx}.1.1" => '-20.36'],
+        ]);
+
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = ['port_onus' => ['1_5' => ['onus' => [
+            ['onu_key' => '1.1', 'online' => true, 'rx_power_dbm' => -20.0],
+            ['onu_key' => '1.5', 'name' => 'Budi', 'mac' => 'D0:5F:AF:D2:A1:0D',
+                'online' => true, 'rx_power_dbm' => -18.0, 'rx_power_label' => '-18.00 dBm', 'missed_polls' => 0],
+        ]]]];
+
+        $onus = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt);
+        $byKey = collect($onus)->keyBy('onu_key');
+
+        $this->assertCount(2, $onus, 'ONU 1.5 yang terpotong walk MAC harus dipertahankan, bukan hilang');
+
+        // 1.1 terbaca segar.
+        $this->assertSame(-20.36, $byKey['1.1']['rx_power_dbm']);
+        $this->assertSame('snmp', $byKey['1.1']['rx_power_source']);
+        $this->assertSame(0, $byKey['1.1']['missed_polls']);
+
+        // 1.5 carry-forward: data terakhir dipertahankan, Rx 'snmp_stale', missed_polls naik jadi 1.
+        $this->assertSame([1, 5], [$byKey['1.5']['port'], $byKey['1.5']['onu_id']]);
+        $this->assertSame('Budi', $byKey['1.5']['name']);
+        $this->assertSame('D0:5F:AF:D2:A1:0D', $byKey['1.5']['mac']);
+        $this->assertTrue($byKey['1.5']['online']);
+        $this->assertSame(-18.0, $byKey['1.5']['rx_power_dbm']);
+        $this->assertSame('snmp_stale', $byKey['1.5']['rx_power_source']);
+        $this->assertSame(1, $byKey['1.5']['missed_polls']);
+    }
+
+    /**
+     * Sisi lain carry-forward: ONU yang benar-benar di-delete di OLT (MAC-nya hilang permanen) TIDAK
+     * boleh menempel selamanya. Setelah absen MAX_MISSED_POLLS (12) poll beruntun, ONU dilepas.
+     */
+    public function test_onu_dropped_after_max_missed_polls(): void
+    {
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+
+        // Walk MAC kosong; ONU 1.5 di snapshot lalu sudah absen 12 poll → poll ke-13 melepasnya.
+        $snmp = new FakeHiosoSnmp([$mac => []]);
+
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = ['port_onus' => ['1_5' => ['onus' => [
+            ['onu_key' => '1.5', 'name' => 'Budi', 'mac' => 'D0:5F:AF:D2:A1:0D',
+                'online' => true, 'missed_polls' => 12],
+        ]]]];
+
+        $onus = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt);
+
+        $this->assertSame([], $onus, 'ONU absen > MAX_MISSED_POLLS harus dilepas dari roster');
+    }
 }

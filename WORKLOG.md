@@ -2,6 +2,42 @@
 
 ## 2026-07-07
 
+### Fix polling HiOSO tak lengkap — walk per-PON + carry-forward roster ONU
+
+**Keluhan user:** hasil polling ONU OLT HiOSO tak lengkap & berubah-ubah — kadang satu port ke-poll
+semua, kadang sebagian, kadang cuma namanya, kadang cuma Rx-nya sebagian.
+
+**Diagnosis (verifikasi live 3 OLT):** `HiosoEponSnmpService::getRegisteredOnus` walk **seluruh tabel**
+MAC/Nama/Rx sekaligus. Di link WAN lossy (OLT via port-forward), walk tabel besar pada PON padat
+sering **terpotong** → hitungan ONU/PON melompat-lompat. Reproduksi: NDOKATON (id 410) total ONU
+loncat **53↔37/39** (port 1: 27↔~12). Uji `snmpbulkwalk` mentah: walk penuh truncate, tapi walk
+**di-scope per-PON** (`.11.1.{PON}`) stabil **27/27 (6×)**. PATI & PEKALONGAN link sehat → tak
+kelihatan; NDOKATON link terburuk → parah.
+
+**Perbaikan:**
+1. **Walk per-PON** (`walkTable`): tiap tabel MAC/Nama/Rx di-walk per PON (`{base}.{PON}`) lalu
+   digabung, bukan satu walk raksasa. Daftar PON dari `getPorts()` (ifDescr, kecil & stabil).
+   Fallback ke walk seluruh-tabel bila ifDescr kosong (perilaku lama).
+2. **Carry-forward roster** (`previousOnus` + `MAX_MISSED_POLLS=12`): poll yang masih terpotong hanya
+   boleh MENAMBAH/meng-update ONU, **tak pernah menghapus** ONU yang sudah dikenal. Registrasi EPON
+   stabil (MAC menetap; ONU mati tetap lapor `na`), jadi baris MAC yang hilang total = walk tak
+   sampai, bukan ONU terhapus → dipertahankan (Rx `snmp_stale`, tak masuk time-series). ONU yang benar
+   di-delete hilang sendiri setelah absen 12 poll beruntun.
+3. Anchor target-key per-PON untuk Nama/Rx (sudah ada) tetap memaksa `robustWalk` mengulang sampai
+   ONU per PON ter-cover; nama yang absen di-carry dari snapshot.
+
+**Changed:** `app/Services/Hioso/HiosoEponSnmpService.php` — `getRegisteredOnus` (walk per-PON +
+carry-forward), `rxScan`/`getPortRxMap`/`countRegisteredOnus` ikut per-PON, `previousOnuState`→
+`previousOnus` (record penuh), helper baru `walkTable`/`buildOnu`/`prevRx`, `robustWalk` early-break
+subtree kosong, field baru `missed_polls` di record ONU.
+
+**Tests:** `tests/Unit/HiosoSnmpDriverTest.php` +3 (per-PON scoping, carry-forward, drop >MAX) — 8/8
+hijau; Unit suite 74/74. (2 kegagalan `HiosoOltTest` = 419 CSRF, **pre-existing di main**, tak terkait.)
+
+**Verifikasi live:** simulasi poller `scan()` NDOKATON **8×** → total **stabil 53** tiap poll
+(p1:27 p3:10 p4:16), `carried`/`stale_rx` naik saat walk terpotong lalu pulih. PEKALONGAN & PATI
+tetap stabil (`carried=0`, tanpa carry keliru).
+
 ### Role "Partner" — OLT ter-assign, alarm ter-scope, bot Telegram sendiri, mobile ikut
 
 **Permintaan user:** buat role **partner** yang hanya bisa mengelola (lihat + edit) OLT yang admin

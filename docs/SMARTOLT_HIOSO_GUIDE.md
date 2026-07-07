@@ -662,6 +662,7 @@ Ringkasan semua quirk yang sudah ditemukan, ditulis biar tidak terulang:
 | 6 | Nama ONU tidak boleh spasi | CLI HiOSO sanitasi alfanumerik+`_-.` | replace spasi dengan `_`, strip char invalid |
 | 7 | `show interface epon` tidak ada | firmware HA7304 tidak punya command itu | jangan asumsikan ZTE-style CLI; pakai `show epon 0/{N} optical-ddm` untuk OLT-side metric |
 | 8 | Per-ONU detail tidak bisa via CLI | tidak ada equivalent `show gpon onu detail-info` | seluruh info ONU ambil via SNMP saja |
+| 9 | Walk seluruh tabel ONU terpotong di link WAN lossy → total ONU/PON melompat-lompat antar poll (kadang cuma nama/Rx sebagian) | tabel besar pada PON padat + link via port-forward drop paket di tengah walk; timeout/retry cukup tapi burst loss tetap memutus | walk **per-PON** (`{base}.{PON}`, mis. `.11.1.{PON}`) lalu gabung — walk kecil hampir selalu utuh (terverifikasi: full walk truncate, per-PON 27/27 6×). PLUS **carry-forward roster**: poll terpotong hanya menambah/update, tak pernah menghapus ONU dikenal (registrasi EPON stabil); lepas ONU setelah absen `MAX_MISSED_POLLS` (12) poll beruntun |
 
 ---
 
