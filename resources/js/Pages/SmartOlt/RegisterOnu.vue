@@ -73,6 +73,14 @@ watch(() => form.vlan_profile, (name) => {
     form.vlan = profile.vlan;
 });
 
+// Mode bridge tak memakai vlan-profile (yang cuma relevan untuk baris wan-ip
+// routed) — kosongkan agar VLAN ID numerik tetap otoritatif.
+watch(() => form.wan_mode, (mode) => {
+    if (mode === 'bridge') {
+        form.vlan_profile = '';
+    }
+});
+
 // --- live raw CLI preview (debounced, read-only ke server) ---
 const preview = reactive({ script: '# Mengisi form untuk melihat script…', loading: false });
 let debounceTimer = null;
@@ -393,7 +401,7 @@ const submitAdvanced = async (execute) => {
                                 <InputLabel value="Mode" />
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     <button
-                                        v-for="mode in ['pppoe', 'dhcp', 'static']"
+                                        v-for="mode in ['pppoe', 'dhcp', 'static', 'bridge']"
                                         :key="mode"
                                         type="button"
                                         class="rounded-lg border px-5 py-2 text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-1"
@@ -425,6 +433,11 @@ const submitAdvanced = async (execute) => {
                             <!-- DHCP: no extra fields -->
                             <div v-if="form.wan_mode === 'dhcp'" class="rounded-lg border border-white/10 bg-sky-500/15 px-4 py-3 text-sm text-cyan-300">
                                 DHCP mode — IP otomatis dari server, tidak ada field tambahan.
+                            </div>
+
+                            <!-- Bridge: L2 transparan, tanpa WAN di OLT -->
+                            <div v-if="form.wan_mode === 'bridge'" class="rounded-lg border border-white/10 bg-sky-500/15 px-4 py-3 text-sm text-cyan-300">
+                                Bridge mode — ONU jadi jembatan L2 murni (VLAN transparan, gunakan <span class="font-semibold">VLAN ID</span> di atas, mis. 100). Tidak ada <code>wan-ip</code>/PPPoE/TR069 di OLT; router pelanggan yang ber-PPPoE. Cocok untuk OLT gaya bridge (mis. Bulumanis Lor). VLAN Profile diabaikan pada mode ini.
                             </div>
 
                             <!-- Static fields -->

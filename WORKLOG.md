@@ -3903,3 +3903,30 @@ Notes:
 - Link "latest" tetap `/downloads/kusumavision-nms.apk` (kopi terbaru dari `bin/build-apk.sh`, saat ini `1.1.4+8`); file ber-versi `-v{N}.apk` hanya arsip.
 - Versi dibaca dari `mobile/pubspec.yaml` saat render (fallback `null` bila repo mobile tak ada di server); waktu & ukuran dari mtime/filesize file jadi selalu mengikuti build terakhir tanpa perlu di-hardcode.
 - Diverifikasi: `php -l` bersih, `npm run build` sukses (template Vue kompilasi), ikon `Download` ada di `@lucide/vue`; `php8.3-fpm` di-reload agar opcache mengambil payload baru.
+
+## 2026-07-08
+
+### Mode Bridge registrasi ONU ZTE (OLT gaya bridge / Bulumanis Lor) + fix copy/parser + VEIP
+
+Changed:
+
+- `app/Services/ZteProvisioningScriptBuilder.php` — mode `wan_mode = bridge`: emit `switchport mode hybrid vport 1` (sebelum `service-port`) + `service {name} type internet …`, dan **hilangkan** seluruh baris `wan-ip …`/`ping-response`. `serviceLine()` dapat param `withType`. Mode pppoe/dhcp/static tak berubah.
+- `app/Services/Zte/OnuRegistrationService.php` — validasi `wan_mode` terima `bridge`; `hydrateProfiles()` di-guard: mode bridge memakai VLAN numerik apa adanya (tak ditimpa vlan-profile).
+- `app/Http/Controllers/SmartOltController.php` — `validatedProvisioning()` `wan_mode` terima `bridge`.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — copy/reconfigure **pertahankan token `type internet`** (warisi dari baseline bila form tak membawanya → tak terhapus diam-diam); `uniToken()` dukung VEIP (`veip_{N}` tanpa `0/`); helper `serviceDesc()` dipakai bersama build+diff.
+- `app/Services/ZteOnuRunningConfigService.php` — parser gemport terima bentuk panjang `gemport 1 name 1 unicast tcont 1 dir both`; `splitUniPort()` kenali token `veip_{N}`; `isNoise()` diperluas menangkap semua baris prompt/echo (`\S*[#>]`, mis. `ZXAN#exit`, `> show …`) + pesan sesi `(the )configuration is changed`.
+- `app/Services/ZteOnuCopyService.php` — audit ONU tanpa wan-ip dicatat `wan_mode=bridge` (label akurat).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — tombol mode **BRIDGE** + panel info; watcher mengosongkan `vlan_profile` saat bridge (VLAN ID numerik tetap otoritatif).
+- `resources/js/Components/SmartOlt/OnuConfigEditor.vue` — opsi Port Type **VEIP** di editor UNI VLAN.
+- `docs/SMARTOLT_ZTE_C300_C320_GUIDE.md` — dokumentasi template `bridge` + `type internet` + catatan normalisasi gemport long-form.
+- `mobile/lib/features/register/register_screen.dart` — mobile: opsi Mode WAN **bridge** + panel info `_wanHint` (senada web).
+- `mobile/pubspec.yaml` — bump versi `1.1.4+8` → `1.1.5+9` (versionCode wajib naik untuk rilis APK).
+
+Notes:
+
+- **Diagnosa dari OLT nyata:** fetch running-config lintas vendor (ZTEG/FHTT/HWTC/GPON/ALCL/ELWG) di OLT-C320-BULUMANIS-LOR (id 564), OLT-C320-PATI (1), OLT-C300-SEKARJALAK (2). Semua vendor di Bulumanis dapat CLI identik — bedanya **model layanan** (bridge VLAN 100 vs routed PPPoE), bukan per-vendor.
+- Output builder mode bridge terbukti **sama persis** dengan ONU Bulumanis live (`switchport mode hybrid vport 1`, `service … type internet gemport 1 cos 0 vlan 100`, tanpa wan-ip).
+- **Bug lama** yang ikut ketemu & diperbaiki: (a) parser gemport gagal pada bentuk panjang → copy ONU bridge dulu kehilangan gemport; (b) `vlan port veip_1` salah jadi `eth_0/1`; (c) baris `ZXAN#exit` menempel ke direktif terakhir (`mode hybrid` → `mode hybridZXAN#exit`) bikin dropdown mode kosong saat load.
+- Registrasi di Bulumanis lolos validasi via fallback profil GLOBAL `SERVER`/`ALL-ONT` (tcont/ip OLT 564 kosong) — tak perlu re-sync katalog.
+- Diverifikasi: `pint` bersih; unit `ZteOnuConfigureTest`/`ZteOnuDetailTest` PASS; `npm run build` sukses; mobile `flutter analyze` No issues. (Kegagalan test HTTP lain = 419-CSRF pre-existing, dikonfirmasi via `git stash`.)
+- Mobile perlu **build ulang APK** (`bash bin/build-apk.sh`) agar opsi bridge muncul di HP — belum di-build sesi ini.

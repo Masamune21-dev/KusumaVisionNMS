@@ -265,6 +265,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <select v-model="row.port_type" :class="fieldClass">
                                 <option value="eth">Ethernet</option>
                                 <option value="wifi">WiFi</option>
+                                <option value="veip">VEIP</option>
                             </select>
                         </div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Port</span><TextInput v-model.number="row.port" type="number" :class="fieldClass" /></div>

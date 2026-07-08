@@ -21,7 +21,12 @@ class ZteProvisioningScriptBuilder
         $vlan = (int) $data['vlan'];
         $serviceName = (string) ($data['service_name'] ?? 'ServiceName');
         $serviceMode = (string) ($data['service_mode'] ?? 'vlanpri');
-        $wanLine = $this->wanLine($data, $name);
+        // Mode "bridge": ONU sebagai jembatan L2 murni (VLAN transparan, mis. 100) —
+        // tanpa wan-ip/PPPoE/DHCP/Static di OLT; router pelanggan yang ber-PPPoE.
+        // Ini pola dominan OLT gaya bridge (mis. OLT-C320-BULUMANIS-LOR), yang
+        // menambah `switchport mode hybrid vport 1` + `service … type internet …`.
+        $isBridge = strtolower((string) ($data['wan_mode'] ?? 'pppoe')) === 'bridge';
+        $wanLine = $isBridge ? null : $this->wanLine($data, $name);
         $description = "{$onuId}\$\${$name}\$\$";
         $isC600 = (bool) ($data['is_c600'] ?? false);
         $oltIface = SmartOltSupport::gponOltInterface($slot, $port, $isC600);
@@ -43,21 +48,27 @@ class ZteProvisioningScriptBuilder
             $lines[] = "description {$description}";
         }
 
-        $lines = array_merge($lines, [
-            "tcont 1 name 1 profile {$tcontProfile}",
-            'gemport 1 name 1 tcont 1',
-            'encrypt 1 enable downstream',
-            "service-port 1 vport 1 user-vlan {$vlan} vlan {$vlan}",
-            'exit',
-            '',
-            "pon-onu-mng {$onuIface}",
-            $this->serviceLine($serviceName, $serviceMode, $vlan),
-            ...$this->tr069Lines($data),
-            $wanLine,
-            $this->remoteOntLine($data),
-            'wan-ip 1 ping-response enable traceroute-response enable',
-            'exit',
-        ]);
+        $lines[] = "tcont 1 name 1 profile {$tcontProfile}";
+        $lines[] = 'gemport 1 name 1 tcont 1';
+        $lines[] = 'encrypt 1 enable downstream';
+        if ($isBridge) {
+            $lines[] = 'switchport mode hybrid vport 1';
+        }
+        $lines[] = "service-port 1 vport 1 user-vlan {$vlan} vlan {$vlan}";
+        $lines[] = 'exit';
+        $lines[] = '';
+
+        $lines[] = "pon-onu-mng {$onuIface}";
+        $lines[] = $this->serviceLine($serviceName, $serviceMode, $vlan, $isBridge);
+        $lines = array_merge($lines, $this->tr069Lines($data));
+        if (! $isBridge) {
+            $lines[] = $wanLine;
+        }
+        $lines[] = $this->remoteOntLine($data);
+        if (! $isBridge) {
+            $lines[] = 'wan-ip 1 ping-response enable traceroute-response enable';
+        }
+        $lines[] = 'exit';
 
         return implode("\n", array_filter($lines, fn (?string $line) => $line !== null));
     }
@@ -67,13 +78,17 @@ class ZteProvisioningScriptBuilder
      * (tanpa cos/vlan) — beberapa firmware C320 hanya konek di mode ini;
      * mode `vlanpri` (VLAN+Priority) memetakan cos 0 + vlan.
      */
-    private function serviceLine(string $serviceName, string $mode, int $vlan): string
+    private function serviceLine(string $serviceName, string $mode, int $vlan, bool $withType = false): string
     {
+        // `type internet` dipakai OLT gaya bridge (mis. Bulumanis Lor); OLT gaya
+        // routed (Pati/Sekarjalak) menghilangkannya (default = internet).
+        $type = $withType ? 'type internet ' : '';
+
         if (strtolower($mode) === 'transparent') {
-            return "service {$serviceName} gemport 1";
+            return "service {$serviceName} {$type}gemport 1";
         }
 
-        return "service {$serviceName} gemport 1 cos 0 vlan {$vlan}";
+        return "service {$serviceName} {$type}gemport 1 cos 0 vlan {$vlan}";
     }
 
     /**

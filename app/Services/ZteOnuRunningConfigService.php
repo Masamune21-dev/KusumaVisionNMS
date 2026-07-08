@@ -200,7 +200,11 @@ class ZteOnuRunningConfigService
             return;
         }
 
-        if (preg_match('/^gemport\s+(\d+)\s+name\s+(\S+)\s+tcont\s+(\d+)/i', $line, $m)) {
+        // OLT gaya bridge (mis. Bulumanis Lor) menyimpan bentuk panjang
+        // `gemport 1 name 1 unicast tcont 1 dir both`; OLT routed memakai bentuk
+        // pendek `gemport 1 name 1 tcont 1`. Token `unicast` (opsional) & `dir …`
+        // (trailing) diabaikan — keduanya dinormalisasi firmware saat re-emit.
+        if (preg_match('/^gemport\s+(\d+)\s+name\s+(\S+)\s+(?:unicast\s+|multicast\s+|broadcast\s+)?tcont\s+(\d+)/i', $line, $m)) {
             $id = (int) $m[1];
             $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['traffic_up' => null, 'traffic_down' => null], [
                 'id' => $id,
@@ -492,8 +496,16 @@ class ZteOnuRunningConfigService
 
     private function isNoise(string $line): bool
     {
+        // `\S*[#>]` menangkap baris prompt/echo perintah ZTE di mana pun penanda
+        // prompt (#/>) berada di token pertama — mis. `ZXAN#`, `ZXAN>`,
+        // `ZXAN(config)#`, `ZXAN#exit` (prompt + echo `exit` saat logout), dan
+        // `> show onu running config …`. Tanpa ini, `ZXAN#exit` bukan noise → logika
+        // continuation menge-lem-nya ke direktif terakhir (mis. `mode hybrid` →
+        // `mode hybridZXAN#exit`), bikin nilai field rusak. Baris keyword config
+        // (name/tcont/gemport/service/vlan/…) tak mengandung #/> di token pertama.
+        // `(the )?configuration is changed` = pesan konfirmasi/simpan sesi ZTE.
         return (bool) preg_match(
-            '/^(!|end|building configuration|interface\s+gpon-onu_|pon-onu-mng\s+gpon-onu_|---\s*show|show\s+|exit|conf\s+t|configure\s+terminal|\S*[#>]\s*$)/i',
+            '/^(!|end|building configuration|(the\s+)?configuration\s+is\s+changed|interface\s+gpon-onu_|pon-onu-mng\s+gpon-onu_|---\s*show|show\s+|exit|conf\s+t|configure\s+terminal|\S*[#>])/i',
             $line,
         );
     }
@@ -505,6 +517,12 @@ class ZteOnuRunningConfigService
     {
         if (preg_match('/^(eth|wifi)_0\/(\d+)/i', $token, $m)) {
             return [strtolower($m[1]), (int) $m[2]];
+        }
+
+        // VEIP (Virtual Ethernet Interface Point) — token ZTE `veip_{N}` tanpa `0/`
+        // (mis. `vlan port veip_1 mode hybrid` pada ONU routed/bridge HGU).
+        if (preg_match('/^veip_(\d+)/i', $token, $m)) {
+            return ['veip', (int) $m[1]];
         }
 
         if (preg_match('/(\d+)/', $token, $m)) {

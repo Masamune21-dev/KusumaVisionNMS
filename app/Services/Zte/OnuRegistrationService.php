@@ -44,7 +44,7 @@ class OnuRegistrationService
             'vlan_profile' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'vlan')],
             'service_name' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
             'service_mode' => ['nullable', Rule::in(['vlanpri', 'transparent'])],
-            'wan_mode' => ['required', Rule::in(['pppoe', 'dhcp', 'static'])],
+            'wan_mode' => ['required', Rule::in(['pppoe', 'dhcp', 'static', 'bridge'])],
             'pppoe_username' => ['nullable', 'string', 'max:120'],
             'pppoe_password' => ['nullable', 'string', 'max:120'],
             'ip_profile' => ['nullable', 'required_if:wan_mode,static', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'ip')],
@@ -166,6 +166,12 @@ class OnuRegistrationService
      */
     private function hydrateProfiles(SnmpOlt $olt, array $data): array
     {
+        // Mode bridge memakai VLAN ID numerik apa adanya (mis. 100) — jangan
+        // ditimpa oleh vlan-profile (yang cuma relevan untuk baris wan-ip routed).
+        if (strtolower((string) ($data['wan_mode'] ?? '')) === 'bridge') {
+            return $data;
+        }
+
         if (($data['vlan_profile'] ?? null) === null || $data['vlan_profile'] === '') {
             return $data;
         }

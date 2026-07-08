@@ -384,6 +384,27 @@ Detail varian `wan-ip 1`:
 | PPPoE | `wan-ip 1 mode pppoe username {U} password {P}` |
 | DHCP | `wan-ip 1 mode dhcp` |
 | Static | `wan-ip 1 mode static ip-profile {IP_PROFILE} ip-address {IP} mask {255.255.255.0}` |
+| **Bridge** | *(tidak ada baris `wan-ip`)* — ONU jadi jembatan L2 murni |
+
+**Varian `bridge` (gaya bridge, mis. OLT-C320-BULUMANIS-LOR)** — ONU melewatkan VLAN transparan (mis. 100); router pelanggan yang ber-PPPoE, jadi **tidak ada** `wan-ip`/PPPoE/TR069 di OLT. Bedanya dengan template routed di atas: tambah `switchport mode hybrid vport 1` (sebelum `service-port`) dan `service {SERVICE_NAME} type internet gemport 1 cos 0 vlan {VLAN}` (token `type internet`), lalu hilangkan seluruh baris `wan-ip …`:
+
+```
+interface gpon-onu_1/{slot}/{port}:{onuId}
+  name {NAME}
+  description {onuId}$${NAME}$$
+  tcont 1 name 1 profile {TCONT_PROFILE}
+  gemport 1 name 1 tcont 1
+  encrypt 1 enable downstream
+  switchport mode hybrid vport 1
+  service-port 1 vport 1 user-vlan {VLAN} vlan {VLAN}
+  exit
+
+pon-onu-mng gpon-onu_1/{slot}/{port}:{onuId}
+  service {SERVICE_NAME} type internet gemport 1 cos 0 vlan {VLAN}
+  exit
+```
+
+> Firmware menormalisasi `gemport 1 name 1 tcont 1` menjadi bentuk panjang `gemport 1 name 1 unicast tcont 1 dir both` di running-config — [`ZteOnuRunningConfigService`](../app/Services/ZteOnuRunningConfigService.php) parse **kedua bentuk** agar copy/reconfigure ONU bridge tak kehilangan gemport. Token `type …` juga dipertahankan saat copy/reconfigure.
 
 **Catatan implementasi**:
 

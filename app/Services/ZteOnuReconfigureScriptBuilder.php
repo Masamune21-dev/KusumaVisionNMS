@@ -285,7 +285,11 @@ class ZteOnuReconfigureScriptBuilder
             }
 
             $prev = $base[$name] ?? null;
-            $newDesc = $mode === 'transparent' ? "gemport {$gem}" : "gemport {$gem} cos {$cos} vlan {$vlan}";
+            // Pertahankan `type …` (mis. `type internet` gaya bridge Bulumanis Lor):
+            // pakai type dari target, atau warisi dari baseline bila form tak
+            // membawanya — supaya reconfigure tak menghapusnya secara diam-diam.
+            $type = $this->str($row['type'] ?? '') ?: $this->str($prev['type'] ?? '');
+            $newDesc = $this->serviceDesc($type, $mode, $gem, $cos, $vlan);
             if ($prev === null || $this->fmtService($prev) !== $newDesc) {
                 // ZTE menolak menimpa service yang sudah ada di pon-onu-mng
                 // (%Code 64007: forbidden for conflicting with applied u-profile).
@@ -611,7 +615,12 @@ class ZteOnuReconfigureScriptBuilder
             return null;
         }
 
-        return (strtolower($this->str($row['port_type'] ?? 'eth')) === 'wifi' ? 'wifi_0/' : 'eth_0/').$port;
+        // VEIP memakai token `veip_{N}` (tanpa `0/`); eth/wifi memakai `{type}_0/{N}`.
+        return match (strtolower($this->str($row['port_type'] ?? 'eth'))) {
+            'wifi' => "wifi_0/{$port}",
+            'veip' => "veip_{$port}",
+            default => "eth_0/{$port}",
+        };
     }
 
     private function vlanPortLine(array $row): ?string
@@ -667,12 +676,29 @@ class ZteOnuReconfigureScriptBuilder
             return '';
         }
 
-        $gem = (int) ($row['gem'] ?? 0);
-        if (strtolower($this->str($row['mode'] ?? '')) === 'transparent') {
-            return "gemport {$gem}";
+        return $this->serviceDesc(
+            $this->str($row['type'] ?? ''),
+            strtolower($this->str($row['mode'] ?? '')),
+            (int) ($row['gem'] ?? 0),
+            (int) ($row['cos'] ?? 0),
+            (int) ($row['vlan'] ?? 0),
+        );
+    }
+
+    /**
+     * Descriptor service pon-onu-mng (tanpa nama). `type` opsional — hanya
+     * di-emit bila di-set (mis. `type internet`). Dipakai bersama untuk build
+     * baris CLI & pembanding diff, agar keduanya konsisten.
+     */
+    private function serviceDesc(string $type, string $mode, int $gem, int $cos, int $vlan): string
+    {
+        $typePart = $type !== '' ? "type {$type} " : '';
+
+        if ($mode === 'transparent') {
+            return "{$typePart}gemport {$gem}";
         }
 
-        return sprintf('gemport %d cos %d vlan %d', $gem, (int) ($row['cos'] ?? 0), (int) ($row['vlan'] ?? 0));
+        return sprintf('%sgemport %d cos %d vlan %d', $typePart, $gem, $cos, $vlan);
     }
 
     // --- generic helpers ---

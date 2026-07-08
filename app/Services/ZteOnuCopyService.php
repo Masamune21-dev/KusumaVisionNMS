@@ -199,6 +199,7 @@ class ZteOnuCopyService
         $tcont = $config['tconts'][0] ?? [];
         $service = $config['services'][0] ?? [];
         $wan = $config['wan_ips'][0] ?? [];
+        $hasWan = ($config['wan_ips'] ?? []) !== [];
         $mode = strtolower((string) ($wan['mode'] ?? 'pppoe'));
 
         return [
@@ -207,7 +208,8 @@ class ZteOnuCopyService
             'vlan' => $this->primaryVlan($config),
             'vlan_profile' => $wan['vlan_profile'] ?? null,
             'service_name' => (string) ($service['name'] ?? 'ServiceName'),
-            'wan_mode' => in_array($mode, ['pppoe', 'dhcp', 'static'], true) ? $mode : 'pppoe',
+            // ONU tanpa wan-ip = jembatan L2 murni (gaya bridge) — label audit yang tepat.
+            'wan_mode' => $hasWan ? (in_array($mode, ['pppoe', 'dhcp', 'static'], true) ? $mode : 'pppoe') : 'bridge',
             'pppoe_username' => $wan['pppoe_username'] ?? null,
             'pppoe_password' => $wan['pppoe_password'] ?? null,
             'ip_profile' => $wan['ip_profile'] ?? null,

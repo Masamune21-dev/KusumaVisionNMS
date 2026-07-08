@@ -234,7 +234,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 GlassCard(
                   child: Column(
                     children: [
-                      _dropdown('Mode WAN', _wanMode, const ['pppoe', 'dhcp', 'static'],
+                      _dropdown('Mode WAN', _wanMode, const ['pppoe', 'dhcp', 'static', 'bridge'],
                           (v) => setState(() => _wanMode = v)),
                       if (_wanMode == 'pppoe') ...[
                         _text('pppoe_username', 'PPPoE username'),
@@ -246,6 +246,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         _dropdown('Profil IP', _ctrl('ip_profile').text, _names(profiles, 'ip'),
                             (v) => _ctrl('ip_profile').text = v),
                       ],
+                      if (_wanMode == 'bridge') _wanHint(
+                        'Bridge — ONU jadi jembatan L2 murni (VLAN transparan, pakai VLAN di atas, mis. 100). '
+                        'Tanpa wan-ip/PPPoE/TR069 di OLT; router pelanggan yang ber-PPPoE. '
+                        'Cocok untuk OLT gaya bridge (mis. Bulumanis Lor).',
+                      ),
                     ],
                   ),
                 ),
@@ -284,6 +289,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
     );
   }
+
+  Widget _wanHint(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.30)),
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12.5, height: 1.4, color: AppColors.secondary),
+          ),
+        ),
+      );
 
   Widget _text(String key, String label, {bool number = false, bool required = false}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
