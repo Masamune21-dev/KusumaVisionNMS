@@ -104,6 +104,10 @@ Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **a
 
 ## Instalasi
 
+> 🚀 **Baru pertama kali? Mulai dari [`docs/INSTALL.md`](docs/INSTALL.md)** — panduan master yang
+> memandu Anda memilih jalur (per-OS), memeriksa **minimum spek**, lalu meneruskan ke langkah detail.
+> Untuk aplikasi **Android (APK)** lihat [`docs/BUILD_APK.md`](docs/BUILD_APK.md).
+
 Tiga jalur, pilih sesuai kebutuhan:
 
 | Jalur | Cocok untuk | Ringkas |
@@ -111,6 +115,14 @@ Tiga jalur, pilih sesuai kebutuhan:
 | **Docker appliance** | Pasang lengkap di 1 PC (Windows/Linux/macOS), dibagikan ke banyak lokasi | `docker compose up -d --build` (atau `start.bat`/`start.sh`) → buka `http://localhost:8080` |
 | **`install.sh`** | Server Ubuntu kosong, satu perintah | `sudo bash install.sh` |
 | **Manual (Langkah 1–10)** | Kontrol penuh / environment dev | ikuti langkah di bawah |
+
+**Minimum spek ringkas** (detail: [`docs/INSTALL.md §2`](docs/INSTALL.md)):
+
+| Untuk | RAM | Disk kosong | Catatan |
+|---|---|---|---|
+| Menjalankan web (Ubuntu/`install.sh`) | 2 GB (disarankan 4 GB) | 15 GB | 4–8 GB untuk 30+ OLT |
+| Menjalankan web (Docker appliance) | 4 GB | 15 GB | + Docker Desktop |
+| **Build APK Android** | **8 GB** | 20 GB | Flutter+SDK berat; lihat [`BUILD_APK.md`](docs/BUILD_APK.md) |
 
 ### Cara Docker (appliance — Windows / Linux / macOS)
 
@@ -443,6 +455,24 @@ Bot bisa menerima perintah (`/status /olt /alarm /onu /prov`) lewat webhook. Kar
 
 ---
 
+## Aplikasi Android (APK)
+
+Aplikasi Android pendamping ([`mobile/`](mobile/), Flutter) **mengonsumsi REST API v1** server ini
+untuk monitoring & aksi ONU dari HP. Pastikan server berjalan + **API v1 aktif** (Pengaturan → API & Token).
+
+- **Cuma mau pakai** → unduh APK jadi dari `https://<host>/downloads/kusumavision-nms.apk` (atau tombol
+  di Pengaturan web), sideload ke HP. Android **6.0+**.
+- **Mau build sendiri** (setelah ubah kode mobile) → butuh toolchain Flutter + Android SDK + JDK17
+  (**RAM ≥ 8 GB, disk ≥ 20 GB**). Panduan lengkap dari nol (install toolchain di Linux/Windows,
+  minimum spek, signing, install di HP): **[`docs/BUILD_APK.md`](docs/BUILD_APK.md)**.
+
+```bash
+# build cepat (toolchain sudah terpasang)
+API_BASE_URL=https://<host>/api/v1 bash bin/build-apk.sh
+```
+
+---
+
 ## Menjalankan di Development
 
 ```bash
@@ -513,6 +543,8 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
   [keamanan/RBAC/audit](docs/handbook/11-keamanan-rbac-audit.md), [frontend](docs/handbook/12-frontend.md),
   [troubleshooting](docs/handbook/13-troubleshooting-maintenance.md), dan
   [panduan menambah fitur](docs/handbook/14-panduan-tambah-fitur.md).
+- [`docs/INSTALL.md`](docs/INSTALL.md) — **panduan master instalasi** (pilih jalur per-OS, minimum spek, routing ke tiap jalur).
+- [`docs/BUILD_APK.md`](docs/BUILD_APK.md) — **build & install aplikasi Android** (toolchain dari nol di Linux/Windows, spek, signing, install di HP).
 - [`docs/API.md`](docs/API.md) — **REST API v1** (endpoint, autentikasi token, contoh JS/Kotlin/PHP).
 - [`docs/DOCKER.md`](docs/DOCKER.md) — **instalasi via Docker** (appliance 1 PC, backup, update, distribusi image).
 - [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_GUIDE.md) — referensi otoritatif perintah CLI ZTE.

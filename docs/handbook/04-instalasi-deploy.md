@@ -6,6 +6,9 @@ Dokumen ini fokus pada langkah praktis. Detail hardening produksi (nginx, UFW, S
 ada di [`docs/LOCAL_PRODUCTION_HARDENING.md`](../LOCAL_PRODUCTION_HARDENING.md). Status runtime
 yang terpasang ada di [`docs/INSTALLATION_STATUS.md`](../INSTALLATION_STATUS.md).
 
+> 🚀 **Pengguna baru** (bukan developer) sebaiknya mulai dari **[`docs/INSTALL.md`](../INSTALL.md)** —
+> peta keputusan per-OS + minimum spek. Build **APK Android**: **[`docs/BUILD_APK.md`](../BUILD_APK.md)**.
+
 ## ⚡ Cara cepat — `install.sh` (server Ubuntu kosong)
 
 Untuk deploy satu-perintah di Ubuntu fresh (22.04/24.04), pakai skrip

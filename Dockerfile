@@ -10,6 +10,20 @@
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
+# Stage 0 — vendor (Composer) HANYA untuk menyuplai Ziggy ke build frontend.
+# resources/js/app.js meng-import '../../vendor/tightenco/ziggy', tapi vendor/
+# di-.dockerignore, jadi tak ikut `COPY . .` di stage frontend → Vite gagal
+# resolve. --ignore-platform-reqs: image composer tak punya ekstensi PHP app
+# (snmp/pgsql/dll); di sini kita hanya mengunduh file paket (murni PHP/JS), bukan
+# menjalankan app — versi tetap terkunci oleh composer.lock.
+# ---------------------------------------------------------------------------
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --no-interaction \
+        --no-progress --prefer-dist --ignore-platform-reqs
+
+# ---------------------------------------------------------------------------
 # Stage 1 — build frontend (Vite → public/build). Murni JS, tak butuh PHP.
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS frontend
@@ -17,6 +31,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# Suplai Ziggy (di-import app.js dari vendor/, yang di-.dockerignore) dari stage vendor.
+COPY --from=vendor /app/vendor/tightenco/ziggy ./vendor/tightenco/ziggy
 RUN npm run build
 
 # ---------------------------------------------------------------------------

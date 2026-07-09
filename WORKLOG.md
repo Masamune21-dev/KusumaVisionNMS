@@ -1,5 +1,79 @@
 # Worklog
 
+## 2026-07-09
+
+### Fix: Docker halaman blank putih — nginx baru buang port dari HTTP_HOST → URL aset salah port
+
+**Keluhan user:** setelah fix build Ziggy (di bawah), `docker compose up` sukses & container Healthy,
+tapi buka `http://localhost:8080` → **halaman putih** (judul tab "KusumaVision NMS" muncul = HTML/PHP
+jalan, tapi body kosong, Vue tak pernah mount).
+
+**Diagnosis:** image nginx terbaru (bookworm, nginx ≥1.30) mengubah default `fastcgi_params`:
+`fastcgi_param HTTP_HOST` kini `$host` (host **tanpa** port) sebagai hardening keamanan, bukan lagi
+`$http_host` (bawa port). Container listen di `:80` internal tapi di-publish ke `:8080` (APP_PORT).
+Karena `HTTP_HOST` sampai ke PHP tanpa port, `Request::getHost()` Laravel kehilangan `:8080` → semua
+URL aset (`@vite` JS/CSS) & root di-generate ke `http://localhost/build/...` (port 80, tak ter-publish)
+→ **setiap aset 404 → blank putih**. Native `install.sh` tak terdampak (jalan di port standar 80/443,
+di situ `$host` == `$http_host`).
+
+**Perbaikan (`docker/nginx.conf`):** di dalam `location ~ \.php$` setelah `include fastcgi_params;`
+tambahkan override eksplisit `fastcgi_param HTTP_HOST $http_host;` (kembalikan port). Terverifikasi
+user di Windows: setelah rebuild+restart, URL aset kembali `http://localhost:8080/build/assets/...` dan
+landing page render penuh.
+
+**Files:** `docker/nginx.conf` (1 baris `fastcgi_param` + komentar).
+
+### Fix: Docker build gagal di stage frontend — Ziggy tak ter-resolve (`vendor/` di-.dockerignore)
+
+**Keluhan user:** `start.bat` di Windows gagal saat `docker compose up -d --build`. Stage `frontend`
+(`npm run build`) error: `Could not resolve "../../vendor/tightenco/ziggy" from "resources/js/app.js"`.
+
+**Diagnosis:** `resources/js/app.js:7` meng-import `ZiggyVue` dari `../../vendor/tightenco/ziggy` (paket
+Composer, bukan npm), tapi `.dockerignore:12` mengecualikan `vendor/`. Di stage `frontend`
+(`node:22-bookworm-slim`, `COPY . .` lalu `npm run build`) folder itu absen → Vite gagal resolve. Di
+host/dev build sukses karena `vendor/` sudah terisi `composer install`. Bug murni Dockerfile, lintas-OS
+(bukan khusus Windows). Hanya Ziggy yang di-import dari `vendor/` (grep `resources/js` → 1 hit).
+
+**Perbaikan (`Dockerfile`):** tambah **stage 0 `vendor`** (image `composer:2`) yang `composer install
+--no-scripts --no-autoloader --ignore-platform-reqs` (hanya mengunduh paket terkunci lock; image composer
+tak punya ekstensi PHP app, dan paket ini murni PHP/JS), lalu di stage `frontend` `COPY --from=vendor
+/app/vendor/tightenco/ziggy ./vendor/tightenco/ziggy` sebelum `npm run build`. Stage `app` (runtime)
+tak disentuh — tetap `composer install` di image ber-ekstensi + `dump-autoload` seperti semula.
+
+**Verifikasi:** `docker build --target frontend .` di server → `✓ built in 20.57s`, image ter-export
+(exit 0). Sebelumnya gagal di `npm run build`.
+
+**Files:** `Dockerfile` (stage `vendor` + 1 baris COPY di stage `frontend`).
+
+### Docs: panduan instalasi master + build APK dari nol (perbaikan onboarding)
+
+**Permintaan user:** cek langkah & file instalasi, permudah + perdetail biar pengguna paham; cek apakah
+sudah ada langkah instalasi APK mobile; kasih saran minimum spek untuk build APK (VPS/Windows/VM/container);
+tutorial instalasi berbeda per-OS (Linux/Windows/lainnya).
+
+**Audit temuan:** instalasi web sudah kuat (`install.sh`, `docs/DOCKER.md`, `scripts/check-requirements.sh`,
+README 3-jalur). Gap: **(1)** build APK tak punya panduan pasang toolchain dari nol — `bin/build-apk.sh`
+mengasumsikan Flutter/Android SDK/JDK sudah di `/opt`; tak disebut di README/handbook; **(2)** tak ada
+minimum spek di mana pun (kecuali "±2GB" Docker & komentar "8GB" gradle); **(3)** tak ada cara install APK
+di HP; **(4)** tak ada peta keputusan OS di depan. Spek nyata diukur di server: Flutter 2,3 GB + Android SDK
+3,1 GB (→ ~10 GB disk), build jalan di RAM 8 GB (gradle heap 2g), APK ~53 MB.
+
+**Created:**
+- `docs/INSTALL.md` — panduan master: peta keputusan per-OS (Docker/`install.sh`/manual), **tabel minimum
+  spek** (web Ubuntu/Docker + build APK), langkah ringkas tiap jalur + routing ke dok detail, pasca-instalasi,
+  troubleshooting cepat.
+- `docs/BUILD_APK.md` — build APK **dari nol**: minimum spek build (VPS Linux headless / Windows / VM),
+  pasang toolchain per-OS (Linux `sdkmanager`+Flutter+env `/opt`; Windows via Android Studio; macOS),
+  `flutter doctor`, build (`bin/build-apk.sh` + manual, `API_BASE_URL`), bump versi, signing keystore,
+  **install APK di HP** (sideload + unknown sources), catatan server 8GB/swap, Firebase FCM, troubleshooting.
+
+**Changed:** `README.md` (callout "mulai dari `docs/INSTALL.md`", tabel minimum spek ringkas, section baru
+**Aplikasi Android (APK)**, link kedua dok di bagian Dokumentasi); `mobile/README.md` (penunjuk ke BUILD_APK
+untuk toolchain dari nol); `docs/handbook/04-instalasi-deploy.md` (penunjuk pengguna baru → INSTALL/BUILD_APK).
+
+**Notes:** hanya dokumentasi, tak ada perubahan kode/perilaku app. Semua tautan internal diverifikasi
+menunjuk file yang ada.
+
 ## 2026-07-08
 
 ### Fix: alarm Telegram/mobile membanjir palsu — debounce konfirmasi 2 poll (semua OLT) + smoothing HiOSO

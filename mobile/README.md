@@ -21,6 +21,10 @@ firebase_core/messaging + flutter_local_notifications · Material 3 dark-glass (
 
 ## Build
 
+> 🧰 **Belum punya toolchain (Flutter/Android SDK/JDK)?** Panduan pasang **dari nol** (Linux &
+> Windows) + minimum spek + signing + install di HP: **[`../docs/BUILD_APK.md`](../docs/BUILD_APK.md)**.
+> Bagian di bawah mengasumsikan toolchain sudah terpasang.
+
 ```bash
 # dari root repo
 API_BASE_URL=https://nms.kusumavision.net/api/v1 bash bin/build-apk.sh
