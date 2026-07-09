@@ -3,7 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.1.5+9
+version: 1.1.6+10
 
 environment:
   sdk: ^3.12.2
@@ -11,6 +11,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # Font ikon Cupertino. Ada referensi CupertinoIcons reachable (framework/dep),
+  # jadi tetap disertakan agar tak muncul glyph kosong. Fontnya di-tree-shake
+  # otomatis saat build (hanya glyph terpakai), jadi biaya ukuran ~0.
+  cupertino_icons: ^1.0.8
 
   # State management — Riverpod v2 (tanpa codegen).
   flutter_riverpod: ^2.6.1
