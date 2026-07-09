@@ -9,6 +9,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AlarmEvent extends Model
 {
+    /**
+     * Fault terdeteksi sekali, MENUNGGU konfirmasi poll berikutnya sebelum dijadikan alarm aktif &
+     * dikirim (debounce anti-flap 2 poll). Tak pernah tampil di UI/hitungan alarm aktif; bila fault
+     * pulih di poll berikutnya, baris pending dihapus diam-diam (tak ada notifikasi raise/clear).
+     */
+    public const STATUS_PENDING = 'pending';
+
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_CLEARED = 'cleared';

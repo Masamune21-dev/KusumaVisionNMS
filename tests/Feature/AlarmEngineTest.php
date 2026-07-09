@@ -51,15 +51,37 @@ class AlarmEngineTest extends TestCase
         ], $over));
     }
 
-    public function test_offline_onu_raises_then_clears_alarm(): void
+    /**
+     * Debounce anti-flap 2 poll: poll pertama sebuah fault hanya membuat baris PENDING (belum dikirim,
+     * tak tampil di UI). Helper ini menjalankan poll konfirmasi kedua (fault MASIH ada) sehingga alarm
+     * dipromosikan ke ACTIVE & terhitung 'raised'. Mengasumsikan `$olt->last_test_result` = snapshot
+     * fault (mis. dari makeOlt). Mengembalikan hasil poll kedua.
+     *
+     * @return array{active:int, raised:int, cleared:int}
+     */
+    private function evaluateConfirmed(AlarmEvaluator $evaluator, SnmpOlt $olt, array $faultSnap, array $priorSnap): array
+    {
+        $evaluator->evaluate($olt, $priorSnap);        // poll 1: transisi sehat→fault → PENDING (raised 0)
+
+        return $evaluator->evaluate($olt, $faultSnap); // poll 2: fault masih ada → promote ke ACTIVE (raised 1)
+    }
+
+    public function test_offline_onu_raises_after_confirmation_then_clears_alarm(): void
     {
         $onlineSnap = $this->onuSnapshot(true);
         $offlineSnap = $this->onuSnapshot(false);
 
-        // ONU was online last poll, now offline -> transition raises an alarm.
+        // Poll 1: ONU online -> offline. Debounce 2 poll: hanya PENDING (belum dikirim, tak tampil di UI).
         $olt = $this->makeOlt($offlineSnap);
         $evaluator = new AlarmEvaluator;
         $result = $evaluator->evaluate($olt, $onlineSnap);
+
+        $this->assertSame(0, $result['raised'], 'Poll pertama tak boleh mengirim alarm (masih pending)');
+        $this->assertSame(0, AlarmEvent::where('status', 'active')->count());
+        $this->assertSame(1, AlarmEvent::where('status', 'pending')->count());
+
+        // Poll 2: masih offline -> konfirmasi -> promote ke ACTIVE + dikirim.
+        $result = $evaluator->evaluate($olt, $offlineSnap);
 
         $this->assertSame(1, $result['raised']);
         $this->assertDatabaseHas('alarm_events', [
@@ -83,6 +105,30 @@ class AlarmEngineTest extends TestCase
         $recovery = data_get($cleared->meta, 'recovery.message');
         $this->assertStringContainsString('kembali online', $recovery);
         $this->assertStringContainsString('-22', $recovery);
+    }
+
+    public function test_transient_fault_recovers_before_confirmation_is_not_alarmed(): void
+    {
+        // Inti permintaan user: poll 1 down, poll 2 sudah online lagi -> alarm TAK dikirim sama sekali
+        // (baris pending dihapus diam-diam, tak ada notifikasi down maupun clear).
+        $onlineSnap = $this->onuSnapshot(true);
+        $offlineSnap = $this->onuSnapshot(false);
+
+        $olt = $this->makeOlt($offlineSnap);
+        $evaluator = new AlarmEvaluator;
+
+        // Poll 1: online -> offline (transien) => pending saja.
+        $result = $evaluator->evaluate($olt, $onlineSnap);
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(1, AlarmEvent::where('status', 'pending')->count());
+
+        // Poll 2: sudah online lagi sebelum konfirmasi => pending dibuang, tak ada alarm.
+        $olt->forceFill(['last_test_result' => $onlineSnap])->save();
+        $result = $evaluator->evaluate($olt, $offlineSnap);
+
+        $this->assertSame(0, $result['raised']);
+        $this->assertSame(0, $result['cleared'], 'Tak ada notifikasi clear untuk fault yang tak pernah dikirim');
+        $this->assertSame(0, AlarmEvent::count(), 'Baris pending harus terhapus, tak menyisakan jejak');
     }
 
     public function test_already_offline_onu_is_not_alarmed(): void
@@ -128,7 +174,7 @@ class AlarmEngineTest extends TestCase
         $olt = $this->makeOlt($offlineSnap);
         $olt->forceFill(['alarms_enabled' => false])->save();
 
-        $result = (new AlarmEvaluator)->evaluate($olt, $onlineSnap);
+        $result = $this->evaluateConfirmed(new AlarmEvaluator, $olt, $offlineSnap, $onlineSnap);
 
         $this->assertSame(1, $result['raised']);
         $this->assertSame(1, AlarmEvent::where('status', 'active')->count());
@@ -151,9 +197,11 @@ class AlarmEngineTest extends TestCase
     {
         $olt = $this->makeOlt(['ok' => false, 'error' => 'SNMP timeout']);
 
-        // OLT was reachable last poll, now unreachable -> transition raises.
-        (new AlarmEvaluator)->evaluate($olt, ['ok' => true]);
+        // OLT reachable -> unreachable. Debounce 2 poll: poll 1 pending, poll 2 (masih unreachable) raise.
+        $unreachable = ['ok' => false, 'error' => 'SNMP timeout'];
+        $result = $this->evaluateConfirmed(new AlarmEvaluator, $olt, $unreachable, ['ok' => true]);
 
+        $this->assertSame(1, $result['raised']);
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,
             'type' => 'olt_unreachable',
@@ -173,17 +221,18 @@ class AlarmEngineTest extends TestCase
             'rx_power_dbm' => $rx,
         ]);
 
-        // RX was healthy last poll, now crosses below -28 -> raise.
+        // RX healthy -> below -28. Debounce 2 poll: poll 1 pending, poll 2 (masih di luar rentang) raise.
         $olt = $this->makeOlt($rxOnu(-29.5));
-        (new AlarmEvaluator)->evaluate($olt, $rxOnu(-22.0));
+        $result = $this->evaluateConfirmed(new AlarmEvaluator, $olt, $rxOnu(-29.5), $rxOnu(-22.0));
 
+        $this->assertSame(1, $result['raised']);
         $this->assertDatabaseHas('alarm_events', [
             'snmp_olt_id' => $olt->id,
             'type' => 'high_rx_attenuation',
             'severity' => 'warning',
             'status' => 'active',
         ]);
-        $this->assertSame('Customer RX', data_get(AlarmEvent::first()?->meta, 'customer_name'));
+        $this->assertSame('Customer RX', data_get(AlarmEvent::where('status', 'active')->first()?->meta, 'customer_name'));
     }
 
     public function test_rx_already_out_of_range_is_not_alarmed(): void
@@ -229,9 +278,10 @@ class AlarmEngineTest extends TestCase
         ]);
         $evaluator = new AlarmEvaluator;
 
-        // Healthy (-22) then below -28 dBm -> raise.
+        // Healthy (-22) then below -28 dBm -> raise setelah konfirmasi 2 poll (poll 1 pending, poll 2 raise).
         $olt = $this->makeOlt($onu(-28.4));
-        $this->assertSame(1, $evaluator->evaluate($olt, $onu(-22.0))['raised']);
+        $this->assertSame(0, $evaluator->evaluate($olt, $onu(-22.0))['raised']);
+        $this->assertSame(1, $evaluator->evaluate($olt, $onu(-28.4))['raised']);
 
         // Recovers into the deadband (-27.5, still worse than -26) -> stays active, no flap.
         $olt->forceFill(['last_test_result' => $onu(-27.5)])->save();
@@ -254,12 +304,13 @@ class AlarmEngineTest extends TestCase
             'port_onus' => [],
         ];
 
-        // Port up -> down: raise.
+        // Port up -> down: raise setelah konfirmasi 2 poll (poll 1 pending, poll 2 masih down -> raise).
         $olt = $this->makeOlt($portSnap('down'));
-        $this->assertSame(1, (new AlarmEvaluator)->evaluate($olt, $portSnap('up'))['raised']);
+        $result = $this->evaluateConfirmed(new AlarmEvaluator, $olt, $portSnap('down'), $portSnap('up'));
+        $this->assertSame(1, $result['raised']);
         $this->assertDatabaseHas('alarm_events', ['snmp_olt_id' => $olt->id, 'type' => 'port_down', 'status' => 'active']);
 
-        // A different port that was already down at baseline: no transition, no alarm.
+        // A different port that was already down at baseline: no transition, no alarm (bahkan pending).
         $olt2 = $this->makeOlt($portSnap('down'));
         $result = (new AlarmEvaluator)->evaluate($olt2, $portSnap('down'));
         $this->assertSame(0, $result['raised']);

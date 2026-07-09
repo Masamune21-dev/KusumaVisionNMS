@@ -232,10 +232,10 @@ class HiosoSnmpDriverTest extends TestCase
     }
 
     /**
-     * Baris Rx `na` (ONU sungguh-sungguh offline, barisnya ADA) tetap harus terbaca offline — pembeda
-     * dari kasus baris absen di atas. Regresi agar fix anti-flap tak menutupi ONU yang benar mati.
+     * Baris Rx `na` yang HADIR untuk ONU yang PERTAMA KALI diamati (tak ada acuan online di snapshot
+     * lalu) = ONU memang offline → langsung offline. Deteksi ONU mati sungguhan tak tertunda debounce.
      */
-    public function test_present_na_rx_row_is_still_offline(): void
+    public function test_present_na_rx_row_is_offline_when_no_prior_online_reference(): void
     {
         $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
         $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
@@ -247,19 +247,79 @@ class HiosoSnmpDriverTest extends TestCase
             $rx => ["{$rx}.1.3" => 'na'],
         ]);
 
-        // Meski snapshot sebelumnya online, baris `na` yang HADIR menang → offline.
+        // Tak ada snapshot sebelumnya → tak ada acuan online → baris `na` yang hadir = offline.
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($this->olt())[0];
+
+        $this->assertFalse($onu['online'], 'Baris Rx `na` tanpa acuan online = ONU offline');
+        $this->assertSame('Offline', $onu['phase_state']);
+        $this->assertNull($onu['rx_power_dbm']);
+    }
+
+    /**
+     * Regresi anti-flap (OLT-HIOSO-PATI port 3, 1 ONU): satu poll dengan Rx `na` untuk ONU yang tadinya
+     * online TIDAK boleh langsung menandainya offline — di link lossy ONU online sesekali melapor `na`
+     * satu poll, dan pada port 1-ONU itu membuat seluruh port "flapping" down/up (memicu port_down palsu).
+     * Transisi online→offline via `na` di-DEBOUNCE: strike pertama tetap online, Rx dibawa 'snmp_stale'.
+     */
+    public function test_transient_na_after_online_is_debounced_not_flapped(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'Madun'],
+            $mac => ["{$mac}.1.3" => 'd05faf84994e'],
+            $rx => ["{$rx}.1.3" => 'na'], // transien satu poll
+        ]);
+
         $olt = new SnmpOlt(['snmp_version' => 'v2c']);
         $olt->last_test_result = [
             'port_onus' => ['1_3' => ['onus' => [[
-                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -19.0,
+                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -17.24,
+                'rx_power_label' => '-17.24 dBm', 'offline_strikes' => 0,
             ]]]],
         ];
 
         $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt)[0];
 
-        $this->assertFalse($onu['online'], 'Baris Rx `na` yang hadir = ONU memang offline');
+        $this->assertTrue($onu['online'], 'Satu poll `na` setelah online = transien → tetap online (debounce)');
+        $this->assertSame('Online', $onu['phase_state']);
+        $this->assertSame(-17.24, $onu['rx_power_dbm']);
+        $this->assertSame('snmp_stale', $onu['rx_power_source']);
+        $this->assertSame(1, $onu['offline_strikes'], 'Strike bertambah 1 tapi belum menembus ambang');
+    }
+
+    /**
+     * Sisi lain debounce: ONU yang benar-benar offline melapor `na` beruntun → setelah strike menembus
+     * MAX_OFFLINE_STRIKES ONU ditandai offline. Regresi agar debounce tak menutupi ONU yang benar mati.
+     */
+    public function test_persistent_na_marks_offline_after_debounce_threshold(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'Madun'],
+            $mac => ["{$mac}.1.3" => 'd05faf84994e'],
+            $rx => ["{$rx}.1.3" => 'na'],
+        ]);
+
+        // Snapshot lalu: sudah 1 strike `na` (MAX_OFFLINE_STRIKES = 2) → poll ini strike ke-2 → offline.
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = [
+            'port_onus' => ['1_3' => ['onus' => [[
+                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -17.24, 'offline_strikes' => 1,
+            ]]]],
+        ];
+
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt)[0];
+
+        $this->assertFalse($onu['online'], '`na` beruntun menembus ambang debounce → offline');
         $this->assertSame('Offline', $onu['phase_state']);
         $this->assertNull($onu['rx_power_dbm']);
+        $this->assertSame(2, $onu['offline_strikes']);
     }
 
     /**

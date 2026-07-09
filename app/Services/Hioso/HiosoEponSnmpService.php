@@ -44,6 +44,18 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     /** Berapa poll beruntun sebuah ONU boleh absen dari walk sebelum dilepas dari roster (carry-forward). */
     private const MAX_MISSED_POLLS = 12;
 
+    /**
+     * Berapa poll beruntun sebuah ONU yang tadinya online harus melapor Rx `na`/`0` sebelum ditandai
+     * offline di SNAPSHOT (data smoothing). ONU offline HiOSO memang melapor `na`, tetapi di link lossy
+     * ONU yang SEDANG online pun sesekali melapor `na` untuk satu poll — pada PON ber-ONU sedikit (mis.
+     * port 1-ONU) satu pembacaan buruk membuat status port (turunan jumlah ONU online) "berkedip" down/up
+     * di dashboard/faceplate (gejala OLT-HIOSO-PATI port 3). 2 strike menutup transien 1 sampel tanpa
+     * menahan status terlalu lama. Pengiriman ALARM sendiri di-debounce terpisah 2 poll di {@see
+     * \App\Services\AlarmEvaluator} (berlaku semua vendor) — jadi ini murni penghalus tampilan, bukan
+     * gerbang alarm; sengaja rendah agar tak menumpuk delay dengan debounce alarm.
+     */
+    private const MAX_OFFLINE_STRIKES = 2;
+
     public function __construct(private readonly HiosoSnmp $snmp) {}
 
     public function ping(SnmpOlt $olt): bool
@@ -155,31 +167,54 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
         foreach ($registered as $key => [$port, $onuId, $mac]) {
             $name = HiosoValue::clean($nameByKey[$key] ?? null);
+            $prev = $previous[$key] ?? null;
 
-            if (isset($rxScan['seen'][$key])) {
-                // Baris Rx sungguh-sungguh terbaca cycle ini → pembacaan sah: dBm valid = online;
-                // `na`/`0`/di luar jendela = ONU memang offline (guide §4.4: ONU offline melapor `na`).
-                $rx = $rxScan['valid'][$key] ?? null;
-                $online = $rx !== null;
-                $rxLabel = $rx !== null ? sprintf('%.2f dBm', $rx) : null;
-                $rxSource = $rx !== null ? 'snmp' : null;
+            if (isset($rxScan['seen'][$key]) && ($rxScan['valid'][$key] ?? null) !== null) {
+                // Baris Rx terbaca nilai valid → ONU online; reset penghitung strike transien.
+                $rx = $rxScan['valid'][$key];
+                $online = true;
+                $rxLabel = sprintf('%.2f dBm', $rx);
+                $rxSource = 'snmp';
+                $strikes = 0;
+            } elseif (isset($rxScan['seen'][$key])) {
+                // Baris Rx HADIR tapi `na`/`0`/di luar jendela. ONU offline HiOSO memang melapor `na`,
+                // NAMUN di link lossy ONU yang sedang ONLINE pun sesekali melapor `na` untuk satu poll —
+                // pada PON ber-ONU sedikit (mis. port 1-ONU) ini membuat seluruh port "flapping" down/up.
+                // Transisi online→offline via `na` di-DEBOUNCE {@see MAX_OFFLINE_STRIKES}: baru offline
+                // setelah `na` beruntun. ONU yang sudah offline poll lalu (atau pertama kali diamati,
+                // tanpa acuan online) langsung offline — deteksi ONU mati sungguhan tak tertunda.
+                $prevOnline = (bool) ($prev['online'] ?? false);
+                $strikes = (int) ($prev['offline_strikes'] ?? 0) + 1;
+
+                if ($prevOnline && $strikes < self::MAX_OFFLINE_STRIKES) {
+                    // Masih dalam jendela debounce → pertahankan online; Rx dibawa 'snmp_stale' agar
+                    // tampil kontinu tapi TAK dicatat ke time-series (lihat PollOltJob).
+                    $online = true;
+                    $rx = $this->prevRx($prev);
+                    $rxLabel = $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
+                    $rxSource = $rx !== null ? 'snmp_stale' : null;
+                } else {
+                    $online = false;
+                    $rx = null;
+                    $rxLabel = null;
+                    $rxSource = null;
+                }
             } else {
                 // Baris Rx ABSEN dari walk = walk terpotong link lossy, BUKAN bukti ONU offline (ONU
-                // offline HiOSO tetap melapor `na` → barisnya tetap ada). Menandainya offline di sini
-                // membuat port ber-ONU sedikit (mis. port 1-ONU) "flapping" down/up tiap walk yang tak
-                // sampai. Pertahankan status terakhir dari snapshot poll sebelumnya; Rx dibawa sebagai
-                // 'snmp_stale' agar tampil kontinu tapi TAK dicatat ke time-series (lihat PollOltJob).
-                $prev = $previous[$key] ?? null;
+                // offline HiOSO tetap melapor `na` → barisnya tetap ada). Pertahankan status terakhir
+                // dari snapshot poll sebelumnya; Rx dibawa 'snmp_stale'. Absen bukan pembacaan buruk
+                // (sekadar tak ada data) → strike dibawa apa adanya, tak bertambah.
                 $online = (bool) ($prev['online'] ?? true); // tak ada acuan → MAC terdaftar, asumsikan up
                 $rx = $this->prevRx($prev);
                 $rxLabel = $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
                 $rxSource = $rx !== null ? 'snmp_stale' : null;
+                $strikes = (int) ($prev['offline_strikes'] ?? 0);
             }
 
             // Nama kadang absen dari walk (truncation) walau ONU terbaca di MAC → pertahankan nama lama.
             $name ??= HiosoValue::clean($previous[$key]['name'] ?? null);
 
-            $onus[$key] = $this->buildOnu($port, $onuId, $mac, $name, $online, $rx, $rxLabel, $rxSource, 0);
+            $onus[$key] = $this->buildOnu($port, $onuId, $mac, $name, $online, $rx, $rxLabel, $rxSource, 0, $strikes);
         }
 
         // Carry-forward roster: ONU yang dikenal poll lalu tapi ABSEN dari walk MAC cycle ini (link
@@ -212,6 +247,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null),
                 $rx !== null ? 'snmp_stale' : null,
                 $missed,
+                (int) ($prev['offline_strikes'] ?? 0),
             );
         }
 
@@ -226,7 +262,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
      *
      * @return array<string, mixed>
      */
-    private function buildOnu(int $port, int $onuId, ?string $mac, ?string $name, bool $online, ?float $rx, ?string $rxLabel, ?string $rxSource, int $missedPolls): array
+    private function buildOnu(int $port, int $onuId, ?string $mac, ?string $name, bool $online, ?float $rx, ?string $rxLabel, ?string $rxSource, int $missedPolls, int $offlineStrikes = 0): array
     {
         return [
             'onu_key' => "{$port}.{$onuId}",
@@ -250,6 +286,8 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             'rx_power_label' => $rxLabel,
             'rx_power_source' => $rxSource,
             'missed_polls' => $missedPolls,
+            // Penghitung debounce anti-flap: berapa poll `na` beruntun sejak Rx valid terakhir.
+            'offline_strikes' => $offlineStrikes,
         ];
     }
 

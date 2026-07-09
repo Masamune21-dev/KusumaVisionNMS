@@ -31,6 +31,12 @@ class AlarmEvaluator
      * Devices that are already in a fault state when first observed are NOT alarmed.
      * The previous poll snapshot supplies the prior state used to detect transitions.
      *
+     * Debounce anti-flap 2 poll: sebuah fault yang baru terdeteksi dibuat sebagai baris PENDING
+     * (belum dikirim & tak tampil di UI). Notifikasi (raise) baru dikirim bila fault MASIH ada di
+     * poll BERIKUTNYA (dua poll beruntun, ~2× interval poll). Bila fault pulih sebelum konfirmasi,
+     * baris pending dihapus diam-diam — tak ada notifikasi down maupun clear. Berlaku untuk SEMUA
+     * jenis alarm (OLT unreachable, port down, LOS, dying gasp, ONU offline, RX) & SEMUA OLT.
+     *
      * @param  array<string, mixed>  $previous  the snapshot from the prior poll
      * @return array{active:int, raised:int, cleared:int}
      */
@@ -40,12 +46,15 @@ class AlarmEvaluator
         // hanya menentukan SIAPA yang menerima notifikasi — di-gerbang di TelegramNotifier
         // & FcmAlarmNotifier (bukan di sini).
         $snapshot = $olt->last_test_result ?? [];
-        $active = $this->activeAlarms($olt);
+        // Episode terbuka = alarm ACTIVE (sudah dikirim) + PENDING (menunggu konfirmasi poll ke-2).
+        // Deteksi transisi memakai keduanya agar fault yang sedang pending terus "terdeteksi" di poll
+        // berikutnya walau snapshot sebelumnya sudah menunjukkan fault (bukan lagi transisi sehat→fault).
+        $open = $this->openAlarms($olt);
 
         if (! ($snapshot['ok'] ?? false)) {
             $detected = [];
 
-            if ($active->has('olt:unreachable') || ($previous['ok'] ?? false)) {
+            if ($open->has('olt:unreachable') || ($previous['ok'] ?? false)) {
                 $detected['olt:unreachable'] = [
                     'type' => AlarmEvent::TYPE_OLT_UNREACHABLE,
                     'severity' => AlarmEvent::SEVERITY_CRITICAL,
@@ -54,14 +63,14 @@ class AlarmEvaluator
                 ];
             }
 
-            return $this->reconcile($olt, $active, $detected, []);
+            return $this->reconcile($olt, $open, $detected, []);
         }
 
         $prev = $this->indexPrevious($previous);
         $detected = [];
 
         foreach ($snapshot['ports'] ?? [] as $port) {
-            $detected += $this->portAlarm($port, $prev, $active);
+            $detected += $this->portAlarm($port, $prev, $open);
         }
 
         foreach ($snapshot['port_onus'] ?? [] as $portData) {
@@ -70,12 +79,12 @@ class AlarmEvaluator
                     continue;
                 }
 
-                $detected += $this->onuStateAlarms($onu, $prev, $active);
-                $detected += $this->onuRxAlarm($onu, $prev, $active);
+                $detected += $this->onuStateAlarms($onu, $prev, $open);
+                $detected += $this->onuRxAlarm($onu, $prev, $open);
             }
         }
 
-        return $this->reconcile($olt, $active, $detected, $this->indexCurrent($snapshot));
+        return $this->reconcile($olt, $open, $detected, $this->indexCurrent($snapshot));
     }
 
     /**
@@ -177,10 +186,10 @@ class AlarmEvaluator
     /**
      * @param  array<string, mixed>  $port
      * @param  array{portStatus: array<string, string|null>}  $prev
-     * @param  Collection<string, AlarmEvent>  $active
+     * @param  Collection<string, AlarmEvent>  $open
      * @return array<string, array<string, mixed>>
      */
-    private function portAlarm(array $port, array $prev, $active): array
+    private function portAlarm(array $port, array $prev, $open): array
     {
         if (($port['oper_status'] ?? null) !== 'down') {
             return [];
@@ -190,9 +199,9 @@ class AlarmEvaluator
         $portNo = (int) ($port['port'] ?? 0);
         $signature = "port:{$slot}/{$portNo}:port_down";
 
-        // Raise only when a port goes up -> down (or when the alarm is already open).
+        // Raise only when a port goes up -> down (or when the episode is already open: active/pending).
         $prevUp = ($prev['portStatus']["{$slot}/{$portNo}"] ?? null) === 'up';
-        if (! $active->has($signature) && ! $prevUp) {
+        if (! $open->has($signature) && ! $prevUp) {
             return [];
         }
 
@@ -207,15 +216,17 @@ class AlarmEvaluator
     }
 
     /**
-     * Currently-active alarms for the OLT, keyed by signature.
+     * Open alarm episodes for the OLT (ACTIVE = sudah dikirim, PENDING = menunggu konfirmasi poll ke-2),
+     * keyed by signature. Fault yang terus terdeteksi mencocokkan salah satunya sehingga tak dianggap
+     * baru; yang tak terdeteksi lagi di-clear (bila active) atau dihapus diam-diam (bila pending).
      *
      * @return Collection<string, AlarmEvent>
      */
-    private function activeAlarms(SnmpOlt $olt)
+    private function openAlarms(SnmpOlt $olt)
     {
         return AlarmEvent::query()
             ->where('snmp_olt_id', $olt->id)
-            ->where('status', AlarmEvent::STATUS_ACTIVE)
+            ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_PENDING])
             ->get()
             ->keyBy('signature');
     }
@@ -223,10 +234,10 @@ class AlarmEvaluator
     /**
      * @param  array<string, mixed>  $onu
      * @param  array{online: array<string, bool>}  $prev
-     * @param  Collection<string, AlarmEvent>  $active
+     * @param  Collection<string, AlarmEvent>  $open
      * @return array<string, array<string, mixed>>
      */
-    private function onuStateAlarms(array $onu, array $prev, $active): array
+    private function onuStateAlarms(array $onu, array $prev, $open): array
     {
         // An ONU that is currently up has no active fault. last_down_cause records the
         // historical reason it was *previously* down and persists after recovery, so it
@@ -238,10 +249,10 @@ class AlarmEvaluator
         $key = $this->onuKey($onu);
 
         // Only alarm a fault that started as an online -> fault transition, or that is
-        // already an open alarm episode. An ONU that was already down when first observed
-        // (never seen online) is skipped, so long-offline devices stay silent.
+        // already an open episode (active/pending). An ONU that was already down when first
+        // observed (never seen online) is skipped, so long-offline devices stay silent.
         $prevOnline = ($prev['online'][$key] ?? false) === true;
-        if (! $prevOnline && ! $this->onuHasStateAlarm($active, $key)) {
+        if (! $prevOnline && ! $this->onuHasStateAlarm($open, $key)) {
             return [];
         }
 
@@ -277,22 +288,22 @@ class AlarmEvaluator
     }
 
     /**
-     * @param  Collection<string, AlarmEvent>  $active
+     * @param  Collection<string, AlarmEvent>  $open
      */
-    private function onuHasStateAlarm($active, string $key): bool
+    private function onuHasStateAlarm($open, string $key): bool
     {
-        return $active->has("onu:{$key}:dying_gasp")
-            || $active->has("onu:{$key}:los")
-            || $active->has("onu:{$key}:onu_offline");
+        return $open->has("onu:{$key}:dying_gasp")
+            || $open->has("onu:{$key}:los")
+            || $open->has("onu:{$key}:onu_offline");
     }
 
     /**
      * @param  array<string, mixed>  $onu
      * @param  array{rx: array<string, float|null>}  $prev
-     * @param  Collection<string, AlarmEvent>  $active
+     * @param  Collection<string, AlarmEvent>  $open
      * @return array<string, array<string, mixed>>
      */
-    private function onuRxAlarm(array $onu, array $prev, $active): array
+    private function onuRxAlarm(array $onu, array $prev, $open): array
     {
         $rx = $onu['rx_power_dbm'] ?? null;
 
@@ -306,7 +317,7 @@ class AlarmEvaluator
         $breaching = $rx <= self::RX_LOW_DBM || $rx >= self::RX_HIGH_DBM;
         $recovered = $rx >= self::RX_CLEAR_LOW_DBM && $rx <= self::RX_CLEAR_HIGH_DBM;
 
-        if ($active->has($signature)) {
+        if ($open->has($signature)) {
             // Keep the alarm open until RX clearly recovers (>= -26 dBm / <= -10 dBm),
             // so a reading still hovering at -27 does not clear prematurely.
             if ($recovered) {
@@ -384,39 +395,51 @@ class AlarmEvaluator
     }
 
     /**
-     * @param  Collection<string, AlarmEvent>  $active
+     * @param  Collection<string, AlarmEvent>  $open  episode terbuka (ACTIVE + PENDING) keyed by signature
      * @param  array<string, array<string, mixed>>  $detected
      * @param  array{onus: array<string, array<string, mixed>>, ports: array<string, array<string, mixed>>}  $current
      * @return array{active:int, raised:int, cleared:int}
      */
-    private function reconcile(SnmpOlt $olt, $active, array $detected, array $current): array
+    private function reconcile(SnmpOlt $olt, $open, array $detected, array $current): array
     {
         $now = Carbon::now();
         $raisedAlarms = [];
         $clearedAlarms = [];
 
-        foreach ($active as $signature => $alarm) {
-            if (! isset($detected[$signature])) {
-                $recovery = $this->buildRecovery($alarm, $current);
-                $meta = $alarm->meta ?? [];
-
-                if ($recovery !== null) {
-                    $meta['recovery'] = $recovery;
-                }
-
-                $alarm->update([
-                    'status' => AlarmEvent::STATUS_CLEARED,
-                    'cleared_at' => $now,
-                    'meta' => $meta,
-                ]);
-                $clearedAlarms[] = $alarm;
+        foreach ($open as $signature => $alarm) {
+            if (isset($detected[$signature])) {
+                continue;
             }
+
+            // Fault tak lagi terdeteksi.
+            if ($alarm->status === AlarmEvent::STATUS_PENDING) {
+                // Belum pernah dikonfirmasi/dikirim (transien 1 poll) → hapus diam-diam, tanpa notifikasi.
+                $alarm->delete();
+
+                continue;
+            }
+
+            // Alarm ACTIVE (sudah dikirim) → clear + kirim notifikasi pemulihan.
+            $recovery = $this->buildRecovery($alarm, $current);
+            $meta = $alarm->meta ?? [];
+
+            if ($recovery !== null) {
+                $meta['recovery'] = $recovery;
+            }
+
+            $alarm->update([
+                'status' => AlarmEvent::STATUS_CLEARED,
+                'cleared_at' => $now,
+                'meta' => $meta,
+            ]);
+            $clearedAlarms[] = $alarm;
         }
 
         foreach ($detected as $signature => $data) {
-            $existing = $active->get($signature);
+            $existing = $open->get($signature);
 
-            if ($existing) {
+            // Sudah ACTIVE → perbarui saja (tak kirim ulang).
+            if ($existing && $existing->status === AlarmEvent::STATUS_ACTIVE) {
                 $existing->update([
                     'last_seen_at' => $now,
                     'severity' => $data['severity'],
@@ -427,12 +450,29 @@ class AlarmEvaluator
                 continue;
             }
 
-            $raisedAlarms[] = AlarmEvent::create([
+            // Sudah PENDING & fault masih ada di poll ini (2 poll beruntun) → PROMOSIKAN ke ACTIVE
+            // lalu kirim notifikasi raise. Inilah titik konfirmasi debounce 2 poll.
+            if ($existing) {
+                $existing->update([
+                    'status' => AlarmEvent::STATUS_ACTIVE,
+                    'last_seen_at' => $now,
+                    'severity' => $data['severity'],
+                    'message' => $data['message'],
+                    'meta' => $data['meta'] ?? null,
+                ]);
+                $raisedAlarms[] = $existing;
+
+                continue;
+            }
+
+            // Fault baru pertama kali terdeteksi → catat sebagai PENDING (menunggu konfirmasi poll ke-2),
+            // BELUM dikirim & tak tampil di UI/hitungan alarm aktif.
+            AlarmEvent::create([
                 'snmp_olt_id' => $olt->id,
                 'signature' => $signature,
                 'type' => $data['type'],
                 'severity' => $data['severity'],
-                'status' => AlarmEvent::STATUS_ACTIVE,
+                'status' => AlarmEvent::STATUS_PENDING,
                 'scope' => $data['scope'],
                 'slot' => $data['slot'] ?? null,
                 'port' => $data['port'] ?? null,

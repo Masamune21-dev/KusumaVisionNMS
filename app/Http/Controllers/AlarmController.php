@@ -33,6 +33,9 @@ class AlarmController extends Controller
             ->orderByDesc('last_seen_at');
 
         $query
+            // Alarm PENDING (menunggu konfirmasi poll ke-2) internal — jangan pernah tampil di daftar,
+            // bahkan saat filter 'all'. Hanya episode yang sudah dikirim (active) & yang sudah pulih (cleared).
+            ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_CLEARED])
             ->when($status !== 'all', fn ($query) => $query->where('status', $status))
             ->when($severity !== 'all', fn ($query) => $query->where('severity', $severity))
             ->when($scope !== 'all', fn ($query) => $query->where('scope', $scope))

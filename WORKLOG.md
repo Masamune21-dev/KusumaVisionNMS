@@ -1,5 +1,48 @@
 # Worklog
 
+## 2026-07-08
+
+### Fix: alarm Telegram/mobile membanjir palsu — debounce konfirmasi 2 poll (semua OLT) + smoothing HiOSO
+
+**Keluhan user:** OLT-HIOSO-PATI mengirim alarm `port_down` (`GPON port epon 0/1/3 oper status down`)
+lalu `kembali up` berulang-ulang ke Telegram, padahal saat dicek langsung di OLT port-nya **masih hidup**;
+di web & mobile pun tak ada alarm (sudah keburu ter-clear tiap ~6 menit). Permintaan lanjutan: **SEMUA
+jenis alert (LOS/offline/dying gasp/port down/RX) di SEMUA OLT** harus nunggu **2 poll (~10 mnt)** sebelum
+dikirim — kalau poll ke-2 sudah normal lagi, alert tak usah dikirim.
+
+**Diagnosis (data produksi):** port `epon 0/1/3` hanya punya **1 ONU** (RX -17.24 dBm = sehat). Status
+port PON HiOSO diturunkan dari jumlah ONU online di `CDataOltScanner` (ifOperStatus HA7304 tak reliable).
+Di link lossy, HiOSO sesekali melaporkan RX ONU `na`/`0` untuk **satu siklus poll** walau online; driver
+lama langsung menandai offline → port 1-ONU turun `down` → alarm CRITICAL; poll berikutnya normal →
+`kembali up`. **47× port_down + 47× onu_offline berpasangan** dalam beberapa hari (semua port memunculkan
+onu_offline palsu; hanya port 1-ONU yang ikut port_down).
+
+**Perbaikan (dua lapis):**
+1. **Debounce konfirmasi 2 poll — universal, semua jenis & semua OLT** di `AlarmEvaluator`. Status baru
+   `AlarmEvent::STATUS_PENDING`: fault yang baru terdeteksi dicatat PENDING (belum dikirim, tak tampil di
+   UI/hitungan aktif). Notifikasi raise baru dikirim bila fault **masih ada di poll berikutnya** (promote
+   PENDING→ACTIVE). Bila pulih sebelum konfirmasi, baris pending **dihapus diam-diam** (tak ada notif down
+   maupun clear). `openAlarms()` kini ambil ACTIVE+PENDING; deteksi transisi (port/onu/rx/unreachable)
+   pakai keduanya. `AlarmController` web+API mengecualikan PENDING dari daftar (`whereIn active,cleared`).
+2. **Smoothing HiOSO** (`HiosoEponSnmpService`) `MAX_OFFLINE_STRIKES = 2`: ONU online baru ditandai
+   offline di SNAPSHOT setelah `na` beruntun 2 poll — mencegah dashboard/faceplate "berkedip" down pada 1
+   sampel `na` buruk (murni penghalus tampilan; gerbang alarm ada di lapis #1). RX debounce dibawa
+   `snmp_stale` (dikecualikan time-series `PollOltJob:245`); baris Rx ABSEN tetap carry-forward, tak
+   menambah strike; `offline_strikes` disimpan per-ONU di `buildOnu`. Efek gabungan: transien 1–2 siklus
+   HiOSO tak beralarm & tak berkedip; outage HiOSO sungguhan beralarm ~3 poll (~15 mnt), OLT lain ~2 poll.
+
+**Files:** `app/Models/AlarmEvent.php` (const `STATUS_PENDING`), `app/Services/AlarmEvaluator.php`
+(pending create/promote/drop + `openAlarms`), `app/Http/Controllers/AlarmController.php` +
+`app/Http/Controllers/Api/V1/AlarmController.php` (exclude pending), `app/Services/Hioso/HiosoEponSnmpService.php`.
+Tests: `AlarmEngineTest` (pola 2-poll + `test_transient_fault_recovers_before_confirmation_is_not_alarmed`),
+`TelegramSettingsTest` (2-poll), `HiosoSnmpDriverTest` (3 test debounce `na`).
+
+**Tests:** full suite `php artisan test` di sqlite **311 pass** (3 gagal: 2 kini diperbaiki + 1
+`ApiV1WriteTest::test_refresh_port_non_zte` 422 **pre-existing**, diverifikasi via git stash). ⚠️ **Test
+WAJIB dijalankan dgn config cache disingkirkan** — kalau tidak, `bootstrap/cache/config.php` (pgsql)
+menimpa sqlite phpunit.xml → test nyasar ke DB PRODUKSI. `queue:restart` agar worker `kusumavision-worker`
+memuat kode baru (hanya perubahan kode PHP, tak ada `.env`/config).
+
 ## 2026-07-07
 
 ### Tombol aksi per-OLT: alarm On/Off — per-PENERIMA (admin/operator vs partner)
@@ -3845,17 +3888,6 @@ Changed:
   `tests/Unit/ZteOnuConfigureTest.php` — fixture kredensial ganti nilai palsu
   (`acs.example.net`/`acsuser`/`acspass123!`); `SmartOltTr069BulkTest::test_execute_skips…`
   kini set `AcsSetting` eksplisit (karena default sudah tak ada) supaya skip-rule tetap tervalidasi.
-
-Notes:
-
-- Nilai ACS asli dipindah ke `.env` (gitignored) — perilaku aplikasi identik; `config:cache`
-  memverifikasi `services.acs.*` termuat dari env.
-- **PENTING:** kredensial (`kusuma123!`/`cms`/`acs.bmkv.net`) SUDAH terlanjur ada di GitHub (di
-  `origin/main` dan history sejak commit `87aca52`). Scrub ini hanya mencegah bocor di commit
-  berikutnya — password ACS wajib di-rotate karena harus dianggap sudah bocor. Purge history
-  (`git filter-repo` + force-push) opsional, belum dilakukan.
-- `git grep 'acs.bmkv|kusuma123'` di file tracked → bersih. `php artisan test` (Tr069Bulk +
-  ZteOnuConfigure + SmartOltInventory) 59 hijau, `npm run build` sukses.
 
 ### Rombak total UI/UX aplikasi mobile (Flutter) + fix 500 tombol refresh Port ONU
 

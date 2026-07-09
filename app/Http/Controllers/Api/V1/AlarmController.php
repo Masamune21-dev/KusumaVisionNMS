@@ -36,6 +36,8 @@ class AlarmController extends Controller
         $page = AlarmEvent::query()
             ->with('olt:id,name')
             ->orderByDesc('last_seen_at')
+            // Kecualikan alarm PENDING (menunggu konfirmasi poll ke-2) — internal, tak untuk dikonsumsi.
+            ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_CLEARED])
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($severity !== null, fn ($q) => $q->where('severity', $severity))
             ->when($type !== null, fn ($q) => $q->where('type', $type))

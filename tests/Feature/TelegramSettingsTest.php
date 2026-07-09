@@ -145,7 +145,11 @@ class TelegramSettingsTest extends TestCase
             ],
         ];
 
-        (new AlarmEvaluator)->evaluate($olt, $previousOnline);
+        // Debounce anti-flap 2 poll: poll 1 hanya PENDING (belum kirim); poll 2 (fault masih ada)
+        // baru mengonfirmasi & mengirim notifikasi Telegram.
+        $evaluator = new AlarmEvaluator;
+        $evaluator->evaluate($olt, $previousOnline);
+        $evaluator->evaluate($olt, $olt->last_test_result);
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
             && str_contains($request['text'], 'LOS'));
@@ -213,8 +217,11 @@ class TelegramSettingsTest extends TestCase
             'last_test_result' => $snap(false),
         ]);
 
-        // 12 ONUs go online -> offline in one cycle: 12 alarms split into 10 + 2 = 2 messages.
-        (new AlarmEvaluator)->evaluate($olt, $snap(true));
+        // 12 ONUs go online -> offline: poll 1 hanya PENDING, poll 2 mengonfirmasi & mengirim.
+        // 12 alarm dipromosikan bersamaan -> dipecah 10 + 2 = 2 pesan.
+        $evaluator = new AlarmEvaluator;
+        $evaluator->evaluate($olt, $snap(true));
+        $evaluator->evaluate($olt, $snap(false));
 
         Http::assertSentCount(2);
     }
