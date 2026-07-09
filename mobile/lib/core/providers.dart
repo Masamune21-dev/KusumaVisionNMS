@@ -7,9 +7,13 @@ import 'api/nms_api.dart';
 import 'env.dart';
 import 'storage/secure_storage.dart';
 
-/// Penyimpanan aman token/user.
+/// Penyimpanan aman token/user. `encryptedSharedPreferences: true` memakai
+/// EncryptedSharedPreferences (AES-256, Jetpack Security) — mode yang
+/// direkomendasikan, lebih kuat dari default RSA-wrapped prefs.
 final secureStoreProvider = Provider<SecureStore>(
-  (ref) => SecureStore(const FlutterSecureStorage()),
+  (ref) => SecureStore(const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  )),
 );
 
 /// Dio terkonfigurasi: base URL, header JSON, Bearer token dari AuthController,

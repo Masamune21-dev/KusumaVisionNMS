@@ -12,8 +12,6 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-
   # State management — Riverpod v2 (tanpa codegen).
   flutter_riverpod: ^2.6.1
 

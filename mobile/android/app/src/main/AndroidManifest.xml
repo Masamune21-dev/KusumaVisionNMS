@@ -6,7 +6,9 @@
     <application
         android:label="KusumaVision NMS"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"><!-- allowBackup=false: cegah token terenkripsi ikut ke cloud/ADB backup -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

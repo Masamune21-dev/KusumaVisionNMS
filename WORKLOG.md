@@ -4036,3 +4036,21 @@ Notes:
 - Registrasi di Bulumanis lolos validasi via fallback profil GLOBAL `SERVER`/`ALL-ONT` (tcont/ip OLT 564 kosong) — tak perlu re-sync katalog.
 - Diverifikasi: `pint` bersih; unit `ZteOnuConfigureTest`/`ZteOnuDetailTest` PASS; `npm run build` sukses; mobile `flutter analyze` No issues. (Kegagalan test HTTP lain = 419-CSRF pre-existing, dikonfirmasi via `git stash`.)
 - Mobile perlu **build ulang APK** (`bash bin/build-apk.sh`) agar opsi bridge muncul di HP — belum di-build sesi ini.
+
+## 2026-07-09
+
+### Audit keamanan + optimasi ukuran APK mobile (tanpa ubah UI)
+
+Changed:
+
+- `mobile/android/app/src/main/AndroidManifest.xml` — set `android:allowBackup="false"` + `android:fullBackupContent="false"` pada `<application>`; mencegah file token terenkripsi (secure storage) ikut ke Google Auto-Backup / ADB backup.
+- `mobile/lib/core/providers.dart` — `secureStoreProvider` kini memakai `FlutterSecureStorage(aOptions: AndroidOptions(encryptedSharedPreferences: true))` → EncryptedSharedPreferences (AES-256, Jetpack Security), lebih kuat dari default RSA-wrapped prefs.
+- `bin/build-apk.sh` — build memakai `--split-per-abi --target-platform android-arm,android-arm64` (buang x86_64 emulator-only); menyalin `app-arm64-v8a-release.apk` → `public/downloads/kusumavision-nms.apk` (download utama) + `app-armeabi-v7a-release.apk` → `kusumavision-nms-arm32.apk` (fallback HP 32-bit).
+- `mobile/pubspec.yaml` / `mobile/pubspec.lock` — hapus dependency `cupertino_icons` (0 penggunaan di kode; tak ada widget/`CupertinoIcons`).
+
+Notes:
+
+- **Audit ukuran:** APK universal saat ini 53MB karena membundel 3 ABI (arm64 17.4MB + armeabi-v7a 15.0MB + x86_64 18.7MB uncompressed) — aplikasi terkompilasi 3×. `--split-per-abi` + buang x86_64 memangkas download utama (arm64) jadi ~20MB tanpa ubah kode/UI. Font (Inter/Sora/JetBrainsMono, total 1.2MB) sengaja tidak disentuh (offline-first by design).
+- **Audit keamanan — sudah baik:** token di Keystore, tak ada `http://` cleartext, tak ada secret hardcoded (`google-services.json`/`key.properties` gitignored), 401 membersihkan sesi, permission minimal (INTERNET + POST_NOTIFICATIONS), tak ada logging sensitif.
+- **Belum dikerjakan (opsional):** R8 `minifyEnabled`/`shrinkResources` — dipisah karena perlu 1× uji build Firebase (refleksi). Sebelum rilis APK berikutnya **wajib bump `version:`** di `pubspec.yaml`.
+- Diverifikasi: `flutter pub get` (cupertino_icons terlepas dari tree) + `flutter analyze` → **No issues found**. Belum build APK sesi ini.
