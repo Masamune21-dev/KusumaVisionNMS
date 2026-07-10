@@ -14,8 +14,8 @@ class ZteProvisioningScriptBuilder
         $slot = (int) $data['slot'];
         $port = (int) $data['port'];
         $onuId = (int) $data['onu_id'];
-        $sn = strtoupper((string) $data['serial_number']);
-        $name = trim((string) $data['customer_name']);
+        $sn = strtoupper(self::cli((string) $data['serial_number']));
+        $name = self::cli((string) $data['customer_name']);
         $onuType = strtoupper((string) ($data['onu_type'] ?? 'ALL-ONT'));
         $tcontProfile = (string) ($data['tcont_profile'] ?? 'SERVER');
         $vlan = (int) $data['vlan'];
@@ -105,9 +105,9 @@ class ZteProvisioningScriptBuilder
             'tr069-mgmt 1 state unlock',
             sprintf(
                 'tr069-mgmt 1 acs %s validate basic username %s password %s',
-                $data['acs_url'],
-                $data['acs_username'],
-                $data['acs_password'],
+                self::cli((string) $data['acs_url']),
+                self::cli((string) $data['acs_username']),
+                self::cli((string) $data['acs_password']),
             ),
         ];
     }
@@ -147,8 +147,8 @@ class ZteProvisioningScriptBuilder
                 $data['static_netmask'],
             );
         } else {
-            $username = trim((string) ($data['pppoe_username'] ?? '')) ?: $this->defaultCredential($name);
-            $password = trim((string) ($data['pppoe_password'] ?? '')) ?: $username;
+            $username = self::cli((string) ($data['pppoe_username'] ?? '')) ?: $this->defaultCredential($name);
+            $password = self::cli((string) ($data['pppoe_password'] ?? '')) ?: $username;
             $line = "wan-ip 1 mode pppoe username {$username} password {$password}";
         }
 
@@ -164,5 +164,19 @@ class ZteProvisioningScriptBuilder
         $value = strtolower(preg_replace('/[^A-Za-z0-9]+/', '', $name) ?? '');
 
         return substr($value !== '' ? $value : 'customer', 0, 32);
+    }
+
+    /**
+     * Sanitasi nilai teks-bebas sebelum disisipkan ke baris CLI.
+     *
+     * Skrip provisioning dieksekusi baris-per-baris ke sesi telnet OLT
+     * (ZteCliProvisioningExecutor memecahnya dengan "\n"). Membiarkan CR/LF atau
+     * karakter kontrol lain di field teks-bebas (nama pelanggan, serial, kredensial
+     * PPPoE/ACS) memungkinkan injeksi perintah config-mode tambahan. Buang semua
+     * karakter kontrol menjadi spasi; spasi biasa tetap (nama multi-kata sah).
+     */
+    private static function cli(string $value): string
+    {
+        return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? '');
     }
 }

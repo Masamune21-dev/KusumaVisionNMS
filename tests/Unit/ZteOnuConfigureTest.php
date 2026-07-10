@@ -639,4 +639,35 @@ RAW;
         $this->assertStringContainsString("service ServiceName gemport 1\n", $transparent."\n");
         $this->assertStringNotContainsString('cos 0 vlan', $transparent);
     }
+
+    public function test_provisioning_builder_neutralizes_cli_injection_in_free_text_fields(): void
+    {
+        // Payload: newline + perintah config-mode diselipkan ke field teks-bebas.
+        $data = [
+            'slot' => 1, 'port' => 2, 'onu_id' => 3,
+            'serial_number' => "ZTEGabc12345\nno onu 99",
+            'customer_name' => "Budi\nno onu 5\ninterface gpon-olt_1/2/1",
+            'onu_type' => 'ALL-ONT', 'tcont_profile' => 'SERVER',
+            'vlan' => 125, 'service_name' => 'ServiceName', 'wan_mode' => 'pppoe',
+            'pppoe_username' => "user\nreboot", 'pppoe_password' => "pass\nno onu 7",
+            'tr069_enabled' => true, 'acs_url' => 'http://acs.example.net:7547',
+            'acs_username' => "acs\nexit", 'acs_password' => "secret\nconf t",
+        ];
+
+        $script = (new ZteProvisioningScriptBuilder)->build($data);
+
+        // Setiap baris skrip dikirim sebagai satu perintah telnet: tak boleh ada
+        // baris yang HANYA berisi perintah suntikan.
+        $lines = array_map('trim', explode("\n", $script));
+        $this->assertNotContains('no onu 5', $lines);
+        $this->assertNotContains('no onu 7', $lines);
+        $this->assertNotContains('no onu 99', $lines);
+        $this->assertNotContains('reboot', $lines);
+        $this->assertNotContains('interface gpon-olt_1/2/1', $lines);
+        $this->assertNotContains('conf t', array_slice($lines, 1)); // 'conf t' sah hanya sbg baris pertama
+
+        // Nilai jadi satu-baris (newline diganti spasi), payload tak jadi perintah sendiri.
+        $this->assertStringContainsString('name Budi no onu 5 interface gpon-olt_1/2/1', $script);
+        $this->assertStringContainsString('sn ZTEGABC12345 NO ONU 99', $script);
+    }
 }

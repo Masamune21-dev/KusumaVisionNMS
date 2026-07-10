@@ -2,6 +2,35 @@
 
 ## 2026-07-10
 
+### Security review nms.kusumavision.net: fix injeksi CLI + patch CVE dependency + hardening
+
+**Permintaan user:** minta di-pentest/di-tes keamanan web-nya sendiri ("andai kamu hacker, apa yang kamu lakukan"). Karena punya source, dilakukan audit kode attack-surface langsung, lalu kerjakan semua remediasi.
+
+**Temuan utama — injeksi perintah CLI (🔴):** field teks-bebas registrasi ONU ZTE (`customer_name`, `serial_number`, `pppoe_username/password`, `acs_username/password`) hanya divalidasi `string|max:N` **tanpa filter**, lalu disisipkan mentah ke baris CLI oleh `ZteProvisioningScriptBuilder`. Eksekutor memecah skrip dengan `explode("\n")` lalu kirim tiap baris sebagai perintah telnet → **newline di field = injeksi perintah config-mode ke OLT** (mis. `no onu 5`). Driver HiOSO/C-Data sudah menyanitasi; builder ZTE belum. Rename ONU ZTE aman (via SNMP SET, bukan CLI).
+
+Changed:
+- `app/Services/ZteProvisioningScriptBuilder.php` — helper `cli()` buang karakter kontrol (CR/LF, `\x00-\x1F`, `\x7F`) → spasi sebelum interpolasi; diterapkan ke serial, nama, kredensial PPPoE & ACS.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `str()` ikut strip karakter kontrol (jalur copy-ONU, defense-in-depth).
+- `app/Services/Zte/OnuRegistrationService.php` — validasi diperketat pakai anchor `\z` (bukan `$`, cegah bypass trailing-newline): serial `^[A-Za-z0-9:_.-]+\z`, pppoe/acs `^\S+\z`, `customer_name` `not_regex` blokir karakter kontrol.
+- `tests/Unit/ZteOnuConfigureTest.php` — test baru membuktikan payload injeksi menyatu jadi satu baris `name`, tak jadi perintah terpisah.
+- **Dependency:** `composer update` terarah (guzzle/psr7/laravel/phpseclib) → Laravel `12.63.0`, `composer audit` bersih (sebelumnya 7 advisory/4 paket, termasuk CRLF-injection psr7 & Signed-URL path-confusion Laravel). `npm audit` = 0.
+- `app/Providers/AppServiceProvider.php` — limiter `olt-refresh` (30/mnt/user).
+- `routes/web.php` — `throttle:olt-refresh` di `smartolt.test|refresh`, `cdata-olt.test|refresh`, `hioso-olt.test|refresh`, `monitoring.onu.refresh` (anti-DoS SNMP walk/telnet sinkron).
+- `install.sh` + `docker/nginx.conf` — tambah header HSTS (`always`, efektif di 443).
+- `docs/SECURITY_AUDIT_2026-07.md` — laporan audit + checklist deploy & hardening ops.
+
+Notes:
+- Postur yang sudah aman (terverifikasi review, tak diubah): isolasi partner via `PartnerOltScope` (anti-IDOR), throttle brute-force login, tiket telnet AES+TTL, secret `encrypted`+`$hidden`. `APP_DEBUG` prod terverifikasi `false`.
+- Verifikasi: 77/77 unit test lolos; `route:list` boot OK; Pint bersih. Kegagalan Feature test registrasi = **PRE-EXISTING 419/CSRF** (terbukti gagal identik via `git stash`, lingkungan test sandbox — bukan regresi; nol kegagalan 422 baru dari validasi).
+- Deploy: kode builder/validasi/provider berubah → prod perlu `composer install --no-dev`, `config:cache`, `reload php8.3-fpm`, `queue:restart`. HSTS ke blok 443 live + `reload nginx` = langkah ops manual (lihat checklist doc). **Terapkan di prod:** `route:cache` + `queue:restart` sudah dijalankan; HSTS ternyata **sudah ada** di nginx 443 live.
+
+**Ronde 2 (temuan lanjutan, terverifikasi ke kode):**
+- **SSRF resolver link Peta ONU** — `OnuMapController::resolveLink` fetch link pendek Google Maps; gate `preg_match` **tak ter-anchor** (`http://169.254.169.254/#https://goo.gl/maps` lolos) + Guzzle follow-redirect otomatis → bisa tembak metadata cloud/host internal. Fix: gate host via `parse_url` + allowlist persis; `expandShortLink` matikan redirect otomatis & validasi tiap hop (`hostResolvesPublic` tolak IP privat/loopback/link-local/reserved). Test baru `tests/Unit/OnuMapLinkResolverTest.php` (3 lolos).
+- **Password admin contoh** `P@ssw0rd123` di `README.md`/`docs/INSTALL.md` → placeholder `GANTI_DENGAN_PASSWORD_KUAT`. `install.sh` tak hardcode password (default kosong). **Aksi ops:** rotasi password admin live bila pernah dipakai.
+- **`user:create` default role** — command tak set role → jatuh ke default kolom DB `operator` (install.sh malah workaround `UPDATE ... role='admin'`). Tambah opsi `--role` tervalidasi `UserRole::values()` (default `operator`) + set role eksplisit.
+- Advisory (bukan kode): docs sebut OLT live pakai SNMP community `public` — ganti di perangkat + ACL UDP/161.
+- Verifikasi ronde 2: 80/80 unit test lolos; Pint bersih. SSRF fix = web controller → live via opcache auto-revalidate (tanpa restart); `user:create` = CLI (fresh tiap run).
+
 ### Alarm/notif: nama pelanggan di semua kanal + fix label PON (EPON salah tertulis "GPON")
 
 **Keluhan user:** (1) minta alarm & notif alert semua OLT ikut mengirim nama pelanggan; (2) di HP ada notif salah — OLT **EPON** tapi notifnya "port **GPON** down". Cek semua kanal: web, Telegram, APK.

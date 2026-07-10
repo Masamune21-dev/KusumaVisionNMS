@@ -158,7 +158,7 @@ sudo bash install.sh                 # interaktif (tanya APP_URL, DB, akun admin
 
 # atau non-interaktif:
 sudo APP_URL=http://nms.example.com \
-     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='P@ssw0rd123' \
+     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='GANTI_DENGAN_PASSWORD_KUAT' \
      ENABLE_UFW=1 bash install.sh --yes
 ```
 
@@ -381,7 +381,7 @@ TELNET_PROXY_WS_URL=/telnet-ws   # path relatif → scheme/host (ws/wss) otomati
 Registrasi publik dinonaktifkan. Buat user pertama lewat Artisan:
 
 ```bash
-php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password="P@ssw0rd123"
+php artisan user:create --name="Admin BMKV" --email="admin@bmkv.net" --password="GANTI_DENGAN_PASSWORD_KUAT"
 ```
 
 ### Langkah 10 — Harden ke production

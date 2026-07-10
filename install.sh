@@ -334,6 +334,9 @@ server {
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";
     add_header Referrer-Policy "strict-origin-when-cross-origin";
+    # HSTS — efektif setelah blok ini melayani HTTPS (certbot mengangkatnya ke
+    # `listen 443 ssl`); di HTTP diabaikan browser. `always` = kirim juga saat error.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     client_max_body_size 20M;
 

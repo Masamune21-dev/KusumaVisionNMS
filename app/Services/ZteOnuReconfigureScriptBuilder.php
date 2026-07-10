@@ -764,7 +764,10 @@ class ZteOnuReconfigureScriptBuilder
             return 'true';
         }
 
-        return trim((string) $value);
+        // Skrip rekonfigurasi dieksekusi baris-per-baris ke telnet OLT; buang CR/LF
+        // & karakter kontrol lain dari nilai yang disisipkan (nama/profil hasil baca
+        // running-config atau form) agar tak bisa menyisipkan perintah CLI tambahan.
+        return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $value) ?? '');
     }
 
     private function same(string $a, string $b): bool

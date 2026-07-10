@@ -91,9 +91,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/cdata-olt/{olt}/edit', [CDataOltController::class, 'edit'])->name('cdata-olt.edit');
     Route::put('/cdata-olt/{olt}', [CDataOltController::class, 'update'])->name('cdata-olt.update');
     Route::delete('/cdata-olt/{olt}', [CDataOltController::class, 'destroy'])->middleware('role:admin,operator,partner')->name('cdata-olt.destroy');
-    Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->name('cdata-olt.test');
+    Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('cdata-olt.test');
     Route::get('/cdata-olt/{olt}/detail', [CDataOltController::class, 'detail'])->name('cdata-olt.detail');
-    Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->name('cdata-olt.refresh');
+    Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('cdata-olt.refresh');
     Route::get('/cdata-olt/{olt}/ports/{slot}/{port}/onus', [CDataOltController::class, 'portOnus'])->name('cdata-olt.port-onus');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/refresh', [CDataOltController::class, 'refreshPortOnus'])->name('cdata-olt.port-onus.refresh');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
@@ -107,9 +107,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/hioso-olt/{olt}/edit', [HiosoOltController::class, 'edit'])->name('hioso-olt.edit');
     Route::put('/hioso-olt/{olt}', [HiosoOltController::class, 'update'])->name('hioso-olt.update');
     Route::delete('/hioso-olt/{olt}', [HiosoOltController::class, 'destroy'])->middleware('role:admin,operator,partner')->name('hioso-olt.destroy');
-    Route::post('/hioso-olt/{olt}/test', [HiosoOltController::class, 'test'])->name('hioso-olt.test');
+    Route::post('/hioso-olt/{olt}/test', [HiosoOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('hioso-olt.test');
     Route::get('/hioso-olt/{olt}/detail', [HiosoOltController::class, 'detail'])->name('hioso-olt.detail');
-    Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->name('hioso-olt.refresh');
+    Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('hioso-olt.refresh');
     Route::get('/hioso-olt/{olt}/ports/{slot}/{port}/onus', [HiosoOltController::class, 'portOnus'])->name('hioso-olt.port-onus');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HiosoOltController::class, 'refreshPortOnus'])->name('hioso-olt.port-onus.refresh');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HiosoOltController::class, 'rebootOnu'])->name('hioso-olt.onu.reboot');
@@ -121,7 +121,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt', [SmartOltController::class, 'store'])->middleware('role:admin,operator,partner')->name('smartolt.store');
     Route::get('/smartolt/unconfigured', [SmartOltController::class, 'unconfiguredGlobal'])->name('smartolt.unconfigured-all');
     Route::get('/onu-monitoring', [SmartOltController::class, 'onuMonitor'])->name('monitoring.onu');
-    Route::post('/onu-monitoring/{olt}/refresh', [SmartOltController::class, 'refreshOnuMonitor'])->name('monitoring.onu.refresh');
+    Route::post('/onu-monitoring/{olt}/refresh', [SmartOltController::class, 'refreshOnuMonitor'])->middleware('throttle:olt-refresh')->name('monitoring.onu.refresh');
 
     // Peta ONU — sebaran pin ONU pelanggan lintas-OLT (Leaflet + tile Google keyless).
     Route::get('/map', [OnuMapController::class, 'index'])->name('map.index');
@@ -158,10 +158,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/smartolt/{olt}', [SmartOltController::class, 'update'])->name('smartolt.update');
     Route::delete('/smartolt/{olt}', [SmartOltController::class, 'destroy'])->middleware('role:admin,operator,partner')->name('smartolt.destroy');
     Route::post('/smartolt/{olt}/telnet/token', [TelnetSessionController::class, 'token'])->name('smartolt.telnet.token');
-    Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->name('smartolt.test');
+    Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('smartolt.test');
     // Toggle alarm per-OLT (mute) — dipakai semua family (ZTE/C-Data/HiOSO), hanya membalik flag SnmpOlt.
     Route::post('/smartolt/{olt}/alarms/toggle', [SmartOltController::class, 'toggleAlarms'])->name('smartolt.alarms.toggle');
-    Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->name('smartolt.refresh');
+    Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('smartolt.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/copy', [SmartOltController::class, 'copyOnusToPort'])->name('smartolt.port-onus.copy');
     Route::get('/smartolt/{olt}/copy-tasks/{task}', [SmartOltController::class, 'copyTaskStatus'])->name('smartolt.copy-task.status');

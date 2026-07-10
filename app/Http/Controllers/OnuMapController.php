@@ -219,7 +219,11 @@ class OnuMapController extends Controller
         $url = trim($data['url']);
 
         // Link pendek perlu di-follow dulu agar koordinat muncul di URL final.
-        if (preg_match('#https?://(maps\.app\.goo\.gl|goo\.gl/maps)#i', $url)) {
+        // Hanya HOST allowlist yang boleh di-fetch server-side (anti-SSRF): dicek via
+        // parse_url — bukan substring regex yang bisa di-bypass, mis.
+        // `http://169.254.169.254/#https://goo.gl/maps` (metadata cloud/host internal).
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if (in_array($host, ['maps.app.goo.gl', 'goo.gl'], true)) {
             $url = $this->expandShortLink($url) ?? $url;
         }
 
@@ -268,20 +272,77 @@ class OnuMapController extends Controller
         return null;
     }
 
+    /**
+     * Follow link pendek Google Maps ke URL final, MEM-VALIDASI tiap hop agar tak
+     * menembak host internal (anti-SSRF). Redirect otomatis Guzzle dimatikan; tiap
+     * Location dicek host-nya resolve ke IP publik dulu sebelum di-fetch — mencegah
+     * short-link (atau open-redirect) membelokkan request ke IP privat/link-local.
+     */
     private function expandShortLink(string $url): ?string
     {
+        $current = $url;
+
         try {
-            $response = Http::withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (KusumaVisionNMS Map Link Resolver)',
-            ])->timeout(8)->get($url);
+            for ($hop = 0; $hop < 5; $hop++) {
+                if (! $this->hostResolvesPublic($current)) {
+                    return null;
+                }
 
-            // URL setelah seluruh redirect di-follow.
-            $final = (string) $response->effectiveUri();
+                $response = Http::withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (KusumaVisionNMS Map Link Resolver)',
+                ])->timeout(8)->withOptions(['allow_redirects' => false])->get($current);
 
-            return $final !== '' ? $final : null;
+                $location = (string) $response->header('Location');
+                if ($location === '') {
+                    return $current; // tak ada redirect lagi → URL final.
+                }
+
+                // Redirect relatif → resolve terhadap origin URL saat ini.
+                $current = str_contains($location, '://')
+                    ? $location
+                    : rtrim((string) preg_replace('#(https?://[^/]+).*#', '$1', $current), '/').'/'.ltrim($location, '/');
+            }
+
+            return $current;
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * True bila host URL me-resolve ke IP publik semua. Menolak scheme non-http(s),
+     * host kosong, dan IP privat/loopback/link-local/reserved (mis. metadata cloud
+     * 169.254.169.254). Gerbang tiap hop di expandShortLink().
+     */
+    private function hostResolvesPublic(string $url): bool
+    {
+        $parts = parse_url($url);
+        if (! is_array($parts)) {
+            return false;
+        }
+
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = $parts['host'] ?? '';
+        if (! in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return false;
+        }
+
+        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : (gethostbynamel($host) ?: []);
+        if ($ips === []) {
+            return false;
+        }
+
+        foreach ($ips as $ip) {
+            // 127/8 (loopback) & 169.254/16 (link-local) tak selalu tercakup NO_RES_RANGE.
+            if (str_starts_with($ip, '127.') || str_starts_with($ip, '169.254.') || $ip === '::1') {
+                return false;
+            }
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

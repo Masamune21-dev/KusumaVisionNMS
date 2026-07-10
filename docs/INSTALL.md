@@ -104,7 +104,7 @@ Atau **non-interaktif** (isi via environment variable):
 
 ```bash
 sudo APP_URL=http://nms.example.com \
-     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='P@ssw0rd123' \
+     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='GANTI_DENGAN_PASSWORD_KUAT' \
      ENABLE_UFW=1 bash install.sh --yes
 ```
 
