@@ -4094,3 +4094,32 @@ Notes:
 - **Akar masalah** screenshot full-page "sobek": sidebar `fixed` + scroll di container dalam membuat tool capture men-stitch per segmen — panel SISTEM tertinggal di posisi viewport, area sidebar bawah bolong hitam, baris detail Disk ("39.3 GB / 98.1 GB") nyasar ke dasar gambar.
 - **Trade-off dipilih user** (perilaku "build pertama"): panel SISTEM tetap sticky-bottom (selalu terlihat saat scroll); konsekuensinya di capture full-page panel dirender di posisi bawah-layar (±3/4 tinggi gambar) dengan latar sidebar tetap menyatu — bukan di dasar mutlak halaman. Footer TIDAK dikembalikan sticky karena di kolom konten sticky-bottom menimpa kartu/tabel di tengah gambar capture.
 - **Diverifikasi live** via Playwright (Chromium `fullPage: true`) ke https://127.0.0.1 memakai user sementara (dibuat lalu dihapus): full-page utuh ✔, scroll tengah & mentok bawah tanpa tumpang-tindih nav/panel (clamp bekerja) ✔, drawer mobile tanpa panel ✔. `npm run build` sukses, langsung tersaji di prod.
+
+### Role Partner: OLT privat milik sendiri (self-service, tersembunyi dari admin/operator)
+
+Created:
+
+- `database/migrations/2026_07_10_100000_add_owner_user_id_to_snmp_olts_table.php` — kolom `owner_user_id` (nullable, indexed, tanpa FK constraint demi kompat SQLite test) di `snmp_olts`. `null` = OLT global; terisi = OLT privat milik partner.
+- `database/migrations/2026_07_10_100100_backfill_partner_owned_olts.php` — konversi OLT lama yang di-assign ke TEPAT SATU partner (dan NOL operator) menjadi privat milik partner tsb. Di prod: OLT #564 → milik Alaik (#486).
+- `app/Http/Controllers/Concerns/ManagesOltOwnership.php` — trait bersama 3 controller inventori: `claimOltForPartner()` (set `owner_user_id` via `forceFill` + buat baris pivot `olt_user`) & `authorizeOltDeletion()` (partner hanya boleh hapus OLT miliknya).
+
+Changed:
+
+- `app/Models/SnmpOlt.php` — cast `owner_user_id`, relasi `owner()`, helper `isPrivatelyOwned()`. `owner_user_id` sengaja BUKAN `$fillable` (anti-spoof mass-assignment).
+- `app/Models/User.php` — `allowedOltIds()` kini gabung pivot + `snmp_olts.owner_user_id`; tambah `canAddOlt()` (admin/operator/partner) & `ownsOlt(SnmpOlt)`.
+- `app/Models/Scopes/PartnerOltScope.php` — cabang baru: user tak-ter-scope (admin/operator/demo) hanya lihat OLT global (`owner_user_id` NULL); OLT privat partner disembunyikan total termasuk dari admin.
+- `app/Http/Controllers/{SmartOlt,CDataOlt,Hioso}Controller.php` — `store` memanggil `claimOltForPartner`; `destroy` memanggil `authorizeOltDeletion` (butuh `Request`).
+- `app/Http/Controllers/UserController.php` — `syncPartnerOlts` MEMPERTAHANKAN pivot OLT milik privat (tak lepas kepemilikan saat admin edit user); `destroy` me-null-kan `owner_user_id` OLT milik user yang dihapus (kembali ke global, tak yatim).
+- `app/Services/Fcm/FcmAlarmNotifier.php` & `app/Services/Telegram/TelegramNotifier.php` — blok admin/operator (FCM recipients + bot Telegram global) di-gate `owner_user_id === null`; OLT privat partner hanya memberi tahu partner pemiliknya.
+- `app/Http/Middleware/HandleInertiaRequests.php` — expose `auth.can.add_olt`.
+- `routes/web.php` — create/store/destroy 3 family: `role:admin,operator` → `role:admin,operator,partner` (hapus tetap di-guard kepemilikan di controller).
+- `resources/js/Pages/SmartOlt/Index.vue` — tombol Tambah pakai `canAddOlt`; tombol Hapus pakai `canDeleteOlt(olt)` (= inventory ATAU `olt.owned`); badge "Privat" saat `olt.is_private`. `serializeOlt` menambah flag `is_private`/`owned`.
+- `docs/handbook/11-keamanan-rbac-audit.md` — sinkron model kepemilikan OLT partner, dua cabang scope, gate tambah/hapus, routing alarm privat, flag frontend.
+- `tests/Feature/PartnerRoleTest.php` & `tests/Feature/PartnerTelegramBotTest.php` — ganti test "partner tak boleh buat OLT" jadi "partner buat OLT privat"; tambah test tersembunyi-dari-admin/operator, hapus OLT sendiri, tolak hapus OLT global ter-assign, alarm OLT privat hanya ke bot partner.
+
+Notes:
+
+- **Keputusan user (Option B):** OLT privat partner tersembunyi TOTAL — bahkan admin tak melihatnya (di daftar, peta, dashboard, alarm). Alternatif "admin tetap oversight" ditolak. Konsekuensi: dashboard/peta/search admin otomatis mengecualikan OLT partner (via satu `PartnerOltScope`).
+- **Kenapa tetap pakai pivot `olt_user`:** OLT privat partner tetap dapat baris pivot supaya seluruh mesin scope/alarm/Telegram/FCM (yang sudah keyed ke pivot) jalan tanpa diubah. `owner_user_id` hanya menandai kepemilikan + menyembunyikan dari non-pemilik.
+- **Migrasi tanpa FK constraint** (SQLite test tak dukung ADD CONSTRAINT); integritas user-delete ditangani di `UserController::destroy`.
+- **Diverifikasi:** 49 test partner/operator/inventori/telegram lolos (termasuk test baru); full suite 316 lolos, 1 gagal PRE-EXISTING (`ApiV1WriteTest::test_refresh_port_non_zte`, dikonfirmasi via `git stash` — bukan dari perubahan ini). DB nyata sesudah migrate: admin tak lihat #564 (13→12 OLT), partner Alaik hanya lihat #564. `npm run build` sukses; `config:cache`+`route:cache` di-rebuild, `queue:restart` dikirim.

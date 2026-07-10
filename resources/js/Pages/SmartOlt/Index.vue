@@ -30,9 +30,12 @@ const props = defineProps({
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
-// Tambah/hapus device OLT hanya admin+operator (partner tidak). Aksi lain (edit/telnet)
-// tetap pakai canManageOlt.
+// Hapus device OLT global hanya admin+operator. Aksi lain (edit/telnet) pakai canManageOlt.
 const canManageInventory = computed(() => Boolean(page.props.auth?.can?.manage_olt_inventory));
+// Tambah OLT: admin/operator (global) ATAU partner (OLT privat miliknya sendiri).
+const canAddOlt = computed(() => Boolean(page.props.auth?.can?.add_olt));
+// Boleh hapus OLT ini: admin/operator utk OLT global, partner hanya utk OLT miliknya.
+const canDeleteOlt = (olt) => canManageInventory.value || Boolean(olt.owned);
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
@@ -186,7 +189,7 @@ const formatDate = (value) => formatDateTime(value);
                 <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
                     SmartOLT
                 </h2>
-                <Link v-if="canManageInventory" :href="createHref" class="sm:w-auto">
+                <Link v-if="canAddOlt" :href="createHref" class="sm:w-auto">
                     <PrimaryButton class="w-full sm:w-auto">
                         <Plus class="mr-2 h-4 w-4" />
                         Tambah OLT
@@ -235,7 +238,7 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">Belum ada OLT</h3>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan OLT pertama untuk mulai test SNMP.</p>
-                        <div v-if="canManageInventory" class="mt-5">
+                        <div v-if="canAddOlt" class="mt-5">
                             <Link :href="route('smartolt.create')">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
@@ -251,7 +254,10 @@ const formatDate = (value) => formatDateTime(value);
                             <article v-for="olt in olts" :key="olt.id" class="kv-mobile-card">
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
-                                        <h4 class="kv-mobile-card-title">{{ olt.name }}</h4>
+                                        <h4 class="kv-mobile-card-title">
+                                            {{ olt.name }}
+                                            <span v-if="olt.is_private" class="ml-1.5 inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" title="OLT privat milik Anda — tidak terlihat admin/operator">Privat</span>
+                                        </h4>
                                         <p class="kv-mobile-card-subtitle">{{ olt.vendor || 'Vendor belum diisi' }}</p>
                                     </div>
                                     <span :class="olt.driver === 'zte' ? 'kv-pill-info' : 'kv-pill-muted'">
@@ -328,7 +334,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                    <IconButton v-if="canDeleteOlt(olt)" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                 </div>
@@ -353,7 +359,10 @@ const formatDate = (value) => formatDateTime(value);
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
                                     <td class="px-4 py-4">
-                                        <div class="font-medium text-white">{{ olt.name }}</div>
+                                        <div class="flex items-center gap-1.5 font-medium text-white">
+                                            {{ olt.name }}
+                                            <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" title="OLT privat milik Anda — tidak terlihat admin/operator">Privat</span>
+                                        </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || 'Vendor belum diisi' }}</div>
                                     </td>
                                     <td class="px-4 py-4">
@@ -442,7 +451,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
+                                            <IconButton v-if="canDeleteOlt(olt)" variant="danger" title="Hapus OLT" @click="destroyOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
                                         </div>
@@ -474,7 +483,7 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
                         <h3 class="text-sm font-semibold text-slate-200">{{ nonZteEmpty.title }}</h3>
                         <p class="mt-1 text-sm text-slate-500">{{ nonZteEmpty.subtitle }}</p>
-                        <div v-if="canManageInventory" class="mt-5">
+                        <div v-if="canAddOlt" class="mt-5">
                             <Link :href="createHref">
                                 <PrimaryButton>
                                     <Plus class="mr-2 h-4 w-4" />
@@ -490,7 +499,10 @@ const formatDate = (value) => formatDateTime(value);
                             <article v-for="olt in nonZteOlts" :key="olt.id" class="kv-mobile-card">
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
-                                        <h4 class="kv-mobile-card-title">{{ olt.name }}</h4>
+                                        <h4 class="kv-mobile-card-title">
+                                            {{ olt.name }}
+                                            <span v-if="olt.is_private" class="ml-1.5 inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" title="OLT privat milik Anda — tidak terlihat admin/operator">Privat</span>
+                                        </h4>
                                         <p class="kv-mobile-card-subtitle">{{ olt.vendor || 'Family belum diisi' }}</p>
                                     </div>
                                     <div class="flex flex-col items-end gap-1">
@@ -572,7 +584,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
+                                    <IconButton v-if="canDeleteOlt(olt)" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                 </div>
@@ -597,7 +609,10 @@ const formatDate = (value) => formatDateTime(value);
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
                                     <td class="px-4 py-4">
-                                        <div class="font-medium text-white">{{ olt.name }}</div>
+                                        <div class="flex items-center gap-1.5 font-medium text-white">
+                                            {{ olt.name }}
+                                            <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" title="OLT privat milik Anda — tidak terlihat admin/operator">Privat</span>
+                                        </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || 'Family belum diisi' }}</div>
                                     </td>
                                     <td class="px-4 py-4">
@@ -689,7 +704,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton v-if="canManageInventory" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
+                                            <IconButton v-if="canDeleteOlt(olt)" variant="danger" title="Hapus OLT" @click="destroyCdataOlt(olt)">
                                                 <Trash2 class="h-4 w-4" />
                                             </IconButton>
                                         </div>

@@ -9,27 +9,47 @@
 |------|-------|-----------|
 | Administrator | `admin` | Semua: kelola user, audit logs, settings, kelola OLT |
 | Operator | `operator` | Kelola OLT (CRUD, provisioning, telnet) — **tanpa** user/settings/audit |
-| Partner | `partner` | Setara operator **TAPI hanya pada OLT yang di-assign admin** (edit, provisioning, telnet, reboot/rename/delete ONU). **Tidak** boleh tambah/hapus device OLT, **tidak** akses user/settings/audit. Punya bot Telegram sendiri (self-service). |
+| Partner | `partner` | Mengelola OLT yang di-assign admin **DAN OLT PRIVAT yang ia tambah sendiri** (edit, provisioning, telnet, reboot/rename/delete ONU). Boleh **tambah** OLT (jadi privat miliknya) & **hapus** OLT miliknya; **tidak** boleh hapus OLT global yang sekadar di-assign; **tidak** akses user/settings/audit. Punya bot Telegram sendiri (self-service). |
 | Demo | `demo` | **Read-only**, hanya melihat data demo (`is_demo=true`) |
 
 Helper di `User`: `isAdmin()`, `isOperator()`, `isPartner()`, `isDemo()`, `canManageOlt()`
-(admin+operator+**partner**), `canManageOltInventory()` (admin+operator — gate tambah/hapus **device**
-OLT), `canManageUsers()` (admin). Partner: `partnerOlts()` (OLT ter-assign, pivot `olt_user`),
-`allowedOltIds()` (id OLT boleh diakses — **query pivot langsung**, bukan relasi, agar tak memicu
-scope rekursif).
+(admin+operator+**partner**), `canManageOltInventory()` (admin+operator — gate hapus **device** OLT
+global), `canAddOlt()` (admin+operator+**partner** — gate **tambah** OLT), `ownsOlt(SnmpOlt)`
+(OLT privat milik user), `canManageUsers()` (admin). Partner: `partnerOlts()` (OLT ter-assign + milik,
+pivot `olt_user`), `allowedOltIds()` (id OLT boleh diakses — **query pivot + `snmp_olts.owner_user_id`
+langsung**, bukan relasi, agar tak memicu scope rekursif).
+
+### Kepemilikan OLT privat partner — kolom `snmp_olts.owner_user_id`
+`owner_user_id` **null** = OLT **global** (dikelola admin/operator, perilaku lama). **Terisi** = OLT
+**privat milik seorang partner** — hanya partner pemilik yang bisa melihat/mengelola; **tersembunyi
+total dari admin/operator**. Saat partner menambah OLT (via `SmartOltController`/`CDataOltController`/
+`HiosoOltController` store, trait `Concerns\ManagesOltOwnership::claimOltForPartner`), `owner_user_id`
+di-set ke id-nya (via `forceFill`, **bukan** mass-assignment) + baris pivot `olt_user` dibuat otomatis
+(agar scope/alarm/Telegram/FCM tetap jalan). Hapus OLT di-gate kepemilikan
+(`authorizeOltDeletion` → partner hanya OLT miliknya). Saat partner dihapus, `owner_user_id` OLT-nya
+di-null-kan (`UserController::destroy`) agar OLT kembali ke pool global (tak yatim). Migrasi backfill
+`backfill_partner_owned_olts` mengkonversi OLT lama yang di-assign ke tepat satu partner (tanpa operator)
+menjadi privat miliknya.
 
 ### Cakupan OLT partner — `App\Models\Scopes\PartnerOltScope`
-Global scope (pola sama `DemoScope`) yang membatasi user `partner` hanya ke OLT ter-assign. Dipasang di
-`SnmpOlt` (kolom `id`) dan model ber-`snmp_olt_id` (`AlarmEvent`, `PollingEvent`,
-`SmartOltOnuRegistration`, `OnuMapPin`). Karena **setiap controller memakai route-model binding
-`SnmpOlt $olt`**, satu scope ini otomatis: (a) menyaring daftar/detail/edit/refresh/telnet/API/peta/
-search/report, (b) mengembalikan **404** saat partner membuka OLT non-assigned, (c) menyaring alarm
-(bell, halaman Alarms, API) ke OLT partner saja. No-op untuk admin/operator/demo & konteks console/queue
-(poller tetap memoll semua OLT). Assignment dikelola admin di halaman **Users** (multiselect OLT saat
-role = partner). Aksi tambah/hapus device OLT di-gate `role:admin,operator` di `routes/web.php`.
+Global scope (pola sama `DemoScope`). Dipasang di `SnmpOlt` (kolom `id`) dan model ber-`snmp_olt_id`
+(`AlarmEvent`, `PollingEvent`, `SmartOltOnuRegistration`, `OnuMapPin`). Dua cabang:
+- **User ter-scope** (partner selalu; operator dengan assignment) → hanya OLT dalam `allowedOltIds()`
+  (assignment pivot + OLT privat miliknya).
+- **User tak ter-scope** (admin, operator tanpa assignment, demo) → semua OLT **global** (`owner_user_id`
+  NULL), tapi OLT **privat partner disembunyikan total** — termasuk dari admin.
 
-**Alarm ke partner:** `FcmAlarmNotifier` membatasi penerima push ke admin+operator ∪ partner yang
-assigned ke OLT tsb (bukan broadcast). Bot Telegram partner: lihat [10 — Alarm & Telegram](10-alarm-telegram.md).
+Karena **setiap controller memakai route-model binding `SnmpOlt $olt`**, satu scope ini otomatis:
+(a) menyaring daftar/detail/edit/refresh/telnet/API/peta/search/report, (b) mengembalikan **404** saat
+partner membuka OLT non-assigned / admin membuka OLT privat partner, (c) menyaring alarm (bell, halaman
+Alarms, API). No-op untuk konteks console/queue (poller tetap memoll semua OLT termasuk privat).
+Assignment global dikelola admin di halaman **Users** (multiselect OLT) — pivot OLT milik privat
+**dipertahankan** saat sync (`syncPartnerOlts`) supaya kepemilikan tak lepas. Aksi tambah OLT di-gate
+`role:admin,operator,partner`; hapus di-gate role + kepemilikan di controller.
+
+**Alarm ke partner:** `FcmAlarmNotifier` & `TelegramNotifier` — untuk OLT **global** penerima = admin+operator ∪
+partner ter-assign; untuk OLT **privat partner** (`owner_user_id` terisi) admin/operator **tidak** dapat
+notif — hanya partner pemiliknya. Bot Telegram partner: lihat [10 — Alarm & Telegram](10-alarm-telegram.md).
 
 ### Penegakan akses (3 lapis)
 1. **Middleware route** — `role:admin` (`EnsureUserRole`) membungkus grup Users/Audit/Settings.
@@ -40,9 +60,11 @@ assigned ke OLT tsb (bukan broadcast). Bot Telegram partner: lihat [10 — Alarm
    aksi yang tidak didukung vendor (lihat `SmartOltSupport::capabilities()` di [02](02-arsitektur.md)).
 
 ### Share ke frontend
-`HandleInertiaRequests::share()` mengirim `auth.can` (`manage_users`, `manage_olt`, `is_demo`)
-ke semua page → UI menyembunyikan tombol sesuai izin. **Tetapi backend yang menegakkan** — UI
-hanya kosmetik.
+`HandleInertiaRequests::share()` mengirim `auth.can` (`manage_users`, `manage_olt`,
+`manage_olt_inventory`, `add_olt`, `is_partner`, `is_demo`) ke semua page → UI menyembunyikan tombol
+sesuai izin. Serialisasi OLT (`serializeOlt`) menambah `is_private` (OLT privat partner) & `owned`
+(milik viewer) → tombol **Hapus** muncul saat `manage_olt_inventory` atau `owned`, badge **Privat** saat
+`is_private`. **Tetapi backend yang menegakkan** — UI hanya kosmetik.
 
 ## B. Demo mode (read-only + isolasi data)
 

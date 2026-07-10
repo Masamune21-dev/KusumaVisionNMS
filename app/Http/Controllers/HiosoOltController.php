@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesOltOwnership;
 use App\Models\OnuMapPin;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
@@ -29,6 +30,8 @@ use Throwable;
  */
 class HiosoOltController extends Controller
 {
+    use ManagesOltOwnership;
+
     /** TTL cache auto-refresh: scan ulang saat halaman dibuka hanya bila cache lebih tua dari ini. */
     private const CACHE_TTL_MINUTES = 5;
 
@@ -53,6 +56,7 @@ class HiosoOltController extends Controller
     public function store(Request $request, CDataOltScanner $scanner): RedirectResponse
     {
         $olt = SnmpOlt::create($this->validated($request));
+        $this->claimOltForPartner($olt, $request->user());
         $redirect = redirect()->route('smartolt.index', ['tab' => 'hioso']);
 
         // Scan awal sekali supaya ONU langsung searchable di global search tanpa perlu buka halaman OLT.
@@ -81,8 +85,9 @@ class HiosoOltController extends Controller
             ->with('success', 'OLT HiOSO berhasil diperbarui.');
     }
 
-    public function destroy(SnmpOlt $olt): RedirectResponse
+    public function destroy(Request $request, SnmpOlt $olt): RedirectResponse
     {
+        $this->authorizeOltDeletion($olt, $request->user());
         $olt->delete();
 
         return redirect()

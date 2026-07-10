@@ -130,6 +130,31 @@ class PartnerTelegramBotTest extends TestCase
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '/bot999:PARTNER/'));
     }
 
+    public function test_private_owned_olt_alarm_reaches_only_partner_not_global(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);
+
+        $olt = $this->makeOlt('OLT-PRIVAT', '10.8.0.9');
+        $this->globalBot();
+
+        // OLT dijadikan privat milik partner (owner_user_id) + pivot + bot partner.
+        $partner = User::factory()->partner()->create();
+        $olt->forceFill(['owner_user_id' => $partner->id])->save();
+        $partner->partnerOlts()->sync([$olt->id]);
+        PartnerTelegramBot::create([
+            'user_id' => $partner->id,
+            'enabled' => true, 'bot_token' => '999:PARTNER', 'chat_id' => '222',
+            'webhook_secret' => 'partner-secret', 'commands_enabled' => true, 'min_severity' => 'warning',
+            'notify_on_raise' => true, 'notify_on_clear' => true,
+        ]);
+
+        app(TelegramNotifier::class)->notify($olt, [$this->alarmFor($olt)], []);
+
+        // Bot partner pemilik dapat; bot global admin TIDAK (OLT privat).
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/bot999:PARTNER/sendMessage') && $r['chat_id'] === '222');
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/bot123:GLOBAL/'));
+    }
+
     public function test_partner_webhook_uses_partner_bot_token(): void
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);

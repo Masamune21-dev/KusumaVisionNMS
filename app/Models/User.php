@@ -104,18 +104,35 @@ class User extends Authenticatable
      * Id OLT yang boleh diakses partner ini. Di-cache per-instance agar tidak
      * mengulang query saat dipakai global scope pada banyak model.
      *
-     * PENTING: query tabel pivot langsung (bukan relasi partnerOlts) supaya TIDAK
-     * memicu {@see PartnerOltScope} pada SnmpOlt — itu akan
-     * memanggil allowedOltIds() lagi → rekursi tak terhingga.
+     * PENTING: query tabel pivot & snmp_olts langsung (bukan relasi Eloquent) supaya
+     * TIDAK memicu {@see PartnerOltScope} pada SnmpOlt — itu akan memanggil
+     * allowedOltIds() lagi → rekursi tak terhingga.
+     *
+     * Gabungan penugasan pivot (`olt_user`) + OLT privat milik sendiri
+     * (`snmp_olts.owner_user_id`). Untuk OLT milik sendiri normalnya pivot juga ada;
+     * union hanya jaga-jaga bila baris pivot hilang.
      *
      * @return array<int, int>
      */
     public function allowedOltIds(): array
     {
-        return $this->allowedOltIds ??= DB::table('olt_user')
+        if ($this->allowedOltIds !== null) {
+            return $this->allowedOltIds;
+        }
+
+        $assigned = DB::table('olt_user')
             ->where('user_id', $this->id)
-            ->pluck('snmp_olt_id')
+            ->pluck('snmp_olt_id');
+
+        $owned = DB::table('snmp_olts')
+            ->where('owner_user_id', $this->id)
+            ->pluck('id');
+
+        return $this->allowedOltIds = $assigned
+            ->merge($owned)
             ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
             ->all();
     }
 
@@ -169,12 +186,28 @@ class User extends Authenticatable
     }
 
     /**
-     * Boleh menambah/menghapus device OLT dari inventori (bukan sekadar mengedit).
-     * Partner tidak boleh — hanya memakai OLT yang di-assign admin.
+     * Boleh menambah/menghapus device OLT dari POOL GLOBAL (owner_user_id = null).
+     * Admin/operator saja. Partner memakai {@see canAddOlt()} untuk OLT privatnya.
      */
     public function canManageOltInventory(): bool
     {
         return in_array($this->role, [UserRole::Admin, UserRole::Operator], true);
+    }
+
+    /**
+     * Boleh menambah device OLT baru. Partner IKUT — OLT yang ia tambah menjadi
+     * privat miliknya sendiri (owner_user_id = id-nya), tak terlihat admin/operator.
+     * Admin/operator menambah OLT global (owner_user_id = null).
+     */
+    public function canAddOlt(): bool
+    {
+        return in_array($this->role, [UserRole::Admin, UserRole::Operator, UserRole::Partner], true);
+    }
+
+    /** Apakah OLT ini privat milik user ini (bukan sekadar di-assign). */
+    public function ownsOlt(SnmpOlt $olt): bool
+    {
+        return $olt->owner_user_id !== null && $olt->owner_user_id === $this->id;
     }
 
     public function canManageUsers(): bool

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ManagesOltOwnership;
 use App\Jobs\CopyOnusToPortJob;
 use App\Jobs\Tr069BulkConfigJob;
 use App\Models\AcsSetting;
@@ -39,6 +40,8 @@ use Inertia\Response;
 
 class SmartOltController extends Controller
 {
+    use ManagesOltOwnership;
+
     /**
      * Cache saklar alarm partner per-OLT untuk request ini (id OLT → bool), agar
      * serialisasi daftar OLT tak N+1. Hanya di-isi bila viewer seorang partner.
@@ -502,7 +505,8 @@ class SmartOltController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        SnmpOlt::create($this->validated($request));
+        $olt = SnmpOlt::create($this->validated($request));
+        $this->claimOltForPartner($olt, $request->user());
 
         return redirect()
             ->route('smartolt.index')
@@ -525,8 +529,9 @@ class SmartOltController extends Controller
             ->with('success', 'OLT berhasil diperbarui.');
     }
 
-    public function destroy(SnmpOlt $olt): RedirectResponse
+    public function destroy(Request $request, SnmpOlt $olt): RedirectResponse
     {
+        $this->authorizeOltDeletion($olt, $request->user());
         $olt->delete();
 
         return redirect()
@@ -1710,6 +1715,9 @@ class SmartOltController extends Controller
             'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),
             'driver' => $driver,
             'capabilities' => SmartOltSupport::capabilities($driver, $olt),
+            // Kepemilikan: is_private = OLT privat partner (bukan global); owned = milik viewer.
+            'is_private' => $olt->owner_user_id !== null,
+            'owned' => $olt->owner_user_id !== null && $olt->owner_user_id === auth()->id(),
             'last_test_result' => $olt->last_test_result,
             'last_tested_at' => $olt->last_tested_at?->toIso8601String(),
             'last_polled_at' => $olt->last_polled_at?->toIso8601String(),

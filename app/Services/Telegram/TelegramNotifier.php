@@ -58,9 +58,11 @@ class TelegramNotifier
     {
         $configs = [];
 
-        // Bot global admin (dipakai admin & operator) hanya bila saklar alarm OLT on.
+        // Bot global admin (dipakai admin & operator) hanya bila saklar alarm OLT on
+        // DAN OLT bukan milik privat partner (owner_user_id null). OLT privat partner
+        // hanya memberi tahu bot partner pemiliknya (di bawah).
         $global = TelegramSetting::instance();
-        if ($olt->alarms_enabled && $global->isReady()) {
+        if ($olt->owner_user_id === null && $olt->alarms_enabled && $global->isReady()) {
             $configs[] = $global;
         }
 

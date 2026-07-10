@@ -103,15 +103,24 @@ class UserController extends Controller
      * Assignment OLT relevan untuk partner & operator; role lain di-kosongkan.
      * (Operator tanpa assignment = akses penuh; lihat {@see User::isOltScoped()}.)
      *
+     * PENTING: OLT PRIVAT milik user (`snmp_olts.owner_user_id`) tak terlihat admin
+     * (di-scope keluar) sehingga tak ikut di form. Baris pivot-nya WAJIB dipertahankan
+     * agar sync di sini tak melepas kepemilikan partner atas OLT-nya sendiri.
+     *
      * @param  array<string, mixed>  $data
      */
     private function syncPartnerOlts(User $user, array $data): void
     {
-        $oltIds = in_array($user->role, [UserRole::Partner, UserRole::Operator], true)
+        $assigned = in_array($user->role, [UserRole::Partner, UserRole::Operator], true)
             ? ($data['olt_ids'] ?? [])
             : [];
 
-        $user->partnerOlts()->sync($oltIds);
+        $ownedIds = SnmpOlt::withoutGlobalScopes()
+            ->where('owner_user_id', $user->id)
+            ->pluck('id')
+            ->all();
+
+        $user->partnerOlts()->sync(array_values(array_unique([...$assigned, ...$ownedIds])));
     }
 
     public function destroy(Request $request, User $user): RedirectResponse
@@ -123,6 +132,12 @@ class UserController extends Controller
         if ($user->isAdmin() && $this->isLastAdmin($user)) {
             return back()->with('error', 'Tidak dapat menghapus admin terakhir.');
         }
+
+        // OLT privat milik user yang dihapus dikembalikan ke pool global (owner_user_id
+        // null) agar tak jadi yatim/tak terlihat siapa pun. Pivot olt_user cascade otomatis.
+        SnmpOlt::withoutGlobalScopes()
+            ->where('owner_user_id', $user->id)
+            ->update(['owner_user_id' => null]);
 
         $user->delete();
 

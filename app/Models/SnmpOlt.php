@@ -7,6 +7,7 @@ use App\Models\Scopes\DemoScope;
 use App\Models\Scopes\PartnerOltScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -75,6 +76,22 @@ class SnmpOlt extends Model
         return $this->belongsToMany(User::class, 'olt_user')->withTimestamps();
     }
 
+    /**
+     * Partner pemilik OLT privat ini (NULL = OLT global admin/operator).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_user_id');
+    }
+
+    /** OLT ini privat milik seorang partner (bukan global). */
+    public function isPrivatelyOwned(): bool
+    {
+        return $this->owner_user_id !== null;
+    }
+
     protected $hidden = [
         'snmp_read_community',
         'snmp_write_community',
@@ -84,6 +101,7 @@ class SnmpOlt extends Model
     protected function casts(): array
     {
         return [
+            'owner_user_id' => 'integer',
             'snmp_port' => 'integer',
             'cli_port' => 'integer',
             'snmp_read_community' => 'encrypted',

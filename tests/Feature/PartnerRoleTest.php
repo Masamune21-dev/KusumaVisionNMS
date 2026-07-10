@@ -12,9 +12,11 @@ use Mockery;
 use Tests\TestCase;
 
 /**
- * Role "partner": hanya melihat & mengedit OLT yang di-assign admin, hanya menerima
- * alarm dari OLT itu, dan tak boleh menambah/menghapus device OLT. Ditegakkan lewat
- * {@see PartnerOltScope} + gate inventori.
+ * Role "partner": mengelola OLT yang di-assign admin (global) DAN OLT PRIVAT yang
+ * ia tambah sendiri (`owner_user_id` = id-nya). OLT privat tersembunyi total dari
+ * admin/operator. Partner boleh menambah OLT (jadi privat miliknya) & menghapus OLT
+ * miliknya, tapi TIDAK boleh menghapus OLT global yang sekadar di-assign. Ditegakkan
+ * lewat {@see PartnerOltScope} + gate inventori/kepemilikan.
  */
 class PartnerRoleTest extends TestCase
 {
@@ -90,21 +92,70 @@ class PartnerRoleTest extends TestCase
         $this->actingAs($partner)->get(route('smartolt.edit', $other))->assertNotFound();
     }
 
-    public function test_partner_cannot_create_olt(): void
+    public function test_partner_can_create_own_private_olt(): void
     {
         [$partner] = $this->partnerWithOneOfTwoOlts();
 
-        $this->actingAs($partner)->get(route('smartolt.create'))->assertForbidden();
+        $this->actingAs($partner)->get(route('smartolt.create'))->assertOk();
         $this->actingAs($partner)->post(route('smartolt.store'), [
-            'name' => 'Baru', 'vendor' => 'ZTE C320', 'ip' => '10.9.9.9',
+            'name' => 'OLT-MILIK-PARTNER', 'vendor' => 'ZTE C320', 'ip' => '10.9.9.9',
             'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
-        ])->assertForbidden();
+        ])->assertRedirect();
+
+        $created = SnmpOlt::withoutGlobalScopes()->where('name', 'OLT-MILIK-PARTNER')->firstOrFail();
+
+        // OLT jadi privat milik partner + baris pivot dibuat otomatis.
+        $this->assertSame($partner->id, $created->owner_user_id);
+        $this->assertDatabaseHas('olt_user', ['user_id' => $partner->id, 'snmp_olt_id' => $created->id]);
     }
 
-    public function test_partner_cannot_delete_assigned_olt(): void
+    public function test_partner_private_olt_is_hidden_from_admin_and_operator(): void
+    {
+        [$partner] = $this->partnerWithOneOfTwoOlts();
+
+        $this->actingAs($partner)->post(route('smartolt.store'), [
+            'name' => 'OLT-PRIVAT', 'vendor' => 'ZTE C320', 'ip' => '10.9.9.10',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+        ])->assertRedirect();
+
+        $private = SnmpOlt::withoutGlobalScopes()->where('name', 'OLT-PRIVAT')->firstOrFail();
+
+        // Admin (tak ter-scope) TIDAK melihat OLT privat partner.
+        $admin = User::factory()->admin()->create();
+        $this->actingAs($admin);
+        $this->assertNotContains($private->id, SnmpOlt::query()->pluck('id')->all());
+        $this->actingAs($admin)->get(route('smartolt.edit', $private))->assertNotFound();
+
+        // Operator tanpa assignment (akses "penuh") pun tak melihatnya.
+        $operator = User::factory()->create();
+        $this->actingAs($operator);
+        $this->assertNotContains($private->id, SnmpOlt::query()->pluck('id')->all());
+
+        // Partner pemilik tetap melihatnya.
+        $this->actingAs($partner);
+        $this->assertContains($private->id, SnmpOlt::query()->pluck('id')->all());
+    }
+
+    public function test_partner_can_delete_own_olt(): void
+    {
+        [$partner] = $this->partnerWithOneOfTwoOlts();
+
+        $this->actingAs($partner)->post(route('smartolt.store'), [
+            'name' => 'OLT-HAPUS', 'vendor' => 'ZTE C320', 'ip' => '10.9.9.11',
+            'snmp_port' => 161, 'snmp_read_community' => 'public', 'snmp_version' => 'v2c',
+        ])->assertRedirect();
+
+        $own = SnmpOlt::withoutGlobalScopes()->where('name', 'OLT-HAPUS')->firstOrFail();
+
+        $this->actingAs($partner)->delete(route('smartolt.destroy', $own))->assertRedirect();
+        $this->assertDatabaseMissing('snmp_olts', ['id' => $own->id]);
+    }
+
+    public function test_partner_cannot_delete_assigned_global_olt(): void
     {
         [$partner, $assigned] = $this->partnerWithOneOfTwoOlts();
 
+        // OLT global yang sekadar di-assign (owner_user_id null) tak boleh dihapus partner.
         $this->actingAs($partner)->delete(route('smartolt.destroy', $assigned))->assertForbidden();
 
         $this->assertDatabaseHas('snmp_olts', ['id' => $assigned->id]);

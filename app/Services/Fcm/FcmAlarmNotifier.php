@@ -217,7 +217,9 @@ class FcmAlarmNotifier
 
         // Admin & operator mengikuti saklar alarm OLT (`snmp_olts.alarms_enabled`) — operator
         // "ngikut administrator". Saat off, admin+operator tak menerima push untuk OLT ini.
-        if ($olt->alarms_enabled) {
+        // OLT PRIVAT milik partner (`owner_user_id`) tak pernah memberi tahu admin/operator —
+        // hanya partner pemiliknya (ditangani blok partner di bawah).
+        if ($olt->owner_user_id === null && $olt->alarms_enabled) {
             $ids = User::query()
                 ->where(function ($q) use ($olt) {
                     // Admin: semua OLT.
