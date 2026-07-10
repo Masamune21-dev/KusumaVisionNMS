@@ -18,7 +18,6 @@ import {
     MapPin,
     Menu,
     MonitorPlay,
-    Phone,
     Play,
     Radar,
     RadioTower,
@@ -28,6 +27,7 @@ import {
     Send,
     Server,
     ShieldCheck,
+    Smartphone,
     Sparkles,
     Terminal,
     Wifi,
@@ -165,17 +165,19 @@ const navLinks = [
 const heroPills = [
     { icon: Cable, label: 'ZTE C300/C320/C600' },
     { icon: Router, label: 'C-Data EPON/GPON' },
-    { icon: RadioTower, label: 'SNMP Polling' },
-    { icon: BellRing, label: 'Alarm Engine' },
+    { icon: RadioTower, label: 'HiOSO / V-Sol EPON' },
     { icon: Wifi, label: 'ONU Provisioning' },
+    { icon: MapPin, label: 'Peta ONU' },
     { icon: Terminal, label: 'Web Telnet' },
+    { icon: BellRing, label: 'Alarm Engine' },
+    { icon: Smartphone, label: 'Aplikasi Android' },
 ];
 
 const stats = [
-    { value: 3, suffix: '', label: 'Seri OLT ZTE', sub: 'C300 · C320 · C600', icon: Cable, circle: 'kv-circle-sky' },
-    { value: 12, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning', icon: Boxes, circle: 'kv-circle-cyan' },
-    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm & Telegram realtime', icon: Activity, circle: 'kv-circle-emerald' },
-    { value: 100, suffix: '%', label: 'Berbasis Web', sub: 'Tanpa install aplikasi', icon: MonitorPlay, circle: 'kv-circle-purple' },
+    { value: 3, suffix: '', label: 'Vendor OLT Didukung', sub: 'ZTE · C-Data · HiOSO', icon: Router, circle: 'kv-circle-sky' },
+    { value: 14, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning', icon: Boxes, circle: 'kv-circle-cyan' },
+    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm · Telegram · Push FCM', icon: Activity, circle: 'kv-circle-emerald' },
+    { value: 100, suffix: '%', label: 'Web + Aplikasi Android', sub: 'Dashboard web & app mobile', icon: MonitorPlay, circle: 'kv-circle-purple' },
 ];
 const displayStats = ref(stats.map((s) => ({ ...s, current: 0 })));
 
@@ -211,8 +213,22 @@ const features = [
         icon: Router,
         accent: 'kv-circle-cyan',
         badge: 'Baru',
-        title: 'OLT C-Data EPON/GPON',
-        body: 'Dukungan multi-vendor: kelola OLT C-Data EPON & GPON berdampingan dengan ZTE — monitoring ONU lintas-OLT, plus rename & reboot ONU langsung dari dashboard.',
+        title: 'Multi-Vendor OLT',
+        body: 'Kelola OLT ZTE, C-Data (EPON & GPON), dan HiOSO / V-Sol EPON berdampingan dalam satu dashboard — monitoring ONU lintas-OLT, plus rename, reboot & delete ONU langsung dari dashboard.',
+    },
+    {
+        icon: MapPin,
+        accent: 'kv-circle-emerald',
+        badge: 'Baru',
+        title: 'Peta ONU',
+        body: 'Petakan sebaran pelanggan/ONU lintas OLT di peta interaktif — tambah pin dari klik peta atau link Google Maps, lengkap dengan reboot & rename ONU langsung dari titik pelanggan.',
+    },
+    {
+        icon: Smartphone,
+        accent: 'kv-circle-purple',
+        badge: 'Baru',
+        title: 'Aplikasi Android',
+        body: 'Aplikasi mobile Android untuk pantau OLT & ONU, registrasi, reboot/rename, sampai push notification alarm real-time via Firebase — NOC tetap terhubung dari mana saja.',
     },
     {
         icon: Database,
@@ -230,7 +246,7 @@ const features = [
         icon: Workflow,
         accent: 'kv-circle-purple',
         title: 'Provisioning ONU',
-        body: 'Generate CLI script provisioning ZTE (register, T-CONT, VLAN, PPPoE/DHCP/Static, TR-069) lalu eksekusi via Telnet.',
+        body: 'Generate CLI script provisioning ZTE (register, T-CONT, VLAN, PPPoE/DHCP/Static/Bridge, TR-069) lalu eksekusi via Telnet — plus TR-069 massal per-port & salin konfigurasi ONU antar port.',
     },
     {
         icon: Gauge,
@@ -271,8 +287,8 @@ const features = [
     {
         icon: Send,
         accent: 'kv-circle-cyan',
-        title: 'Notifikasi Telegram',
-        body: 'Alarm penting dikirim ke grup/chat Telegram, plus bot interaktif (menu tombol): cek status OLT & ONU, cari pelanggan, sampai refresh OLT C-Data dari mana saja.',
+        title: 'Notifikasi Telegram & Push',
+        body: 'Alarm penting dikirim ke grup/chat Telegram & push notification ke aplikasi Android, plus bot interaktif (menu tombol): cek status OLT & ONU, cari pelanggan, sampai refresh OLT dari mana saja.',
     },
     {
         icon: ScrollText,
@@ -283,8 +299,8 @@ const features = [
     {
         icon: ShieldCheck,
         accent: 'kv-circle-amber',
-        title: 'Role-based Access',
-        body: 'Pemisahan hak akses admin dan operator NOC — fitur sensitif seperti audit log & pengaturan sistem hanya untuk admin.',
+        title: 'Role-based & Multi-Tenant',
+        body: 'Pemisahan hak akses admin, operator NOC, dan partner — partner hanya melihat & mengelola OLT privat miliknya; fitur sensitif seperti audit log & pengaturan sistem tetap khusus admin.',
     },
 ];
 
@@ -298,14 +314,19 @@ const benefits = [
 
 // Kapabilitas untuk marquee berjalan (infinite scroll antar-section)
 const marqueeItems = [
-    'OLT C-Data EPON/GPON',
     'Multi-Vendor OLT',
+    'C-Data EPON/GPON',
+    'HiOSO / V-Sol EPON',
     'GPON Monitoring',
     'SNMP Polling',
     'ONU Provisioning',
+    'TR-069 Massal',
     'Alarm Engine',
     'Web Telnet',
     'RX Optical Power',
+    'Peta ONU',
+    'Aplikasi Android',
+    'Push Notification',
     'Remote ONU',
     'Telegram Alerts',
     'Audit Logs',
@@ -318,20 +339,24 @@ const techStack = [
     { name: 'Laravel 12', sub: 'PHP Framework', logo: '/img/tech/laravel.svg', glow: 'rgba(239, 68, 68, 0.25)' },
     { name: 'Vue 3', sub: 'Frontend SPA', logo: '/img/tech/vue.svg', glow: 'rgba(16, 185, 129, 0.25)' },
     { name: 'Inertia.js', sub: 'SPA Bridge', logo: '/img/tech/inertia.svg', glow: 'rgba(168, 85, 247, 0.25)' },
+    { name: 'Tailwind CSS', sub: 'UI Styling', logo: '/img/tech/tailwind.svg', glow: 'rgba(56, 189, 248, 0.25)' },
     { name: 'PostgreSQL', sub: 'Database', logo: '/img/tech/postgresql.svg', glow: 'rgba(110, 168, 249, 0.25)' },
     { name: 'Redis', sub: 'Cache & Queue', logo: '/img/tech/redis.svg', glow: 'rgba(239, 68, 68, 0.25)' },
     { name: 'Golang', sub: 'Polling Engine', logo: '/img/tech/go.svg', glow: 'rgba(34, 211, 238, 0.25)' },
+    { name: 'Flutter', sub: 'Aplikasi Android', logo: '/img/tech/flutter.svg', glow: 'rgba(71, 197, 251, 0.25)' },
 ];
 
 const modules = [
     { icon: LayoutDashboard, title: 'Dashboard', sub: 'Tampilan ringkas seluruh jaringan FTTH' },
     { icon: Server, title: 'OLT Inventory', sub: 'Detail perangkat & kartu line card' },
-    { icon: Router, title: 'OLT C-Data', sub: 'Monitoring EPON/GPON non-ZTE' },
+    { icon: Router, title: 'OLT C-Data & HiOSO', sub: 'Monitoring EPON/GPON non-ZTE' },
     { icon: BellRing, title: 'Alarm Center', sub: 'Pusat notifikasi & histori alarm' },
     { icon: Workflow, title: 'Provisioning', sub: 'Wizard registrasi ONU otomatis' },
     { icon: Radar, title: 'ONU Monitoring', sub: 'Pantau ONU lintas OLT & port' },
+    { icon: MapPin, title: 'Peta ONU', sub: 'Sebaran pelanggan di peta interaktif' },
     { icon: Terminal, title: 'Telnet Console', sub: 'CLI OLT langsung dari browser' },
     { icon: Database, title: 'Profiles', sub: 'Manajemen ONU type, T-CONT, VLAN' },
+    { icon: Smartphone, title: 'Aplikasi Android', sub: 'Pantau & kelola dari ponsel + push FCM' },
     { icon: FileBarChart, title: 'Reports', sub: 'Laporan statistik dan utilisasi' },
 ];
 
@@ -738,7 +763,7 @@ onBeforeUnmount(() => {
                             ZTE <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">OLT Management</span> &amp; Provisioning Platform
                         </h1>
                         <p class="reveal-hero mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg" style="animation-delay: 0.19s">
-                            Monitor, provisioning, dan manajemen OLT ZTE C300/C320/C600 secara terpusat. Dibangun untuk operasional ISP Indonesia yang menuntut kecepatan dan akurasi.
+                            Monitor, provisioning, dan manajemen OLT ZTE C300/C320/C600 — kini multi-vendor dengan C-Data & HiOSO — secara terpusat, lengkap dengan peta sebaran ONU dan aplikasi Android. Dibangun untuk operasional ISP Indonesia yang menuntut kecepatan dan akurasi.
                         </p>
 
                         <!-- Hero CTAs -->
@@ -888,9 +913,9 @@ onBeforeUnmount(() => {
                         <div class="grid items-center gap-8 p-6 md:grid-cols-[1fr_auto] md:gap-12 md:p-10">
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Multi-Vendor Hardware</p>
-                                <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">ZTE C-series + C-Data EPON/GPON</h2>
+                                <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">ZTE C-series + C-Data + HiOSO</h2>
                                 <p class="mt-3 max-w-xl text-sm text-slate-400">
-                                    Driver SNMP & CLI matang untuk ZTE C300, C320, dan C600 — kini diperluas ke OLT C-Data EPON (17409) & GPON (34592). Battle-tested di OLT produksi ISP Indonesia.
+                                    Driver SNMP & CLI matang untuk ZTE C300, C320, dan C600 — kini diperluas ke OLT C-Data EPON (17409) & GPON (34592) serta HiOSO / V-Sol EPON (25355). Battle-tested di OLT produksi ISP Indonesia.
                                 </p>
                                 <div class="mt-5 flex flex-wrap gap-2">
                                     <span class="kv-pill-info">ZTE C300</span>
@@ -898,6 +923,7 @@ onBeforeUnmount(() => {
                                     <span class="kv-pill-info">ZTE C600</span>
                                     <span class="kv-pill-info">C-Data EPON</span>
                                     <span class="kv-pill-info">C-Data GPON</span>
+                                    <span class="kv-pill-info">HiOSO / V-Sol</span>
                                 </div>
                             </div>
                             <img
@@ -1108,7 +1134,7 @@ onBeforeUnmount(() => {
                         <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dibangun dengan Teknologi Modern & Andal</h2>
                     </div>
 
-                    <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                    <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
                         <div
                             v-for="(t, i) in techStack"
                             :key="t.name"
@@ -1190,11 +1216,12 @@ onBeforeUnmount(() => {
                                 <ArrowRight class="h-4 w-4" />
                             </Link>
                             <a
-                                href="#kontak"
+                                href="https://t.me/+RMTs-9c028g0MDdl"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 class="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/60 px-6 py-3.5 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-white/25 hover:bg-slate-800/80"
-                                @click="scrollToHash($event, '#kontak')"
                             >
-                                <Phone class="h-4 w-4" />
+                                <Send class="h-4 w-4" />
                                 Hubungi Kami
                             </a>
                         </div>
@@ -1250,8 +1277,13 @@ onBeforeUnmount(() => {
                                 <a href="mailto:misbakhulmunir@kusumavision.net" class="hover:text-cyan-400">misbakhulmunir@kusumavision.net</a>
                             </li>
                             <li class="flex items-start gap-2">
-                                <Phone class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-400" />
-                                <span>+62 858-0303-0268</span>
+                                <Send class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-400" />
+                                <a
+                                    href="https://t.me/+RMTs-9c028g0MDdl"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="hover:text-cyan-400"
+                                >Grup Telegram · KusumaVisionNMS-Share</a>
                             </li>
                             <li class="flex items-start gap-2">
                                 <svg

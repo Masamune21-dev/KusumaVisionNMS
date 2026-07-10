@@ -2,6 +2,26 @@
 
 ## 2026-07-10
 
+### Welcome: refresh copy + tambah fitur baru + ganti kontak ke grup Telegram
+
+**Permintaan user:** update halaman Welcome dengan fitur-fitur baru bila ada + perbarui copy-nya; hapus nomor HP dan ganti dengan link grup Telegram `KusumaVisionNMS-Share` (`https://t.me/+RMTs-9c028g0MDdl`); tombol "Hubungi Kami" diarahkan ke grup Telegram.
+
+Changed (`resources/js/Pages/Welcome.vue`):
+- **Fitur baru diangkat** (sebelumnya belum tampil): kartu **Multi-Vendor OLT** (ZTE + C-Data + HiOSO/V-Sol, gantikan kartu "OLT C-Data"), **Peta ONU**, **Aplikasi Android** (push FCM Firebase) — ketiganya badge "Baru". Kartu Provisioning kini sebut TR-069 massal & salin-ONU antar port; kartu notifikasi jadi "Telegram & Push"; Role-based jadi "Role-based & Multi-Tenant" (partner OLT privat).
+- **Copy diperbarui**: paragraf hero sebut multi-vendor (C-Data & HiOSO) + peta ONU + app Android; hero pills, marquee, modul, dan hardware showcase ditambah HiOSO/V-Sol, Peta ONU, Aplikasi Android, Push Notification, TR-069 Massal. Stats band: "Seri OLT ZTE"→"Vendor OLT Didukung (ZTE·C-Data·HiOSO)", "Berbasis Web"→"Web + Aplikasi Android", modul 12+→14+.
+- **Kontak**: hapus nomor HP `+62 858-…` di footer, ganti item **Grup Telegram · KusumaVisionNMS-Share** (link `t.me/+RMTs-9c028g0MDdl`, ikon Send). Tombol **Hubungi Kami** (final CTA) kini buka grup Telegram di tab baru (bukan lagi anchor `#kontak`). Import `Phone` dihapus (tak terpakai), tambah `Smartphone`.
+
+Changed (`README.md` + gambar):
+- **Screenshot landing basi diregenerasi** — `public/img/welcome.webp` (sebelumnya Jun 1, desain landing lama) di-capture ulang via skill `snapshot` (`ONLY=welcome npm run snapshot`) → kini menampilkan Welcome hasil rombak (hero pills & copy multi-vendor baru).
+- **Galeri "Tampilan Aplikasi" diperluas** pakai screenshot fresh (Jul 10): tambah baris ONU Monitoring + Detail Port PON, Peta ONU + Alarm Center, ONU per Port + Report. Sub-judul disebut multi-vendor + peta + Android.
+- **Section baru "Komunitas & Dukungan"** dengan link **Grup Telegram — KusumaVisionNMS-Share** (`t.me/+RMTs-9c028g0MDdl`).
+
+Changed (Tech Stack — Welcome + README):
+- **Welcome techStack** dari 6 → 8 logo: tambah **Tailwind CSS** & **Flutter (Aplikasi Android)**; grid `lg:grid-cols-6` → `md/lg:grid-cols-4` (rapi 2×4). Logo baru `public/img/tech/tailwind.svg` + `flutter.svg` (gaya monokrom Simple Icons seperti set lama; terverifikasi render via Chromium).
+- **README tabel Stack Teknologi**: Frontend +Leaflet (peta ONU); baris baru **Aplikasi Mobile — Flutter 3 (Dart) + Riverpod/dio/go_router (Android, push FCM)**; Notifikasi +Firebase Cloud Messaging; baris REST API dikoreksi dari "read-only" → "baca + tulis, terautentikasi" (sesuai state API v1 sekarang).
+
+Notes: `npx vite build` sukses tanpa error (chunk `Welcome-*.js` ter-emit; warning ukuran chunk pra-ada). Screenshot: app live `https://127.0.0.1` (200), Playwright+cwebp tersedia. Tidak menyentuh backend/route. Deploy: cukup rebuild aset FE (`npm run build`) — tak perlu restart daemon.
+
 ### Security review nms.kusumavision.net: fix injeksi CLI + patch CVE dependency + hardening
 
 **Permintaan user:** minta di-pentest/di-tes keamanan web-nya sendiri ("andai kamu hacker, apa yang kamu lakukan"). Karena punya source, dilakukan audit kode attack-surface langsung, lalu kerjakan semua remediasi.

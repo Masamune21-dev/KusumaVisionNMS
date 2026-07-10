@@ -13,7 +13,7 @@ Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **a
 
 ## Tampilan Aplikasi
 
-> UI dark-glass bertema cyan/sky — landing, dashboard terpusat, manajemen OLT, dan provisioning ONU.
+> UI dark-glass bertema cyan/sky — landing, dashboard terpusat, manajemen OLT multi-vendor (ZTE / C-Data / HiOSO), provisioning ONU, peta sebaran pelanggan, dan aplikasi Android.
 
 ![Landing KusumaVision NMS](public/img/welcome.webp)
 
@@ -26,6 +26,18 @@ Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **a
 | Detail OLT (system info & status card) | Discovery ONU unconfigured |
 |---|---|
 | ![Detail OLT](public/img/detail.webp) | ![Discovery ONU unconfigured](public/img/unconfigured.webp) |
+
+| ONU Monitoring (lintas OLT) | Detail Port PON |
+|---|---|
+| ![ONU Monitoring lintas OLT](public/img/onumonitoring.webp) | ![Detail port PON](public/img/portdetail.webp) |
+
+| Peta ONU (sebaran pelanggan) | Alarm Center |
+|---|---|
+| ![Peta ONU](public/img/map.webp) | ![Alarm center](public/img/alarms.webp) |
+
+| ONU per Port PON | Report & Analytics |
+|---|---|
+| ![ONU per port PON](public/img/portonus.webp) | ![Report jaringan](public/img/reports.webp) |
 
 ---
 
@@ -74,15 +86,16 @@ Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **a
 | Lapisan | Teknologi |
 |---|---|
 | Backend | Laravel 12 (PHP 8.3), Inertia.js |
-| Frontend | Vue 3 + Inertia, TailwindCSS, ApexCharts, xterm.js (terminal) |
+| Frontend | Vue 3 + Inertia, TailwindCSS, ApexCharts, Leaflet (peta ONU), xterm.js (terminal) |
+| Aplikasi Mobile | Flutter 3 (Dart) + Riverpod, dio, go_router — Android (push FCM) |
 | Database | PostgreSQL |
 | Cache / Queue / Session | Redis |
 | Web Server | Nginx + PHP-FPM 8.3 |
 | Akses OLT | SNMP v1/v2c (read & write), CLI Telnet, telnet interaktif via browser (proxy WebSocket↔Telnet) |
 | SNMP Poller (opsional) | Go 1.18+ — binary `bin/kv-snmp-poller` |
-| Notifikasi | Telegram Bot API (notifikasi alarm + bot perintah read-only) |
+| Notifikasi | Telegram Bot API (notifikasi alarm + bot perintah read-only) + Firebase Cloud Messaging (push ke aplikasi Android) |
 | Export laporan | CSV, PDF (`barryvdh/laravel-dompdf`) |
-| REST API | JSON v1 read-only, Bearer token (personal access token), rate-limited — opsional |
+| REST API | JSON v1 (baca + tulis, terautentikasi), Bearer token (personal access token), rate-limited — opsional |
 | Deploy | `install.sh` (server Ubuntu) atau **Docker appliance** (Windows/Linux/macOS, all-in-one) |
 
 ---
@@ -553,6 +566,15 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 - [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md) — hardening produksi (nginx/UFW/SSH/PHP-FPM).
 - [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md) — penyiapan data & mode demo.
 - [`WORKLOG.md`](WORKLOG.md) — riwayat pekerjaan fase per fase.
+
+---
+
+## Komunitas & Dukungan
+
+Punya pertanyaan, laporan bug, atau ingin berdiskusi & berbagi seputar KusumaVision NMS?
+Gabung ke grup Telegram komunitas:
+
+> 💬 **[Grup Telegram — KusumaVisionNMS-Share](https://t.me/+RMTs-9c028g0MDdl)**
 
 ---
 
