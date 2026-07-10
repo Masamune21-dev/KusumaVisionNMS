@@ -4123,3 +4123,22 @@ Notes:
 - **Kenapa tetap pakai pivot `olt_user`:** OLT privat partner tetap dapat baris pivot supaya seluruh mesin scope/alarm/Telegram/FCM (yang sudah keyed ke pivot) jalan tanpa diubah. `owner_user_id` hanya menandai kepemilikan + menyembunyikan dari non-pemilik.
 - **Migrasi tanpa FK constraint** (SQLite test tak dukung ADD CONSTRAINT); integritas user-delete ditangani di `UserController::destroy`.
 - **Diverifikasi:** 49 test partner/operator/inventori/telegram lolos (termasuk test baru); full suite 316 lolos, 1 gagal PRE-EXISTING (`ApiV1WriteTest::test_refresh_port_non_zte`, dikonfirmasi via `git stash` — bukan dari perubahan ini). DB nyata sesudah migrate: admin tak lihat #564 (13→12 OLT), partner Alaik hanya lihat #564. `npm run build` sukses; `config:cache`+`route:cache` di-rebuild, `queue:restart` dikirim.
+
+### Refresh galeri Welcome: 11 tab screenshot baru + dedup gambar c320
+
+Created:
+
+- `public/img/portdetail.webp`, `portonus.webp`, `onumonitoring.webp`, `map.webp`, `alarms.webp`, `reports.webp` — screenshot halaman untuk tab galeri baru (Detail Port PON, ONU per Port, ONU Monitoring, Peta ONU, Alarms, Report).
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — galeri "Tampilan Aplikasi" diperluas 5 → **11 tab**; tab "Detail ONU" diganti "Detail OLT" (set screenshot baru tak berisi detail ONU); hero memakai dashboard baru; src file yang ditimpa diberi cache-bust `?v=20260711`; referensi `c320(1).webp` → `c320.webp`; +ikon `WifiOff`.
+- `public/img/dashboard.webp`, `dashboard1.webp`, `detail.webp`, `login.webp`, `oltinventory.webp`, `unconfigured.webp` — ditimpa screenshot full-page baru dengan **nama sama** supaya README ikut segar otomatis (`detail.webp` kini Detail OLT C300 dengan visualisasi chassis 9 card).
+- `public/img/c320(1).webp` — **dihapus**: terbukti duplikat byte-identik (md5 sama) dari `c320.webp`; satu-satunya referensi (Welcome) diarahkan ke `c320.webp`.
+
+Notes:
+
+- Sumber: 14 PNG full-page yang disiapkan user di `public/img/new/` (hasil layout fix sesi sebelumnya — sidebar utuh sampai bawah), dikonversi `cwebp -q 82` (1–1,7 MB → 26–186 KB), lalu folder sumber dihapus atas persetujuan user (16 MB, tersaji publik oleh nginx & tak perlu masuk git).
+- 3 file sengaja TIDAK dipakai: `settings` (halaman admin, kurang pas dipajang publik), `smartolt-1-detail` (redundan — versi C300 lebih impresif), `port-detail` uplink `gei_1/4/1` (redundan dengan port GPON).
+- Diverifikasi via Playwright: semua request `/img/*` 200; hero + galeri render benar termasuk klik tab Detail OLT/Peta ONU/Alarms; `npm run build` sukses.
+- Heads-up ke user (sudah disampaikan, user OK): screenshot menampilkan data asli — IP internal RFC1918 di Detail OLT, sebaran pin pelanggan level desa (tanpa nama) di peta — kini tampil publik di landing page.

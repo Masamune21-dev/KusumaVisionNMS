@@ -31,6 +31,7 @@ import {
     Sparkles,
     Terminal,
     Wifi,
+    WifiOff,
     Workflow,
 } from '@lucide/vue';
 import NumberFlow from '@number-flow/vue';
@@ -334,13 +335,15 @@ const modules = [
     { icon: FileBarChart, title: 'Reports', sub: 'Laporan statistik dan utilisasi' },
 ];
 
+// ?v= untuk cache-bust file yang ditimpa (nama sama, isi baru — Jul 2026).
+const SHOT_V = '?v=20260711';
 const screenshots = [
     {
         key: 'dashboard',
         icon: LayoutDashboard,
         label: 'Dashboard',
         desc: 'Ringkasan jaringan FTTH real-time',
-        src: '/img/dashboard1.webp',
+        src: `/img/dashboard1.webp${SHOT_V}`,
         ratio: '1920 / 1282',
         url: 'app.kusumavision.net/dashboard',
         alt: 'Dashboard KusumaVision NMS — ringkasan OLT, ONU, dan alarm',
@@ -350,37 +353,97 @@ const screenshots = [
         icon: Server,
         label: 'OLT Inventory',
         desc: 'Perangkat, line card & port GPON',
-        src: '/img/oltinventory.webp',
+        src: `/img/oltinventory.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt',
         alt: 'Inventaris OLT — daftar perangkat ZTE dan kapabilitasnya',
     },
     {
-        key: 'unconfigured',
+        key: 'oltdetail',
+        icon: Router,
+        label: 'Detail OLT',
+        desc: 'System info & visualisasi chassis live',
+        src: `/img/detail.webp${SHOT_V}`,
+        ratio: '1920 / 1699',
+        url: 'app.kusumavision.net/smartolt/2/detail',
+        alt: 'Detail OLT — system info dan visualisasi chassis per slot/port',
+    },
+    {
+        key: 'portdetail',
+        icon: Gauge,
+        label: 'Detail Port PON',
+        desc: 'Status, optik SFP & trafik port',
+        src: '/img/portdetail.webp',
+        ratio: '1920 / 1130',
+        url: 'app.kusumavision.net/smartolt/1/port-detail',
+        alt: 'Detail port PON — status link, optik SFP, dan trafik',
+    },
+    {
+        key: 'portonus',
+        icon: Wifi,
+        label: 'ONU per Port',
+        desc: 'Daftar ONU satu port PON',
+        src: '/img/portonus.webp',
+        ratio: '1920 / 911',
+        url: 'app.kusumavision.net/smartolt/1/ports/2/1/onus',
+        alt: 'Daftar ONU pada satu port PON beserta status dan aksinya',
+    },
+    {
+        key: 'monitoring',
         icon: Radar,
+        label: 'ONU Monitoring',
+        desc: 'Pantau ONU lintas OLT',
+        src: '/img/onumonitoring.webp',
+        ratio: '1920 / 911',
+        url: 'app.kusumavision.net/onu-monitoring',
+        alt: 'ONU Monitoring — pantauan ONU lintas OLT dalam satu tabel',
+    },
+    {
+        key: 'map',
+        icon: MapPin,
+        label: 'Peta ONU',
+        desc: 'Sebaran pelanggan di peta',
+        src: '/img/map.webp',
+        ratio: '1920 / 913',
+        url: 'app.kusumavision.net/map',
+        alt: 'Peta ONU — pin pelanggan tersebar di peta',
+    },
+    {
+        key: 'unconfigured',
+        icon: WifiOff,
         label: 'ONU Belum Terdaftar',
         desc: 'Temukan & provisioning ONU baru',
-        src: '/img/unconfigured.webp',
+        src: `/img/unconfigured.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/unconfigured',
         alt: 'Daftar ONU belum terkonfigurasi siap di-provisioning',
     },
     {
-        key: 'detail',
-        icon: Activity,
-        label: 'Detail ONU',
-        desc: 'Status, RX power & konfigurasi WAN',
-        src: '/img/detail.webp',
-        ratio: '1920 / 1112',
-        url: 'app.kusumavision.net/smartolt/onu',
-        alt: 'Halaman detail ONU — status optik, RX power, dan konfigurasi',
+        key: 'alarms',
+        icon: BellRing,
+        label: 'Alarms',
+        desc: 'Riwayat & status alarm jaringan',
+        src: '/img/alarms.webp',
+        ratio: '1920 / 911',
+        url: 'app.kusumavision.net/alarms',
+        alt: 'Halaman alarm — riwayat alarm jaringan dan statusnya',
+    },
+    {
+        key: 'reports',
+        icon: FileBarChart,
+        label: 'Report',
+        desc: 'Laporan polling & kesehatan jaringan',
+        src: '/img/reports.webp',
+        ratio: '1920 / 911',
+        url: 'app.kusumavision.net/reports',
+        alt: 'Halaman report — laporan polling dan kesehatan jaringan',
     },
     {
         key: 'login',
         icon: LogIn,
         label: 'Login',
         desc: 'Akses aman untuk operator NOC',
-        src: '/img/login.webp',
+        src: `/img/login.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/login',
         alt: 'Halaman login KusumaVision NMS',
@@ -738,7 +801,7 @@ onBeforeUnmount(() => {
                                     <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">app.kusumavision.net/dashboard</span>
                                 </div>
                                 <img
-                                    src="/img/dashboard1.webp"
+                                    src="/img/dashboard1.webp?v=20260711"
                                     alt="KusumaVision NMS Dashboard"
                                     class="block w-full"
                                     loading="eager"
@@ -838,7 +901,7 @@ onBeforeUnmount(() => {
                                 </div>
                             </div>
                             <img
-                                src="/img/c320(1).webp"
+                                src="/img/c320.webp"
                                 alt="ZTE OLT hardware"
                                 class="kv-float h-20 w-auto object-contain opacity-90 drop-shadow-[0_12px_30px_rgba(56,189,248,0.18)] md:h-24 lg:h-28"
                                 loading="lazy"
