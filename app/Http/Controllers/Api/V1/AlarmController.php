@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AlarmEvent;
+use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -34,7 +35,7 @@ class AlarmController extends Controller
         $perPage = min(max((int) $request->integer('per_page', 50), 1), 200);
 
         $page = AlarmEvent::query()
-            ->with('olt:id,name')
+            ->with('olt:id,name,vendor')
             ->orderByDesc('last_seen_at')
             // Kecualikan alarm PENDING (menunggu konfirmasi poll ke-2) — internal, tak untuk dikonsumsi.
             ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_CLEARED])
@@ -51,7 +52,7 @@ class AlarmController extends Controller
                 'olt_id' => $a->snmp_olt_id,
                 'olt_name' => $a->olt?->name,
                 'type' => $a->type,
-                'type_label' => AlarmEvent::TYPE_LABELS[$a->type] ?? $a->type,
+                'type_label' => AlarmEvent::typeLabel($a->type, SmartOltSupport::ponLabel($a->olt)),
                 'severity' => $a->severity,
                 'status' => $a->status,
                 'scope' => $a->scope,
@@ -59,6 +60,10 @@ class AlarmController extends Controller
                 'port' => $a->port,
                 'onu_id' => $a->onu_id,
                 'serial_number' => $a->serial_number,
+                'customer_name' => SmartOltSupport::cleanCustomerName(
+                    data_get($a->meta, 'customer_name'),
+                    (string) $a->serial_number,
+                ),
                 'message' => $a->message,
                 'first_seen_at' => $a->first_seen_at?->toIso8601String(),
                 'last_seen_at' => $a->last_seen_at?->toIso8601String(),

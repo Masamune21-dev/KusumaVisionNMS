@@ -1,5 +1,28 @@
 # Worklog
 
+## 2026-07-10
+
+### Alarm/notif: nama pelanggan di semua kanal + fix label PON (EPON salah tertulis "GPON")
+
+**Keluhan user:** (1) minta alarm & notif alert semua OLT ikut mengirim nama pelanggan; (2) di HP ada notif salah — OLT **EPON** tapi notifnya "port **GPON** down". Cek semua kanal: web, Telegram, APK.
+
+**Diagnosis:** "GPON" di-hardcode di `AlarmEvaluator` (pesan port-down & recovery) dan di label `AlarmEvent::TYPE_PORT_DOWN` = 'Port GPON down' — label ini dipakai judul push FCM, `type_label` API, dan opsi filter Settings. Jadi OLT EPON (C-Data/HiOSO) selalu tertulis "GPON". Nama pelanggan sebenarnya sudah ada di `meta.customer_name` (dari `customerNameFromOnu`) tapi hanya ditampilkan Telegram + web; push FCM & list alarm mobile belum.
+
+Changed:
+- `app/Support/SmartOltSupport.php` — tambah `ponLabel(?SnmpOlt)` → 'GPON'/'EPON' dari `capabilities()['pon_label']` (C-Data EPON & HiOSO → EPON), memakai `driverKey()` yang sama dengan jalur polling. Sumber tunggal label teknologi PON untuk teks alarm.
+- `app/Models/AlarmEvent.php` — label generik `TYPE_PORT_DOWN` dinetralkan 'Port GPON down' → 'Port PON down'; tambah `typeLabel($type, $ponLabel='GPON')` yang menyadari family (port-down → "Port {GPON|EPON} down").
+- `app/Services/AlarmEvaluator.php` — set `$this->ponLabel = SmartOltSupport::ponLabel($olt)` di awal `evaluate()`; pesan port-down (`portAlarm`) & recovery (`buildRecovery`) tak lagi hardcode "GPON port".
+- `app/Services/Fcm/FcmAlarmNotifier.php` — judul push pakai `AlarmEvent::typeLabel()` family-aware; body & data payload push kini menyertakan `👤 nama pelanggan` (dari `meta.customer_name`, dibersihkan `cleanCustomerName`).
+- `app/Http/Controllers/Api/V1/AlarmController.php` — eager-load `olt:...,vendor`; `type_label` family-aware; tambah field `customer_name` ke tiap item list alarm.
+- `mobile/lib/models/alarm.dart` — model `Alarm` tambah `customerName` (parse `customer_name`).
+- `mobile/lib/features/alarms/alarm_list_screen.dart` — kartu alarm menampilkan baris nama pelanggan (ikon user) bila ada.
+- `mobile/pubspec.yaml` — bump `1.1.6+10` → `1.1.7+11` (wajib tiap rilis APK).
+
+Notes:
+- Perbaikan label berlaku ke SEMUA kanal: web (`alarm.message`), Telegram (body), push FCM (title+body), API (`type_label`). Push FCM latar belakang otomatis benar karena title/body dikendalikan server — tak perlu ubah kode Dart untuk isi push; perubahan Dart hanya untuk menampilkan nama pelanggan di list alarm dalam app.
+- Verifikasi: `AlarmEngineTest` 16 passed; suite Api/FCM/Telegram/Support 84 passed. 1 gagal `refresh_port_non_zte` = **PRE-EXISTING** (terbukti gagal identik via `git stash`, di luar area ini). Pint bersih; `flutter analyze` file berubah: no issues.
+- Deploy: kode job/service berubah → prod perlu `php artisan config:cache` (sudah) + `php artisan queue:restart` (worker `kusumavision-worker`). APK perlu rebuild `bash bin/build-apk.sh` untuk membawa perubahan mobile.
+
 ## 2026-07-09
 
 ### Fix: Docker halaman blank putih — nginx baru buang port dari HTTP_HOST → URL aset salah port

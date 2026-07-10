@@ -14,6 +14,7 @@ class Alarm {
     required this.port,
     required this.onuId,
     required this.serialNumber,
+    required this.customerName,
     required this.message,
     required this.firstSeenAt,
     required this.lastSeenAt,
@@ -26,7 +27,7 @@ class Alarm {
   final String type, typeLabel, severity, status;
   final String? scope;
   final int? slot, port, onuId;
-  final String? serialNumber, message, firstSeenAt, lastSeenAt, clearedAt;
+  final String? serialNumber, customerName, message, firstSeenAt, lastSeenAt, clearedAt;
 
   bool get active => status == 'active';
 
@@ -43,6 +44,7 @@ class Alarm {
         port: J.asIntN(j['port']),
         onuId: J.asIntN(j['onu_id']),
         serialNumber: J.asStrN(j['serial_number']),
+        customerName: J.asStrN(j['customer_name']),
         message: J.asStrN(j['message']),
         firstSeenAt: J.asStrN(j['first_seen_at']),
         lastSeenAt: J.asStrN(j['last_seen_at']),

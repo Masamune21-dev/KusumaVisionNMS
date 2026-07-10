@@ -131,6 +131,18 @@ class SmartOltSupport
         return str_contains($haystack, 'c600');
     }
 
+    /**
+     * Label teknologi PON milik OLT untuk teks alarm/notifikasi: 'GPON' atau 'EPON'
+     * (C-Data EPON & HiOSO EPON → 'EPON'; ZTE & C-Data GPON → 'GPON'). Default 'GPON'.
+     * Memakai pemilih family yang sama dengan jalur polling ({@see self::driverKey()}).
+     */
+    public static function ponLabel(?SnmpOlt $olt): string
+    {
+        $driver = self::driverKey($olt);
+
+        return (string) (self::capabilities($driver, $olt)['pon_label'] ?? 'GPON');
+    }
+
     public static function onuInterfaceId(int $slot, int $port, int $onuId, bool $isC600 = false): string
     {
         return $isC600

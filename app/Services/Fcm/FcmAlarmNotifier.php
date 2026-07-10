@@ -10,6 +10,7 @@ use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Services\AlarmEvaluator;
 use App\Services\Telegram\TelegramNotifier;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Factory;
@@ -246,7 +247,8 @@ class FcmAlarmNotifier
 
     private function buildMessage(SnmpOlt $olt, AlarmEvent $alarm, string $event): CloudMessage
     {
-        $typeLabel = AlarmEvent::TYPE_LABELS[$alarm->type] ?? $alarm->type;
+        // Label jenis menyadari teknologi PON OLT (EPON tak tertulis "GPON") untuk judul notifikasi.
+        $typeLabel = AlarmEvent::typeLabel($alarm->type, SmartOltSupport::ponLabel($olt));
         $emoji = $event === 'cleared' ? '✅' : $this->severityEmoji($alarm->severity);
 
         $title = $event === 'cleared'
@@ -254,6 +256,16 @@ class FcmAlarmNotifier
             : "$emoji ".strtoupper($alarm->severity)." · $typeLabel";
 
         $body = trim(($alarm->message ?? $typeLabel).' — '.$olt->name);
+
+        // Sertakan nama pelanggan (dari meta alarm) di body & payload agar teknisi tahu ONU siapa.
+        $customer = SmartOltSupport::cleanCustomerName(
+            data_get($alarm->meta, 'customer_name'),
+            (string) $alarm->serial_number,
+        );
+
+        if ($customer !== null) {
+            $body .= "\n👤 ".$customer;
+        }
 
         // Semua nilai data payload wajib string.
         $data = array_map(
@@ -268,6 +280,7 @@ class FcmAlarmNotifier
                 'port' => $alarm->port,
                 'onu_id' => $alarm->onu_id,
                 'serial_number' => $alarm->serial_number,
+                'customer_name' => $customer,
             ],
         );
 

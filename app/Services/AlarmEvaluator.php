@@ -21,6 +21,12 @@ class AlarmEvaluator
 
     private const RX_CLEAR_HIGH_DBM = -10.0;
 
+    /**
+     * Label teknologi PON OLT yang sedang dievaluasi ('GPON'/'EPON'), diset di awal {@see self::evaluate()}
+     * agar pesan port-down/recovery memakai istilah yang benar per family (EPON tak tertulis "GPON").
+     */
+    private string $ponLabel = 'GPON';
+
     public function __construct(private ?TelegramNotifier $telegram = null) {}
 
     /**
@@ -45,6 +51,7 @@ class AlarmEvaluator
         // Evaluasi SELALU jalan (event tetap tercatat). Saklar alarm per-OLT/per-partner
         // hanya menentukan SIAPA yang menerima notifikasi — di-gerbang di TelegramNotifier
         // & FcmAlarmNotifier (bukan di sini).
+        $this->ponLabel = SmartOltSupport::ponLabel($olt);
         $snapshot = $olt->last_test_result ?? [];
         // Episode terbuka = alarm ACTIVE (sudah dikirim) + PENDING (menunggu konfirmasi poll ke-2).
         // Deteksi transisi memakai keduanya agar fault yang sedang pending terus "terdeteksi" di poll
@@ -129,7 +136,7 @@ class AlarmEvaluator
             $port = $current['ports']["{$alarm->slot}/{$alarm->port}"] ?? null;
             $name = $port['name'] ?? "{$alarm->slot}/{$alarm->port}";
 
-            return ['message' => "GPON port {$name} kembali up.", 'online' => true];
+            return ['message' => "{$this->ponLabel} port {$name} kembali up.", 'online' => true];
         }
 
         $key = $alarm->serial_number ?: sprintf('%d/%d:%d', $alarm->slot ?? 0, $alarm->port ?? 0, $alarm->onu_id ?? 0);
@@ -211,7 +218,7 @@ class AlarmEvaluator
             'scope' => 'port',
             'slot' => $slot,
             'port' => $portNo,
-            'message' => "GPON port {$port['name']} oper status down.",
+            'message' => "{$this->ponLabel} port {$port['name']} oper status down.",
         ]];
     }
 

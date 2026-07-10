@@ -172,6 +172,24 @@ class _AlarmCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(alarm.message ?? '-',
                     style: t.bodySmall?.copyWith(color: AppColors.muted, height: 1.35)),
+                if (alarm.customerName != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.user, size: 12, color: AppColors.primary),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          alarm.customerName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.bodySmall?.copyWith(
+                              color: AppColors.text, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 6),
                 Row(
                   children: [

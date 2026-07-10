@@ -46,7 +46,7 @@ class AlarmEvent extends Model
      */
     public const TYPE_LABELS = [
         self::TYPE_OLT_UNREACHABLE => 'OLT tidak terhubung',
-        self::TYPE_PORT_DOWN => 'Port GPON down',
+        self::TYPE_PORT_DOWN => 'Port PON down',
         self::TYPE_LOS => 'Loss of Signal (LOS)',
         self::TYPE_DYING_GASP => 'Dying Gasp',
         self::TYPE_ONU_OFFLINE => 'ONU offline',
@@ -59,6 +59,20 @@ class AlarmEvent extends Model
     public static function types(): array
     {
         return array_keys(self::TYPE_LABELS);
+    }
+
+    /**
+     * Label jenis alarm yang menyadari teknologi PON OLT: untuk port-down memakai label PON aktual
+     * (GPON/EPON) alih-alih 'PON' generik di {@see self::TYPE_LABELS}. Dipakai judul push FCM & API
+     * agar OLT EPON tak salah tertulis "GPON". Jenis lain tak bergantung teknologi PON.
+     */
+    public static function typeLabel(string $type, string $ponLabel = 'GPON'): string
+    {
+        if ($type === self::TYPE_PORT_DOWN) {
+            return "Port {$ponLabel} down";
+        }
+
+        return self::TYPE_LABELS[$type] ?? $type;
     }
 
     protected $fillable = [
