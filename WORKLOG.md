@@ -4078,3 +4078,19 @@ Notes:
 - **Audit keamanan — sudah baik:** token di Keystore, tak ada `http://` cleartext, tak ada secret hardcoded (`google-services.json`/`key.properties` gitignored), 401 membersihkan sesi, permission minimal (INTERNET + POST_NOTIFICATIONS), tak ada logging sensitif.
 - **Build & verifikasi:** `bash bin/build-apk.sh` sukses → `public/downloads/kusumavision-nms.apk` (arm64, 19.9MB) + `kusumavision-nms-arm32.apk` (17.4MB, fallback). apksigner: **verified (v2 scheme, Android Debug key** — sama seperti sideload sebelumnya). `versionCode=2010` (arm64; `--split-per-abi` beri offset ABI 2000+10) & `1010` (arm32) — keduanya > 9 lama, update mulus. Hanya ABI arm (tanpa x86_64) di tiap APK. `flutter analyze` → No issues.
 - **Belum dikerjakan (opsional):** R8 `minifyEnabled`/`shrinkResources` — dipisah karena perlu 1× uji build Firebase (refleksi).
+
+## 2026-07-10
+
+### Layout shell scroll-dokumen: screenshot full-page utuh + panel SISTEM desktop-only
+
+Changed:
+
+- `resources/js/Layouts/AuthenticatedLayout.vue` — rombak shell: scroll pindah ke **level dokumen** (root `min-h-screen`, container `overflow-y-auto`/`scroll-region` dihapus); sidebar desktop tak lagi `position: fixed` melainkan ikut alur halaman setinggi konten — blok logo+nav sticky-top (dibungkus wrapper `flex-1` pembatas jangkauan + clamp `lg:max-h-[calc(100vh-19rem)]` supaya tak pernah menabrak panel di viewport pendek), blok akun+`SystemInfoPanel` sticky-bottom dengan posisi natural di dasar sidebar; header desktop & top bar mobile jadi sticky; footer ikut alur di dasar halaman (sengaja TIDAK sticky). `SystemInfoPanel` kini `v-if="isDesktop"` — di HP tak di-mount (drawer lebih lega, timer jam/detik + polling health 20 dtk tidak jalan sia-sia).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — offset panel Live Raw CLI `xl:top-6` → `xl:top-24` (header kini sticky 72px, panel jangan nyelip di bawahnya).
+- `docs/handbook/15-ui-tema-dashboard.md` — sinkron anatomi shell (§4): scroll dokumen, aturan jangan menambah elemen `fixed`/sticky-bottom di kolom konten.
+
+Notes:
+
+- **Akar masalah** screenshot full-page "sobek": sidebar `fixed` + scroll di container dalam membuat tool capture men-stitch per segmen — panel SISTEM tertinggal di posisi viewport, area sidebar bawah bolong hitam, baris detail Disk ("39.3 GB / 98.1 GB") nyasar ke dasar gambar.
+- **Trade-off dipilih user** (perilaku "build pertama"): panel SISTEM tetap sticky-bottom (selalu terlihat saat scroll); konsekuensinya di capture full-page panel dirender di posisi bawah-layar (±3/4 tinggi gambar) dengan latar sidebar tetap menyatu — bukan di dasar mutlak halaman. Footer TIDAK dikembalikan sticky karena di kolom konten sticky-bottom menimpa kartu/tabel di tengah gambar capture.
+- **Diverifikasi live** via Playwright (Chromium `fullPage: true`) ke https://127.0.0.1 memakai user sementara (dibuat lalu dihapus): full-page utuh ✔, scroll tengah & mentok bawah tanpa tumpang-tindih nav/panel (clamp bekerja) ✔, drawer mobile tanpa panel ✔. `npm run build` sukses, langsung tersaji di prod.

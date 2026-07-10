@@ -106,9 +106,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex h-screen flex-col overflow-hidden bg-slate-950">
-        <!-- Mobile top bar (fixed, tidak ikut scroll) -->
-        <div class="z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
+    <!-- Scroll di level dokumen (bukan container dalam) supaya screenshot full-page
+         merekam seluruh halaman utuh; elemen yang "menempel" pakai sticky, bukan fixed. -->
+    <div class="flex min-h-screen flex-col bg-slate-950 lg:flex-row">
+        <!-- Mobile top bar (sticky, tetap terlihat saat scroll) -->
+        <div class="sticky top-0 z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -150,9 +152,10 @@ onUnmounted(() => {
             />
         </Transition>
 
-        <!-- Sidebar -->
+        <!-- Sidebar — mobile: drawer fixed; desktop: ikut alur halaman (tinggi penuh konten),
+             blok atas sticky, panel sistem di dasar — supaya utuh di screenshot full-page -->
         <aside
-            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:translate-x-0"
+            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:relative lg:flex-shrink-0 lg:translate-x-0"
             :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
                 sidebarCollapsed ? 'w-64 lg:w-20' : 'w-64',
@@ -160,101 +163,114 @@ onUnmounted(() => {
         >
             <SidebarConstellation v-if="showSidebarContent" />
 
-            <!-- Logo -->
-            <div class="relative z-10 flex h-[72px] items-center justify-between border-b border-white/10 bg-slate-950/20 px-5 backdrop-blur-sm">
-                <Link
-                    :href="route('dashboard')"
-                    class="flex items-center gap-3 overflow-hidden"
-                    @click="sidebarOpen = false"
+            <!-- Blok atas: logo + navigasi — sticky di desktop supaya tetap terlihat saat scroll.
+                 Wrapper flex-1 membatasi jangkauan sticky; max-h menyisakan ruang panel sistem
+                 (19rem) di bawah supaya keduanya tak pernah tumpang-tindih di viewport pendek. -->
+            <div class="relative z-10 min-h-0 flex-1">
+                <div
+                    class="flex h-full flex-col lg:sticky lg:top-0 lg:h-auto"
+                    :class="showSidebarContent ? 'lg:max-h-[calc(100vh-19rem)]' : 'lg:max-h-screen'"
                 >
-                    <div class="relative flex-shrink-0">
-                        <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                    <!-- Logo -->
+                    <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/20 px-5 backdrop-blur-sm">
+                        <Link
+                            :href="route('dashboard')"
+                            class="flex items-center gap-3 overflow-hidden"
+                            @click="sidebarOpen = false"
+                        >
+                            <div class="relative flex-shrink-0">
+                                <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                            </div>
+                            <div v-if="showSidebarContent" class="min-w-0">
+                                <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>
+                                <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
+                            </div>
+                        </Link>
+                        <!-- Desktop collapse toggle — always centered on right border -->
+                        <button
+                            type="button"
+                            class="absolute right-0 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-400 shadow-md shadow-black/40 transition-colors hover:border-cyan-500/40 hover:text-white lg:flex"
+                            :aria-label="sidebarCollapsed ? 'Buka sidebar' : 'Tutup sidebar'"
+                            @click="sidebarCollapsed = !sidebarCollapsed"
+                        >
+                            <ChevronLeft class="h-4 w-4 transition-transform" :class="{ 'rotate-180': sidebarCollapsed }" />
+                        </button>
                     </div>
-                    <div v-if="showSidebarContent" class="min-w-0">
-                        <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>
-                        <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
-                    </div>
-                </Link>
-                <!-- Desktop collapse toggle — always centered on right border -->
-                <button
-                    type="button"
-                    class="absolute right-0 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-400 shadow-md shadow-black/40 transition-colors hover:border-cyan-500/40 hover:text-white lg:flex"
-                    :aria-label="sidebarCollapsed ? 'Buka sidebar' : 'Tutup sidebar'"
-                    @click="sidebarCollapsed = !sidebarCollapsed"
-                >
-                    <ChevronLeft class="h-4 w-4 transition-transform" :class="{ 'rotate-180': sidebarCollapsed }" />
-                </button>
-            </div>
 
-            <!-- Navigation -->
-            <nav class="relative z-10 flex-1 overflow-y-auto px-3 py-5">
-                <div class="space-y-1">
-                    <Link
-                        v-for="link in navLinks"
-                        :key="link.name"
-                        :href="link.href"
-                        class="group relative flex items-center rounded-xl text-[14px] font-semibold transition-all"
-                        :class="[
-                            isActive(link)
-                                ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
-                                : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
-                            showSidebarContent ? 'gap-3.5 px-3 py-2.5' : 'mx-auto h-11 w-11 justify-center',
-                        ]"
-                        :title="!showSidebarContent ? link.name : null"
-                        @click="sidebarOpen = false"
-                    >
-                        <component :is="link.icon" class="h-5 w-5 flex-shrink-0" />
-                        <span v-if="showSidebarContent" class="truncate">{{ link.name }}</span>
-                    </Link>
-                </div>
-            </nav>
-
-            <!-- User account (mobile only — desktop uses header UserMenu) -->
-            <div v-if="showSidebarContent" class="relative z-10 border-t border-white/10 px-3 py-3 lg:hidden">
-                <div class="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
-                    <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-white shadow-inner shadow-white/10">
-                        {{ userInitial }}
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold text-white">{{ user.name }}</p>
-                        <p class="truncate text-[11px] text-slate-500">{{ user.email }}</p>
-                    </div>
-                </div>
-                <div class="mt-2 grid grid-cols-2 gap-2">
-                    <Link
-                        :href="route('profile.edit')"
-                        class="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-                        @click="sidebarOpen = false"
-                    >
-                        <User class="h-4 w-4" />
-                        Profile
-                    </Link>
-                    <Link
-                        :href="route('logout')"
-                        method="post"
-                        as="button"
-                        class="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
-                    >
-                        <LogOut class="h-4 w-4" />
-                        Keluar
-                    </Link>
+                    <!-- Navigation -->
+                    <nav class="min-h-0 flex-1 overflow-y-auto px-3 py-5">
+                        <div class="space-y-1">
+                            <Link
+                                v-for="link in navLinks"
+                                :key="link.name"
+                                :href="link.href"
+                                class="group relative flex items-center rounded-xl text-[14px] font-semibold transition-all"
+                                :class="[
+                                    isActive(link)
+                                        ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
+                                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
+                                    showSidebarContent ? 'gap-3.5 px-3 py-2.5' : 'mx-auto h-11 w-11 justify-center',
+                                ]"
+                                :title="!showSidebarContent ? link.name : null"
+                                @click="sidebarOpen = false"
+                            >
+                                <component :is="link.icon" class="h-5 w-5 flex-shrink-0" />
+                                <span v-if="showSidebarContent" class="truncate">{{ link.name }}</span>
+                            </Link>
+                        </div>
+                    </nav>
                 </div>
             </div>
+            <!-- /Blok atas -->
 
-            <!-- System info panel (bottom) -->
-            <div v-if="showSidebarContent" class="relative z-10">
-                <SystemInfoPanel />
+            <!-- Blok bawah: akun (mobile) + panel sistem (desktop-only). Sticky bottom di
+                 desktop = panel selalu terlihat menempel bawah layar; mt-auto = posisi
+                 naturalnya tetap di dasar sidebar (utuh saat screenshot full-page). -->
+            <div v-if="showSidebarContent" class="relative z-10 mt-auto lg:sticky lg:bottom-0">
+                <!-- User account (mobile only — desktop uses header UserMenu) -->
+                <div class="border-t border-white/10 px-3 py-3 lg:hidden">
+                    <div class="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
+                        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-white shadow-inner shadow-white/10">
+                            {{ userInitial }}
+                        </span>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-semibold text-white">{{ user.name }}</p>
+                            <p class="truncate text-[11px] text-slate-500">{{ user.email }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-2 grid grid-cols-2 gap-2">
+                        <Link
+                            :href="route('profile.edit')"
+                            class="flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+                            @click="sidebarOpen = false"
+                        >
+                            <User class="h-4 w-4" />
+                            Profile
+                        </Link>
+                        <Link
+                            :href="route('logout')"
+                            method="post"
+                            as="button"
+                            class="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
+                        >
+                            <LogOut class="h-4 w-4" />
+                            Keluar
+                        </Link>
+                    </div>
+                </div>
+
+                <!-- System info panel (desktop saja — di HP tak di-mount: drawer lebih lega
+                     dan timer jam/polling health-nya tidak jalan sia-sia) -->
+                <SystemInfoPanel v-if="isDesktop" />
             </div>
+            <!-- /Blok bawah -->
         </aside>
 
-        <!-- Main column (offset by sidebar on desktop) -->
-        <div
-            class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-200"
-            :class="sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'"
-        >
-            <!-- Top header (desktop, fixed — tidak ikut scroll) — search + notif + user -->
+        <!-- Main column (bersebelahan dengan sidebar di desktop) -->
+        <div class="flex min-w-0 flex-1 flex-col">
+            <!-- Top header (desktop, sticky — tetap terlihat saat scroll) — search + notif + user -->
             <header
-                class="z-30 hidden flex-shrink-0 border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
+                class="sticky top-0 z-30 hidden flex-shrink-0 border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
             >
                 <div class="flex h-[72px] w-full items-center gap-4 px-6 lg:px-8">
                     <!-- Search trigger -->
@@ -277,8 +293,8 @@ onUnmounted(() => {
                 </div>
             </header>
 
-            <!-- Area scroll: header per-halaman + konten (ikut scroll) -->
-            <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" scroll-region>
+            <!-- Header per-halaman + konten (scroll ikut dokumen) -->
+            <div class="flex flex-1 flex-col">
             <!-- Page header slot (optional, used by inner pages) — ikut scroll -->
             <header
                 v-if="$slots.header"
@@ -312,9 +328,9 @@ onUnmounted(() => {
                 </Transition>
             </main>
             </div>
-            <!-- /Area scroll -->
+            <!-- /Konten -->
 
-            <!-- Footer (fixed, tidak ikut scroll) -->
+            <!-- Footer di dasar halaman (ikut alur — sticky bottom merusak screenshot full-page) -->
             <footer class="z-10 flex-shrink-0 border-t border-white/10 bg-slate-950/40 backdrop-blur-xl">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
                     <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>

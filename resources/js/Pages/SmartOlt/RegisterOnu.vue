@@ -190,7 +190,7 @@ const submitAdvanced = async (execute) => {
                 <div class="grid gap-5 xl:grid-cols-[minmax(0,480px)_1fr]">
 
                     <!-- Kolom kiri: Live Raw CLI -->
-                    <div class="order-2 xl:order-1 xl:sticky xl:top-6 xl:self-start">
+                    <div class="order-2 xl:order-1 xl:sticky xl:top-24 xl:self-start">
                         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-950/60 shadow-lg shadow-black/30 backdrop-blur-xl">
                             <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
                                 <div class="flex items-center gap-2.5">

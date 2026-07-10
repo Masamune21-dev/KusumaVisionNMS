@@ -182,16 +182,21 @@ Semua halaman setelah login dibungkus `Layouts/AuthenticatedLayout.vue`. Yang su
 layout (jangan dibuat ulang di halaman):
 
 - **Sidebar kiri** — logo, daftar `navLinks`, collapse (persist di `localStorage`
-  `kv-sidebar-collapsed`), drawer di mobile, `SidebarConstellation` + `SystemInfoPanel`.
+  `kv-sidebar-collapsed`), drawer di mobile, `SidebarConstellation` + `SystemInfoPanel`
+  (desktop-only, `v-if="isDesktop"` — di HP tak di-mount).
 - **Header atas (desktop)** — trigger search (⌘K), `NotificationBell`, `UserMenu`.
 - **Top bar mobile** — tombol menu, logo, search, bell.
 - **Slot `#header`** — header per-halaman (judul + tombol aksi). Ikut scroll.
 - **Banner demo** — otomatis muncul bila `auth.can.is_demo`.
 - **`<main>`** — `kv-grid-bg` + `AuroraBackground` + `ParticleNetwork` + transisi `page`.
-- **Footer permanen** — copyright/atribusi pemilik (dari `branding`, bukan Settings).
+- **Footer** — copyright/atribusi pemilik (dari `branding`, bukan Settings), ikut alur di
+  dasar halaman.
 
-Layout sudah `h-screen` dengan header/footer fixed dan area konten scroll sendiri — **jangan**
-bikin halaman jadi `h-screen`/`overflow-hidden` lagi.
+Scroll terjadi di **level dokumen** (bukan container dalam) supaya screenshot full-page merekam
+halaman utuh: sidebar desktop ikut alur setinggi konten (blok logo+nav sticky-top, panel sistem
+sticky-bottom), header desktop & top bar mobile sticky. **Jangan** bikin halaman jadi
+`h-screen`/`overflow-hidden`, dan hindari menambah elemen `fixed`/sticky-bottom di kolom konten
+(dirender nempel viewport di tengah gambar oleh tool capture full-page).
 
 ---
 
