@@ -52,6 +52,7 @@ Notes:
 
 - Verifikasi visual: render preview statis memakai CSS build asli via Playwright (desktop 1280 + mobile 390) — konfirmasi hero, TOC aktif, aksen per-bagian, callout Tips, dan wrap header mobile tampil rapi. Semua kelas aksen (violet/teal/indigo/fuchsia/rose/…) terbukti masuk `app-*.css` (tak ter-purge). `PanduanPageTest` tetap 2 passed, `npm run build` sukses, smoke guest `/panduan` → 302.
 - Deploy: cukup rebuild aset FE (`npm run build`); tak ada perubahan backend.
+- **Follow-up feedback user** (2 fix): (1) lebar konten dijadikan **full** (buang `max-w-6xl mx-auto` → `w-full`, konten mepet kiri-kanan seperti halaman lain); (2) TOC sticky yang tadinya `top-6` nyelip di bawah header desktop **72px** (`h-[72px]` sticky di `AuthenticatedLayout`) → dinaikkan ke `lg:top-[84px]` (+ `max-h` disesuaikan) supaya label "DAFTAR ISI" tak ketutup saat scroll.
 
 ## 2026-07-10
 

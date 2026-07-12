@@ -274,7 +274,7 @@ onBeforeUnmount(() => observer?.disconnect());
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
-            <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div class="w-full px-4 sm:px-6 lg:px-8">
                 <!-- Hero -->
                 <div class="relative mb-7 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl"></div>
@@ -305,14 +305,14 @@ onBeforeUnmount(() => observer?.disconnect());
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-[268px_minmax(0,1fr)]">
-                    <!-- Daftar isi -->
-                    <aside class="lg:sticky lg:top-6 lg:self-start">
+                    <!-- Daftar isi (sticky di bawah header desktop 72px) -->
+                    <aside class="lg:sticky lg:top-[84px] lg:self-start">
                         <div class="rounded-2xl border border-white/10 bg-slate-900/40 p-3 shadow-lg shadow-black/30 backdrop-blur-xl">
                             <div class="flex items-center justify-between px-2 pb-2 pt-1">
                                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Daftar Isi</p>
                                 <span class="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400">{{ activeIndex + 1 }}/{{ sections.length }}</span>
                             </div>
-                            <nav class="flex flex-row flex-wrap gap-1 lg:max-h-[calc(100vh-9rem)] lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:pr-1">
+                            <nav class="flex flex-row flex-wrap gap-1 lg:max-h-[calc(100vh-7rem)] lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:pr-1">
                                 <button
                                     v-for="(sec, idx) in sections"
                                     :key="sec.id"
