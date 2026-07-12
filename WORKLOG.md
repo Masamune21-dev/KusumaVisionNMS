@@ -42,6 +42,17 @@ Notes:
 - **Deploy prod:** route baru → `php artisan route:cache && config:cache` (sudah dijalankan) + rebuild aset FE (`npm run build`). Tak perlu `queue:restart` (tak menyentuh job/service).
 - Perbaikan sampingan: heading `## 2026-07-10` yang tak sengaja terganti saat entry alarm dikembalikan di atas entri Welcome.
 
+### Panduan: rombak tampilan (feedback user "kurang bagus")
+
+Changed:
+
+- `resources/js/Pages/Panduan/Index.vue` — desain ulang: hero gradien + glow + chip info, **warna aksen berbeda per bagian** (preset `ACCENTS` 11 warna — kelas literal penuh supaya tak ter-purge Tailwind), TOC dengan **scroll-spy** (`IntersectionObserver` menyorot bagian aktif) + indikator `n/total`, kartu section pakai `kv-spotlight`/`kv-ring` (hover premium) + bar aksen atas + tile ikon/nomor/bullet berwarna, header section num sejajar baseline judul & badge pindah baris (rapi di mobile), kartu penutup. Lebar konten `max-w-6xl` terpusat.
+
+Notes:
+
+- Verifikasi visual: render preview statis memakai CSS build asli via Playwright (desktop 1280 + mobile 390) — konfirmasi hero, TOC aktif, aksen per-bagian, callout Tips, dan wrap header mobile tampil rapi. Semua kelas aksen (violet/teal/indigo/fuchsia/rose/…) terbukti masuk `app-*.css` (tak ter-purge). `PanduanPageTest` tetap 2 passed, `npm run build` sukses, smoke guest `/panduan` → 302.
+- Deploy: cukup rebuild aset FE (`npm run build`); tak ada perubahan backend.
+
 ## 2026-07-10
 
 ### Welcome: refresh copy + tambah fitur baru + ganti kontak ke grup Telegram
