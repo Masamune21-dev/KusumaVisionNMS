@@ -21,6 +21,29 @@ Notes:
 - Test: `AlarmEngineTest` + `SettingsAlarmTest` + `OltPollingTest` + `SettingsFcmTest` + `TelegramSettingsTest` = **47 passed**. Test lama tetap hijau karena default `confirm=true` = perilaku 2-poll lama. `npm run build` sukses. Pint bersih.
 - **Gotcha cache** (sesuai catatan sebelumnya): route baru tak terbaca sampai `php artisan route:clear` (test sempat `RouteNotFoundException`). **Deploy prod:** `php artisan route:cache && config:cache` lalu `queue:restart` (worker supervisor menjalankan `PollOltJob`→`AlarmEvaluator`, harus restart agar kode baru + saklar terbaca) + rebuild aset FE.
 
+### Halaman Panduan Penggunaan (in-app user guide)
+
+**Permintaan user:** buatkan 1 halaman lagi berisi cara penggunaan web aplikasi secara lengkap.
+
+Created:
+
+- `app/Http/Controllers/PanduanController.php` — controller invokable (bukan closure, agar aman `route:cache`) render `Panduan/Index`; konten statis, role-gating tampilan pakai `auth.can` shared props.
+- `resources/js/Pages/Panduan/Index.vue` — halaman panduan lengkap, data-driven (array `sections`) + daftar isi (TOC) sticky yang scroll-to section. 20 bagian: sekilas app, peran pengguna, navigasi & ⌘K, dashboard, kelola OLT, port & ONU, unconfigured, provisioning ZTE, aksi ONU, ONU monitoring, peta ONU, alarm & notifikasi (termasuk pilihan Realtime vs Konfirmasi 2 poll), telnet browser, report, pengaturan, users & audit, partner self-service, aplikasi Android, tips & troubleshooting. Badge "Khusus Admin/Partner", callout Tips, tema `kv-*` glass cyan, responsif (TOC jadi chip di mobile).
+- `tests/Feature/PanduanPageTest.php` — render 200 + komponen `Panduan/Index` untuk user login; guest di-redirect ke login.
+
+Changed:
+
+- `routes/web.php` — `GET /panduan` → `panduan` (grup `auth`, tersedia semua peran); import `PanduanController`.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — item nav baru "Panduan" (ikon `BookOpen`) untuk semua pengguna, setelah "Report".
+
+Notes:
+
+- Test: `PanduanPageTest` 2 passed. `npm run build` sukses (semua ikon Lucide teratasi). Pint bersih. Smoke: `GET /panduan` guest → 302 `/login` (sehat, tak 500).
+- **Deploy prod:** route baru → `php artisan route:cache && config:cache` (sudah dijalankan) + rebuild aset FE (`npm run build`). Tak perlu `queue:restart` (tak menyentuh job/service).
+- Perbaikan sampingan: heading `## 2026-07-10` yang tak sengaja terganti saat entry alarm dikembalikan di atas entri Welcome.
+
+## 2026-07-10
+
 ### Welcome: refresh copy + tambah fitur baru + ganti kontak ke grup Telegram
 
 **Permintaan user:** update halaman Welcome dengan fitur-fitur baru bila ada + perbarui copy-nya; hapus nomor HP dan ganti dengan link grup Telegram `KusumaVisionNMS-Share` (`https://t.me/+RMTs-9c028g0MDdl`); tombol "Hubungi Kami" diarahkan ke grup Telegram.

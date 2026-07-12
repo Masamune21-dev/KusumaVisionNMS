@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OnuMapController;
+use App\Http\Controllers\PanduanController;
 use App\Http\Controllers\Partner\TelegramBotController as PartnerTelegramBotController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
@@ -51,6 +52,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/export/csv', [ReportController::class, 'exportCsv'])->name('reports.export.csv');
     Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export.pdf');
+
+    Route::get('/panduan', PanduanController::class)->name('panduan');
 
     Route::middleware('role:admin')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
