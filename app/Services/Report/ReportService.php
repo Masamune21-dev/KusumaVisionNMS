@@ -5,6 +5,7 @@ namespace App\Services\Report;
 use App\Models\AlarmEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 
 class ReportService
@@ -160,6 +161,10 @@ class ReportService
         $critical = 0;
 
         foreach ($olts as $olt) {
+            // ONU EPON (C-Data EPON & HiOSO) tak punya serial sungguhan — identitasnya MAC.
+            // C-Data EPON menyimpan serial_number = null; HiOSO menyimpan serial_number = MAC.
+            // Untuk keduanya, tampilkan MAC di kolom identitas.
+            $isEpon = SmartOltSupport::ponLabel($olt) === 'EPON';
             foreach ((array) data_get($olt->last_test_result, 'port_onus', []) as $key => $group) {
                 if (! empty($filters['pon_port']) && (string) $key !== $filters['pon_port']) {
                     continue;
@@ -197,7 +202,9 @@ class ReportService
                         'olt' => $olt->name,
                         'interface' => data_get($onu, 'interface', "{$slot}/{$port}"),
                         'onu_id' => data_get($onu, 'onu_id'),
-                        'serial_number' => data_get($onu, 'serial_number'),
+                        'serial_number' => $isEpon
+                            ? (data_get($onu, 'mac') ?: data_get($onu, 'serial_number'))
+                            : data_get($onu, 'serial_number'),
                         'name' => data_get($onu, 'name') ?: '-',
                         'rx_power' => $rxLabel,
                         // Bukan kolom tampil; hanya untuk pewarnaan sel RX di frontend.
@@ -215,7 +222,7 @@ class ReportService
                 ['key' => 'olt', 'label' => 'OLT'],
                 ['key' => 'interface', 'label' => 'Interface'],
                 ['key' => 'onu_id', 'label' => 'ONU ID'],
-                ['key' => 'serial_number', 'label' => 'Serial Number'],
+                ['key' => 'serial_number', 'label' => 'Serial Number / MAC'],
                 ['key' => 'name', 'label' => 'Nama / Pelanggan'],
                 ['key' => 'rx_power', 'label' => 'RX Power'],
                 ['key' => 'status', 'label' => 'Status'],

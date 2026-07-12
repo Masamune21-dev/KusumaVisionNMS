@@ -4191,3 +4191,18 @@ Notes:
 - 3 file sengaja TIDAK dipakai: `settings` (halaman admin, kurang pas dipajang publik), `smartolt-1-detail` (redundan — versi C300 lebih impresif), `port-detail` uplink `gei_1/4/1` (redundan dengan port GPON).
 - Diverifikasi via Playwright: semua request `/img/*` 200; hero + galeri render benar termasuk klik tab Detail OLT/Peta ONU/Alarms; `npm run build` sukses.
 - Heads-up ke user (sudah disampaikan, user OK): screenshot menampilkan data asli — IP internal RFC1918 di Detail OLT, sebaran pin pelanggan level desa (tanpa nama) di peta — kini tampil publik di landing page.
+
+## 2026-07-12
+
+### Laporan ONU: kolom identitas tampilkan MAC untuk OLT EPON
+
+Changed:
+
+- `app/Services/Report/ReportService.php` — di laporan **Inventaris & RX Power ONU** (`onuInventory`), kolom identitas ONU kini menampilkan **MAC** untuk OLT EPON (C-Data EPON & HiOSO), bukan serial. Deteksi per-OLT via `SmartOltSupport::ponLabel($olt) === 'EPON'`; nilai kolom untuk EPON ambil `mac` dulu lalu fallback `serial_number` (`data_get($onu, 'mac') ?: data_get($onu, 'serial_number')`); OLT ZTE/GPON tak berubah. Label kolom diganti `Serial Number` → **`Serial Number / MAC`** karena laporan mencampur GPON (serial) dan EPON (MAC) dalam satu tabel. Import `SmartOltSupport` ditambahkan.
+- `tests/Feature/ReportTest.php` — tambah `test_onu_report_shows_mac_for_epon_olt`: seed OLT HiOSO EPON dengan 2 ONU (gaya HiOSO `serial_number = MAC`, dan gaya C-Data EPON `serial_number = null` + `mac` terisi), assert kedua baris menampilkan MAC dan label kolom `Serial Number / MAC`.
+
+Notes:
+
+- Motivasi (dari user): ONU EPON tak punya serial sungguhan — C-Data EPON menyimpan `serial_number = null` (sebelumnya tampil `-`), HiOSO menyimpan `serial_number = MAC`. Keduanya kini konsisten menampilkan MAC dari field `mac`.
+- Perubahan otomatis ikut ke tabel web + ekspor CSV + ekspor PDF (semua render dari `report.columns` yang sama; hanya `key`/`label`/nilai baris yang berubah, struktur tetap).
+- Diverifikasi: `php artisan test tests/Feature/ReportTest.php` → 7 passed (85 assertions), termasuk test ZTE lama yang tetap hijau; Pint & `php -l` bersih.
