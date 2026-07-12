@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SendFcmAlarmNotifications;
 use App\Models\AlarmEvent;
+use App\Models\AlarmSetting;
 use App\Models\SnmpOlt;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
@@ -37,11 +38,13 @@ class AlarmEvaluator
      * Devices that are already in a fault state when first observed are NOT alarmed.
      * The previous poll snapshot supplies the prior state used to detect transitions.
      *
-     * Debounce anti-flap 2 poll: sebuah fault yang baru terdeteksi dibuat sebagai baris PENDING
-     * (belum dikirim & tak tampil di UI). Notifikasi (raise) baru dikirim bila fault MASIH ada di
-     * poll BERIKUTNYA (dua poll beruntun, ~2× interval poll). Bila fault pulih sebelum konfirmasi,
-     * baris pending dihapus diam-diam — tak ada notifikasi down maupun clear. Berlaku untuk SEMUA
-     * jenis alarm (OLT unreachable, port down, LOS, dying gasp, ONU offline, RX) & SEMUA OLT.
+     * Debounce anti-flap 2 poll (dapat dimatikan di Settings → Alarm, {@see AlarmSetting}): saat AKTIF
+     * (default), sebuah fault yang baru terdeteksi dibuat sebagai baris PENDING (belum dikirim & tak
+     * tampil di UI). Notifikasi (raise) baru dikirim bila fault MASIH ada di poll BERIKUTNYA (dua poll
+     * beruntun, ~2× interval poll). Bila fault pulih sebelum konfirmasi, baris pending dihapus diam-diam
+     * — tak ada notifikasi down maupun clear. Saat DIMATIKAN (mode realtime), fault baru langsung dibuat
+     * ACTIVE & notifikasi dikirim seketika. Berlaku untuk SEMUA jenis alarm (OLT unreachable, port down,
+     * LOS, dying gasp, ONU offline, RX) & SEMUA OLT.
      *
      * @param  array<string, mixed>  $previous  the snapshot from the prior poll
      * @return array{active:int, raised:int, cleared:int}
@@ -52,6 +55,9 @@ class AlarmEvaluator
         // hanya menentukan SIAPA yang menerima notifikasi — di-gerbang di TelegramNotifier
         // & FcmAlarmNotifier (bukan di sini).
         $this->ponLabel = SmartOltSupport::ponLabel($olt);
+        // Saklar global debounce 2 poll vs realtime (Settings → Alarm). Dibaca per-evaluasi agar
+        // perubahan di UI langsung berlaku pada poll berikutnya tanpa restart.
+        $confirm = AlarmSetting::confirmBeforeNotify();
         $snapshot = $olt->last_test_result ?? [];
         // Episode terbuka = alarm ACTIVE (sudah dikirim) + PENDING (menunggu konfirmasi poll ke-2).
         // Deteksi transisi memakai keduanya agar fault yang sedang pending terus "terdeteksi" di poll
@@ -70,7 +76,7 @@ class AlarmEvaluator
                 ];
             }
 
-            return $this->reconcile($olt, $open, $detected, []);
+            return $this->reconcile($olt, $open, $detected, [], $confirm);
         }
 
         $prev = $this->indexPrevious($previous);
@@ -91,7 +97,7 @@ class AlarmEvaluator
             }
         }
 
-        return $this->reconcile($olt, $open, $detected, $this->indexCurrent($snapshot));
+        return $this->reconcile($olt, $open, $detected, $this->indexCurrent($snapshot), $confirm);
     }
 
     /**
@@ -405,9 +411,10 @@ class AlarmEvaluator
      * @param  Collection<string, AlarmEvent>  $open  episode terbuka (ACTIVE + PENDING) keyed by signature
      * @param  array<string, array<string, mixed>>  $detected
      * @param  array{onus: array<string, array<string, mixed>>, ports: array<string, array<string, mixed>>}  $current
+     * @param  bool  $confirm  true = debounce 2 poll (fault baru → PENDING); false = realtime (fault baru → ACTIVE langsung)
      * @return array{active:int, raised:int, cleared:int}
      */
-    private function reconcile(SnmpOlt $olt, $open, array $detected, array $current): array
+    private function reconcile(SnmpOlt $olt, $open, array $detected, array $current, bool $confirm = true): array
     {
         $now = Carbon::now();
         $raisedAlarms = [];
@@ -472,14 +479,16 @@ class AlarmEvaluator
                 continue;
             }
 
-            // Fault baru pertama kali terdeteksi → catat sebagai PENDING (menunggu konfirmasi poll ke-2),
-            // BELUM dikirim & tak tampil di UI/hitungan alarm aktif.
-            AlarmEvent::create([
+            // Fault baru pertama kali terdeteksi.
+            // - Debounce ON (default): catat PENDING (menunggu konfirmasi poll ke-2), BELUM dikirim
+            //   & tak tampil di UI/hitungan alarm aktif.
+            // - Realtime (debounce OFF): langsung ACTIVE & kirim notifikasi seketika.
+            $alarm = AlarmEvent::create([
                 'snmp_olt_id' => $olt->id,
                 'signature' => $signature,
                 'type' => $data['type'],
                 'severity' => $data['severity'],
-                'status' => AlarmEvent::STATUS_PENDING,
+                'status' => $confirm ? AlarmEvent::STATUS_PENDING : AlarmEvent::STATUS_ACTIVE,
                 'scope' => $data['scope'],
                 'slot' => $data['slot'] ?? null,
                 'port' => $data['port'] ?? null,
@@ -490,6 +499,10 @@ class AlarmEvaluator
                 'first_seen_at' => $now,
                 'last_seen_at' => $now,
             ]);
+
+            if (! $confirm) {
+                $raisedAlarms[] = $alarm;
+            }
         }
 
         if ($raisedAlarms !== [] || $clearedAlarms !== []) {

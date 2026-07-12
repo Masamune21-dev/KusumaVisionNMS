@@ -16,6 +16,7 @@ const props = defineProps({
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
     mobileApk: { type: Object, default: () => ({ available: false, url: null, version: null, size: null, updated_at: null }) },
     acs: { type: Object, default: () => ({ url: '', username: '', password_set: false, default_url: '', default_username: '' }) },
+    alarm: { type: Object, default: () => ({ confirm_before_notify: true }) },
     telegram: { type: Object, required: true },
     fcm: { type: Object, required: true },
     api: { type: Object, default: () => ({ enabled: false, base_url: '', public_status_url: '', new_token: null, tokens: [] }) },
@@ -29,6 +30,7 @@ const flash = computed(() => page.props.flash ?? {});
 const tabs = [
     { key: 'general', label: 'Umum', icon: SlidersHorizontal },
     { key: 'acs', label: 'ACS / TR069', icon: Cloud },
+    { key: 'alarm', label: 'Alarm', icon: AlertTriangle },
     { key: 'telegram', label: 'Bot Telegram', icon: Send },
     { key: 'fcm', label: 'Notifikasi Mobile', icon: Smartphone },
     { key: 'api', label: 'API & Token', icon: KeyRound },
@@ -104,6 +106,17 @@ const submitAcs = () => {
         preserveScroll: true,
         onSuccess: () => acsForm.reset('password'),
     });
+};
+
+/* ------------------------------------------------------------------ */
+/* Tab: Alarm (perilaku konfirmasi)                                    */
+/* ------------------------------------------------------------------ */
+const alarmForm = useForm({
+    confirm_before_notify: props.alarm.confirm_before_notify,
+});
+
+const submitAlarm = () => {
+    alarmForm.put(route('settings.alarm.update'), { preserveScroll: true });
 };
 
 /* ------------------------------------------------------------------ */
@@ -524,6 +537,51 @@ const copyText = async (text, key) => {
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
                             <PrimaryButton :disabled="acsForm.processing">Simpan</PrimaryButton>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- ============================ TAB: ALARM ============================ -->
+                <form v-show="activeTab === 'alarm'" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="submitAlarm">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/20 ring-1 ring-amber-500/30">
+                            <AlertTriangle class="h-5 w-5 text-amber-300" />
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-base font-semibold text-white">Perilaku Alarm</h3>
+                            <p class="text-sm text-slate-400">Kapan notifikasi alarm (Telegram &amp; mobile) dikirim setelah gangguan terdeteksi.</p>
+                        </div>
+                        <span
+                            class="hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline"
+                            :class="alarmForm.confirm_before_notify ? 'bg-cyan-500/15 text-cyan-300' : 'bg-amber-500/15 text-amber-300'"
+                        >
+                            {{ alarmForm.confirm_before_notify ? 'Konfirmasi 2 poll' : 'Realtime' }}
+                        </span>
+                    </div>
+
+                    <div class="space-y-6 p-5 sm:p-6">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                            <span>
+                                <span class="block text-sm font-medium text-white">Konfirmasi 2 poll sebelum kirim (anti-flap)</span>
+                                <span class="block text-xs text-slate-400">
+                                    Aktif: gangguan harus <span class="text-slate-200">masih ada di pengecekan berikutnya</span> (2× poll, ~10 menit) baru notifikasi dikirim — meredam alarm palsu akibat kedip sesaat.
+                                    Nonaktif: <span class="text-amber-300">realtime</span>, notifikasi dikirim langsung saat gangguan pertama terdeteksi.
+                                </span>
+                            </span>
+                            <Checkbox v-model:checked="alarmForm.confirm_before_notify" class="h-5 w-5" />
+                        </label>
+
+                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
+                            <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
+                            <span>
+                                Pengaturan ini berlaku <span class="text-slate-200">global</span> untuk semua OLT dan semua kanal (Telegram + mobile), serta langsung berlaku pada poll berikutnya tanpa restart.
+                                Alarm tetap selalu tercatat di riwayat; yang diatur di sini hanya <span class="text-slate-200">waktu pengiriman notifikasi</span>.
+                                Mode realtime lebih cepat tetapi berpotensi mengirim notifikasi untuk gangguan sesaat yang langsung pulih.
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
+                            <PrimaryButton :disabled="alarmForm.processing">Simpan</PrimaryButton>
                         </div>
                     </div>
                 </form>

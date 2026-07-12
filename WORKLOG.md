@@ -1,6 +1,25 @@
 # Worklog
 
-## 2026-07-10
+## 2026-07-12
+
+### Setting: pilih perilaku alarm — Realtime vs Konfirmasi 2 poll
+
+**Permintaan user:** debounce anti-flap "cek 2 poll dulu sebelum kirim notif ke Telegram & mobile" selama ini hardcoded selalu aktif. User minta jadikan pilihan di Pengaturan supaya pengguna bisa memilih **realtime** (kirim langsung) atau **2× pengecekan**, dan berlaku seketika. Keputusan (via tanya): toggle sederhana Realtime ↔ 2 poll, **admin saja**.
+
+Added:
+- `database/migrations/2026_07_12_000000_create_alarm_settings_table.php` — tabel singleton `alarm_settings` (kolom `confirm_before_notify` boolean default true; sqlite-compatible).
+- `app/Models/AlarmSetting.php` — singleton (pola `FcmSetting`): `instance()`, default `confirm_before_notify=true` (perilaku lama, aman), cast boolean, `Auditable`. Helper defensif `confirmBeforeNotify()` (try/catch → default true bila tabel belum ada).
+- `tests/Feature/SettingsAlarmTest.php` — default confirm=true, admin bisa switch realtime & balik, non-admin `assertForbidden`.
+
+Changed:
+- `app/Services/AlarmEvaluator.php` — `evaluate()` baca `AlarmSetting::confirmBeforeNotify()` **per-evaluasi** (perubahan UI langsung berlaku poll berikutnya, tanpa restart) lalu teruskan `bool $confirm` ke `reconcile()`. Di deteksi fault baru: `$confirm=true` → catat `PENDING` (perilaku lama, konfirmasi poll ke-2); `$confirm=false` → langsung `ACTIVE` + masuk `raisedAlarms` (notifikasi dikirim seketika). Semua jenis alarm & semua OLT/kanal.
+- `app/Http/Controllers/SettingsController.php` — `edit()` kirim payload `alarm.confirm_before_notify`; method baru `updateAlarm()` (validasi boolean, simpan singleton).
+- `routes/web.php` — `PUT /settings/alarm` → `settings.alarm.update` (dalam grup `role:admin`, otomatis admin-only).
+- `resources/js/Pages/Settings/Index.vue` — tab baru **"Alarm"** (ikon `AlertTriangle`, disisipkan antara ACS & Telegram): toggle "Konfirmasi 2 poll sebelum kirim (anti-flap)", badge status Realtime/Konfirmasi 2 poll, penjelasan trade-off, tombol Simpan. Prop `alarm` + `alarmForm` (useForm PUT).
+
+Notes:
+- Test: `AlarmEngineTest` + `SettingsAlarmTest` + `OltPollingTest` + `SettingsFcmTest` + `TelegramSettingsTest` = **47 passed**. Test lama tetap hijau karena default `confirm=true` = perilaku 2-poll lama. `npm run build` sukses. Pint bersih.
+- **Gotcha cache** (sesuai catatan sebelumnya): route baru tak terbaca sampai `php artisan route:clear` (test sempat `RouteNotFoundException`). **Deploy prod:** `php artisan route:cache && config:cache` lalu `queue:restart` (worker supervisor menjalankan `PollOltJob`→`AlarmEvaluator`, harus restart agar kode baru + saklar terbaca) + rebuild aset FE.
 
 ### Welcome: refresh copy + tambah fitur baru + ganti kontak ke grup Telegram
 

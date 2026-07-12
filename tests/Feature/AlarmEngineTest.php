@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AlarmEvent;
+use App\Models\AlarmSetting;
 use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Services\AlarmEvaluator;
@@ -129,6 +130,28 @@ class AlarmEngineTest extends TestCase
         $this->assertSame(0, $result['raised']);
         $this->assertSame(0, $result['cleared'], 'Tak ada notifikasi clear untuk fault yang tak pernah dikirim');
         $this->assertSame(0, AlarmEvent::count(), 'Baris pending harus terhapus, tak menyisakan jejak');
+    }
+
+    public function test_realtime_mode_raises_on_first_detection_without_confirmation(): void
+    {
+        // Saklar Settings → Alarm dimatikan (mode realtime): fault baru langsung ACTIVE & dikirim
+        // di poll pertama, tanpa fase PENDING/konfirmasi poll ke-2.
+        AlarmSetting::create(['confirm_before_notify' => false]);
+
+        $onlineSnap = $this->onuSnapshot(true);
+        $offlineSnap = $this->onuSnapshot(false);
+
+        $olt = $this->makeOlt($offlineSnap);
+        $result = (new AlarmEvaluator)->evaluate($olt, $onlineSnap);
+
+        $this->assertSame(1, $result['raised'], 'Mode realtime harus mengirim alarm di poll pertama');
+        $this->assertSame(0, AlarmEvent::where('status', 'pending')->count(), 'Tak boleh ada baris pending di mode realtime');
+        $this->assertDatabaseHas('alarm_events', [
+            'snmp_olt_id' => $olt->id,
+            'type' => 'onu_offline',
+            'status' => 'active',
+            'serial_number' => 'ZTEGAAAA0001',
+        ]);
     }
 
     public function test_already_offline_onu_is_not_alarmed(): void

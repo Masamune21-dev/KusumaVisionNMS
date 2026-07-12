@@ -64,6 +64,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/api-tokens', [SettingsController::class, 'createApiToken'])->name('settings.api-tokens.store');
         Route::delete('/settings/api-tokens/{token}', [SettingsController::class, 'revokeApiToken'])->whereNumber('token')->name('settings.api-tokens.destroy');
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
+        Route::put('/settings/alarm', [SettingsController::class, 'updateAlarm'])->name('settings.alarm.update');
         Route::put('/settings/acs', [SettingsController::class, 'updateAcs'])->name('settings.acs.update');
         Route::put('/settings/telegram', [SettingsController::class, 'updateTelegram'])->name('settings.telegram.update');
         Route::post('/settings/telegram/test', [SettingsController::class, 'testTelegram'])->name('settings.telegram.test');

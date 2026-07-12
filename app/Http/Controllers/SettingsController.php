@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AcsSetting;
 use App\Models\AlarmEvent;
+use App\Models\AlarmSetting;
 use App\Models\FcmDeviceToken;
 use App\Models\FcmSetting;
 use App\Models\GeneralSetting;
@@ -13,6 +14,7 @@ use App\Services\Telegram\TelegramNotifier;
 use App\Services\Telegram\TelegramWebhookManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +30,7 @@ class SettingsController extends Controller
         $general = GeneralSetting::instance();
         $acs = AcsSetting::instance();
         $fcm = FcmSetting::instance();
+        $alarm = AlarmSetting::instance();
 
         return Inertia::render('Settings/Index', [
             'api' => [
@@ -53,6 +56,9 @@ class SettingsController extends Controller
             ],
             'appInfo' => $this->appInfoPayload(),
             'mobileApk' => $this->mobileApkPayload(),
+            'alarm' => [
+                'confirm_before_notify' => (bool) $alarm->confirm_before_notify,
+            ],
             'telegram' => [
                 'enabled' => (bool) $setting->enabled,
                 'bot_token_set' => filled($setting->bot_token),
@@ -178,6 +184,25 @@ class SettingsController extends Controller
         $setting->save();
 
         return back()->with('success', 'Pengaturan umum tersimpan.');
+    }
+
+    /**
+     * Simpan perilaku alarm global (debounce 2 poll vs realtime).
+     * true  = konfirmasi 2 poll dulu sebelum kirim notifikasi (anti-flap, default).
+     * false = realtime: kirim langsung saat fault pertama terdeteksi.
+     * Berlaku untuk semua OLT & semua kanal (Telegram + FCM), efektif pada poll berikutnya.
+     */
+    public function updateAlarm(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'confirm_before_notify' => ['boolean'],
+        ]);
+
+        $setting = AlarmSetting::instance();
+        $setting->confirm_before_notify = (bool) ($validated['confirm_before_notify'] ?? false);
+        $setting->save();
+
+        return back()->with('success', 'Pengaturan alarm tersimpan.');
     }
 
     /**
@@ -393,7 +418,7 @@ class SettingsController extends Controller
             'version' => $this->mobileAppVersion(),
             'size' => $exists ? $this->humanFilesize((int) filesize($path)) : null,
             'updated_at' => $exists
-                ? \Illuminate\Support\Carbon::createFromTimestamp((int) filemtime($path))->toIso8601String()
+                ? Carbon::createFromTimestamp((int) filemtime($path))->toIso8601String()
                 : null,
         ];
     }
