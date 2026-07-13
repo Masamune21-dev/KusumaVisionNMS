@@ -2,6 +2,24 @@
 
 ## 2026-07-13
 
+### Perbaikan temuan scan keamanan (Pentest Tools): CSP header, security.txt, expose_php
+
+**Permintaan user:** perbaiki temuan laporan Website Vulnerability Scanner untuk `nms.kusumavision.net` (semua Low/Info): (1) Missing `Content-Security-Policy`; (2) Robots.txt found; (3) Server software/technology found; (4) `security.txt` missing.
+
+Changed:
+- `app/Http/Middleware/ContentSecurityPolicy.php` (baru) — set header CSP untuk respons HTML, **nonce per-request** via `Vite::useCspNonce()` (Vite `@vite` + Ziggy `@routes` ikut nonce yang sama). Policy: `default-src 'self'`, `script-src 'self' 'nonce-…'` (proteksi XSS nyata; satu-satunya skrip inline = blok Ziggy, ter-nonce), `style-src 'self' 'unsafe-inline' https://fonts.bunny.net` (ApexCharts/Leaflet/AOS menyuntik style inline), `img-src 'self' data: blob: https:` (tiles peta Google/OSM), `font-src` bunny.net, `connect-src 'self' wss:` (telnet WebSocket same-origin), `frame-ancestors/base-uri/object-src/form-action` dikunci, `upgrade-insecure-requests`. Lewati env lokal (vite HMR) & respons non-HTML (Inertia XHR JSON), dan tidak menggandakan bila header sudah ada.
+- `bootstrap/app.php` — daftarkan `ContentSecurityPolicy` di grup web (paling depan).
+- `resources/views/app.blade.php` — `@routes` → `@routes(nonce: \Illuminate\Support\Facades\Vite::cspNonce())`.
+- `public/.well-known/security.txt` (baru) — RFC 9116: Contact `misbakhulmunir@kusumavision.net` (pilihan user), Expires 2027-07-13, Preferred-Languages id/en, Canonical.
+- `docker/php.ini` — `expose_php = Off` (hilangkan sidik jari `X-Powered-By`).
+- **nginx FastCGI buffer** — `fastcgi_buffer_size 32k; fastcgi_buffers 16 16k; fastcgi_busy_buffers_size 64k` di blok `location ~ \.php$`. Ditambahkan di **live** (`/etc/nginx/sites-available/kusumavision-nms`) + template `install.sh` + `docker/nginx.conf`. Sebab: header `Link: preload` Vite + nonce membuat total header respons melebihi buffer FastCGI default (~8k) → **502 "upstream sent too big header"** (situs sempat 502 saat rollout, langsung dipulihkan dengan buffer ini).
+
+Notes:
+- **Diverifikasi live** ke origin: homepage kembali `HTTP/2 200`; header CSP hadir & valid; nonce di header **identik** dengan nonce di semua tag `<script>`/`<link modulepreload>` (per-request); blok Ziggy inline ter-nonce (routing aman); tak ada skrip inline tanpa nonce; `/.well-known/security.txt` `200 text/plain`.
+- `php artisan test` = 344 passed (1 gagal pre-existing tak terkait: `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`). Pint bersih.
+- **Robots.txt**: temuan murni informasional; `public/robots.txt` saat ini tak mengekspos path sensitif → tak diubah. **Server fingerprint**: di origin `server` sudah tanpa versi (`server_tokens off`) & tak ada `X-Powered-By`; sisa deteksi (Inertia `X-Inertia` yang wajib, Cloudflare/HTTP/3/HSTS edge, "Marko/Node.js" false-positive Wappalyzer) tak dapat/perlu dihilangkan.
+- Live PHP `expose_php` masih `On` tapi origin tak membocorkan `X-Powered-By` → tak diutak-atik; `docker/php.ini` diset Off untuk deploy baru.
+
 ### Tombol "Save Config" per-OLT (write memori) + hapus tombol "Refresh ONU (scan penuh)" C-Data/HiOSO
 
 **Permintaan user:** hilangkan tombol "Refresh ONU (scan penuh)" di tab C-Data & HiOSO; tambahkan tombol aksi **Save Config** — C-Data EPON/GPON via CLI `enable → config → save`, HiOSO via `enable → write`, ZTE via `write` (catatan user: write di C300 agak lama ~30 detik).

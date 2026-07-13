@@ -362,6 +362,12 @@ server {
         fastcgi_pass unix:${PHP_SOCK};
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
+
+        # Header respons Laravel bisa besar (Vite "Link: preload" + nonce CSP);
+        # buffer FastCGI default (~8k) meluap -> 502 "upstream sent too big header".
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 16 16k;
+        fastcgi_busy_buffers_size 64k;
     }
 
     # Tolak file sensitif

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\BlockDemoWrites;
+use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
+            ContentSecurityPolicy::class,
             HandleInertiaRequests::class,
             BlockDemoWrites::class,
             AddLinkHeadersForPreloadedAssets::class,
