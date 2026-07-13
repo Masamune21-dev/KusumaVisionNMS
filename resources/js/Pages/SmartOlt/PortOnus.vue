@@ -14,6 +14,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { formatDateTime } from '@/lib/datetime';
+import { lastDownCauseLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
@@ -725,7 +726,7 @@ const rxBadgeClass = (value) => {
                                     </div>
                                     <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">Last Down</span>
-                                        <span class="kv-mobile-value">{{ onu.last_down_cause || '—' }}</span>
+                                        <span class="kv-mobile-value" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </div>
                                 </div>
 
@@ -873,7 +874,7 @@ const rxBadgeClass = (value) => {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-slate-500">
-                                        {{ onu.last_down_cause || '—' }}
+                                        <span :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center justify-center gap-1.5">

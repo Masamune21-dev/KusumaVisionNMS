@@ -82,8 +82,20 @@ class AlarmEvaluator
         $prev = $this->indexPrevious($previous);
         $detected = [];
 
+        // Korelasi root-cause: himpun PON port yang sedang down + jumlah ONU per port (dipakai untuk
+        // menandai berapa ONU terdampak di pesan port-down dan untuk mensupres alarm ONU-offline anak).
+        $onuCountByPort = $this->onuCountByPort($snapshot);
+        $downPorts = [];
+
         foreach ($snapshot['ports'] ?? [] as $port) {
-            $detected += $this->portAlarm($port, $prev, $open);
+            $slot = (int) ($port['slot'] ?? 0);
+            $portNo = (int) ($port['port'] ?? 0);
+
+            if (($port['oper_status'] ?? null) === 'down') {
+                $downPorts["{$slot}/{$portNo}"] = true;
+            }
+
+            $detected += $this->portAlarm($port, $prev, $open, $onuCountByPort["{$slot}/{$portNo}"] ?? 0);
         }
 
         foreach ($snapshot['port_onus'] ?? [] as $portData) {
@@ -92,7 +104,7 @@ class AlarmEvaluator
                     continue;
                 }
 
-                $detected += $this->onuStateAlarms($onu, $prev, $open);
+                $detected += $this->onuStateAlarms($onu, $prev, $open, $downPorts);
                 $detected += $this->onuRxAlarm($onu, $prev, $open);
             }
         }
@@ -200,9 +212,10 @@ class AlarmEvaluator
      * @param  array<string, mixed>  $port
      * @param  array{portStatus: array<string, string|null>}  $prev
      * @param  Collection<string, AlarmEvent>  $open
+     * @param  int  $affectedOnus  jumlah ONU terdaftar di port ini (untuk konteks root-cause di pesan)
      * @return array<string, array<string, mixed>>
      */
-    private function portAlarm(array $port, array $prev, $open): array
+    private function portAlarm(array $port, array $prev, $open, int $affectedOnus = 0): array
     {
         if (($port['oper_status'] ?? null) !== 'down') {
             return [];
@@ -218,14 +231,39 @@ class AlarmEvaluator
             return [];
         }
 
+        // Korelasi root-cause: satu port down menjatuhkan semua ONU-nya. Sebutkan jumlah ONU terdampak
+        // agar penerima paham ini bukan gangguan per-ONU; alarm ONU-offline anaknya disupres di onuStateAlarms.
+        $affected = $affectedOnus > 0 ? " ({$affectedOnus} ONU terdampak)" : '';
+
         return [$signature => [
             'type' => AlarmEvent::TYPE_PORT_DOWN,
             'severity' => AlarmEvent::SEVERITY_CRITICAL,
             'scope' => 'port',
             'slot' => $slot,
             'port' => $portNo,
-            'message' => "{$this->ponLabel} port {$port['name']} oper status down.",
+            'message' => "{$this->ponLabel} port {$port['name']} oper status down{$affected}.",
+            'meta' => $affectedOnus > 0 ? ['affected_onus' => $affectedOnus] : null,
         ]];
+    }
+
+    /**
+     * Jumlah ONU terdaftar per PON port ("slot/port" => count) dari snapshot poll.
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, int>
+     */
+    private function onuCountByPort(array $snapshot): array
+    {
+        $counts = [];
+
+        foreach ($snapshot['port_onus'] ?? [] as $portData) {
+            foreach ($portData['onus'] ?? [] as $onu) {
+                $key = ((int) ($onu['slot'] ?? 0)).'/'.((int) ($onu['port'] ?? 0));
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+            }
+        }
+
+        return $counts;
     }
 
     /**
@@ -248,9 +286,10 @@ class AlarmEvaluator
      * @param  array<string, mixed>  $onu
      * @param  array{online: array<string, bool>}  $prev
      * @param  Collection<string, AlarmEvent>  $open
+     * @param  array<string, true>  $downPorts  himpunan "slot/port" PON port yang sedang down
      * @return array<string, array<string, mixed>>
      */
-    private function onuStateAlarms(array $onu, array $prev, $open): array
+    private function onuStateAlarms(array $onu, array $prev, $open, array $downPorts = []): array
     {
         // An ONU that is currently up has no active fault. last_down_cause records the
         // historical reason it was *previously* down and persists after recovery, so it
@@ -260,6 +299,15 @@ class AlarmEvaluator
         }
 
         $key = $this->onuKey($onu);
+
+        // Korelasi root-cause: jika PON port induk sedang down, JANGAN buat alarm ONU-offline BARU
+        // (alarm port-down sudah mewakili — hindari banjir puluhan alarm anak). Episode ONU yang SUDAH
+        // terbuka (fault independen sebelum port turun) tetap dilewatkan agar direkonsiliasi normal
+        // dan tidak ter-clear palsu.
+        $portKey = ((int) ($onu['slot'] ?? 0)).'/'.((int) ($onu['port'] ?? 0));
+        if (($downPorts[$portKey] ?? false) && ! $this->onuHasStateAlarm($open, $key)) {
+            return [];
+        }
 
         // Only alarm a fault that started as an online -> fault transition, or that is
         // already an open episode (active/pending). An ONU that was already down when first

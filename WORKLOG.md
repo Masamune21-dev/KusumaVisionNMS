@@ -2,6 +2,25 @@
 
 ## 2026-07-13
 
+### Korelasi alarm root-cause (anti alarm-storm) + interpretasi last-down-cause + sinkron docs
+
+**Permintaan user:** dari sesi saran fitur, kerjakan "tier 1" quick-wins lebih dulu — sinkron dokumentasi (C600 & `onu_rx_samples` sudah ada), korelasi alarm root-cause, dan tampilkan "last down cause" lebih ramah di UI.
+
+Created:
+- `resources/js/lib/onu.js` — `lastDownCauseLabel(code)`: peta kode SNMP (LOS/LOSi/LOFi/SFi/LOAi/LOAMi/Deactivated/Manual/DyingGasp) → keterangan Indonesia (mis. DyingGasp → "Listrik pelanggan mati (dying gasp)").
+
+Changed:
+- `app/Services/AlarmEvaluator.php` — korelasi root-cause: himpun `$downPorts` ("slot/port" oper_status=down) + helper `onuCountByPort()`; `portAlarm()` kini menyebut jumlah ONU terdampak di pesan + `meta.affected_onus`; `onuStateAlarms()` mensupres alarm ONU-offline/LOS/dying-gasp **baru** untuk ONU di port yang down, tapi **tidak** menyupres episode ONU yang sudah terbuka (dijaga `onuHasStateAlarm`) supaya tak ter-clear palsu. OLT unreachable sudah otomatis menahan anak lewat cabang `snapshot.ok=false`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — kolom "Last Down" (desktop + mobile) tampilkan keterangan ramah via `lastDownCauseLabel`, kode teknis asli di tooltip (`:title`).
+- `tests/Feature/AlarmEngineTest.php` — 2 test baru: `test_port_down_suppresses_child_onu_alarms_and_reports_affected_count` (port down + 3 ONU offline → hanya 1 alarm port-down, pesan "3 ONU terdampak", `meta.affected_onus=3`) & `test_preexisting_onu_alarm_is_not_cleared_when_its_port_goes_down`.
+- `CLAUDE.md` — "Scope reality" dikoreksi (C600 didukung + `onu_rx_samples` RX history ada; `onus` table tetap JSON `last_test_result`); paragraf alarm ditambah butir korelasi root-cause.
+
+Notes:
+- Riset C600 (7 PDF di `docs/`) sebagian besar **sudah terpasang** di kode (commit `8499c29`): subtree `.1082`, interface 4-tier `gpon-olt_1/1/{slot}/{port}`, admin-state, discovery unconfigured, phase/last-down-cause. CLAUDE.md "C300/C320 only" itu usang → dikoreksi.
+- Test: `php artisan test` = **330 passed**, 19/19 AlarmEngineTest lulus; `npm run build` sukses.
+- ⚠️ **Gotcha kritis terkonfirmasi:** `bootstrap/cache/config.php` ter-cache config produksi → `php artisan test` NYASAR ke PostgreSQL prod. Workflow aman: backup cache → `rm bootstrap/cache/config.php` → test (kini sqlite via phpunit.xml) → pulihkan cache byte-identik. Data prod aman (guard produksi membatalkan `migrate:fresh`, transaksi RefreshDatabase di-rollback; verifikasi 0 baris pollution).
+- 1 test **PRE-EXISTING** gagal (bukan akibat perubahan ini — terkonfirmasi via `git stash`): `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver` (endpoint refresh port non-ZTE API v1 balas non-200). Perlu ditelusuri terpisah.
+
 ### Tombol aksi Enable/Disable ONU pada OLT HiOSO / V-Sol EPON (HA7304)
 
 **Permintaan user:** lanjut buat enable/disable untuk HiOSO; user minta command-line-nya dicari **langsung** dengan cek OLT live.

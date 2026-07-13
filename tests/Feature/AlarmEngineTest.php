@@ -340,6 +340,74 @@ class AlarmEngineTest extends TestCase
         $this->assertSame(0, AlarmEvent::where('snmp_olt_id', $olt2->id)->count());
     }
 
+    public function test_port_down_suppresses_child_onu_alarms_and_reports_affected_count(): void
+    {
+        // Korelasi root-cause: satu PON port down menjatuhkan semua ONU-nya. Yang naik hanya SATU
+        // alarm port-down (dengan jumlah ONU terdampak), bukan banjir alarm ONU-offline per anak.
+        $snap = function (string $portStatus, bool $onusOnline) {
+            $onus = [];
+            foreach ([1, 2, 3] as $id) {
+                $onus[] = [
+                    'slot' => 1, 'port' => 1, 'onu_id' => $id, 'interface' => "gpon-onu_1/1/1:{$id}",
+                    'serial_number' => "ZTEGPORT000{$id}", 'admin_state' => 'active',
+                    'phase_state' => $onusOnline ? 'Working' : 'LOS', 'online' => $onusOnline,
+                    'last_down_cause' => $onusOnline ? 'Normal' : 'LOS', 'rx_power_dbm' => $onusOnline ? -22.0 : null,
+                ];
+            }
+
+            return [
+                'ok' => true,
+                'ports' => [['if_index' => 1, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status' => $portStatus]],
+                'port_onus' => ['1_1' => ['onus' => $onus]],
+            ];
+        };
+
+        $healthy = $snap('up', true);
+        $fault = $snap('down', false); // port PON putus: port down + 3 ONU offline serentak
+
+        $olt = $this->makeOlt($fault);
+        $evaluator = new AlarmEvaluator;
+        $evaluator->evaluate($olt, $healthy);          // poll 1: hanya port_down PENDING
+        $result = $evaluator->evaluate($olt, $fault);  // poll 2: konfirmasi port_down
+
+        $this->assertSame(1, $result['raised'], 'Hanya alarm port-down yang naik, bukan per-ONU');
+        $this->assertSame(1, AlarmEvent::where('type', 'port_down')->where('status', 'active')->count());
+        $this->assertSame(0, AlarmEvent::whereIn('type', ['onu_offline', 'los', 'dying_gasp'])->count(), 'Alarm ONU anak harus disupres');
+
+        $portAlarm = AlarmEvent::where('type', 'port_down')->first();
+        $this->assertStringContainsString('3 ONU terdampak', $portAlarm->message);
+        $this->assertSame(3, data_get($portAlarm->meta, 'affected_onus'));
+    }
+
+    public function test_preexisting_onu_alarm_is_not_cleared_when_its_port_goes_down(): void
+    {
+        // Fault ONU independen yang SUDAH aktif tak boleh ter-clear palsu ketika port induknya
+        // kemudian ikut down (korelasi hanya menahan alarm ONU BARU, bukan yang sudah terbuka).
+        $portUpOnuOffline = $this->onuSnapshot(false);
+        $portUpOnuOnline = $this->onuSnapshot(true);
+
+        $olt = $this->makeOlt($portUpOnuOffline);
+        $evaluator = new AlarmEvaluator;
+        $this->evaluateConfirmed($evaluator, $olt, $portUpOnuOffline, $portUpOnuOnline);
+        $this->assertSame(1, AlarmEvent::where('type', 'onu_offline')->where('status', 'active')->count());
+
+        // Port induk kini ikut down; ONU tetap offline (serial sama = episode sama).
+        $portDownOnuOffline = [
+            'ok' => true,
+            'ports' => [['if_index' => 268501760, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status' => 'down']],
+            'port_onus' => ['1_1' => ['onus' => [[
+                'slot' => 1, 'port' => 1, 'onu_id' => 5, 'interface' => 'gpon-onu_1/1/1:5',
+                'serial_number' => 'ZTEGAAAA0001', 'admin_state' => 'active',
+                'phase_state' => 'Offline', 'online' => false, 'last_down_cause' => 'LOSi', 'rx_power_dbm' => null,
+            ]]]],
+        ];
+        $olt->forceFill(['last_test_result' => $portDownOnuOffline])->save();
+        $evaluator->evaluate($olt, $portUpOnuOffline);
+
+        $this->assertSame(1, AlarmEvent::where('type', 'onu_offline')->where('status', 'active')->count(), 'Alarm ONU independen harus tetap aktif');
+        $this->assertSame(0, AlarmEvent::where('type', 'onu_offline')->where('status', 'cleared')->count(), 'Tak boleh ada clear palsu');
+    }
+
     public function test_alarms_page_can_be_rendered(): void
     {
         $user = User::factory()->create();
