@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\OltConfigBackupController;
 use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\PanduanController;
 use App\Http\Controllers\Partner\TelegramBotController as PartnerTelegramBotController;
@@ -167,6 +168,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('smartolt.test');
     // Toggle alarm per-OLT (mute) — dipakai semua family (ZTE/C-Data/HiOSO), hanya membalik flag SnmpOlt.
     Route::post('/smartolt/{olt}/alarms/toggle', [SmartOltController::class, 'toggleAlarms'])->name('smartolt.alarms.toggle');
+    // Backup running-config OLT (ZTE): riwayat, backup manual, toggle backup harian, view/download versi.
+    Route::get('/smartolt/{olt}/config-backups', [OltConfigBackupController::class, 'index'])->name('smartolt.config-backups.index');
+    Route::post('/smartolt/{olt}/config-backups', [OltConfigBackupController::class, 'store'])->middleware('throttle:olt-refresh')->name('smartolt.config-backups.store');
+    Route::post('/smartolt/{olt}/config-backups/toggle', [OltConfigBackupController::class, 'toggle'])->name('smartolt.config-backups.toggle');
+    Route::get('/smartolt/{olt}/config-backups/{backup}/content', [OltConfigBackupController::class, 'content'])->name('smartolt.config-backups.content');
+    Route::get('/smartolt/{olt}/config-backups/{backup}/download', [OltConfigBackupController::class, 'download'])->name('smartolt.config-backups.download');
     Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('smartolt.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/copy', [SmartOltController::class, 'copyOnusToPort'])->name('smartolt.port-onus.copy');

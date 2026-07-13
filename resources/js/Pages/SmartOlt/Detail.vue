@@ -5,7 +5,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, ClipboardList, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, ClipboardList, Database, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -113,6 +113,12 @@ const oltImage = computed(() => {
                         <SecondaryButton type="button">
                             <ClipboardList class="mr-2 h-4 w-4" />
                             Registrasi
+                        </SecondaryButton>
+                    </Link>
+                    <Link :href="route('smartolt.config-backups.index', olt.id)">
+                        <SecondaryButton type="button">
+                            <Database class="mr-2 h-4 w-4" />
+                            Backup Config
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">

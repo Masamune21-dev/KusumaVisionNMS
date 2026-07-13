@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('olts:poll')->everyMinute()->withoutOverlapping();
 Schedule::command('optical:prune-rx')->dailyAt('03:15')->withoutOverlapping();
+Schedule::command('olts:backup-config')->dailyAt('02:30')->withoutOverlapping();

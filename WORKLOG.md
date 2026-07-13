@@ -2,6 +2,33 @@
 
 ## 2026-07-13
 
+### Backup konfigurasi OLT ZTE (running-config) — riwayat berversi, diff, jadwal harian per-OLT
+
+**Permintaan user:** dari roadmap fitur, kerjakan backup konfig OLT (skip subscriber/WhatsApp dulu). Arahan: akses = admin + partner untuk OLT miliknya sendiri (ikut scoping kepemilikan); jadwal harian **tapi per-OLT bisa dipilih** lewat tombol on/off backup.
+
+Created:
+- `database/migrations/2026_07_13_100000_create_olt_config_backups_table.php` — kolom `config_backup_enabled` (bool, default false) di `snmp_olts` + tabel `olt_config_backups` (content terenkripsi, size_bytes, sha256, trigger, status, error, created_by, captured_at).
+- `app/Models/OltConfigBackup.php` — content `encrypted` + `$hidden`; relasi `olt`/`creator`.
+- `app/Services/Zte/OltConfigBackupService.php` — `capture()`: ambil `show running-config` via `ZteCliProvisioningExecutor`, sanitasi, **dedup by sha256** (versi identik beruntun tak dibuat baris baru), gagal CLI → baris status=failed. Gated family ZTE.
+- `app/Jobs/BackupOltConfigJob.php` + `app/Console/Commands/BackupOltConfigsCommand.php` (`olts:backup-config`) — dispatch job untuk OLT ZTE `config_backup_enabled`; dijadwalkan `dailyAt('02:30')` di `routes/console.php`.
+- `app/Http/Controllers/OltConfigBackupController.php` — index (riwayat), store (backup manual sinkron), toggle (on/off harian), content (JSON), download (.txt). Otorisasi kepemilikan otomatis via route-model binding + `PartnerOltScope`; backup di-scope ke OLT-nya (`assertBackupBelongsTo`).
+- `resources/js/lib/linediff.js` — diff per-baris (LCS + potong prefix/suffix + guard ukuran) untuk membandingkan dua versi config.
+- `resources/js/Pages/SmartOlt/ConfigBackups.vue` — halaman: toggle backup harian, tombol "Backup sekarang", banding versi (diff modal +N/−N), tabel riwayat (desktop+mobile), lihat isi (modal) & unduh.
+- `tests/Feature/OltConfigBackupTest.php` — 10 test (capture, dedup, versi baru saat berubah, failed row, tolak non-ZTE, rute store/toggle, scoping content/download lintas-OLT 404, command dispatch hanya ZTE-enabled, render halaman).
+
+Changed:
+- `app/Models/SnmpOlt.php` — fillable + cast `config_backup_enabled`; relasi `configBackups()`.
+- `routes/web.php` — grup rute `smartolt.config-backups.*`.
+- `routes/console.php` — jadwal `olts:backup-config` harian 02:30.
+- `resources/js/Pages/SmartOlt/Detail.vue` — tombol "Backup Config" (ikon Database) ke halaman baru.
+
+Notes:
+- Scope v1 **ZTE saja** (CLI `show running-config`); C-Data/HiOSO belum (sintaks berbeda) — halaman menampilkan banner "tak didukung".
+- Isi config disimpan **terenkripsi** (encrypted cast) karena memuat kredensial (PPPoE/community); `CliOutputSanitizer` juga memasker password CLI.
+- Test: 10/10 lulus; `php artisan test` total **340 passed** (1 gagal PRE-EXISTING tak terkait: `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`). `npm run build` sukses (`ConfigBackups` chunk).
+- Test dijalankan **non-destruktif** (tak menyentuh cache prod): `APP_CONFIG_CACHE=<kosong> APP_ROUTES_CACHE=<kosong> php artisan test` → framework pakai sqlite phpunit.xml + route segar.
+- Deploy prod butuh: `composer dump-autoload -o` (kelas baru), `migrate --force`, `route:cache` (rute baru), `queue:restart`.
+
 ### Korelasi alarm root-cause (anti alarm-storm) + interpretasi last-down-cause + sinkron docs
 
 **Permintaan user:** dari sesi saran fitur, kerjakan "tier 1" quick-wins lebih dulu — sinkron dokumentasi (C600 & `onu_rx_samples` sudah ada), korelasi alarm root-cause, dan tampilkan "last down cause" lebih ramah di UI.

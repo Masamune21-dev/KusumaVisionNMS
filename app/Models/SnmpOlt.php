@@ -51,6 +51,7 @@ class SnmpOlt extends Model
         'cli_password',
         'polling_enabled',
         'alarms_enabled',
+        'config_backup_enabled',
         'poll_interval_minutes',
         'rx_poll_interval_minutes',
         'last_test_result',
@@ -71,6 +72,11 @@ class SnmpOlt extends Model
      *
      * @return BelongsToMany<User, $this>
      */
+    public function configBackups(): HasMany
+    {
+        return $this->hasMany(OltConfigBackup::class)->latest('captured_at');
+    }
+
     public function partners(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'olt_user')->withTimestamps();
@@ -109,6 +115,7 @@ class SnmpOlt extends Model
             'cli_password' => 'encrypted',
             'polling_enabled' => 'boolean',
             'alarms_enabled' => 'boolean',
+            'config_backup_enabled' => 'boolean',
             'is_demo' => 'boolean',
             'poll_interval_minutes' => 'integer',
             'rx_poll_interval_minutes' => 'integer',
