@@ -560,7 +560,7 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 - [`docs/BUILD_APK.md`](docs/BUILD_APK.md) — **build & install aplikasi Android** (toolchain dari nol di Linux/Windows, spek, signing, install di HP).
 - [`docs/API.md`](docs/API.md) — **REST API v1** (endpoint, autentikasi token, contoh JS/Kotlin/PHP).
 - [`docs/DOCKER.md`](docs/DOCKER.md) — **instalasi via Docker** (appliance 1 PC, backup, update, distribusi image).
-- [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_GUIDE.md) — referensi otoritatif perintah CLI ZTE.
+- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi otoritatif perintah CLI ZTE.
 - [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md) — referensi OID/CLI OLT C-Data (EPON/GPON).
 - [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md) — referensi OID/CLI OLT HiOSO/V-Sol EPON.
 - [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md) — hardening produksi (nginx/UFW/SSH/PHP-FPM).

@@ -8,7 +8,7 @@ Semua interaksi CLI ke OLT memakai **telnet** (raw TCP). SSH **belum diwire**
    detail ONU, RX power, card/uplink, reconfigure).
 2. **Interaktif** — terminal xterm.js di browser via daemon proxy WebSocket.
 
-> ⚠️ Sumber kebenaran sintaks perintah: [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_GUIDE.md).
+> ⚠️ Sumber kebenaran sintaks perintah: [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md).
 > Jangan menebak perintah CLI.
 
 ---

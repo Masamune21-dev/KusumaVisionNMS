@@ -1,18 +1,17 @@
-# Panduan Lengkap OLT HiOSO / V-Sol (HA7304) untuk SmartOLT
+# Panduan OLT HiOSO / V-Sol (HA7304) — KusumaVision NMS
 
-Terakhir diperbarui: 20 Mei 2026
+Terakhir diperbarui: 13 Juli 2026
 
-Dokumen ini adalah **referensi mandiri** untuk integrasi OLT EPON HiOSO / V-Sol berbasis chipset HA7304 ke dashboard apapun (BMKV, project terpisah, atau migrasi platform baru). Berisi spec SNMP, OID map, CLI command, quirk transport, parser value, contoh data live, dan template implementasi driver.
+Referensi integrasi OLT EPON HiOSO / V-Sol berbasis chipset HA7304 di **KusumaVision NMS**. Berisi spec SNMP, OID map, CLI command, quirk transport, parser value, contoh data live, dan pemetaan ke kelas/route/halaman nyata repo ini.
 
 Devices target: HiOSO HA7304, V-Sol / V-Solution EPON OLT, dan rebrand lain dengan enterprise SNMP `1.3.6.1.4.1.25355`.
 
-> **Status implementasi di KusumaVision NMS (per 2026-06-30):** §1–§11 (OID/CLI vendor) sudah
-> diverifikasi live & dipakai. **§12 (struktur file `HiosoSnmpService`/`SmartOltSnmpDriver` resolver/
-> Blade view) dari project BMKV lama — BUKAN arsitektur repo ini.** Implementasi nyata fase v1
-> (read-only): `app/Services/Hioso/HiosoEponSnmpService.php` (implements `App\Contracts\SmartOltSnmpDriver`),
-> di-resolve `SmartOltSnmpServiceResolver`, di-scan `CDataOltScanner`, di-poll `PollOltJob::pollViaScanner`,
-> dikenali `SmartOltSupport::driverKey()`/`isNonZte()`, tampil di tab "OLT C-Data / HiOSO" via
-> `cdata-olt.*`. Aksi tulis (rename/reboot CLI, §5.5) menyusul di fase berikutnya. Detail: `WORKLOG.md` 2026-06-30.
+> **Status implementasi di KusumaVision NMS.** §1–§11 (OID/CLI vendor) sudah diverifikasi live & dipakai.
+> **§7 & §12 memuat template driver dari project lama — bukan penamaan kelas repo ini** (dipertahankan
+> sebagai referensi pola; nama file nyata ada di §12). Implementasi nyata:
+> - SNMP read: [`HiosoEponSnmpService`](../app/Services/Hioso/HiosoEponSnmpService.php) (implements [`SmartOltSnmpDriver`](../app/Contracts/SmartOltSnmpDriver.php)), di-resolve [`SmartOltSnmpServiceResolver`](../app/Services/SmartOltSnmpServiceResolver.php), scan penuh via [`CDataOltScanner`](../app/Services/CData/CDataOltScanner.php), polling terjadwal [`PollOltJob::pollViaScanner`](../app/Jobs/PollOltJob.php).
+> - **Aksi tulis ONU sudah ada** (bukan lagi "menyusul"): rename, reboot, enable/disable, delete via [`HiosoCliWriteService`](../app/Services/Hioso/HiosoCliWriteService.php) (§5.5–§5.6), plus Save Config.
+> - HiOSO punya **controller + rute + halaman sendiri**: [`HiosoOltController`](../app/Http/Controllers/HiosoOltController.php) + rute `hioso-olt.*` + `resources/js/Pages/Hioso/*` (dipisah dari C-Data; tab "OLT HiOSO" di halaman SmartOLT). Detail vendor OID di [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md).
 
 ---
 
@@ -399,7 +398,7 @@ error:
 % invalid
 ```
 
-Driver `HiosoCliSessionService::extractCliError()` scan output line-by-line dan return error message bila pattern match.
+Driver [`HiosoCliWriteService::extractCliError()`](../app/Services/Hioso/HiosoCliWriteService.php) scan output line-by-line dan return error message bila pattern match.
 
 ---
 
@@ -570,41 +569,40 @@ private function sanitizeName(string $value): string
 
 ## 8. Capabilities Profile
 
-Untuk driver/dashboard yang pakai capability matrix:
+Nilai nyata dari [`SmartOltSupport::hiosoEponCapabilities()`](../app/Support/SmartOltSupport.php#L298) (driver key `hioso-epon-25355`):
 
 ```json
 {
-    "driver": "hioso_epon",
-    "vendor_family": "HiOSO / V-Sol EPON (25355)",
+    "driver": "hioso-epon-25355",
+    "vendor_family": "HiOSO / V-Sol EPON",
     "pon_label": "EPON",
     "port_label": "EPON Port",
-    "port_and_onu_label": "EPON Port & ONU",
     "port_name_prefix": "epon 0",
     "onu_interface_pattern": "epon 0/%d/%d:%d",
+    "is_c600": false,
 
+    "supports_snmp_rx": true,
     "supports_cli_rx": false,
     "supports_cli_onu_detail": false,
     "supports_cli_onu_configure": false,
 
     "supports_reboot": true,
-    "reboot_mode": "cli_hioso_epon",
+    "reboot_mode": "cli_hioso",
 
     "supports_provisioning": false,
+    "supports_onu_delete": true,
     "supports_separate_description": false,
     "supports_onu_info_write": true,
-    "description_mode": "cli_hioso_epon",
+    "description_mode": "cli_hioso",
 
-    "supports_onu_toggle": false,
+    "supports_onu_toggle": true,
+    "supports_config_save": true,
 
-    "onu_name_label": "Label ONU",
-    "onu_description_label": "Deskripsi",
-    "edit_name_label": "Label ONU",
-    "edit_description_label": "Deskripsi ONU",
-    "edit_name_placeholder": "pelanggan_namanya",
-    "edit_description_placeholder": "Label pelanggan (alfanumerik, underscore, max 32)...",
-    "rx_source_label": "Rx ONU"
+    "rx_source_label": "Rx ONU (SNMP)"
 }
 ```
+
+Catatan: `supports_onu_toggle` = **`true`** (CLI `onu {id} activate/deactivate`, §5.6) dan `supports_onu_delete` = **`true`** (CLI `delete onu {id}`, §5.6) — keduanya **sudah** diimplementasi, berbeda dari draf lama yang menandainya `false`/roadmap.
 
 ---
 
@@ -715,28 +713,30 @@ telnet HOST PORT
 
 ---
 
-## 12. File Driver di BMKV Repo (untuk migrasi)
-
-Bila migrate ke project lain, struktur file:
+## 12. File Driver di Repo (referensi cepat)
 
 | File | Fungsi |
 |---|---|
-| `app/Services/HiosoSnmpService.php` | driver SNMP read-only (list ONU, MAC, Rx, status) |
-| `app/Services/HiosoCliSessionService.php` | driver CLI (rename + reboot ONU) |
-| `app/Services/ZteCliSessionService.php` | transport telnet/SSH bersama, punya `configureLoginPrompts()` untuk override per-driver |
-| `app/Contracts/SmartOltSnmpDriver.php` | interface yang harus di-implement |
-| `app/Services/SmartOltSnmpServiceResolver.php` | resolver match vendor → driver class |
-| `app/Support/SmartOltSupport.php` | capability matrix + vendor detection |
-| `app/Http/Controllers/SmartOltController.php` | branch `cli_hioso_epon` di handler write + reboot |
-| `resources/views/smartolt/index.blade.php` | UI vendor list + placeholder |
+| [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk 3 OID kanonik `.37.1`/`.11.1`/`.8.1` per-PON + anti-flap |
+| [app/Services/Hioso/HiosoSnmp.php](../app/Services/Hioso/HiosoSnmp.php) | koneksi SNMP low-level (`robustWalk`, timeout floor) |
+| [app/Services/Hioso/HiosoValue.php](../app/Services/Hioso/HiosoValue.php) | helper parsing murni (MAC hex, Rx string+`na`, indeks `{PON}.{ONU}`) |
+| [app/Services/Hioso/HiosoCliWriteService.php](../app/Services/Hioso/HiosoCliWriteService.php) | CLI write ONU (rename/reboot/enable-disable/delete) + `saveConfig`; sesi telnet CRLF + banner + `enable` |
+| [app/Services/Hioso/HiosoFaceplateService.php](../app/Services/Hioso/HiosoFaceplateService.php) | faceplate panel-depan |
+| [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh bersama (dipakai HiOSO **dan** C-Data) → `last_test_result.port_onus` |
+| [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | interface read yang di-implement `HiosoEponSnmpService` |
+| [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → `HiosoEponSnmpService` |
+| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + `driverKey()` (needle `hioso\|ha7304\|25355\|v-sol\|vsol\|v-solution`) |
+| [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/portOnus/test/refresh/save-config + onu reboot/state/info/delete) |
+| `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/OltFaceplate.vue`) |
+
+Rute HiOSO (`routes/web.php`, prefix `hioso-olt`): `hioso-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `hioso-olt.onu.{reboot,state,info,delete}`. Pemilihan rute lintas halaman via [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php#L93) → `hioso-olt`.
 
 ---
 
 ## 13. Roadmap Kandidat Pengembangan
 
-Belum diimplementasi, dicatat untuk masa depan:
+Sudah selesai (bukan roadmap lagi): rename, reboot, **enable/disable** (`onu {N} activate|deactivate`, §5.6), **delete** (`delete onu {N}`, §5.6), Save Config (`write`, §5.6b). Yang belum:
 
-- **Enable/disable ONU**: probe `onu {N} deactive` / `onu {N} active` di config-interface mode
 - **Provisioning ONU unconfigured**: flow autofind belum diketahui, perlu lihat output `show onu-loop` atau alarm OLT saat ONU baru di-power on
 - **Optical detail per ONU**: walk subtree `.3.2.6.14.*` lengkap di lab untuk identifikasi kolom Tx, voltage, temperature, distance
 - **Distance ONU**: PDF vendor menyebut "satuan meter" tapi OID belum diidentifikasi
@@ -750,11 +750,10 @@ Belum diimplementasi, dicatat untuk masa depan:
 ## 14. Referensi
 
 ### Lokal
-- `docs/SMARTOLT_OID_MAP.md` (section 6A) — peta OID ringkas dalam konteks multi-vendor BMKV
-- `docs/Dokumentasi_SNMP_OLT_HA7304_v2.pdf` — referensi vendor singkat (RX, name, status enum)
-- `docs/epon.txt` — full SNMP walk OLT-HIOSO-NDOKATON sebagai sample data
-- `docs/MODULE_GUIDE.md` (section 6) — SmartOLT module overview
-- `docs/WORKLOG.md` — entry 2026-05-20 perubahan implementasi
+- [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) · [SMARTOLT_CDATA_GUIDE.md](SMARTOLT_CDATA_GUIDE.md) — companion guide family lain
+- [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md) — SNMP + polling (Go engine)
+- [handbook/09-cli-telnet.md](handbook/09-cli-telnet.md) — CLI/telnet
+- `WORKLOG.md` — riwayat perubahan implementasi HiOSO
 
 ### Web
 - RFC 854 Telnet Protocol Specification: `https://datatracker.ietf.org/doc/html/rfc854` (sumber line ending CRLF)

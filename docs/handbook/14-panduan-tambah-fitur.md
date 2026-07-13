@@ -7,7 +7,7 @@ terkait di handbook ini, lalu ikuti pola yang sudah ada di kode (jangan mencipta
 
 > **Aturan main wajib:**
 > - Migrasi **harus SQLite-compatible** (test pakai SQLite). [→ 05](05-database-model.md)
-> - Sintaks CLI ZTE → konsultasi [`SMARTOLT_ZTE_C300_C320_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_GUIDE.md).
+> - Sintaks CLI ZTE → konsultasi [`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md).
 > - String UI/flash/pesan dalam **Bahasa Indonesia**.
 > - Catat perubahan berarti di [`WORKLOG.md`](../../WORKLOG.md) (Created/Changed/Notes + verifikasi
 >   OLT nyata bila menyentuh SNMP/CLI). Selesai → push (lihat skill `/done`).
@@ -64,7 +64,7 @@ Lihat [08 — SNMP & Polling](08-snmp-polling.md).
 3. Simpan jejak ke `smartolt_onu_registrations` (script dulu, eksekusi belakangan/opsional) +
    `PollingEvent::KIND_PROVISIONING`.
 4. Gerbang dengan `assertCapability($olt, 'supports_...')` + `canManageOlt()`.
-5. **Sintaks perintah wajib dari** [`SMARTOLT_ZTE_C300_C320_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_GUIDE.md).
+5. **Sintaks perintah wajib dari** [`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md).
 6. Verifikasi ke OLT nyata; pastikan password tersensor (`maskSecrets`).
 
 Lihat [09 — CLI & Telnet](09-cli-telnet.md).

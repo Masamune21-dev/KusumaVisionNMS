@@ -64,7 +64,7 @@ Jangan asumsikan fitur PRD ada di kode:
 | Live state ONU | Disimpan sebagai **JSON di kolom `snmp_olts.last_test_result`** (bukan tabel ONU). |
 | Polling terjadwal | **Pakai engine Go** (`bin/kv-snmp-poller`) via `PollOltJob`. Aksi on-demand (refresh manual, provisioning, telnet, RX per-port) = **PHP sinkron** di controller/service. |
 
-> Catatan: `SMARTOLT_ZTE_C300_C320_GUIDE.md` Section 6/7 (parseOnuDetailInfo, parseRunningConfig,
+> Catatan: `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` Section 6/7 (parseOnuDetailInfo, parseRunningConfig,
 > ZteCliSessionService) adalah **blueprint dari proyek lain**, belum tentu 1:1 dengan kode di sini.
 
 ## Konteks bahasa

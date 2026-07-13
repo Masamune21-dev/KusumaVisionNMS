@@ -63,7 +63,7 @@ The PRD (`KusumaVision_NMS_PRD.md`) describes a broad vision; the **built scope 
 ## Conventions
 
 - Provisioning writes an audit row in `smartolt_onu_registrations` (script generated first, executed later/optionally). Profiles are scoped per-OLT with global (`snmp_olt_id = null`) fallback.
-- `SMARTOLT_ZTE_C300_C320_GUIDE.md` is the **authoritative ZTE CLI command reference** — consult it over guessing command syntax.
+- `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` is the **authoritative ZTE CLI command reference** — consult it over guessing command syntax.
 - `WORKLOG.md` logs work phase-by-phase (Created/Changed/Notes, with real-OLT verification). Add a matching entry for meaningful changes.
 - UI flash messages and many user-facing strings are in Indonesian.
 - **UI/tema dashboard** (dark glass, aksen cyan/sky, kelas `kv-*` di `resources/css/app.css`, shell `AuthenticatedLayout`): saat menambah/ubah halaman atau komponen, ikuti aturan di `docs/handbook/15-ui-tema-dashboard.md` (pakai `kv-*` dulu, kartu kaca semi-transparan, tabel responsif desktop+mobile, ikon Lucide, gerbang `auth.can`, string Indonesia).

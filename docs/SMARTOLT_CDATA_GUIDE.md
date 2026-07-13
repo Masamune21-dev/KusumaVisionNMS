@@ -1,17 +1,17 @@
-# Panduan Lengkap OLT C-Data EPON & GPON untuk SmartOLT
+# Panduan OLT C-Data EPON & GPON — KusumaVision NMS
 
-> Self-contained reference untuk mengintegrasikan OLT **C-Data** (EPON dan GPON) ke aplikasi web bergaya SmartOLT. Fokus: **OID** yang dipakai dan **fitur/kapabilitas** per family, lengkap dengan command CLI untuk operasi yang tidak bisa lewat SNMP.
+> Referensi integrasi OLT **C-Data** (EPON dan GPON) di **KusumaVision NMS**. Fokus: **OID** yang dipakai dan **fitur/kapabilitas** per family, lengkap dengan command CLI untuk operasi yang tidak bisa lewat SNMP. Isi sudah dipetakan ke kelas/route/halaman nyata repo ini (bukan draf blueprint dari project lain).
 >
-> Companion: [SMARTOLT_OID_MAP.md](SMARTOLT_OID_MAP.md) (peta OID lintas vendor), [SMARTOLT_ZTE_C300_C320_GUIDE.md](SMARTOLT_ZTE_C300_C320_GUIDE.md), [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md).
+> Companion: [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md), [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md), [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md), [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md).
 >
-> Terakhir diperbarui: 21 Juni 2026.
+> Terakhir diperbarui: 13 Juli 2026.
 
-C-Data dipasarkan dengan dua keluarga enterprise OID yang **berbeda dan tidak boleh dicampur**:
+C-Data dipasarkan dengan dua keluarga enterprise OID yang **berbeda dan tidak boleh dicampur**. Di repo ini keduanya driver **non-ZTE** yang di-resolve [`SmartOltSnmpServiceResolver`](../app/Services/SmartOltSnmpServiceResolver.php) dan ikut **polling terjadwal** via [`PollOltJob::pollViaScanner`](../app/Jobs/PollOltJob.php) + [`CDataOltScanner`](../app/Services/CData/CDataOltScanner.php):
 
-| Family | Enterprise root | MIB publik | Contoh perangkat | Driver BMKV |
+| Family | Enterprise root | MIB publik | Contoh perangkat | Driver di repo ini |
 | --- | --- | --- | --- | --- |
-| **C-Data / ODM EPON** | `1.3.6.1.4.1.17409` | `NSCRTV-EPON-*` | FD1108S, FD1208S, FD1504, OLT EPON OEM/ODM | `CDataSnmpService` + `CDataEponCliSessionService` |
-| **C-Data native GPON** | `1.3.6.1.4.1.34592` | `FD-ONU-MIB`, `FD-OLT-MIB`, `CDATA-GPON-MIB` | FD1608S, FD1216S, FD1616GS (FlashV2.x / FlashV3.x) | `CData34592SnmpService` + `CDataGponCliSessionService` |
+| **C-Data / ODM EPON** | `1.3.6.1.4.1.17409` | `NSCRTV-EPON-*` | FD1108S, FD1208S, FD1504, OLT EPON OEM/ODM | SNMP [`CDataEponSnmpService`](../app/Services/CData/CDataEponSnmpService.php) · CLI write [`CDataCliWriteService`](../app/Services/CData/CDataCliWriteService.php) |
+| **C-Data native GPON** | `1.3.6.1.4.1.34592` | `FD-ONU-MIB`, `FD-OLT-MIB`, `CDATA-GPON-MIB` | FD1608S, FD1216S, FD1616GS (FlashV2.x / FlashV3.x) | SNMP [`CDataGponSnmpService`](../app/Services/CData/CDataGponSnmpService.php) · CLI read [`CDataGponCliService`](../app/Services/CData/CDataGponCliService.php) · CLI write `CDataCliWriteService` |
 
 > **Penting:** `sysObjectID` adalah penentu family. EPON OEM C-Data mengembalikan `iso.3.6.1.4.1.17409`, GPON native C-Data mengembalikan `iso.3.6.1.4.1.34592`. Jangan asumsikan driver `17409` kompatibel dengan `34592` — index, naming, dan write path-nya beda total.
 >
@@ -73,17 +73,7 @@ CLI diperlukan untuk operasi yang SNMP-nya tidak tersedia/ditolak (lihat capabil
 | Line ending | `\r\n` (CRLF) — firmware C-Data echo `User name:` dan butuh CRLF strict |
 | Privilege | `enable` → `config` → `interface ...` |
 
-Login prompt config yang dipakai BMKV (`CDataGponCliSessionService`):
-
-```php
-$cli->configureLoginPrompts(
-    loginPromptTimeoutSeconds: 15,
-    passwordPromptTimeoutSeconds: 15,
-    usernamePromptNeedles: ['user name:', 'login:', 'username:', 'user:'],
-    passwordPromptNeedles: ['password:', 'passwd:'],
-    loginLineEnding: "\r\n",
-);
-```
+Sesi CLI C-Data (login CRLF + banner + navigasi enable) di-share lewat concern [`CData\Concerns\InteractsWithCDataCli`](../app/Services/CData/Concerns/InteractsWithCDataCli.php) (`openCliSession()`), dipakai baik oleh [`CDataGponCliService`](../app/Services/CData/CDataGponCliService.php) (read inventory/optical GPON V3) maupun [`CDataCliWriteService`](../app/Services/CData/CDataCliWriteService.php) (write ONU). Prompt username C-Data adalah `User name:` (ada spasi); line ending **wajib CRLF**.
 
 ---
 
@@ -309,25 +299,29 @@ Identitas perangkat. Get langsung per-leaf (walk subtree `2.3.1` kadang gagal ge
 
 ## 6. CLI Reference
 
-### 6.1 EPON (`CDataEponCliSessionService` — FD1108S / FD1208S)
+> **Semua write ONU C-Data (EPON & GPON) lewat satu service** [`CDataCliWriteService`](../app/Services/CData/CDataCliWriteService.php) — masuk `interface {epon|gpon} 0/{slot}` lalu `ont <action> {port} {onuId}`. Sintaks **rename/reboot/delete identik** EPON & GPON; hanya **enable/disable yang beda verb** per family (terverifikasi help CLI live). Route: `cdata-olt.onu.{info,reboot,state,delete}` + `cdata-olt.config.save`.
 
-SNMP write ONU ditolak `genError`, jadi rename/deskripsi/reboot lewat CLI. CLI EPON memakai interface **2-level** `epon 0/<port>` (catatan: variabel "slot" di model BMKV memetakan ke nomor port EPON).
+### 6.1 EPON (FD1108S / FD1208S / FD1304E)
+
+SNMP write ONU ditolak `genError`, jadi rename/deskripsi/reboot/enable-disable lewat CLI. Masuk `interface epon 0/{slot}`, argumen command = `{port} {onuId}`:
 
 ```
 > enable
 # config
 (config)# interface epon 0/{slot}
-(config-epon-0/{slot})# ont reboot {slot} {onuId}
-(config-epon-0/{slot})# ont description {slot} {onuId} <text>
-(config-epon-0/{slot})# no ont description {slot} {onuId}     # clear deskripsi
-(config-epon-0/{slot})# ont delete {slot} {onuId}            # hapus/deregister ONU (destruktif, konfirmasi y/n auto)
+(config-epon-0/{slot})# ont description {port} {onuId} <text>   # rename
+(config-epon-0/{slot})# no ont description {port} {onuId}       # clear deskripsi
+(config-epon-0/{slot})# ont reboot {port} {onuId}
+(config-epon-0/{slot})# ont enable {port} {onuId}              # enable  (EPON verb)
+(config-epon-0/{slot})# ont disable {port} {onuId}             # disable (EPON verb)
+(config-epon-0/{slot})# ont delete {port} {onuId}             # hapus/deregister ONU (destruktif, konfirmasi y/n auto)
 (config-epon-0/{slot})# end
 ```
 
-- Deskripsi max **64 karakter**, control char dibersihkan, spasi berurutan dikolaps.
-- Deskripsi kosong → pakai `no ont description` (CLI tolak deskripsi whitespace-only).
+- Deskripsi control char dibersihkan, spasi berurutan dikolaps; kosong → `no ont description` (CLI tolak whitespace-only).
+- **Enable/disable EPON** = `ont enable|disable` (terverifikasi help CLI live FD1304E) — beda dari GPON yang memakai `ont activate|deactivate` (§6.2).
 
-### 6.2 GPON (`CDataGponCliSessionService` — FD1608S / FD1216S V3.x)
+### 6.2 GPON (FD1608S / FD1216S V3.x) — read `CDataGponCliService`, write `CDataCliWriteService`
 
 CLI GPON memakai interface `gpon 0/<slot>`, argumen command = `<port> <onuId>`.
 
@@ -395,12 +389,12 @@ Aksi **OLT-level** (bukan per-ONU): simpan running-config ke memori OLT. Dipakai
 | Status online | SNMP `1.1.8` | SNMP `1.1.11` | CLI run-state |
 | Rename / deskripsi | **CLI** `ont description` | SNMP `.18.2.1.5` *atau* CLI | **CLI** `ont description` |
 | Reboot ONU | **CLI** `ont reboot` | SNMP `.18.4.1.1` | **CLI** `ont reboot` |
-| Enable / disable ONU | belum (kandidat `.9`) | SNMP `.18.4.1.2` (pilot) | **CLI** `ont activate/deactivate` |
+| Enable / disable ONU | **CLI** `ont enable/disable` | **CLI** `ont activate/deactivate` | **CLI** `ont activate/deactivate` |
 | Delete / deregister ONU | **CLI** `ont delete` | **CLI** `ont delete` | **CLI** `ont delete` |
 | Provisioning ONU baru | belum | belum | belum |
 | PON port autofind/switch | — | SNMP `17.1.1.4/5` (kandidat) | SNMP/CLI |
 
-`reboot_mode` / `description_mode` di capability BMKV: EPON = `cli_cdata_epon`, GPON = `snmp` (legacy) atau CLI otomatis bila V3 terdeteksi. `supports_onu_toggle`: EPON `false`, GPON `true`. `supports_onu_delete`: EPON & GPON `true` (CLI `ont delete {port} {onuId}`, gerbang route `cdata-olt.onu.delete`).
+Nilai capability nyata (dari [`SmartOltSupport::cdataEponCapabilities()`](../app/Support/SmartOltSupport.php#L225) / [`cdataGponCapabilities()`](../app/Support/SmartOltSupport.php#L259)): `reboot_mode` & `description_mode` = **`cli_cdata`** (EPON & GPON). `supports_onu_toggle` = **`true`** untuk **keduanya** (EPON `ont enable/disable`, GPON `ont activate/deactivate` — route `cdata-olt.onu.state` bercabang verb per family). `supports_onu_delete` = `true` (CLI `ont delete {port} {onuId}`, route `cdata-olt.onu.delete`). `supports_config_save` = `true` (§6.4). GPON: `supports_snmp_rx` mati & `supports_cli_rx` nyala saat V3 terdeteksi ([`isCDataGponV3`](../app/Support/SmartOltSupport.php#L109)).
 
 ---
 
@@ -479,33 +473,40 @@ Uji write terkontrol: rename ke string dummy → reboot 1 ONU non-produksi → e
 
 ---
 
-## 11. File Driver di BMKV Repo (referensi implementasi)
+## 11. File Driver di Repo (referensi implementasi)
 
-> **Status implementasi (v1 = monitoring read-only).** Nama file di bawah adalah yang **benar-benar dibangun** di repo (berbeda dari draf blueprint awal). Aksi write (rename/reboot/enable-disable/provisioning) belum ada — kontrak masih read-only.
+> **Status implementasi.** Monitoring read (inventory/Rx/faceplate) **dan** aksi tulis ONU (rename, reboot, enable/disable, delete) **plus** Save Config sudah dibangun. Provisioning ONU baru belum ada.
 
 | File | Peran |
 | --- | --- |
-| [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | kontrak read driver C-Data (dipakai resolver) |
-| [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → driver C-Data konkret |
+| [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | kontrak read driver non-ZTE (dipakai resolver C-Data & HiOSO) |
+| [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → driver konkret (`CDataEponSnmpService` / `CDataGponSnmpService` / `HiosoEponSnmpService`) |
 | [app/Services/CData/CDataSnmp.php](../app/Services/CData/CDataSnmp.php) | koneksi SNMP low-level v1/v2c (output OID numerik), `get`/`walk` |
 | [app/Services/CData/CDataValue.php](../app/Services/CData/CDataValue.php) | helper parsing murni (MAC, Rx centi-dBm, decode device-index EPON, parse onuName, segmen OID) |
 | [app/Services/CData/CDataEponSnmpService.php](../app/Services/CData/CDataEponSnmpService.php) | driver SNMP EPON `17409` (inventory + Rx `2.3.4.2.1.4`) |
 | [app/Services/CData/CDataGponSnmpService.php](../app/Services/CData/CDataGponSnmpService.php) | driver SNMP GPON `34592` (legacy `slot.port.onuId` + deteksi V3 + count via `.18.26`) |
-| [app/Services/CData/CDataGponCliService.php](../app/Services/CData/CDataGponCliService.php) | CLI GPON V3 (inventory `show ont info all` + Rx `show ont optical-info`, baca berbasis prompt) |
-| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | `driverKey()` (family by vendor) + capability matrix + helper interface |
-| [app/Http/Controllers/CDataOltController.php](../app/Http/Controllers/CDataOltController.php) | halaman OLT C-Data (index/detail/portOnus/test/refresh/scan → cache `port_onus`) |
+| [app/Services/CData/CDataGponCliService.php](../app/Services/CData/CDataGponCliService.php) | CLI **read** GPON V3 (inventory `show ont info all` + Rx `show ont optical-info`, baca berbasis prompt) |
+| [app/Services/CData/CDataCliWriteService.php](../app/Services/CData/CDataCliWriteService.php) | CLI **write** ONU EPON & GPON (rename/reboot/enable-disable/delete) + `saveConfig` |
+| [app/Services/CData/Concerns/InteractsWithCDataCli.php](../app/Services/CData/Concerns/InteractsWithCDataCli.php) | sesi telnet C-Data bersama (login CRLF, banner, navigasi `enable`) |
+| [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh (dipakai polling terjadwal `PollOltJob` **dan** refresh manual) → tulis `last_test_result.port_onus` bentuk-ZTE |
+| [app/Services/CData/CDataFaceplateService.php](../app/Services/CData/CDataFaceplateService.php) | faceplate panel-depan (IF-MIB + tabel device `17409.2.3.1.*`) → cache `last_test_result.panel` |
+| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | `driverKey()` + capability matrix + helper interface + `isCDataGponV3()` |
+| [app/Http/Controllers/CDataOltController.php](../app/Http/Controllers/CDataOltController.php) | halaman + aksi OLT C-Data (index/detail/portOnus/test/refresh/save-config + onu info/reboot/state/delete) |
+| `resources/js/Pages/CDataOlt/*.vue` + `resources/js/Components/CDataOlt/OltFaceplate.vue` | UI Inertia (Create/Edit/Detail/PortOnus + faceplate) |
 
-Kontrak `SmartOltSnmpDriver` v1 (read-only): `ping`, `getSystemInfo`, `getPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `getPortRxMap`, `countRegisteredOnus`, `getUnconfiguredOnus`. ZTE **tidak** memakai kontrak ini (punya `OltSnmpClient` sendiri).
+Kontrak `SmartOltSnmpDriver` (read): `ping`, `getSystemInfo`, `getPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `getPortRxMap`, `countRegisteredOnus`, `getUnconfiguredOnus`. Dipakai C-Data **dan** HiOSO. ZTE **tidak** memakai kontrak ini (punya `OltSnmpClient` sendiri).
+
+Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `cdata-olt.onu.{reboot,state,info,delete}`. Pemilihan rute lintas halaman (search/monitoring/peta) lewat [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php#L93) → `cdata-olt`.
 
 ---
 
 ## 12. Referensi
 
 ### Lokal
-- [SMARTOLT_OID_MAP.md](SMARTOLT_OID_MAP.md) — peta OID lintas vendor (ZTE / 17409 / 34592 / HiOSO)
-- [SMARTOLT_ZTE_C300_C320_GUIDE.md](SMARTOLT_ZTE_C300_C320_GUIDE.md) — pola self-contained ZTE (data model, route, UI)
-- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — pola self-contained HiOSO/V-Sol EPON
-- [features/smartolt-and-genieacs.md](features/smartolt-and-genieacs.md) — fitur SmartOLT di dashboard BMKV
+- [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi ZTE (data model, route, UI)
+- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — HiOSO/V-Sol EPON
+- [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md) — catatan walk SNMP GPON C-Data (V3)
+- [handbook/07-modul-fitur.md](handbook/07-modul-fitur.md) — overview modul SmartOLT di dashboard
 
 ### MIB publik
 - `NSCRTV-EPON-ONU-MIB`, `NSCRTV-EPON-STP-MGM-MIB` (family `17409`)

@@ -9,7 +9,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 
 > ⚠️ **Tentang scope.** Dokumen ini mendeskripsikan **kode yang benar-benar ada** di repo, bukan
 > visi di `KusumaVision_NMS_PRD.md`. Bagian yang masih berupa blueprint/PRD ditandai eksplisit.
-> Sumber kebenaran sintaks CLI ZTE tetap `SMARTOLT_ZTE_C300_C320_GUIDE.md` di root `docs/`.
+> Sumber kebenaran sintaks CLI ZTE tetap `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` di root `docs/`.
 
 ---
 
@@ -51,7 +51,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 
 ## Konvensi penting (wajib diingat)
 
-1. **`SMARTOLT_ZTE_C300_C320_GUIDE.md`** adalah referensi otoritatif sintaks CLI ZTE — jangan
+1. **`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`** adalah referensi otoritatif sintaks CLI ZTE — jangan
    menebak perintah, konsultasikan dulu.
 2. Setiap perubahan berarti dicatat di **`WORKLOG.md`** (format Created/Changed/Notes + verifikasi
    OLT nyata bila ada). Lihat [WORKLOG](../../WORKLOG.md).
@@ -66,6 +66,6 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 - [`CLAUDE.md`](../../CLAUDE.md) — instruksi ringkas untuk asisten/agent.
 - [`README.md`](../../README.md) — README publik proyek.
 - [`WORKLOG.md`](../../WORKLOG.md) — riwayat pekerjaan fase per fase.
-- [`docs/SMARTOLT_ZTE_C300_C320_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_GUIDE.md) — referensi CLI ZTE.
+- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi CLI ZTE.
 - [`docs/KusumaVision_NMS_PRD.md`](../KusumaVision_NMS_PRD.md) — visi/PRD (bukan scope nyata).
 - PDF-PDF ZTE C600 di folder `docs/` — referensi OID/CLI vendor.

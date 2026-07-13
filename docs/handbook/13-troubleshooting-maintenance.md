@@ -113,7 +113,7 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Solusi**: pastikan transport telnet + kredensial; lihat `execution_output`/`execution_error`
   di baris `smartolt_onu_registrations`. Untuk perintah yang minta konfirmasi gunakan jalur
   `executeConfirmable`. Verifikasi sintaks ke
-  [`SMARTOLT_ZTE_C300_C320_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_GUIDE.md).
+  [`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md).
 
 ### Terminal telnet browser tak konek
 - **Cek**:
