@@ -1,5 +1,47 @@
 # Worklog
 
+## 2026-07-13
+
+### Tombol aksi Enable/Disable ONU pada OLT HiOSO / V-Sol EPON (HA7304)
+
+**Permintaan user:** lanjut buat enable/disable untuk HiOSO; user minta command-line-nya dicari **langsung** dengan cek OLT live.
+
+Verifikasi live (context-help HA7304, OLT-HIOSO-PATI 103.189.249.163:2237 via probe telnet scratchpad):
+- `EPON(epon_0/{PON})# onu {ONU} ?` → daftar subcommand memuat `activate`, `deactivate`, `admin` (Port admin config), `name`, `reboot`, dst.
+- `onu {ONU} activate ?` → `--Press Enter--` (command lengkap, **enable**).
+- `onu {ONU} deactivate ?` → `--Press Enter--` (command lengkap, **disable**).
+- `onu {ONU} admin ?` → butuh `port` (config per-port ONU) → **bukan** untuk aktif/nonaktif ONU.
+- Kesimpulan: enable = `onu {id} activate`, disable = `onu {id} deactivate` (di dalam `interface epon 0/{PON}`).
+
+Changed:
+- `app/Support/SmartOltSupport.php` — `supports_onu_toggle` → `true` untuk `hiosoEponCapabilities()`.
+- `app/Services/Hioso/HiosoCliWriteService.php` — method baru `setState($olt, $port, $onuId, bool $active)` → `onu {id} activate|deactivate` lewat `runInPon` (plumbing telnet HiOSO yang sama: `conf t` → `interface epon 0/{port}`).
+- `app/Http/Controllers/HiosoOltController.php` — `setOnuState()`: gated `supports_onu_toggle`, validasi `active` boolean, `mutateCachedOnu` set `admin_state` `enable`/`disable` (agar tombol flip; SNMP HiOSO tak baca admin_state → default `unknown` = aktif).
+- `routes/web.php` — `POST /hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state` → `hioso-olt.onu.state`.
+- `resources/js/Pages/Hioso/PortOnus.vue` — tombol toggle (ikon `ToggleRight`/`ToggleLeft`, variant `warning`/`success`) desktop + mobile, gated `canToggle`, handler `toggleOnu` POST `hioso-olt.onu.state`.
+- Docs: `docs/SMARTOLT_HIOSO_GUIDE.md` baris status Disable/Enable → "terverifikasi live & dibuat"; `CLAUDE.md` baris HiOSO + C-Data disinkron (capability enable/disable).
+
+Notes:
+- `php -l` bersih, `npm run build` sukses, `route:cache` rebuild, rute `hioso-olt.onu.state` terverifikasi via `route:list`.
+- Sintaks **terverifikasi live** via context-help (read-only `?`, tak mengubah state). Eksekusi aktual (activate/deactivate benar mem-toggle layanan) belum diuji end-to-end ke ONU produksi — disarankan uji 1 ONU non-produksi.
+- Probe scripts di scratchpad (`hioso_probe.php`, `hioso_probe2.php`) — tidak masuk repo.
+
+### Tombol aksi Enable/Disable ONU pada OLT C-Data (EPON & GPON)
+
+**Permintaan user:** buat tombol aksi enable/disable ONU di halaman ONU per port OLT C-Data (EPON & GPON). Referensi CLI: EPON `ont enable|disable {port} {onuId}` (terverifikasi live FD1304E via screenshot), GPON `ont activate|deactivate {port} {onuId}` (guide §6.2 FD1608S/FD1216S V3.x). Enable/disable **tidak** menghapus registrasi (beda dari `ont delete`).
+
+Changed:
+- `app/Support/SmartOltSupport.php` — `supports_onu_toggle` → `true` untuk `cdataEponCapabilities()` & `cdataGponCapabilities()` (sebelumnya `false`).
+- `app/Services/CData/CDataCliWriteService.php` — method baru `setState($olt, $iface, $slot, $port, $onuId, bool $active)`: pilih verb per-family (GPON `activate|deactivate`, EPON `enable|disable`), jalan lewat `runInInterface` yang sama (submode `interface {epon|gpon} 0/{slot}`), deteksi error via `cliDetectError`.
+- `app/Http/Controllers/CDataOltController.php` — method baru `setOnuState()`: gated `supports_onu_toggle`, validasi `active` boolean, panggil `setState`, `mutateCachedOnu` set `admin_state` = `enable`/`disable` supaya tombol langsung flip, flash sukses/error, redirect balik ke port-onus.
+- `routes/web.php` — `POST /cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state` → `cdata-olt.onu.state`.
+- `resources/js/Pages/CDataOlt/PortOnus.vue` — tombol toggle (ikon `ToggleRight`/`ToggleLeft`, variant `warning`/`success`) di baris aksi desktop + kartu mobile, gated `canToggle` (`supports_onu_toggle` + `manage_olt`). Helper `isEnabled(o)` = `admin_state !== 'disable'` (EPON `admin_state` = `unknown` dianggap aktif → default tawarkan Disable). Handler `toggleOnu` pakai `ConfirmModal`, POST `cdata-olt.onu.state` dengan `{ active }`.
+
+Notes:
+- `php -l` bersih (3 file PHP), `npm run build` sukses, `route:cache` di-rebuild & rute `cdata-olt.onu.state` terverifikasi via `route:list`.
+- **Belum diuji ke OLT live** — sintaks CLI dari screenshot EPON (FD1304E: `ont enable`/`ont disable` muncul di context-help submode) + guide GPON §6.2. Perlu uji terkontrol 1 ONU non-produksi (disable → cek terputus → enable → rollback) sebelum dianggap terverifikasi live.
+- Round-trip UI: setelah action, `admin_state` cache di-set → tombol flip (Disable↔Enable) dalam sesi. Edge: ONU EPON yang **sudah** disabled sebelum load (SNMP EPON tak baca admin_state, `unknown`) awalnya tampil tombol Disable; klik `ont disable` idempoten (aman), lalu cache→`disable`, tombol flip ke Enable.
+
 ## 2026-07-12
 
 ### Setting: pilih perilaku alarm — Realtime vs Konfirmasi 2 poll

@@ -361,7 +361,7 @@ end
 |---|---|---|
 | **Delete ONU** | `delete onu {ONU}` (level interface) | ✅ terverifikasi (`HiosoCliWriteService::delete`) |
 | De-register ONU | `dereg onu {ONU}` atau `dereg {MACADDR}` | ✅ ada di CLI (belum dipakai; hanya de-register, bisa muncul lagi bila auto-auth) |
-| Disable / Enable ONU | `onu {ONU} deactivate` / `onu {ONU} activate` | ✅ ada di CLI (belum dibuat) |
+| Disable / Enable ONU | `onu {ONU} deactivate` / `onu {ONU} activate` | ✅ terverifikasi live & dibuat (`HiosoCliWriteService::setState`; context-help `onu N ?` → keduanya command lengkap `--Press Enter--`) |
 | ❌ salah (ditolak) | `no onu {ONU}`, `onu {ONU} delete` | `% [DEFAULT] Unknown command` |
 
 **Belum diuji / belum dibuat:** Provisioning ONU baru (flow autofind belum diketahui), bandwidth profile.

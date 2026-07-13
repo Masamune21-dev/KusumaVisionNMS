@@ -101,6 +101,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/cdata-olt/{olt}/ports/{slot}/{port}/onus', [CDataOltController::class, 'portOnus'])->name('cdata-olt.port-onus');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/refresh', [CDataOltController::class, 'refreshPortOnus'])->name('cdata-olt.port-onus.refresh');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
+    Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [CDataOltController::class, 'setOnuState'])->name('cdata-olt.onu.state');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [CDataOltController::class, 'updateOnuInfo'])->name('cdata-olt.onu.info');
     Route::delete('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [CDataOltController::class, 'deleteOnu'])->name('cdata-olt.onu.delete');
 
@@ -117,6 +118,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/hioso-olt/{olt}/ports/{slot}/{port}/onus', [HiosoOltController::class, 'portOnus'])->name('hioso-olt.port-onus');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HiosoOltController::class, 'refreshPortOnus'])->name('hioso-olt.port-onus.refresh');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HiosoOltController::class, 'rebootOnu'])->name('hioso-olt.onu.reboot');
+    Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [HiosoOltController::class, 'setOnuState'])->name('hioso-olt.onu.state');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HiosoOltController::class, 'updateOnuInfo'])->name('hioso-olt.onu.info');
     Route::delete('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HiosoOltController::class, 'deleteOnu'])->name('hioso-olt.onu.delete');
 

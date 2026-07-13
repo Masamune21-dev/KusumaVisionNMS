@@ -51,6 +51,21 @@ class HiosoCliWriteService
     }
 
     /**
+     * Enable/disable (aktif/nonaktif) satu ONU tanpa menghapus registrasi, di dalam
+     * `interface epon 0/{PON}` → `onu {ONU} activate` / `onu {ONU} deactivate`
+     * (terverifikasi live via context-help HA7304 `onu {id} ?`, keduanya command lengkap
+     * `--Press Enter--`). Beda dari `dereg`/`delete` yang menghapus registrasi.
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function setState(SnmpOlt $olt, int $port, int $onuId, bool $active): array
+    {
+        $verb = $active ? 'activate' : 'deactivate';
+
+        return $this->runInPon($olt, $port, ["onu {$onuId} {$verb}"]);
+    }
+
+    /**
      * Hapus ONU di dalam `interface epon 0/{PON}` → `delete onu {ONU}` (verb "delete config",
      * terverifikasi live via help HA7304 `EPON(epon_0/1)# ?`). Bukan `onu {id} delete`/`no onu {id}`
      * (keduanya "unknown command"). Alternatif `dereg onu {ONU}` hanya de-register (bisa muncul lagi

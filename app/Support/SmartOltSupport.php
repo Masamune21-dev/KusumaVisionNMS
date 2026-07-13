@@ -241,7 +241,7 @@ class SmartOltSupport
             'supports_separate_description' => false,
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_cdata',
-            'supports_onu_toggle' => false,
+            'supports_onu_toggle' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
@@ -276,7 +276,7 @@ class SmartOltSupport
             'supports_separate_description' => false,
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_cdata',
-            'supports_onu_toggle' => false,
+            'supports_onu_toggle' => true,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',
         ];
     }
@@ -310,7 +310,7 @@ class SmartOltSupport
             'supports_separate_description' => false,
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_hioso',
-            'supports_onu_toggle' => false,
+            'supports_onu_toggle' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }

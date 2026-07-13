@@ -239,6 +239,34 @@ class HiosoOltController extends Controller
         }
     }
 
+    /**
+     * Enable/disable ONU HiOSO via CLI `onu {id} activate|deactivate` di dalam `interface epon 0/{port}`.
+     * Tidak menghapus registrasi — hanya aktif/nonaktif. Gated `supports_onu_toggle`.
+     */
+    public function setOnuState(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, HiosoCliWriteService $hioso): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_toggle');
+        $active = (bool) $request->validate(['active' => ['required', 'boolean']])['active'];
+        $back = redirect()->route('hioso-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $hioso->setState($olt, $port, $onuId, $active);
+            if (! $result['ok']) {
+                return $back->with('error', 'Ubah status ONU selesai dengan indikasi error: '.$result['error']);
+            }
+
+            $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($active) {
+                $onu['admin_state'] = $active ? 'enable' : 'disable';
+
+                return $onu;
+            });
+
+            return $back->with('success', $active ? 'ONU berhasil di-enable.' : 'ONU berhasil di-disable.');
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Ubah status ONU gagal: '.$exception->getMessage());
+        }
+    }
+
     public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, HiosoCliWriteService $hioso): RedirectResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');

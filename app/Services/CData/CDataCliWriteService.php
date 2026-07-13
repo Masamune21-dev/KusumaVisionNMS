@@ -48,6 +48,22 @@ class CDataCliWriteService
     }
 
     /**
+     * Enable/disable (aktif/nonaktif) satu ONU tanpa menghapus registrasi. Beda keyword per family:
+     *   EPON  → `ont enable|disable {port} {onuId}`   (terverifikasi help CLI live FD1304E)
+     *   GPON  → `ont activate|deactivate {port} {onuId}` (guide §6.2 FD1608S/FD1216S V3.x)
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function setState(SnmpOlt $olt, string $iface, int $slot, int $port, int $onuId, bool $active): array
+    {
+        $verb = strtolower($iface) === 'gpon'
+            ? ($active ? 'activate' : 'deactivate')
+            : ($active ? 'enable' : 'disable');
+
+        return $this->runInInterface($olt, $iface, $slot, ["ont {$verb} {$port} {$onuId}"]);
+    }
+
+    /**
      * Hapus (deregister) satu ONU — `ont delete {port} {onuId}`. Destruktif: registrasi ONU
      * dihapus permanen dari OLT. OLT minta konfirmasi y/n → dijawab otomatis (confirm: true).
      *
