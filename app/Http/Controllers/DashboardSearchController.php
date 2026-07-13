@@ -30,6 +30,7 @@ class DashboardSearchController extends Controller
             return [
                 'type' => 'onu',
                 'id' => $item['olt_id'].'-'.$item['slot'].'-'.$item['port'].'-'.($item['onu_id'] ?? ''),
+                'route_prefix' => $item['route_prefix'],
                 'label' => $item['label'],
                 'sublabel' => $item['sublabel'],
                 'url' => $hasPort

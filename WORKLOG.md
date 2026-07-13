@@ -4405,3 +4405,19 @@ Notes:
 - Motivasi (dari user): ONU EPON tak punya serial sungguhan — C-Data EPON menyimpan `serial_number = null` (sebelumnya tampil `-`), HiOSO menyimpan `serial_number = MAC`. Keduanya kini konsisten menampilkan MAC dari field `mac`.
 - Perubahan otomatis ikut ke tabel web + ekspor CSV + ekspor PDF (semua render dari `report.columns` yang sama; hanya `key`/`label`/nilai baris yang berubah, struktur tetap).
 - Diverifikasi: `php artisan test tests/Feature/ReportTest.php` → 7 passed (85 assertions), termasuk test ZTE lama yang tetap hijau; Pint & `php -l` bersih.
+
+## 2026-07-13
+
+### Fix tombol Enable/Disable & Reboot ONU di modal quick-action Dashboard (C-Data & HiOSO)
+
+Changed:
+
+- `resources/js/Components/Dashboard/OnuQuickActionModal.vue` — modal quick-action (Enable/Disable/Reboot ONU) tak lagi hardcode route ZTE. Kini bangun route dari family ONU: `route(\`${prefix}.onu.state\`)` / `route(\`${prefix}.onu.reboot\`)` dengan `prefix` = `route_prefix` hasil pencarian (`smartolt`/`cdata-olt`/`hioso-olt`, default `smartolt`). Payload enable/disable juga diperbaiki dari `{ state: 'unlock'|'lock' }` → `{ active: true|false }` sesuai validasi controller.
+- `app/Http/Controllers/DashboardSearchController.php` — hasil JSON pencarian ONU kini menyertakan `route_prefix` (sudah dihasilkan `GlobalSearchService`, sebelumnya tak diekspos), supaya frontend tahu family ONU untuk memilih route yang benar.
+
+Notes:
+
+- **Dua bug sekaligus.** (1) Modal selalu menembak `smartolt.onu.state`/`smartolt.onu.reboot` sehingga aksi pada ONU C-Data/HiOSO masuk ke `SmartOltController`+`ZteRemoteOnuService` (kirim CLI ZTE ke OLT non-ZTE — salah alamat). (2) Payload enable/disable salah field (`state` vs `active`) sehingga sebenarnya **rusak untuk ZTE juga** (kena validasi 422); reboot ZTE tetap jalan karena tanpa body.
+- Tombol Enable/Disable/Reboot **di halaman per-port** (`Pages/{SmartOlt,CDataOlt,Hioso}/PortOnus.vue`) sudah benar sejak awal — masalah khusus modal dashboard.
+- Diverifikasi: `./vendor/bin/pint` passed; `npm run build` sukses (bundle `Dashboard-*.js` ter-rebuild). Semua route target (`{smartolt,cdata-olt,hioso-olt}.onu.state|reboot`) dikonfirmasi ada di `routes/web.php`; controller non-ZTE `setOnuState` sama-sama memvalidasi `active` boolean, `rebootOnu` tanpa body.
+- Catatan deploy: aset frontend sudah di-rebuild; jika prod opcache `validate_timestamps=0`, reload php-fpm agar perubahan controller ke-pickup. Tak perlu `config:cache`/restart daemon.
