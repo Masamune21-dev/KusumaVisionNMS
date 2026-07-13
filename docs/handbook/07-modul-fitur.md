@@ -30,6 +30,12 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
 - **Test koneksi** (`test`) → `OltSnmpClient::test()` → simpan ringkas ke `last_test_result`,
   catat `PollingEvent::KIND_OLT_TEST`.
 - **Refresh** (`refresh`) → `OltSnmpClient::snapshot()` + `registeredOnus()` → tulis `port_onus`.
+- **Save Config** (`saveConfig`, tombol ikon `Save` di baris aksi — ZTE & non-ZTE) → simpan
+  running-config ke **memori OLT** via CLI (persist; beda dari _backup ke DB_). ZTE `write`,
+  C-Data `enable→config→save`, HiOSO `enable→write`. Gated capability `supports_config_save`.
+  Lihat [09 CLI & Telnet §C-bis](09-cli-telnet.md).
+  > Tombol lama **"Refresh ONU (scan penuh)"** di daftar OLT C-Data/HiOSO sudah **dihapus** —
+  > scan penuh manual kini lewat tombol "Scan ONU" di halaman Detail OLT.
 
 ## 3. Detail OLT / Hardware (card & uplink)
 - **Controller**: `detail`, `refreshHardware` → `ZteCardUplinkService`.

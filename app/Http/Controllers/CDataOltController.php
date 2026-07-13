@@ -339,6 +339,29 @@ class CDataOltController extends Controller
         }
     }
 
+    /**
+     * Simpan running-config OLT ke memori via CLI (`enable` → `config` → `save`). Sinkron.
+     * Gated capability `supports_config_save`.
+     */
+    public function saveConfig(SnmpOlt $olt, CDataCliWriteService $writer): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_config_save');
+        $back = back(fallback: route('cdata-olt.detail', $olt));
+
+        try {
+            $result = $writer->saveConfig($olt);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? "Konfigurasi OLT {$olt->name} berhasil disimpan."
+                    : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
+            );
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Simpan konfigurasi gagal: '.$exception->getMessage());
+        }
+    }
+
     private function ifaceKeyword(SnmpOlt $olt): string
     {
         return $this->driverOf($olt) === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';

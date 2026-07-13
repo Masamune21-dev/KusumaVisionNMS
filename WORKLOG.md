@@ -2,6 +2,28 @@
 
 ## 2026-07-13
 
+### Tombol "Save Config" per-OLT (write memori) + hapus tombol "Refresh ONU (scan penuh)" C-Data/HiOSO
+
+**Permintaan user:** hilangkan tombol "Refresh ONU (scan penuh)" di tab C-Data & HiOSO; tambahkan tombol aksi **Save Config** — C-Data EPON/GPON via CLI `enable → config → save`, HiOSO via `enable → write`, ZTE via `write` (catatan user: write di C300 agak lama ~30 detik).
+
+Changed:
+- `app/Support/SmartOltSupport.php` — capability baru `supports_config_save` (true di ZTE, C-Data EPON, C-Data GPON, HiOSO; false di unknown).
+- `app/Services/ZteCliProvisioningExecutor.php` — method `saveConfig($olt)`: login → `write`. `write` di C300 (config besar) bisa **hening ~30 detik** sebelum prompt kembali, jadi baca pakai `readUntilIdle(quiet=75s, cap=120s)` → hanya prompt CLI yang menghentikan pembacaan (bukan patokan output sunyi), tak berhenti prematur di tengah write.
+- `app/Services/CData/CDataCliWriteService.php` — `saveConfig($olt)`: sesi sudah `enable` → `config` → `save` (auto-jawab konfirmasi) → `end`. Identik EPON/GPON.
+- `app/Services/Hioso/HiosoCliWriteService.php` — `saveConfig($olt)`: sesi sudah `enable` (`EPON#`) → `write`.
+- `app/Http/Controllers/SmartOltController.php` — `saveConfig()` (gated `supports_config_save`, `back()` fallback ke index).
+- `app/Http/Controllers/CDataOltController.php` + `HiosoOltController.php` — `saveConfig()` masing-masing (gated capability).
+- `routes/web.php` — `smartolt.config.save`, `cdata-olt.config.save`, `hioso-olt.config.save` (POST `…/config/save`, `throttle:olt-refresh`).
+- `resources/js/Pages/SmartOlt/Index.vue` — hapus tombol `RotateCw` "Refresh ONU (scan penuh)" (kartu-mobile + tabel-desktop tab non-ZTE) beserta `refreshCdataOlt`/`refreshingId`; tambah tombol `Save` di **4 lokasi** (ZTE + non-ZTE, mobile + desktop) — gated `canManageOlt && cli_transport==='telnet' && capabilities.supports_config_save`, konfirmasi modal + spinner (`savingId`), route dipilih per-`olt.driver`.
+- `tests/Feature/OltConfigSaveTest.php` (baru) — 4 test: endpoint ZTE/C-Data/HiOSO memanggil `saveConfig` (mock) + redirect+flash success; error CLI → flash error.
+- **Sinkron dokumentasi** — `CLAUDE.md` (bullet Architecture "Save Config semua family"), `docs/handbook/06-routing.md` (rute `smartolt.config.save` + catatan non-ZTE), `docs/handbook/07-modul-fitur.md` (aksi Save Config di §2 + catatan tombol scan-penuh dihapus), `docs/handbook/09-cli-telnet.md` (`saveConfig` di tabel executor + section "C-bis. Save Config"), `docs/SMARTOLT_ZTE_C300_C320_GUIDE.md` (§5.7b), `docs/SMARTOLT_CDATA_GUIDE.md` (§6.4), `docs/SMARTOLT_HIOSO_GUIDE.md` (§5.6b).
+
+Notes:
+- Route `cdata-olt.refresh`/`hioso-olt.refresh` **tetap ada** — masih dipakai tombol "Scan ONU" di halaman Detail; yang dihapus hanya tombol di daftar OLT (screenshot user).
+- Command save di-scope per-driver: C-Data/HiOSO lewat `CDataCliWriteService`/`HiosoCliWriteService` (throw bila bukan telnet), ZTE lewat `ZteCliProvisioningExecutor`.
+- Test: 4/4 baru lulus; subset `Capabilities|SmartOlt|CData|Hioso|ReadExtras` = 103 passed. Pint bersih. `npm run build` sukses. `route:cache` di-rebuild (3 rute `config.save` aktif); OPcache `validate_timestamps=On` (revalidate 2s) → php-fpm baca class baru otomatis.
+- **Belum diverifikasi live** dengan `write`/`save` sungguhan ke OLT produksi (mem-persist config; menunggu aba-aba user). Jalur I/O telnet diverifikasi via logika + test mock.
+
 ### Fix: backup running-config OLT besar terpotong (batas baca telnet 15s → berbasis inaktivitas)
 
 **Laporan user:** hasil backup config OLT C300 (OLT-C300-SEKARJALAK, ribuan ONU, config ~1.5MB) tidak penuh — file berhenti mendadak di tengah (`interface gpon-onu_1/3/4:38`), slot 4 hilang.

@@ -22,6 +22,7 @@ tersimpan, kirim baris-baris script, dan kumpulkan output.
 |--------|--------|
 | `execute($olt,$script)` | Jalankan script (tanpa auto-konfirmasi) |
 | `executeConfirmable($olt,$script)` | Jalankan script + auto-jawab prompt konfirmasi `y` |
+| `saveConfig($olt)` | Simpan running-config ke memori OLT (`write`) — tunggu prompt (bukan patokan jeda) karena write C300 config besar bisa hening ~30 detik |
 | `run(...)` (privat) | Loop kirim perintah + baca sampai idle |
 | `login(...)` | Auto-login username/password |
 | `readUntilIdle(...)` | Baca sampai prompt CLI, auto-continue `--More--` pager |
@@ -59,6 +60,19 @@ dan `configureOnuApply` (eksekusi).
 | `ZteCardUplinkService` | Card status, uplink iface, GPON iface, VLAN, optik, tambah VLAN | `refreshCardStatus`, `refreshInterfaceDetails`, `refreshGponInterface`, `addAndTagVlan`, banyak `parse*` |
 
 `App\Support\CliOutputSanitizer` membersihkan output CLI mentah saat perlu.
+
+## C-bis. Save Config (simpan running-config ke memori OLT) — semua family
+
+Tombol ikon `Save` di daftar OLT (`Pages/SmartOlt/Index.vue`, tab ZTE & non-ZTE) memicu **write** running-config ke memori OLT (persist; beda dari **backup** ke DB — lihat `OltConfigBackupService`). Sinkron, gated capability `supports_config_save` + `throttle:olt-refresh`.
+
+| Family | Service / method | Sekuens CLI | Route |
+|--------|------------------|-------------|-------|
+| ZTE | `ZteCliProvisioningExecutor::saveConfig` | login → `write` | `smartolt.config.save` |
+| C-Data EPON/GPON | `CDataCliWriteService::saveConfig` | `enable` → `config` → `save` (identik EPON/GPON) | `cdata-olt.config.save` |
+| HiOSO / V-Sol | `HiosoCliWriteService::saveConfig` | `enable` → `write` | `hioso-olt.config.save` |
+
+- **ZTE C300 config besar:** perintah `write` bisa **hening ~30 detik** sebelum prompt kembali. `saveConfig` membaca via `readUntilIdle(quiet=75s, cap=120s)` → hanya prompt CLI yang menghentikan pembacaan (bukan patokan output sunyi), jadi tak berhenti prematur di tengah write.
+- Konfirmasi CLI (bila muncul) dijawab otomatis; password CLI tetap di-mask dari output tersimpan.
 
 ## D. Browser telnet (xterm.js)
 

@@ -366,6 +366,19 @@ end
 
 **Belum diuji / belum dibuat:** Provisioning ONU baru (flow autofind belum diketahui), bandwidth profile.
 
+### 5.6b Simpan Konfigurasi OLT (`write`) — persist running-config ke memori
+
+Aksi **OLT-level** (bukan per-ONU): simpan running-config ke memori OLT. Dipakai tombol **"Save Config"** di daftar OLT ([`HiosoCliWriteService::saveConfig`](../app/Services/Hioso/HiosoCliWriteService.php), route `hioso-olt.config.save`).
+
+```
+EPON> enable
+EPON# write            # simpan running-config ke memori OLT
+```
+
+- Sesi CLI (`openSession`) sudah masuk level `enable` (`EPON#`), jadi service hanya kirim `write`.
+- `show running-config` di HA7304 dilabeli _"current running system **unsaved** configuration info"_ (lihat §5.3 command tree) → konfirmasi bahwa perubahan perlu di-`write` agar tak hilang saat reboot.
+- Konfirmasi (bila muncul) dijawab otomatis. Gated capability `supports_config_save`.
+
 ### 5.7 Error Patterns
 
 CLI menolak command dengan output yang mengandung salah satu pattern berikut (case-insensitive):

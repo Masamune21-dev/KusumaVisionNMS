@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, RotateCw, Server, Terminal, Trash2 } from '@lucide/vue';
+import { BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 // Lazy-loaded so the heavy xterm bundle only loads when a telnet session opens.
@@ -165,13 +165,33 @@ const testCdataOlt = (olt) => {
     });
 };
 
-// Scan penuh: baca system + ports + seluruh ONU dan tulis cache (lebih berat dari Test SNMP).
-const refreshingId = ref(null);
-const refreshCdataOlt = (olt) => {
-    router.post(nonZteRoute('refresh', olt.id), {}, {
+/* ------------------------------------------------------------------ */
+/* Simpan konfigurasi OLT ke memori (write) — semua family.            */
+/* ZTE `write` (~30 detik di C300), C-Data `config`→`save`, HiOSO `write`. */
+/* Route dipilih per-driver agar konsisten di tab ZTE maupun non-ZTE.  */
+/* ------------------------------------------------------------------ */
+const savingId = ref(null);
+const saveConfigRoute = (olt) => {
+    if (olt.driver === 'zte') {
+        return route('smartolt.config.save', olt.id);
+    }
+    return route(`${olt.driver.startsWith('hioso') ? 'hioso-olt' : 'cdata-olt'}.config.save`, olt.id);
+};
+const saveConfig = async (olt) => {
+    const ok = await confirm({
+        title: 'Simpan konfigurasi OLT',
+        message: `Simpan (write) konfigurasi berjalan ke memori OLT ${olt.name}? Pada OLT dengan config besar (mis. ZTE C300) proses bisa memakan ~30 detik.`,
+        confirmLabel: 'Simpan',
+    });
+
+    if (!ok) {
+        return;
+    }
+
+    router.post(saveConfigRoute(olt), {}, {
         preserveScroll: true,
-        onStart: () => { refreshingId.value = olt.id; },
-        onFinish: () => { refreshingId.value = null; },
+        onStart: () => { savingId.value = olt.id; },
+        onFinish: () => { savingId.value = null; },
     });
 };
 
@@ -327,6 +347,14 @@ const formatDate = (value) => formatDateTime(value);
                                         <Database class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
+                                        v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                        title="Simpan konfigurasi ke OLT (write)"
+                                        :disabled="savingId === olt.id"
+                                        @click="saveConfig(olt)"
+                                    >
+                                        <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
+                                    </IconButton>
+                                    <IconButton
                                         v-if="canManageOlt && olt.cli_transport === 'telnet'"
                                         variant="primary"
                                         title="Telnet ke OLT"
@@ -442,6 +470,14 @@ const formatDate = (value) => formatDateTime(value);
                                             </IconButton>
                                             <IconButton :href="route('smartolt.profiles.index', olt.id)" title="Profile">
                                                 <Database class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                                title="Simpan konfigurasi ke OLT (write)"
+                                                :disabled="savingId === olt.id"
+                                                @click="saveConfig(olt)"
+                                            >
+                                                <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                             </IconButton>
                                             <IconButton
                                                 v-if="canManageOlt && olt.cli_transport === 'telnet'"
@@ -563,18 +599,19 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton
-                                        title="Refresh ONU (scan penuh)"
-                                        :disabled="refreshingId === olt.id"
-                                        @click="refreshCdataOlt(olt)"
-                                    >
-                                        <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
-                                    </IconButton>
                                     <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton :href="nonZteRoute('edit', olt.id)" title="Edit">
                                         <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                        title="Simpan konfigurasi ke OLT"
+                                        :disabled="savingId === olt.id"
+                                        @click="saveConfig(olt)"
+                                    >
+                                        <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                     </IconButton>
                                     <IconButton
                                         v-if="canManageOlt && olt.cli_transport === 'telnet'"
@@ -683,18 +720,19 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton
-                                                title="Refresh ONU (scan penuh)"
-                                                :disabled="refreshingId === olt.id"
-                                                @click="refreshCdataOlt(olt)"
-                                            >
-                                                <RotateCw class="h-4 w-4" :class="{ 'animate-spin': refreshingId === olt.id }" />
-                                            </IconButton>
                                             <IconButton title="Test SNMP" @click="testCdataOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton :href="nonZteRoute('edit', olt.id)" title="Edit">
                                                 <Pencil class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                                title="Simpan konfigurasi ke OLT"
+                                                :disabled="savingId === olt.id"
+                                                @click="saveConfig(olt)"
+                                            >
+                                                <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                             </IconButton>
                                             <IconButton
                                                 v-if="canManageOlt && olt.cli_transport === 'telnet'"

@@ -79,6 +79,30 @@ class HiosoCliWriteService
     }
 
     /**
+     * Simpan running-config ke memori OLT: `enable` → `write`. {@see self::openSession()} sudah
+     * masuk level enable (`EPON#`), jadi tinggal `write`. Konfirmasi (bila muncul) dijawab otomatis.
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function saveConfig(SnmpOlt $olt): array
+    {
+        $connection = $this->openSession($olt);
+        $output = '';
+
+        try {
+            fwrite($connection, "write\r\n");
+            $output .= $this->readUntil($connection, '/#\s*$/', 40, true);
+        } finally {
+            fclose($connection);
+        }
+
+        $output = $this->mask($output, $olt);
+        $error = $this->detectError($output);
+
+        return ['ok' => $error === null, 'output' => $output, 'error' => $error];
+    }
+
+    /**
      * @param  list<string>  $commands
      * @return array{ok: bool, output: string, error: ?string}
      */

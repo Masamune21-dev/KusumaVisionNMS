@@ -484,6 +484,18 @@ SNMP SET .1.3.6.1.4.1.3902.1012.3.28.1.1.3.{ifIndex}.{onuId}
   Value: "Deskripsi pelanggan"
 ```
 
+### 5.7b Simpan Konfigurasi OLT (`write`) — persist running-config ke memori
+
+Aksi **OLT-level** (bukan per-ONU): simpan running-config yang berjalan ke memori/flash OLT supaya bertahan setelah reboot. Dipakai tombol **"Save Config"** di daftar OLT ([`ZteCliProvisioningExecutor::saveConfig`](../app/Services/ZteCliProvisioningExecutor.php), route `smartolt.config.save`).
+
+```
+> write
+```
+
+- ZTE ZXA10 login **langsung mendarat di privileged EXEC (`#`)**, jadi `write` bisa langsung dijalankan tanpa `enable`.
+- **Penting — C300 config besar bisa hening ~30 detik:** setelah `write` dikirim, OLT bisa diam puluhan detik sebelum prompt kembali. `saveConfig` membaca dengan `readUntilIdle(quiet=75s, cap=120s)` → berhenti **hanya saat prompt CLI muncul lagi**, bukan patokan output sunyi, supaya tak terpotong prematur di tengah write.
+- Beda dari **backup config** (`OltConfigBackupService`, `show running-config` → simpan terenkripsi ke DB): `write` menyimpan ke perangkat, backup menyalin ke NMS. Keduanya independen.
+
 ### 5.8 Profile Management
 
 ZTE C300/C320 punya 4 jenis "profile" yang dibutuhkan untuk provisioning ONU. Semua via CLI ([`buildProfileScript`](../app/Services/ZteCliProvisionService.php#L1113-L1231)):

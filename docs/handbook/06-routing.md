@@ -75,6 +75,7 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | DELETE | `/smartolt/{olt}` | `destroy` | `smartolt.destroy` |
 | POST | `/smartolt/{olt}/test` | `test` (SNMP) | `smartolt.test` |
 | POST | `/smartolt/{olt}/refresh` | `refresh` (snapshot penuh) | `smartolt.refresh` |
+| POST | `/smartolt/{olt}/config/save` | `saveConfig` (CLI `write` → memori OLT) | `smartolt.config.save` |
 | GET | `/smartolt/unconfigured` | `unconfiguredGlobal` | `smartolt.unconfigured-all` |
 | GET | `/onu-monitoring` | `onuMonitor` | `monitoring.onu` |
 | POST | `/onu-monitoring/{olt}/refresh` | `refreshOnuMonitor` | `monitoring.onu.refresh` |
@@ -91,6 +92,8 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | POST | `/smartolt/{olt}/port-detail/vlan` | `storePortVlan` (JSON) | `smartolt.port.vlan` |
 
 > Halaman **Port Manager** lama dihapus; navigasinya kini lewat **klik port di visualisasi chassis** (halaman Detail OLT) → halaman **Detail Port** (`PortDetail.vue`).
+
+> **Save Config non-ZTE:** family C-Data & HiOSO punya rute paralel `cdata-olt.config.save` (POST `/cdata-olt/{olt}/config/save`) dan `hioso-olt.config.save` (POST `/hioso-olt/{olt}/config/save`) — simpan running-config ke memori OLT via CLI (C-Data `enable→config→save`, HiOSO `enable→write`). Semua gated capability `supports_config_save` + `throttle:olt-refresh`. Lihat [09 CLI & Telnet](09-cli-telnet.md).
 
 **ONU per port**
 | Method | URI | Aksi | Nama |

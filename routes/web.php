@@ -99,6 +99,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cdata-olt/{olt}/test', [CDataOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('cdata-olt.test');
     Route::get('/cdata-olt/{olt}/detail', [CDataOltController::class, 'detail'])->name('cdata-olt.detail');
     Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('cdata-olt.refresh');
+    Route::post('/cdata-olt/{olt}/config/save', [CDataOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('cdata-olt.config.save');
     Route::get('/cdata-olt/{olt}/ports/{slot}/{port}/onus', [CDataOltController::class, 'portOnus'])->name('cdata-olt.port-onus');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/refresh', [CDataOltController::class, 'refreshPortOnus'])->name('cdata-olt.port-onus.refresh');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
@@ -116,6 +117,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/hioso-olt/{olt}/test', [HiosoOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('hioso-olt.test');
     Route::get('/hioso-olt/{olt}/detail', [HiosoOltController::class, 'detail'])->name('hioso-olt.detail');
     Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('hioso-olt.refresh');
+    Route::post('/hioso-olt/{olt}/config/save', [HiosoOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('hioso-olt.config.save');
     Route::get('/hioso-olt/{olt}/ports/{slot}/{port}/onus', [HiosoOltController::class, 'portOnus'])->name('hioso-olt.port-onus');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HiosoOltController::class, 'refreshPortOnus'])->name('hioso-olt.port-onus.refresh');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HiosoOltController::class, 'rebootOnu'])->name('hioso-olt.onu.reboot');
@@ -168,6 +170,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/test', [SmartOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('smartolt.test');
     // Toggle alarm per-OLT (mute) — dipakai semua family (ZTE/C-Data/HiOSO), hanya membalik flag SnmpOlt.
     Route::post('/smartolt/{olt}/alarms/toggle', [SmartOltController::class, 'toggleAlarms'])->name('smartolt.alarms.toggle');
+    // Simpan running-config OLT ZTE ke memori (CLI `write`) — sinkron, bisa ~30 detik di C300.
+    Route::post('/smartolt/{olt}/config/save', [SmartOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('smartolt.config.save');
     // Backup running-config OLT (ZTE): riwayat, backup manual, toggle backup harian, view/download versi.
     Route::get('/smartolt/{olt}/config-backups', [OltConfigBackupController::class, 'index'])->name('smartolt.config-backups.index');
     Route::post('/smartolt/{olt}/config-backups', [OltConfigBackupController::class, 'store'])->middleware('throttle:olt-refresh')->name('smartolt.config-backups.store');

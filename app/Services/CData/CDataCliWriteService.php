@@ -75,6 +75,33 @@ class CDataCliWriteService
     }
 
     /**
+     * Simpan running-config ke memori OLT (EPON & GPON identik): `enable` → `config` → `save`.
+     * {@see InteractsWithCDataCli::openCliSession()} sudah masuk level enable, jadi tinggal masuk
+     * config lalu `save`. Konfirmasi (bila muncul) dijawab otomatis; save bisa beberapa detik.
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function saveConfig(SnmpOlt $olt): array
+    {
+        $connection = $this->openCliSession($olt);
+        $output = '';
+
+        try {
+            $output .= $this->cliCommand($connection, 'config', 6);
+            fwrite($connection, "save\r\n");
+            $output .= $this->cliReadUntil($connection, '/#\s*$/', 40, false, true);
+            $this->cliCommand($connection, 'end', 5);
+        } finally {
+            fclose($connection);
+        }
+
+        $output = $this->mask($output, $olt);
+        $error = $this->cliDetectError($output);
+
+        return ['ok' => $error === null, 'output' => $output, 'error' => $error];
+    }
+
+    /**
      * @param  list<string>  $commands
      * @return array{ok: bool, output: string, error: ?string}
      */

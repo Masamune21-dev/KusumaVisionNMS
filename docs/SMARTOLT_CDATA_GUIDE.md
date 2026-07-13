@@ -367,6 +367,21 @@ CLI GPON memakai interface `gpon 0/<slot>`, argumen command = `<port> <onuId>`.
 
 Anggap command gagal bila output mengandung (case-insensitive): `invalid input`, `unknown command`, `ambiguous command`, `incomplete command`, `command rejected`, `permission denied`, `authorization failed`, `not support`, `operation failed`, `failure:`, `error:`, `% bad`, `% invalid`, `% command`, `% there is no`.
 
+### 6.4 Simpan Konfigurasi OLT (persist running-config) — EPON & GPON identik
+
+Aksi **OLT-level** (bukan per-ONU): simpan running-config ke memori OLT. Dipakai tombol **"Save Config"** di daftar OLT ([`CDataCliWriteService::saveConfig`](../app/Services/CData/CDataCliWriteService.php), route `cdata-olt.config.save`).
+
+```
+> enable
+# config
+(config)# save            # simpan running-config ke memori OLT
+(config)# end
+```
+
+- Sesi CLI ([`InteractsWithCDataCli::openCliSession`](../app/Services/CData/Concerns/InteractsWithCDataCli.php)) sudah masuk level `enable`, jadi service hanya perlu `config` → `save` → `end`.
+- Konfirmasi (bila muncul) dijawab otomatis. Batas baca `save` longgar (~40 detik) untuk config besar.
+- Gated capability `supports_config_save` (EPON 17409 & GPON 34592, termasuk V3.x).
+
 ---
 
 ## 7. Capability Matrix C-Data

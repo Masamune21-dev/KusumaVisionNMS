@@ -185,6 +185,7 @@ class SmartOltSupport
                 'supports_reboot' => false,
                 'supports_onu_toggle' => false,
                 'supports_onu_info_write' => false,
+                'supports_config_save' => false,
             ];
         }
 
@@ -210,6 +211,8 @@ class SmartOltSupport
             'supports_onu_info_write' => true,
             'description_mode' => 'snmp',
             'supports_onu_toggle' => true,
+            // Simpan running-config ke memori via CLI `write` (bisa ~30 detik di C300 config besar).
+            'supports_config_save' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
@@ -242,6 +245,8 @@ class SmartOltSupport
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_cdata',
             'supports_onu_toggle' => true,
+            // Simpan running-config via CLI: enable → config → save.
+            'supports_config_save' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
@@ -277,6 +282,8 @@ class SmartOltSupport
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_cdata',
             'supports_onu_toggle' => true,
+            // Simpan running-config via CLI: enable → config → save.
+            'supports_config_save' => true,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',
         ];
     }
@@ -311,6 +318,8 @@ class SmartOltSupport
             'supports_onu_info_write' => true,
             'description_mode' => 'cli_hioso',
             'supports_onu_toggle' => true,
+            // Simpan running-config via CLI: enable → write.
+            'supports_config_save' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }

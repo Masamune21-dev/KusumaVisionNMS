@@ -30,6 +30,59 @@ class ZteCliProvisioningExecutor
     }
 
     /**
+     * Simpan running-config ke memori OLT (perintah `write`). Di C300 dengan config besar,
+     * `write` bisa HENING ~30 detik sebelum prompt kembali — jadi kita menunggu prompt CLI
+     * muncul lagi (patokan {@see self::readUntilIdle()}), dengan ambang jeda yang jauh lebih
+     * besar dari durasi hening itu supaya read tak berhenti prematur di tengah write.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function saveConfig(SnmpOlt $olt): array
+    {
+        if ($olt->cli_transport !== 'telnet') {
+            throw new RuntimeException('Simpan konfigurasi saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
+        }
+
+        if (! $olt->cli_username || ! $olt->cli_password) {
+            throw new RuntimeException('Username dan password CLI OLT wajib diisi sebelum simpan konfigurasi.');
+        }
+
+        $port = $olt->cli_port ?: $olt->defaultCliPort();
+        $connection = @fsockopen($olt->ip, $port, $errno, $errstr, 10);
+
+        if (! is_resource($connection)) {
+            throw new RuntimeException("Gagal connect Telnet ke {$olt->ip}:{$port}: {$errstr} ({$errno})");
+        }
+
+        stream_set_timeout($connection, 2);
+        stream_set_blocking($connection, false);
+
+        try {
+            $output = $this->login($connection, $olt);
+
+            $output .= "\n> write\n";
+            fwrite($connection, "write\n");
+            // Ambang jeda 75s > durasi hening write (~30s) → hanya prompt yang menghentikan
+            // pembacaan; batas keras 120s sebagai jaring pengaman bila OLT ngadat.
+            $output .= $this->readUntilIdle($connection, 75.0, true, 120);
+
+            fwrite($connection, "exit\n");
+            $output .= $this->readUntilIdle($connection, 0.8, false, 10);
+        } finally {
+            fclose($connection);
+        }
+
+        $output = CliOutputSanitizer::clean($output);
+        $error = $this->detectError($output);
+
+        return [
+            'ok' => $error === null,
+            'output' => $this->maskSecrets($output, $olt),
+            'error' => $error,
+        ];
+    }
+
+    /**
      * @return array{ok:bool, output:string, error:string|null}
      */
     private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false): array

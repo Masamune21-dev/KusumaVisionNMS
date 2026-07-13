@@ -320,6 +320,29 @@ class HiosoOltController extends Controller
         }
     }
 
+    /**
+     * Simpan running-config OLT ke memori via CLI (`enable` → `write`). Sinkron.
+     * Gated capability `supports_config_save`.
+     */
+    public function saveConfig(SnmpOlt $olt, HiosoCliWriteService $hioso): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_config_save');
+        $back = back(fallback: route('hioso-olt.detail', $olt));
+
+        try {
+            $result = $hioso->saveConfig($olt);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? "Konfigurasi OLT {$olt->name} berhasil disimpan (write)."
+                    : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
+            );
+        } catch (Throwable $exception) {
+            return $back->with('error', 'Simpan konfigurasi gagal: '.$exception->getMessage());
+        }
+    }
+
     private function driverOf(SnmpOlt $olt): string
     {
         return SmartOltSupport::driverKey(

@@ -614,6 +614,29 @@ class SmartOltController extends Controller
         );
     }
 
+    /**
+     * Simpan running-config OLT ZTE ke memori (perintah CLI `write`). Sinkron — di C300 config
+     * besar write bisa ~30 detik. Gated capability `supports_config_save`.
+     */
+    public function saveConfig(SnmpOlt $olt, ZteCliProvisioningExecutor $executor): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_config_save');
+        $back = back(fallback: route('smartolt.index'));
+
+        try {
+            $result = $executor->saveConfig($olt);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? "Konfigurasi OLT {$olt->name} berhasil disimpan (write)."
+                    : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
+            );
+        } catch (\Throwable $exception) {
+            return $back->with('error', 'Simpan konfigurasi gagal: '.$exception->getMessage());
+        }
+    }
+
     public function refresh(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
     {
         $result = $client->snapshot($olt);
