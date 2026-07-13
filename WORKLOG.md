@@ -17,7 +17,7 @@ Changed:
 Notes:
 - `php artisan test` = **340 passed** (1 gagal pre-existing tak terkait `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`). Pint bersih.
 - Perbaikan berlaku untuk SEMUA baca CLI besar (backup, `show ... uncfg`, fetchMany ONU) — hanya lebih longgar, tanpa regresi ke perintah normal.
-- Verifikasi end-to-end ke OLT nyata dilakukan setelah deploy (capture ulang SEKARJALAK, cek config penuh sampai slot 4 & ekor `end`).
+- **Verifikasi live (OLT-C300-SEKARJALAK id=2, 172.27.10.102):** capture ulang **ok, 34.5s, 1.506.370 byte / 41.209 baris**, slot 2+3+**4** lengkap (interface terakhir `gpon-olt_1/4/16`), berakhir `end` — sebelumnya kepotong ~15s di `gpon-onu_1/3/4:38`. Deploy: reload php8.3-fpm (OPcache jalur web manual) + `queue:restart` (jalur terjadwal).
 
 ### Backup konfigurasi OLT ZTE (running-config) — riwayat berversi, diff, jadwal harian per-OLT
 
