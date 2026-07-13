@@ -53,7 +53,7 @@ class SmartOltHardwareInterfaceTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 throw new RuntimeException('CLI should not run while rendering detail.');
             }
@@ -76,7 +76,7 @@ class SmartOltHardwareInterfaceTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return [
                     'ok' => true,
@@ -133,7 +133,7 @@ OUT,
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return [
                     'ok' => true,
@@ -199,7 +199,7 @@ OUT,
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 throw new RuntimeException('CLI should not run while rendering port detail.');
             }
@@ -235,7 +235,7 @@ OUT,
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 $expected = "show interface gpon-olt_1/2/1\nshow interface optical-module-info gpon-olt_1/2/1";
                 if ($script !== $expected) {

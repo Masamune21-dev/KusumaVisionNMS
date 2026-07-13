@@ -40,7 +40,7 @@ class SmartOltAdvancedRegisterTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 throw new \RuntimeException('Must not execute when execute=false.');
             }
@@ -66,7 +66,7 @@ class SmartOltAdvancedRegisterTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return ['ok' => true, 'error' => null, 'output' => 'BMKV-C300#'];
             }

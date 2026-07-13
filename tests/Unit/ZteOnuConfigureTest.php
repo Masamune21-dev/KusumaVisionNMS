@@ -606,7 +606,7 @@ RAW;
         {
             public function __construct(private string $out) {}
 
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return ['ok' => true, 'error' => null, 'output' => $this->out];
             }

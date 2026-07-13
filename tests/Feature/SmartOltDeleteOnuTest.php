@@ -21,7 +21,7 @@ class SmartOltDeleteOnuTest extends TestCase
         {
             public string $script = '';
 
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 $this->script = $script;
 

@@ -407,7 +407,7 @@ OUT);
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return [
                     'ok' => true,
@@ -626,7 +626,7 @@ OUT,
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return [
                     'ok' => true,

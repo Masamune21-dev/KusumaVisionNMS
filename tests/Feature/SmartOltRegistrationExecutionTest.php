@@ -37,7 +37,7 @@ class SmartOltRegistrationExecutionTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return [
                     'ok' => true,
@@ -88,7 +88,7 @@ class SmartOltRegistrationExecutionTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 throw new \RuntimeException('CLI should not rerun for executed registrations.');
             }

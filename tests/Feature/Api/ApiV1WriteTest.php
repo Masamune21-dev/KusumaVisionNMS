@@ -88,7 +88,7 @@ class ApiV1WriteTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 throw new \RuntimeException('Tidak boleh eksekusi saat execute=false.');
             }
@@ -110,7 +110,7 @@ class ApiV1WriteTest extends TestCase
 
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return ['ok' => true, 'error' => null, 'output' => 'BMKV-C320#'];
             }

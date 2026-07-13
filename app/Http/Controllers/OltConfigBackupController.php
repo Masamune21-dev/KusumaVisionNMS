@@ -42,6 +42,9 @@ class OltConfigBackupController extends Controller
 
     public function store(SnmpOlt $olt, OltConfigBackupService $service): RedirectResponse
     {
+        // Backup manual berjalan sinkron; running-config OLT besar bisa perlu puluhan detik.
+        @set_time_limit(180);
+
         $result = $service->capture($olt, OltConfigBackup::TRIGGER_MANUAL, request()->user()?->id);
 
         if (! $result['ok']) {

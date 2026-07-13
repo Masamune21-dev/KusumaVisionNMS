@@ -30,7 +30,8 @@ class OltConfigBackupService
             return ['ok' => false, 'changed' => false, 'backup' => null, 'error' => 'Backup config saat ini hanya untuk OLT ZTE.'];
         }
 
-        $result = $this->executor->execute($olt, "terminal length 0\nshow running-config");
+        // largeOutput: running-config OLT besar bisa streaming puluhan detik tanpa jeda pager.
+        $result = $this->executor->execute($olt, "terminal length 0\nshow running-config", largeOutput: true);
         $config = $this->stripEcho(CliOutputSanitizer::clean((string) ($result['output'] ?? '')));
 
         if (! ($result['ok'] ?? false) || $this->looksEmpty($config)) {

@@ -9,11 +9,14 @@ use RuntimeException;
 class ZteCliProvisioningExecutor
 {
     /**
+     * @param  bool  $largeOutput  true untuk perintah berukuran besar (mis. `show running-config`
+     *                             seluruh OLT): baca dengan toleransi jeda & batas total jauh lebih
+     *                             longgar supaya output tak terpotong di tengah.
      * @return array{ok:bool, output:string, error:string|null}
      */
-    public function execute(SnmpOlt $olt, string $script): array
+    public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
     {
-        return $this->run($olt, $script, false);
+        return $this->run($olt, $script, false, $largeOutput);
     }
 
     /**
@@ -29,7 +32,7 @@ class ZteCliProvisioningExecutor
     /**
      * @return array{ok:bool, output:string, error:string|null}
      */
-    private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes): array
+    private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false): array
     {
         if ($olt->cli_transport !== 'telnet') {
             throw new RuntimeException('Eksekusi otomatis saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
@@ -55,15 +58,19 @@ class ZteCliProvisioningExecutor
             foreach ($this->commands($script) as $command) {
                 $output .= "\n> {$command}\n";
                 fwrite($connection, $command."\n");
-                $output .= $this->readUntilIdle($connection, 15, $autoConfirmYes);
+                // Output besar (running-config penuh) bisa streaming puluhan detik tanpa jeda pager
+                // (terminal length 0) — pakai toleransi jeda & batas total yang jauh lebih longgar.
+                $output .= $largeOutput
+                    ? $this->readUntilIdle($connection, 4.0, $autoConfirmYes, 240)
+                    : $this->readUntilIdle($connection, 1.25, $autoConfirmYes, 45);
             }
 
             fwrite($connection, "exit\n");
-            $output .= $this->readUntilIdle($connection, 1);
+            $output .= $this->readUntilIdle($connection, 0.8, false, 10);
 
             if (preg_match('/confirm to logout without saving|yes\/no|y\/n/i', $output)) {
                 fwrite($connection, "no\n");
-                $output .= $this->readUntilIdle($connection, 1);
+                $output .= $this->readUntilIdle($connection, 0.8, false, 10);
             }
         } finally {
             fclose($connection);
@@ -101,24 +108,41 @@ class ZteCliProvisioningExecutor
     }
 
     /**
+     * Baca output telnet sampai "selesai". Selesai dideteksi bila prompt CLI muncul (cepat) atau
+     * output sudah sunyi (tak ada data) selama $quietSeconds. Batas $maxTotalSeconds adalah pengaman
+     * keras absolut agar output raksasa / OLT ngadat tak menggantung proses selamanya.
+     *
+     * PENTING: patokan berhenti adalah INAKTIVITAS (jeda sejak data terakhir), BUKAN total waktu.
+     * Selama data masih mengalir (mis. `show running-config` seluruh OLT via `terminal length 0`
+     * yang bisa puluhan detik tanpa jeda pager), pembacaan terus berlanjut dan tak terpotong.
+     *
      * @param  resource  $connection
      */
-    private function readUntilIdle($connection, int $timeoutSeconds = 8, bool $autoConfirmYes = false): string
+    private function readUntilIdle($connection, float $quietSeconds = 1.25, bool $autoConfirmYes = false, int $maxTotalSeconds = 45): string
     {
         $output = '';
-        $started = microtime(true);
+        $hardStart = microtime(true);
         $lastRead = microtime(true);
         $confirms = 0;
 
-        while ((microtime(true) - $started) < $timeoutSeconds) {
+        while (true) {
+            $now = microtime(true);
+
+            // Pengaman keras absolut (bukan patokan normal — hanya jaring pengaman).
+            if (($now - $hardStart) >= $maxTotalSeconds) {
+                break;
+            }
+
             $chunk = fread($connection, 8192);
 
             if ($chunk === false || $chunk === '') {
-                if ($output !== '' && $this->hasCliPrompt($output) && (microtime(true) - $lastRead) >= 0.25) {
+                // Prompt terlihat & sudah sedikit sunyi → output selesai.
+                if ($output !== '' && $this->hasCliPrompt($output) && ($now - $lastRead) >= 0.25) {
                     break;
                 }
 
-                if ($output !== '' && (microtime(true) - $lastRead) >= 1.25) {
+                // Sunyi cukup lama → anggap selesai (patokan utama end-of-output).
+                if ($output !== '' && ($now - $lastRead) >= $quietSeconds) {
                     break;
                 }
 
@@ -128,12 +152,11 @@ class ZteCliProvisioningExecutor
             }
 
             $output .= $chunk;
-            $lastRead = microtime(true);
+            $lastRead = microtime(true); // ada data → reset timer inaktivitas (mencegah truncation di stream panjang)
 
             if ($this->hasPagerPrompt($output)) {
                 fwrite($connection, "\n");
                 $output = $this->stripPagerPrompts($output);
-                $started = microtime(true);
                 $lastRead = microtime(true);
             }
 
@@ -141,7 +164,6 @@ class ZteCliProvisioningExecutor
                 fwrite($connection, "y\n");
                 $confirms++;
                 $output = $this->stripConfirmPrompts($output);
-                $started = microtime(true);
                 $lastRead = microtime(true);
             }
         }

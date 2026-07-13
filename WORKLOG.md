@@ -2,6 +2,23 @@
 
 ## 2026-07-13
 
+### Fix: backup running-config OLT besar terpotong (batas baca telnet 15s → berbasis inaktivitas)
+
+**Laporan user:** hasil backup config OLT C300 (OLT-C300-SEKARJALAK, ribuan ONU, config ~1.5MB) tidak penuh — file berhenti mendadak di tengah (`interface gpon-onu_1/3/4:38`), slot 4 hilang.
+
+Akar masalah: `ZteCliProvisioningExecutor::readUntilIdle()` membatasi baca **15 detik total per perintah** (`while ((now - $started) < $timeoutSeconds)`), dan `$started` hanya di-reset saat ada prompt pager `--More--`. Backup pakai `terminal length 0` (pager mati) → tak ada `--More--` → `$started` tak pernah reset → streaming >15s dipotong paksa. OLT besar butuh puluhan detik.
+
+Changed:
+- `app/Services/ZteCliProvisioningExecutor.php` — `readUntilIdle()` ditulis ulang: patokan berhenti kini **INAKTIVITAS** (jeda sejak data terakhir `$lastRead`, di-reset tiap chunk), bukan total waktu; ada pengaman keras absolut `$maxTotalSeconds`. Selama data mengalir, baca tak terpotong. Signature: `readUntilIdle($conn, float $quietSeconds = 1.25, bool $autoConfirmYes = false, int $maxTotalSeconds = 45)`. `execute()`/`run()` dapat flag `bool $largeOutput` → perintah besar (running-config) pakai quiet 4.0s + cap 240s; perintah normal 1.25s + cap 45s (perilaku lama dipertahankan, cap lama 15s→45s lebih longgar).
+- `app/Services/Zte/OltConfigBackupService.php` — panggil `execute(..., largeOutput: true)`.
+- `app/Http/Controllers/OltConfigBackupController.php` — `store()` set `@set_time_limit(180)` (backup manual sinkron OLT besar bisa puluhan detik).
+- `tests/Unit/ZteOnuConfigureTest.php` + 9 file test Feature — selaraskan override anonim `execute()` dengan signature baru (`bool $largeOutput = false`).
+
+Notes:
+- `php artisan test` = **340 passed** (1 gagal pre-existing tak terkait `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`). Pint bersih.
+- Perbaikan berlaku untuk SEMUA baca CLI besar (backup, `show ... uncfg`, fetchMany ONU) — hanya lebih longgar, tanpa regresi ke perintah normal.
+- Verifikasi end-to-end ke OLT nyata dilakukan setelah deploy (capture ulang SEKARJALAK, cek config penuh sampai slot 4 & ekor `end`).
+
 ### Backup konfigurasi OLT ZTE (running-config) — riwayat berversi, diff, jadwal harian per-OLT
 
 **Permintaan user:** dari roadmap fitur, kerjakan backup konfig OLT (skip subscriber/WhatsApp dulu). Arahan: akses = admin + partner untuk OLT miliknya sendiri (ikut scoping kepemilikan); jadwal harian **tapi per-OLT bisa dipilih** lewat tombol on/off backup.

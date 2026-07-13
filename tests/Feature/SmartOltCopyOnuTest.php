@@ -131,7 +131,7 @@ class SmartOltCopyOnuTest extends TestCase
     {
         $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
         {
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 $out = '';
                 foreach (preg_split('/\r?\n/', $script) ?: [] as $cmd) {

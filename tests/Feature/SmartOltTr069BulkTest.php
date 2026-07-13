@@ -225,7 +225,7 @@ class SmartOltTr069BulkTest extends TestCase
              */
             public function __construct(private array $activeOnuIds, private array $incompleteOnuIds) {}
 
-            public function execute(SnmpOlt $olt, string $script): array
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 if (str_contains($script, 'show running-config interface')) {
                     return ['ok' => true, 'error' => null, 'output' => $this->readOutput($script)];
