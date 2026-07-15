@@ -56,26 +56,38 @@ class OltSnmpClient
         '1.3.6.1.4.1.3902.1082.500.10.1.1.1',
     ];
 
-    // C600 OIDs (.1082 subtree — zxAccessNode)
-    private const C600_ONU_TYPE = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.1';
+    // C600 ONU table (.1082 subtree), columns of 1082.500.20.2.1.2.1, index = {ifIndex}.{onuId}
+    // where ifIndex is the real IF-MIB index of the PON port. Mapped column-by-column against a
+    // live C600 (ZXA10 C600 V1.2.2) — the older 1082.500.10.2.3/.8/.11 OIDs this file used before
+    // do not exist on the device at all (No Such Object), which read every C600 as zero ONUs.
+    private const C600_ONU_TABLE = '1.3.6.1.4.1.3902.1082.500.20.2.1.2.1';
 
-    private const C600_ONU_NAME = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.2';
+    // ONU model, present for every vendor (e.g. "F641", "HG8145V5"); the type gate for a C600 walk.
+    private const C600_ONU_TYPE = self::C600_ONU_TABLE.'.8';
 
-    private const C600_ONU_SN = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.6';
+    // Serial number as an 8-byte octet string: 4 ASCII vendor chars + 4 raw bytes (ZTEG008EEB08).
+    private const C600_ONU_SN = self::C600_ONU_TABLE.'.3';
 
-    private const C600_ONU_ADMIN_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.1';
+    // Online state. Only ever 1 or 2 on the live C600, and the value tracks the per-ONU traffic
+    // counters exactly (1 = counters advancing, 2 = frozen) across 51 ONUs on two PON ports.
+    private const C600_ONU_PHASE_STATE = self::C600_ONU_TABLE.'.7';
 
-    // Values: 1=logging, 2=los, 3=syncMib, 4=working, 5=dyingGasp, 6=authFailed, 7=offline
-    private const C600_ONU_PHASE_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.4';
+    public const C600_PHASE_WORKING = 1;
 
-    private const C600_ONU_LAST_DOWN_CAUSE = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.7';
+    public const C600_PHASE_OFFLINE = 2;
 
-    // OLT-side RX power; raw / 1000 = dBm; -80000=no signal, 65535000=N/A
-    private const C600_ONU_RX_POWER = '1.3.6.1.4.1.3902.1082.500.10.2.11.1.2';
+    // Not mapped on the live C600: no column carries the ONU name (.19 is empty for every ONU on
+    // an OLT that sets none), and no admin-state, last-down-cause or RX-power table was found
+    // anywhere under 1082.500 — see docs/SMARTOLT_ZTE_C600_GUIDE.md before filling these in.
+    private const C600_ONU_NAME = null;
 
-    private const C600_UNCFG_OIDS = [
-        '1.3.6.1.4.1.3902.1082.500.10.2.2.1.2',
-    ];
+    private const C600_ONU_ADMIN_STATE = null;
+
+    private const C600_ONU_LAST_DOWN_CAUSE = null;
+
+    private const C600_ONU_RX_POWER = null;
+
+    private const C600_UNCFG_OIDS = [];
 
     /**
      * @return array<string, mixed>
@@ -201,6 +213,7 @@ class OltSnmpClient
         $descriptions = $this->walk($olt, self::IF_DESCR);
         $names = $this->walk($olt, self::IF_NAME);
         $statuses = $this->walk($olt, self::IF_OPER_STATUS);
+        $isC600 = SmartOltSupport::isC600($olt);
         $ports = [];
         $seen = [];
 
@@ -216,7 +229,7 @@ class OltSnmpClient
 
             $description = $descriptions[$this->joinOid(self::IF_DESCR, (string) $ifIndex)] ?? null;
             $name = $names[$this->joinOid(self::IF_NAME, (string) $ifIndex)] ?? null;
-            $portLabel = $this->resolvePortLabel($name, $description);
+            $portLabel = $this->resolvePortLabel($name, $description, $isC600);
             if ($portLabel === null) {
                 continue;
             }
@@ -251,22 +264,13 @@ class OltSnmpClient
         $startedAt = microtime(true);
 
         try {
-            // C300/C320: walk only this port's ONU-table subtree (scoped) — avoids
-            // walking the whole OLT (+ the heavy IF-MIB port walk) just to show one
-            // port. C600 keeps the legacy full-walk path (untested for scoping).
-            $scoped = ! SmartOltSupport::isC600($olt);
-            $scope = $scoped ? (string) $this->zteEncodeIfIndex($olt, $slot, $port) : null;
-
-            if ($scoped) {
-                $portRow = null;
-                $onus = $this->registeredOnus($olt, null, $scope);
-            } else {
-                $ports = $this->gponPorts($olt);
-                $portRow = collect($ports)->first(
-                    fn (array $row) => (int) $row['slot'] === $slot && (int) $row['port'] === $port
-                );
-                $onus = $this->registeredOnus($olt, $ports);
-            }
+            // Walk only this port's ONU-table subtree — avoids walking the whole OLT (+ the heavy
+            // IF-MIB port walk) just to show one port. Safe on C600 too: its ONU table is keyed by
+            // the real IF-MIB if-index, so zteEncodeIfIndex() reproduces the prefix exactly (a full
+            // C600 walk measured ~151s for a single port before this was scoped).
+            $scope = (string) $this->zteEncodeIfIndex($olt, $slot, $port);
+            $portRow = null;
+            $onus = $this->registeredOnus($olt, null, $scope);
 
             $onus = array_values(array_filter(
                 $onus,
@@ -334,7 +338,7 @@ class OltSnmpClient
             return [
                 'type' => self::C600_ONU_TYPE,
                 'name' => self::C600_ONU_NAME,
-                'description' => null, // C600 has no separate description OID
+                'description' => null, // no separate description column on the C600 ONU table
                 'sn' => self::C600_ONU_SN,
                 'admin_state' => self::C600_ONU_ADMIN_STATE,
                 'phase_state' => self::C600_ONU_PHASE_STATE,
@@ -374,12 +378,15 @@ class OltSnmpClient
             return [];
         }
 
-        $names = $walk($oids['name']);
-        $descriptions = $oids['description'] ? $walk($oids['description']) : [];
+        // Columns a family does not expose are null (the C600 has no name/admin/last-down table).
+        $walkOptional = fn (?string $oid): array => $oid === null ? [] : $walk($oid);
+
+        $names = $walkOptional($oids['name']);
+        $descriptions = $walkOptional($oids['description']);
         $serials = $walk($oids['sn']);
-        $adminStates = $walk($oids['admin_state']);
-        $phaseStates = $walk($oids['phase_state']);
-        $lastDownCauses = $walk($oids['last_down']);
+        $adminStates = $walkOptional($oids['admin_state']);
+        $phaseStates = $walkOptional($oids['phase_state']);
+        $lastDownCauses = $walkOptional($oids['last_down']);
         // Scoped walks don't need the (heavy) IF-MIB port map; C300/C320 derive
         // slot/port from the ONU-table prefix via decodeIfIndex anyway.
         $portMap = $this->buildPortMap($ports ?? ($scope === null ? $this->gponPorts($olt) : []));
@@ -408,9 +415,9 @@ class OltSnmpClient
             } else {
                 [$slot, $port] = $this->decodeIfIndex($olt, $ifIndex);
             }
-            $phaseRaw = $this->intFromWalk($phaseStates, $oids['phase_state'], $suffix);
-            $adminRaw = $this->intFromWalk($adminStates, $oids['admin_state'], $suffix);
-            $lastDownRaw = $this->intFromWalk($lastDownCauses, $oids['last_down'], $suffix);
+            $phaseRaw = $oids['phase_state'] ? $this->intFromWalk($phaseStates, $oids['phase_state'], $suffix) : null;
+            $adminRaw = $oids['admin_state'] ? $this->intFromWalk($adminStates, $oids['admin_state'], $suffix) : null;
+            $lastDownRaw = $oids['last_down'] ? $this->intFromWalk($lastDownCauses, $oids['last_down'], $suffix) : null;
 
             $onus[] = [
                 'if_index' => $ifIndex,
@@ -419,7 +426,9 @@ class OltSnmpClient
                 'port' => $port,
                 'interface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600),
                 'type_name' => $typeName,
-                'name' => $this->walkValue($names, $oids['name'], $suffix),
+                'name' => $oids['name']
+                    ? $this->walkValue($names, $oids['name'], $suffix)
+                    : null,
                 'description' => $oids['description']
                     ? $this->walkValue($descriptions, $oids['description'], $suffix)
                     : null,
@@ -428,7 +437,7 @@ class OltSnmpClient
                 'admin_state' => $this->decodeAdminState($adminRaw),
                 'phase_state_code' => $phaseRaw,
                 'phase_state' => $this->decodePhaseState($phaseRaw, $isC600),
-                'online' => $isC600 ? $phaseRaw === 4 : $phaseRaw === 3,
+                'online' => $isC600 ? $phaseRaw === self::C600_PHASE_WORKING : $phaseRaw === 3,
                 'last_down_cause_code' => $lastDownRaw,
                 'last_down_cause' => $this->decodeLastDownCause($lastDownRaw),
             ];
@@ -446,6 +455,12 @@ class OltSnmpClient
     {
         $isC600 = SmartOltSupport::isC600($olt);
         $rxOid = $isC600 ? self::C600_ONU_RX_POWER : self::ZTE_ONU_RX_POWER;
+
+        // No SNMP RX table was found on the live C600; callers fall back to CLI RX.
+        if ($rxOid === null) {
+            return [];
+        }
+
         $rows = $this->walk($olt, $scope === null ? $rxOid : $this->joinOid($rxOid, $scope));
         $powers = [];
 
@@ -882,17 +897,19 @@ class OltSnmpClient
         return $this->decodeIfIndex($olt, $ifIndex);
     }
 
-    private function resolvePortLabel(?string $name, ?string $description): ?string
+    private function resolvePortLabel(?string $name, ?string $description, bool $isC600 = false): ?string
     {
         foreach ([$name, $description] as $candidate) {
             if ($candidate === null || $candidate === '') {
                 continue;
             }
 
-            // Match 3-tier (C300: gpon-olt_1/2/1) or 4-tier (C600: gpon-olt_1/1/2/1)
-            if (preg_match('/^gpon(?:[-_]olt)?[-_]?\d+(?:\/\d+){2,3}$/i', $candidate)) {
-                // Normalise gpon_ → gpon-olt_ so SNMP names match CLI names
-                return preg_replace('/^gpon_/i', 'gpon-olt_', $candidate) ?? $candidate;
+            // Firmware spells the same port differently per family: C320 ifName is `gpon_1/2/1`
+            // while its CLI says `gpon-olt_1/2/1`; C600 says `gpon_olt-1/3/1` in both. Capture the
+            // numeric tail and re-emit the family's own CLI spelling, so the label matches what the
+            // OLT prints (and a C600 name is not mangled into `gpon-olt_olt-1/3/1`).
+            if (preg_match('/^gpon[-_]?(?:olt)?[-_]?(\d+(?:\/\d+){2,3})$/i', $candidate, $matches)) {
+                return ($isC600 ? 'gpon_olt-' : 'gpon-olt_').$matches[1];
             }
         }
 
@@ -1047,15 +1064,12 @@ class OltSnmpClient
     private function decodePhaseState(?int $code, bool $isC600 = false): string
     {
         if ($isC600) {
-            // C600 phase codes start at 1 (not 0)
+            // The C600 column is a plain online flag, not the C300 phase enum: it reports only
+            // 1 or 2 and never distinguishes LOS/DyingGasp/AuthFailed. Do not invent those codes
+            // here — a wrong guess is what previously made every C600 ONU read as offline.
             return match ($code) {
-                1 => 'Logging',
-                2 => 'LOS',
-                3 => 'Sync MIB',
-                4 => 'Working',
-                5 => 'DyingGasp',
-                6 => 'Auth Failed',
-                7 => 'Offline',
+                self::C600_PHASE_WORKING => 'Working',
+                self::C600_PHASE_OFFLINE => 'Offline',
                 default => 'Unknown',
             };
         }

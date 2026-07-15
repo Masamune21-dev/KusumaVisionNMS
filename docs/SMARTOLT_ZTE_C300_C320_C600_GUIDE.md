@@ -34,18 +34,23 @@ ZTE diperiksa **paling dulu** (sebelum family non-ZTE) supaya needle `epon` mili
 
 ### 1.1 Deteksi C600 (Titan)
 
-C600 adalah platform Titan dengan **struktur interface 4-tier** dan **subtree SNMP modern `.1082` (zxAccessNode)**. Deteksinya terpisah dari `driverKey()`, memakai [`SmartOltSupport::isC600()`](../app/Support/SmartOltSupport.php#L119) — cek substring `c600` pada `vendor` + `name` + `last_test_result.system.sys_descr`. Jadi:
+C600 adalah platform Titan dengan **subtree SNMP modern `.1082` (zxAccessNode)**. Deteksinya terpisah dari `driverKey()`, memakai [`SmartOltSupport::isC600()`](../app/Support/SmartOltSupport.php) — substring `c600` pada `vendor` + `name` + `last_test_result.system.sys_descr`, **atau** `sysObjectID` mengandung `3902.1082.1001.600` (jalur kedua ini yang menyelamatkan C600 baru yang belum di-Test dan namanya tak mengandung "C600"). Jadi:
 
 - driver tetap `DRIVER_ZTE` (C600 berbagi seluruh jalur ZTE),
-- `isC600()` menyalakan cabang khusus C600 di dalam driver (OID `.1082`, ifIndex 4-tier, interface `gpon-olt_1/1/…`, tanpa OID deskripsi terpisah).
+- `isC600()` menyalakan cabang khusus C600 di dalam driver (OID `.1082`, ifIndex 4-komponen, tanpa OID deskripsi terpisah).
+
+> **Baca [`SMARTOLT_ZTE_C600_GUIDE.md`](SMARTOLT_ZTE_C600_GUIDE.md) untuk apa pun yang menyangkut C600.** Dokumen ini otoritatif untuk C300/C320; bagian C600-nya dulu berisi OID yang tak pernah diuji ke perangkat dan sudah dikoreksi.
 
 Ringkas perbedaan interface (lihat [`gponOltInterface()`](../app/Support/SmartOltSupport.php#L153) / [`onuInterfaceId()`](../app/Support/SmartOltSupport.php#L146)):
 
-| | C300 / C320 (3-tier) | C600 (4-tier) |
+| | C300 / C320 | C600 |
 |---|---|---|
-| Port PON | `gpon-olt_1/{slot}/{port}` | `gpon-olt_1/1/{slot}/{port}` |
-| ONU | `gpon-onu_1/{slot}/{port}:{onuId}` | `gpon-onu_1/1/{slot}/{port}:{onuId}` |
-| `port_name_prefix` capability | `gpon-olt_1` | `gpon-olt_1/1` |
+| Port PON | `gpon-olt_1/{slot}/{port}` | `gpon_olt-1/{slot}/{port}` |
+| ONU | `gpon-onu_1/{slot}/{port}:{onuId}` | `gpon_onu-1/{slot}/{port}:{onuId}` |
+| Uplink | `xgei_1/{slot}/{port}` | `xgei-1/{slot}/{port}` |
+| `port_name_prefix` capability | `gpon-olt_1` | `gpon_olt-1` |
+
+**Keduanya 3-tier** — yang beda hanya ejaannya. C600 **tidak** memakai 4-tier `gpon-olt_1/1/…`; klaim itu (versi lama dokumen ini) terbantah oleh running-config C600 asli.
 
 ---
 
@@ -97,16 +102,18 @@ slot = (ifIndex >> 16) & 0xFF ;  port = (ifIndex >> 8) & 0xFF
 | 1 | 2 | `0x10010200` | `268501952` |
 | 2 | 1 | `0x10020100` | `268567296` |
 
-### 3.2 C600 — 4-tier composite
+### 3.2 C600 — composite 4-komponen (type|rack|shelf|slot|port)
+
+> Ini soal **ifIndex**, bukan nama CLI. ifIndex C600 memang berkomponen 4, tapi nama interface-nya tetap **3-tier** (`gpon_olt-1/{slot}/{port}`) — shelf tak muncul di nama. Jangan campur keduanya.
 
 ```
 ifIndex = (1<<28) | (1<<24) | (1<<16) | (slot << 8) | port     # type|rack|shelf|slot|port
 slot = (ifIndex >> 8) & 0xFF ;  port = ifIndex & 0xFF
 ```
 
-> **Gotcha yang sudah ditambal (C320).** Prefix-index tabel ONU C320 bertabrakan dengan ifIndex IF-MIB port di slot+1 → ONU slot 1 bisa "nyasar" ke slot 2. Fix ada di `buildPortMap`/`decodeIfIndex` + walk ONU **per-port** (scoped by prefix ifIndex) pada C300/C320. C600 memakai jalur port-map legacy (tanpa collision ini).
+> **Gotcha yang sudah ditambal (C320).** Prefix-index tabel ONU C320 bertabrakan dengan ifIndex IF-MIB port di slot+1 → ONU slot 1 bisa "nyasar" ke slot 2. Fix ada di `buildPortMap`/`decodeIfIndex` + walk ONU **per-port** (scoped by prefix ifIndex). C600 **tidak** punya collision ini (tabel ONU-nya di-index ifIndex IF-MIB asli), dan sejak Juli 2026 ikut jalur scoped — full-walk C600 sempat terukur ~151 detik per port.
 
-Parse slot/port dari `ifDescr` (`gpon-olt_1/1/2/1` untuk C600, `gpon-olt_1/2/1` untuk C300/C320) lebih andal daripada bit-decode murni; parser IF-MIB mencocokkan pola **4-tier lebih dulu** baru 3-tier ([`OltSnmpClient` ±L872–892](../app/Services/Snmp/OltSnmpClient.php#L872)).
+Parse slot/port dari nama port lebih andal daripada bit-decode murni; parser IF-MIB mencocokkan pola **4-tier lebih dulu** baru 3-tier ([`OltSnmpClient::parseSlotPort()`](../app/Services/Snmp/OltSnmpClient.php)). Perhatikan sumber namanya beda per-family: C320 memakai `ifName` = `gpon_1/2/1`, C600 memakai `ifName` = `gpon_olt-1/3/1` (**3-tier**, sedangkan `ifDescr` C600 berisi nama area pelanggan, bukan nama interface) — detail di [`SMARTOLT_ZTE_C600_GUIDE.md` §3](SMARTOLT_ZTE_C600_GUIDE.md).
 
 ---
 
@@ -148,26 +155,23 @@ Last-down-cause enum ([`decodeLastDownCause`](../app/Services/Snmp/OltSnmpClient
 
 Interpretasi `last_down_cause` ke bahasa Indonesia di UI: [`resources/js/lib/onu.js`](../resources/js/lib/onu.js) (`lastDownCauseLabel`).
 
-### 4.3 Tabel ONU — C600 (`.1082.500.10.*`, zxAccessNode)
+### 4.3 Tabel ONU — C600 → lihat guide terpisah
 
-C600 memakai subtree modern. Dipilih otomatis saat `isC600()` true ([`OltSnmpClient` ±L333](../app/Services/Snmp/OltSnmpClient.php#L333)):
+> **Seluruh OID C600 yang pernah ada di section ini SALAH** — dijawab *No Such Object* oleh C600 asli
+> (cabang `1082.500.10.2.3/.2.8/.2.11` tidak ada di perangkat), sehingga C600 mana pun terbaca **0 ONU**.
+> Sudah ditambal 15 Juli 2026 setelah pemetaan live.
 
-| Kolom | OID | Catatan |
-|---|---|---|
-| ONU type | `…3902.1082.500.10.2.3.1.1` | |
-| ONU name | `…3902.1082.500.10.2.3.1.2` | **RW** (SNMP) |
-| ONU SN | `…3902.1082.500.10.2.3.1.6` | |
-| ONU admin state | `…3902.1082.500.10.2.8.1.1` | **RW** `1=active`, `2=disabled` |
-| ONU phase state | `…3902.1082.500.10.2.8.1.4` | **kode mulai 1** (bukan 0): `4=Working` = online |
-| ONU last-down cause | `…3902.1082.500.10.2.8.1.7` | |
-| ONU Rx (OLT-side) | `…3902.1082.500.10.2.11.1.2` | index `{ifIndex}.{onuId}`, `raw/1000 = dBm`, `-80000`=no-signal, `65535000`=N/A |
-| Unconfigured SN | `…3902.1082.500.10.2.2.1.2` | discovery ONU baru |
+Tabel ONU C600 yang benar ada di basis **`.1082.500.20.2.1.2.1.*`** (index `{ifIndex}.{onuId}`), dengan
+`.3` = SN, `.7` = status online (`1`=Working, `2`=Offline), `.8` = model.
 
-**C600 tidak punya OID deskripsi terpisah** → `setInfo()` hanya menulis nama, `supports_separate_description=false`. Phase-state enum C600 di-offset 1 (`1=Logging … 7=Offline`), lihat `decodePhaseState($code, isC600: true)`.
+**Referensi lengkap + apa yang belum terpetakan (nama ONU, admin-state, Rx, unconfigured):**
+[`SMARTOLT_ZTE_C600_GUIDE.md`](SMARTOLT_ZTE_C600_GUIDE.md). Section ini hanya berlaku untuk C300/C320.
 
 ### 4.4 Konversi Rx Power (multi-scale)
 
-`OltSnmpClient::convertOnuRxPowerToDbm()` auto-detect scale berdasarkan magnitude raw (C300/C320): sentinel no-signal → `null`; milli-dBm (`-50000..-3000` → `/1000`); 0.1-dBm (`-500..-5` → `/10`); legacy positif (`raw>0 → raw*0.002-30`). Untuk **C600**, Rx OLT-side `raw/1000 = dBm` langsung. Scale dipilih dari magnitude, bukan flag firmware — terbukti benar di C320 live (`5635 → -18.73 dBm`, cocok CLI `-18.762 dBm`).
+`OltSnmpClient::convertOnuRxPowerToDbm()` auto-detect scale berdasarkan magnitude raw (C300/C320): sentinel no-signal → `null`; milli-dBm (`-50000..-3000` → `/1000`); 0.1-dBm (`-500..-5` → `/10`); legacy positif (`raw>0 → raw*0.002-30`). Scale dipilih dari magnitude, bukan flag firmware — terbukti benar di C320 live (`5635 → -18.73 dBm`, cocok CLI `-18.762 dBm`).
+
+**C600 tak punya Rx via SNMP** — tak ada tabel optik di seluruh cabang `1082.500` pada perangkat asli, jadi `supports_snmp_rx=false` dan `onuRxPowers()` mengembalikan `[]`.
 
 ### 4.5 ONU Unconfigured / Auto Discovery
 
@@ -177,7 +181,7 @@ OID kandidat (`OltSnmpClient::ZTE_UNCFG_OIDS` untuk C300/C320, `C600_UNCFG_OIDS`
 |---|---|
 | C320 V1.2.x | `…3902.1012.3.13.3.1.2` |
 | v2.x SN/MAC/alt | `…3902.1082.500.10.2.1.1` · `…10.2.1.2` · `…10.1.1.1` |
-| **C600** | `…3902.1082.500.10.2.2.1.2` |
+| **C600** | **belum terpetakan** (`C600_UNCFG_OIDS = []`) — OID lama `…10.2.2.1.2` tak ada di perangkat asli; halaman Unconfigured kosong untuk C600 |
 
 Halaman Unconfigured (`Pages/SmartOlt/Unconfigured.vue`) + service on-demand [`ZteUncfgOnuService`](../app/Services/ZteUncfgOnuService.php); ada juga cross-OLT `Pages/SmartOlt/UnconfiguredGlobal.vue`.
 
@@ -192,13 +196,13 @@ Halaman Unconfigured (`Pages/SmartOlt/Unconfigured.vue`) + service on-demand [`Z
 ZXAN#                              # ZXA10 sering langsung mendarat di privileged EXEC
 ZXAN# configure terminal           # → ZXAN(config)#  (alias: conf t)
 ZXAN(config)# interface gpon-olt_1/{slot}/{port}          # C300/C320
-ZXAN(config)# interface gpon-olt_1/1/{slot}/{port}        # C600 (4-tier)
-ZXAN(config)# interface gpon-onu_1/{slot}/{port}:{onuId}  # (C600: gpon-onu_1/1/{slot}/{port}:{onuId})
+ZXAN(config)# interface gpon_olt-1/{slot}/{port}          # C600 (3-tier, eja `gpon_olt-`)
+ZXAN(config)# interface gpon-onu_1/{slot}/{port}:{onuId}  # (C600: gpon_onu-1/{slot}/{port}:{onuId})
 ZXAN(config)# pon-onu-mng gpon-onu_1/…:{onuId}
 ZXAN(config)# end
 ```
 
-Interface string di-generate lewat helper `SmartOltSupport::gponOltInterface()` / `onuInterfaceId()` yang otomatis 3-tier atau 4-tier menurut `isC600()`. Executor mengirim `terminal length 0` bila perlu dan meng-handle pager `--More--` otomatis.
+Interface string di-generate lewat helper `SmartOltSupport::gponOltInterface()` / `onuInterfaceId()` yang memilih ejaan menurut `isC600()` — **keduanya 3-tier**; C600 hanya beda eja (`gpon_olt-` / `gpon_onu-` vs `gpon-olt_` / `gpon-onu_`). Klaim "C600 = 4-tier" di versi lama dokumen ini **salah**, lihat [`SMARTOLT_ZTE_C600_GUIDE.md` §3.1](SMARTOLT_ZTE_C600_GUIDE.md). Executor mengirim `terminal length 0` bila perlu dan meng-handle pager `--More--` otomatis.
 
 ### 5.2 Show Commands (read-only)
 
@@ -264,10 +268,15 @@ Toggle & edit info ZTE lewat **SNMP SET** (lebih cepat dari CLI) di [`ZteRemoteO
 ```
 # enable/disable  (admin-state OID)
 SET .1012.3.28.1.1.17.{ifIndex}.{onuId}  i  1|2      # C300/C320
-SET .1082.500.10.2.8.1.1.{ifIndex}.{onuId}  i  1|2   # C600
 # nama / deskripsi
-SET .1012.3.28.1.1.2/.3.{ifIndex}.{onuId}  s  "…"    # C600: name via .1082.500.10.2.3.1.2, deskripsi dilewati
+SET .1012.3.28.1.1.2/.3.{ifIndex}.{onuId}  s  "…"    # C300/C320
 ```
+
+> **C600: kedua write ini TERTUTUP.** OID C600 yang dulu tertulis di sini (`.1082.500.10.2.8.1.1` untuk
+> admin-state, `.1082.500.10.2.3.1.2` untuk nama) **tidak ada di perangkat asli** — SET ke sana berarti
+> menulis ke OID sembarang di OLT. `supports_onu_toggle` & `supports_onu_info_write` = `false` untuk C600,
+> dan `ZteRemoteOnuService` melempar `RuntimeException` bila tetap dipanggil. Jangan dibuka dengan OID
+> tebakan; lihat [`SMARTOLT_ZTE_C600_GUIDE.md` §5](SMARTOLT_ZTE_C600_GUIDE.md).
 
 Route: `smartolt.onu.state` (setState), `smartolt.onu.info` (updateOnuInfo). Delete ONU (`no onu {id}`, gated `supports_onu_delete`) via route `smartolt.onu.delete`.
 
@@ -386,19 +395,19 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
   "driver": "zte",
   "vendor_family": "ZTE GPON",            // C600 → "ZTE GPON (C600)"
   "pon_label": "GPON", "port_label": "GPON Port",
-  "port_name_prefix": "gpon-olt_1",       // C600 → "gpon-olt_1/1"
-  "onu_interface_pattern": "gpon-onu_1/%d/%d:%d",   // C600 → "gpon-onu_1/1/%d/%d:%d"
+  "port_name_prefix": "gpon-olt_1",       // C600 → "gpon_olt-1"
+  "onu_interface_pattern": "gpon-onu_1/%d/%d:%d",   // C600 → "gpon_onu-1/%d/%d:%d" (3-tier)
   "is_c600": false,
-  "supports_snmp_rx": true, "supports_cli_rx": true,
+  "supports_snmp_rx": true, "supports_cli_rx": true,   // C600 → supports_snmp_rx: false (tak ada tabel Rx SNMP)
   "supports_cli_onu_detail": true, "supports_cli_onu_configure": true,
   "supports_reboot": true, "reboot_mode": "cli",
   "supports_provisioning": true,
   "supports_onu_delete": true,
   "supports_separate_description": true,  // C600 → false
-  "supports_onu_info_write": true, "description_mode": "snmp",
-  "supports_onu_toggle": true,
+  "supports_onu_info_write": true, "description_mode": "snmp",   // C600 → false (OID nama tak terpetakan)
+  "supports_onu_toggle": true,            // C600 → false (OID admin-state tak terpetakan)
   "supports_config_save": true,
-  "rx_source_label": "Rx ONU (SNMP)"
+  "rx_source_label": "Rx ONU (SNMP)"      // C600 → "Rx ONU (CLI)"
 }
 ```
 
@@ -410,10 +419,11 @@ ZTE adalah **satu-satunya driver dengan `supports_provisioning`, `supports_cli_o
 
 | Aspek | C300 / C320 | C600 |
 |---|---|---|
-| Deteksi | `isC600()` false | `isC600()` true (substring `c600`) |
-| Interface | 3-tier `gpon-olt_1/{s}/{p}` | 4-tier `gpon-olt_1/1/{s}/{p}` |
+| Deteksi | `isC600()` false | `isC600()` true (substring `c600` **atau** sysObjectID `3902.1082.1001.600`) |
+| Interface | `gpon-olt_1/{s}/{p}` | `gpon_olt-1/{s}/{p}` (**3-tier**, beda eja saja) |
 | ifIndex ONU | `0x10000000\|slot<<16\|port<<8` | `1<<28\|1<<24\|1<<16\|slot<<8\|port` |
-| Subtree ONU | `.1012.3.28.*` / `.50.*` | `.1082.500.10.2.*` (zxAccessNode) |
+| Subtree ONU | `.1012.3.28.*` / `.50.*` | `.1082.500.20.2.1.2.1.*` (zxAccessNode) |
+| Provisioning | ✅ | ❌ (`supports_provisioning=false`, sintaks beda struktur) |
 | Phase enum | mulai 0 (`3=Working`) | mulai 1 (`4=Working`) |
 | Rx | multi-scale auto | OLT-side `raw/1000 = dBm` |
 | Deskripsi ONU | ada (`.28.1.1.3`) | **tidak ada** OID terpisah |

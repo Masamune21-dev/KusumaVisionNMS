@@ -128,7 +128,16 @@ class SmartOltSupport
             data_get($olt->last_test_result, 'system.sys_descr'),
         ])));
 
-        return str_contains($haystack, 'c600');
+        if (str_contains($haystack, 'c600')) {
+            return true;
+        }
+
+        // sysObjectID is the only self-describing marker before the first Test writes
+        // sys_descr; a C600 reports .1.3.6.1.4.1.3902.1082.1001.600.1.1 (verified live).
+        return str_contains(
+            (string) data_get($olt->last_test_result, 'system.sys_object_id', ''),
+            '3902.1082.1001.600',
+        );
     }
 
     /**
@@ -143,17 +152,22 @@ class SmartOltSupport
         return (string) (self::capabilities($driver, $olt)['pon_label'] ?? 'GPON');
     }
 
+    /**
+     * Nama interface CLI. C600 memakai eja `gpon_onu-` + **3-tier** `1/{slot}/{port}` — bukan
+     * `gpon-onu_1/1/{slot}/{port}` 4-tier seperti dugaan awal. Terbukti dari running-config C600 asli
+     * (`interface gpon_olt-1/3/13`, `pon-onu-mng gpon_onu-1/3/13:8`) dan cocok dgn ifName SNMP-nya.
+     */
     public static function onuInterfaceId(int $slot, int $port, int $onuId, bool $isC600 = false): string
     {
         return $isC600
-            ? sprintf('gpon-onu_1/1/%d/%d:%d', $slot, $port, $onuId)
+            ? sprintf('gpon_onu-1/%d/%d:%d', $slot, $port, $onuId)
             : sprintf('gpon-onu_1/%d/%d:%d', $slot, $port, $onuId);
     }
 
     public static function gponOltInterface(int $slot, int $port, bool $isC600 = false): string
     {
         return $isC600
-            ? sprintf('gpon-olt_1/1/%d/%d', $slot, $port)
+            ? sprintf('gpon_olt-1/%d/%d', $slot, $port)
             : sprintf('gpon-olt_1/%d/%d', $slot, $port);
     }
 
@@ -196,24 +210,30 @@ class SmartOltSupport
             'vendor_family' => $isC600 ? 'ZTE GPON (C600)' : 'ZTE GPON',
             'pon_label' => 'GPON',
             'port_label' => 'GPON Port',
-            'port_name_prefix' => $isC600 ? 'gpon-olt_1/1' : 'gpon-olt_1',
-            'onu_interface_pattern' => $isC600 ? 'gpon-onu_1/1/%d/%d:%d' : 'gpon-onu_1/%d/%d:%d',
+            'port_name_prefix' => $isC600 ? 'gpon_olt-1' : 'gpon-olt_1',
+            'onu_interface_pattern' => $isC600 ? 'gpon_onu-1/%d/%d:%d' : 'gpon-onu_1/%d/%d:%d',
             'is_c600' => $isC600,
-            'supports_snmp_rx' => true,
+            // C600: tak ada tabel RX ONU maupun OID tulis nama/admin-state yang ditemukan di
+            // perangkat asli (lihat docs/SMARTOLT_ZTE_C600_GUIDE.md), jadi rename & enable/disable
+            // ditutup sampai kolomnya terbukti — jangan dibuka dengan OID tebakan.
+            'supports_snmp_rx' => ! $isC600,
             'supports_cli_rx' => true,
             'supports_cli_onu_detail' => true,
             'supports_cli_onu_configure' => true,
             'supports_reboot' => true,
             'reboot_mode' => 'cli',
-            'supports_provisioning' => true,
+            // C600: sintaks provisioning-nya beda struktur (vport-mode/vport-map + service-port di
+            // `interface vport-…`), jadi script gaya C300 akan error separuh jalan di tengah write.
+            // Dimatikan sampai ZteC600ProvisioningScriptBuilder diuji ke OLT sungguhan.
+            'supports_provisioning' => ! $isC600,
             'supports_onu_delete' => true,
             'supports_separate_description' => ! $isC600,
-            'supports_onu_info_write' => true,
+            'supports_onu_info_write' => ! $isC600,
             'description_mode' => 'snmp',
-            'supports_onu_toggle' => true,
+            'supports_onu_toggle' => ! $isC600,
             // Simpan running-config ke memori via CLI `write` (bisa ~30 detik di C300 config besar).
             'supports_config_save' => true,
-            'rx_source_label' => 'Rx ONU (SNMP)',
+            'rx_source_label' => $isC600 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP)',
         ];
     }
 

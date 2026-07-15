@@ -559,13 +559,13 @@ RAW;
         $this->assertStringContainsString('wan-ip 1 mode pppoe username parno', $script);
     }
 
-    public function test_build_for_copy_defaults_type_and_omits_c600_description(): void
+    public function test_build_for_copy_defaults_type_and_keeps_c600_description(): void
     {
         $config = $this->parser()->parse($this->sampleRaw());
 
         $script = (new ZteOnuReconfigureScriptBuilder)->buildForCopy($config, [
-            'olt_iface' => 'gpon-olt_1/1/2/1',
-            'onu_iface' => 'gpon-onu_1/1/2/1:3',
+            'olt_iface' => 'gpon_olt-1/3/13',
+            'onu_iface' => 'gpon_onu-1/3/13:3',
             'onu_id' => 3,
             'sn' => 'ZTEGabcdef01',
             'onu_type' => '',
@@ -574,9 +574,11 @@ RAW;
 
         // Empty type falls back to ALL-ONT.
         $this->assertStringContainsString('onu 3 type ALL-ONT sn ZTEGABCDEF01', $script);
-        // C600 has no separate description OID.
+        // C600 does carry a separate CLI `description` — its running-config lists `name` and
+        // `description` side by side under `interface gpon_onu-1/3/13:8`. Only the *SNMP* write
+        // OID is missing, which is a different thing; this used to drop the line for C600.
         $this->assertStringContainsString('name Server Semampir', $script);
-        $this->assertStringNotContainsString('description Server Semampir', $script);
+        $this->assertStringContainsString('description Server Semampir', $script);
     }
 
     public function test_fetch_many_segments_one_session_dump_per_interface(): void

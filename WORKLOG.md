@@ -1,5 +1,57 @@
 # Worklog
 
+## 2026-07-15
+
+### C600: pemetaan ulang OID ke perangkat asli — dukungan C600 ternyata tak pernah jalan
+
+**Permintaan user:** cek apakah dukungan C600 di projek sudah sesuai perangkat aslinya, lalu perbaiki + dokumentasikan ulang. Dipicu user memberi akses SNMP ke C600 sungguhan (`ZXA10 C600 V1.2.2`, sysObjectID `.1.3.6.1.4.1.3902.1082.1001.600.1.1`) — OLT C600 pertama yang pernah bisa disentuh; sebelumnya hanya C300/C320 live.
+
+**Temuan utama:** seluruh konstanta `C600_ONU_*` dijawab **No Such Object** oleh perangkat (cabang `.1082.500.10.2.3/.2.8/.2.11` tak ada), dan `.1012` (subtree C300/C320) juga absen di C600 → **C600 mana pun terbaca 0 ONU, diam-diam tanpa error**. OID lama berpola ter-geser dari yang asli (`500.10.2.8.1.1` vs nyata `500.20.2.8.2.1.1`) — ciri dokumen turunan (bandingkan PDF C600 di `docs/`), bukan pembacaan perangkat. Sejalan dengan catatan "guide = blueprint proyek lain".
+
+Changed:
+- **`OltSnmpClient`** — konstanta ONU C600 dipetakan ulang ke tabel asli `.1082.500.20.2.1.2.1.*` (index `{ifIndex}.{onuId}`): `.3` SN (octet 8-byte → `ZTEG008EEB08`), `.7` status online, `.8` model (ada utk semua vendor → dipakai sbg gerbang walk). Kolom yang **tak ditemukan** di perangkat (nama, admin-state, last-down-cause, Rx, unconfigured) di-set `null`/`[]`, dan `registeredOnus()` melewati walk untuk kolom `null` (`$walkOptional`) — sengaja kosong-jujur, bukan OID tebakan.
+- **`decodePhaseState()` C600** — enum 7-nilai lama (`1=Logging … 7=Offline`, `online = phase===4`) diganti flag biner nyata `1=Working`/`2=Offline`. Enum lama = penyebab semua ONU C600 terbaca offline.
+- **`resolvePortLabel()`** — normalisasi `^gpon_`→`gpon-olt_` me-mangle ifName C600 `gpon_olt-1/3/1` jadi `gpon-olt_olt-1/3/1`. Diganti capture ekor numerik → satu ejaan kanonik; C320 (`gpon_1/2/1`) tak berubah.
+- **`SmartOltSupport::isC600()`** — kini juga mengenali sysObjectID `3902.1082.1001.600`, bukan cuma substring `c600` di sys_descr/name. Sebelumnya C600 baru (belum di-Test, nama tanpa "C600") diperlakukan sebagai C300/C320.
+- **Capabilities C600** — `supports_snmp_rx`, `supports_onu_info_write`, `supports_onu_toggle` → `false`; `rx_source_label` → `Rx ONU (CLI)`. Menutup klaim fitur yang terbukti tak bisa jalan.
+- **`ZteRemoteOnuService`** — OID tulis C600 (nama & admin-state) di-`null`-kan + lempar `RuntimeException`. Penting: SET ke OID yang tak ada = **menulis ke OID sembarang di OLT produksi**.
+- **`portOnusSnapshot()`** — scoped walk kini untuk semua family ZTE (dulu C600 dikecualikan "untested"). Tabel ONU C600 di-index ifIndex IF-MIB asli → tak ada collision seperti C320, dan `zteEncodeIfIndex()` mereproduksi prefix persis.
+
+Created:
+- **`docs/SMARTOLT_ZTE_C600_GUIDE.md`** — guide C600 baru, terverifikasi live: identifikasi, encoding ifIndex, `ifName` vs `ifDescr`, tabel ONU + kolom, bukti semantik `.7`, daftar eksplisit yang **belum** terpetakan + cara membukanya, matriks capability, kenapa OID lama salah, dan cara mengulang verifikasi.
+- Bagian C600 di `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` dikoreksi + diarahkan ke guide baru; `CLAUDE.md` diluruskan (termasuk aturan: OID vendor hanya masuk kode setelah dibaca dari perangkat; PDF C600 di `docs/` tak terverifikasi).
+
+Notes (verifikasi ke C600 asli):
+- **ifIndex encoding lama ternyata BENAR** — `gpon_olt-1/3/1` = `285278977` = `0x11010301`, persis rumus `(1<<28)|(1<<24)|(1<<16)|(slot<<8)|port`. Byte type `0x11` dipakai uplink juga (`xgei-1/10/1` = `0x11010A01`), jadi bukan penanda PON.
+- **Semantik `.7` dibuktikan tanpa CLI** lewat korelasi counter trafik per-ONU (`.1082.500.10.2.3.2.2.1.1.*`, snapshot 2×): port 1/3/1 **18/18 cocok**, port 1/3/2 **32/33** (1 ONU `.7=1` counter diam = online tapi sepi — arah error yang wajar). **Nol kasus** counter naik padahal `.7=2` (arah yang akan menggugurkan pemetaan).
+- **Kandidat state yang gugur:** kolom `.4` (0/2/65535) berkorelasi sempurna dengan **vendor** (ZTEG/ZKXX=2, HWTC=0), bukan online/offline. Kalau dipakai, separuh ONU salah status.
+- **Hasil akhir live:** port 3/1 → 18 ONU, 13 online, 1.934 ms; port 3/2 → 33 ONU, 27 online, 3.866 ms. SN/model benar (`ZTEG008EEB08 F641`, `HWTC0AE69DAE HG8145V5`). Angka online cocok dgn korelasi counter — dua metode independen, hasil sama.
+- **Performa:** scoped walk memangkas satu port dari **~151.000 ms → ~1.900 ms** (~78×).
+- Test suite: **349 lulus, 1 gagal** — `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`, kegagalan pre-existing yang sudah tercatat, bukan regresi (identik sebelum & sesudah perubahan).
+- **Belum diuji:** penamaan CLI 4-tier `gpon-olt_1/1/{slot}/{port}` (dipakai provisioning/reboot) masih asumsi — belum ada akses CLI/telnet ke C600. Rx C600 kini bergantung CLI, juga belum diuji. Keduanya butuh kredensial telnet C600.
+- C600 ini **belum ditambahkan ke inventory**; semua verifikasi lewat model `SnmpOlt` in-memory (read-only, tak ada SET ke perangkat).
+
+### C600 lanjutan: user kirim `show card` + running-config → asumsi 4-tier terbantah, provisioning dimatikan
+
+User memberi output CLI C600 (`show card` + `show running-config` satu ONU). Ini menutup pertanyaan terbuka dari sesi sebelumnya sekaligus **membatalkan beberapa asumsi lagi**.
+
+Changed:
+- **Penamaan interface C600 = 3-tier, bukan 4-tier.** Running-config menyebut `interface gpon_olt-1/3/13`, `pon-onu-mng gpon_onu-1/3/13:8`, `interface vport-1/3/13.8:1` — jadi C600 memakai `gpon_olt-1/{slot}/{port}` & `gpon_onu-1/{slot}/{port}:{id}` (beda **eja**, bukan beda tier), cocok persis dgn ifName SNMP-nya. `SmartOltSupport::onuInterfaceId()`/`gponOltInterface()` + capability `port_name_prefix`/`onu_interface_pattern` dikoreksi. Asumsi 4-tier `gpon-olt_1/1/…` (CLAUDE.md + guide) **salah** → akan bikin SEMUA CLI C600 (reboot/detail/running-config/TR069 massal/copy/RX) ditolak OLT.
+- **`resolvePortLabel()`** kini family-aware: memancarkan eja CLI milik family-nya (C320 `gpon-olt_1/2/1`, C600 `gpon_olt-1/3/1`) — sesuai maksud asli fungsinya ("label cocok dgn nama CLI").
+- **`ZteCardUplinkService`** — kode kartu C600 di kode (`GFGH/GFXH/GFXL` GPON, `XGEI/SFUL/SFUM` uplink) **tak satu pun ada** di C600 asli. Ditambah dari `show card` nyata: `GFGL`/`GFGM`/`GFGN` (GPON 16-port, slot 3/4/5/17) & `SFUB` (uplink 4× xgei, slot 10/11). Prefix uplink C600 dikoreksi `xgei-1/1/{slot}` → `xgei-1/{slot}` (bukti ifName `xgei-1/10/1`); `gei` idem.
+- **`description` C600 dipulihkan** di `ZteProvisioningScriptBuilder` + `ZteOnuReconfigureScriptBuilder`. Keduanya membuang baris `description` untuk C600 atas alasan "C600 tak punya OID deskripsi terpisah" — itu **mengonflasikan SNMP dgn CLI**: running-config C600 jelas punya `name` **dan** `description`. Yang absen cuma OID SNMP-nya.
+- **`supports_provisioning=false` untuk C600** (disepakati user via AskUserQuestion: "matikan dulu, lalu bangun builder"). Struktur config C600 beda dari C300: `vport-mode manual` + `vport 1 map-type vlan` + `vport-map`, `service-port` pindah ke `interface vport-1/{slot}/{port}.{id}:{vport}`, `tcont N profile P` (tanpa token `name`), `service … vlan V` (tanpa `cos`), TR069 jadi **1 baris**. Script gaya C300 akan error separuh jalan **di tengah write** ke OLT.
+
+Created:
+- **`app/Services/ZteC600ProvisioningScriptBuilder.php`** + **`tests/Unit/ZteC600ProvisioningScriptBuilderTest.php`** (5 test) — builder C600 terpisah, tiap baris ditandai provenance `[asli]`/`[turunan]` terhadap running-config. **Belum diuji tulis; capability tetap mati.** Hanya `wan_mode=tr069` didukung; `pppoe`/`dhcp`/`static` **ditolak `RuntimeException`** karena sampel C600 satu-satunya memakai pola TR069/VEIP dan sintaks `wan-ip …` gaya C300 tak pernah terlihat di C600 — menolak > menebak baris write.
+- `docs/SMARTOLT_ZTE_C600_GUIDE.md` ditambah **§3.1** (penamaan CLI 3-tier + tabel banding), **§10** (kartu & slot dari `show card`), **§11** (delta provisioning C600 + batas jujur builder + daftar yang perlu diuji saat ada CLI). Guide lama + CLAUDE.md diluruskan dari klaim 4-tier.
+
+Notes:
+- **Test `test_build_for_copy_defaults_type_and_omits_c600_description` diperbaiki, bukan kodenya** — test itu justru mengunci bug (menuntut C600 membuang `description`). Premisnya terbantah running-config. Diganti `…_keeps_c600_description`.
+- **Konfirmasi silang:** SNMP menemukan 64 port PON di slot 3/4/5/17 (16 masing-masing) — persis cocok `show card` (GFGL/GFGL/GFGM/GFGN). Dua sumber independen, hasil sama.
+- Test suite: **354 lulus, 1 gagal** (`ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`, pre-existing).
+- **Masih buntu** (user: belum ada akses telnet): nama ONU/admin-state/Rx via SNMP, verifikasi tulis provisioning C600, dan sintaks WAN PPPoE/DHCP/static C600.
+
 ## 2026-07-13
 
 ### Sinkronisasi guide SmartOLT (ZTE/C-Data/HiOSO) ke arsitektur repo + tambah C600 di guide ZTE

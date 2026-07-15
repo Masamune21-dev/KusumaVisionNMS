@@ -43,10 +43,7 @@ class ZteProvisioningScriptBuilder
             "name {$name}",
         ];
 
-        // C600 has no separate description OID; omit from script
-        if (! $isC600) {
-            $lines[] = "description {$description}";
-        }
+        $lines[] = "description {$description}";
 
         $lines[] = "tcont 1 name 1 profile {$tcontProfile}";
         $lines[] = 'gemport 1 name 1 tcont 1';

@@ -17,12 +17,15 @@ class ZteCardUplinkService
 
     private const GEI_CARDS = ['SMXA', 'SMXB'];
 
-    // C600 (Titan platform) card type codes
-    private const C600_XGEI_CARDS = ['XGEI', 'SFUL', 'SFUM'];
+    // C600 (Titan platform) card type codes. SFUB + GFGL/GFGM/GFGN dibaca dari `show card` C600 asli
+    // (SFUB = switch/uplink 4x xgei di slot 10/11; GFG* = kartu GPON 16 port di slot 3/4/5/17).
+    // Kode lain di daftar ini belum pernah dilihat langsung — tambahkan hanya setelah terlihat di
+    // `show card` perangkat nyata, jangan dari dokumen.
+    private const C600_XGEI_CARDS = ['SFUB', 'XGEI', 'SFUL', 'SFUM'];
 
     private const C600_GEI_CARDS = ['GEI'];
 
-    private const C600_GPON_CARDS = ['GFGH', 'GFXH', 'GFXL'];
+    private const C600_GPON_CARDS = ['GFGL', 'GFGM', 'GFGN', 'GFGH', 'GFXH', 'GFXL'];
 
     private const INACTIVE_CARD_STATUSES = ['OFFLINE', 'EMPTY', 'PWROFF'];
 
@@ -147,8 +150,9 @@ class ZteCardUplinkService
             $isC600Gpon = in_array($cfgType, self::C600_GPON_CARDS, true);
 
             if (in_array($cfgType, self::XGEI_CARDS, true) || $isC600Xgei) {
-                // C600 uses 4-tier: xgei-1/1/slot/port; C300/C320 uses 3-tier: xgei_1/slot/port
-                $ifacePrefix = $isC600Xgei ? "xgei-1/1/{$slot}" : "xgei_1/{$slot}";
+                // Sama-sama 3-tier `1/slot/port`; yang beda cuma ejaannya — C600 `xgei-1/10/1`
+                // (terbaca di ifName C600 asli), C300/C320 `xgei_1/slot/port`.
+                $ifacePrefix = $isC600Xgei ? "xgei-1/{$slot}" : "xgei_1/{$slot}";
 
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [
@@ -162,7 +166,7 @@ class ZteCardUplinkService
             }
 
             if (in_array($cfgType, self::GEI_CARDS, true) || $isC600Gei) {
-                $ifacePrefix = $isC600Gei ? "gei-1/1/{$slot}" : "gei_1/{$slot}";
+                $ifacePrefix = $isC600Gei ? "gei-1/{$slot}" : "gei_1/{$slot}";
 
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [

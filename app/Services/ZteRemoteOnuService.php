@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
+use RuntimeException;
 
 class ZteRemoteOnuService
 {
@@ -15,10 +16,12 @@ class ZteRemoteOnuService
 
     private const ONU_ADMIN_STATE_OID = '1.3.6.1.4.1.3902.1012.3.28.1.1.17';
 
-    // C600 OIDs (.1082 subtree)
-    private const C600_ONU_NAME_OID = '1.3.6.1.4.1.3902.1082.500.10.2.3.1.2';
+    // C600: no write OID is mapped. The .1082.500.10.2.3/.10.2.8 subtree these constants used to
+    // point at does not exist on a live C600 (No Such Object), so a SET would have written to an
+    // unknown OID on the OLT. Both writes stay closed until the real columns are confirmed.
+    private const C600_ONU_NAME_OID = null;
 
-    private const C600_ONU_ADMIN_STATE_OID = '1.3.6.1.4.1.3902.1082.500.10.2.8.1.1';
+    private const C600_ONU_ADMIN_STATE_OID = null;
 
     public function __construct(
         private readonly ZteCliProvisioningExecutor $executor,
@@ -51,6 +54,10 @@ class ZteRemoteOnuService
             ? self::C600_ONU_ADMIN_STATE_OID
             : self::ONU_ADMIN_STATE_OID;
 
+        if ($stateOid === null) {
+            throw new RuntimeException('Enable/disable ONU belum didukung di OLT C600: OID admin-state belum terpetakan.');
+        }
+
         return $this->snmp->set(
             $olt,
             sprintf('%s.%d.%d', $stateOid, $ifIndex, $onuId),
@@ -68,6 +75,10 @@ class ZteRemoteOnuService
         $nameOid = $isC600 ? self::C600_ONU_NAME_OID : self::ONU_NAME_OID;
 
         if ($name !== null) {
+            if ($nameOid === null) {
+                throw new RuntimeException('Ubah nama ONU belum didukung di OLT C600: OID nama belum terpetakan.');
+            }
+
             $this->snmp->set($olt, sprintf('%s.%d.%d', $nameOid, $ifIndex, $onuId), 's', $name);
         }
 

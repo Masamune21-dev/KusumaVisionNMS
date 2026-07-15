@@ -93,15 +93,6 @@ class ZteOnuReconfigureScriptBuilder
         $discard = [];
 
         $this->diffName([], $config, $ifaceLines, $discard);
-
-        // C600 has no separate description OID (mirror ZteProvisioningScriptBuilder).
-        if ($context['is_c600'] ?? false) {
-            $ifaceLines = array_values(array_filter(
-                $ifaceLines,
-                static fn (string $line): bool => ! str_starts_with($line, 'description '),
-            ));
-        }
-
         $this->diffTconts([], $config, $ifaceLines, $discard);
         $this->diffGemports([], $config, $ifaceLines, $discard);
         $ifaceLines[] = 'encrypt 1 enable downstream';
