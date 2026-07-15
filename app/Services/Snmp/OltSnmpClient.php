@@ -76,16 +76,22 @@ class OltSnmpClient
 
     public const C600_PHASE_OFFLINE = 2;
 
+    // ONU-side RX power — the direct C600 twin of ZTE_ONU_RX_POWER: same trailing column (.10) and
+    // the same {ifIndex}.{onuId}.{onuPort} index, so it shares the C300 parsing and scale. Verified
+    // live: every online ONU returns a sane raw (~5300-6900 → -19..-16 dBm) and every offline ONU
+    // returns the 65535 "N/A" sentinel, matching the .7 state column on 8/8 ONUs.
+    // The OLT-side (upstream) counterpart is zxAnPonRxOpticalPower .1082.500.1.2.4.2.1.2, indexed
+    // {ifIndex}.{onuId} in milli-dBm with -80000 = no signal — a different metric, not wired up.
+    private const C600_ONU_RX_POWER = '1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10';
+
     // Not mapped on the live C600: no column carries the ONU name (.19 is empty for every ONU on
-    // an OLT that sets none), and no admin-state, last-down-cause or RX-power table was found
-    // anywhere under 1082.500 — see docs/SMARTOLT_ZTE_C600_GUIDE.md before filling these in.
+    // an OLT that sets none), and no admin-state or last-down-cause table was found under 1082.500
+    // — see docs/SMARTOLT_ZTE_C600_GUIDE.md before filling these in.
     private const C600_ONU_NAME = null;
 
     private const C600_ONU_ADMIN_STATE = null;
 
     private const C600_ONU_LAST_DOWN_CAUSE = null;
-
-    private const C600_ONU_RX_POWER = null;
 
     private const C600_UNCFG_OIDS = [];
 
@@ -453,39 +459,23 @@ class OltSnmpClient
      */
     public function onuRxPowers(SnmpOlt $olt, ?string $scope = null): array
     {
-        $isC600 = SmartOltSupport::isC600($olt);
-        $rxOid = $isC600 ? self::C600_ONU_RX_POWER : self::ZTE_ONU_RX_POWER;
-
-        // No SNMP RX table was found on the live C600; callers fall back to CLI RX.
-        if ($rxOid === null) {
-            return [];
-        }
-
+        $rxOid = SmartOltSupport::isC600($olt) ? self::C600_ONU_RX_POWER : self::ZTE_ONU_RX_POWER;
         $rows = $this->walk($olt, $scope === null ? $rxOid : $this->joinOid($rxOid, $scope));
         $powers = [];
 
+        // Both families expose ONU-side RX the same way: same trailing column (.10), same
+        // {ifIndex}.{onuId}.{onuPort} index, same raw scale — only the subtree differs.
         foreach ($rows as $oid => $rawValue) {
             $raw = $this->intFromValue($rawValue);
             if ($raw === null) {
                 continue;
             }
 
-            if ($isC600) {
-                // C600 RX power OID indexed by ifIndex.onuId (2-tuple), raw/1000 = dBm
-                $index = $this->extractOnuIndex($oid, $rxOid);
-                if ($index === null) {
-                    continue;
-                }
-                [$ifIndex, $onuId] = $index;
-                $onuPort = 1;
-            } else {
-                // C300/C320 RX power OID indexed by ifIndex.onuId.port (3-tuple)
-                $index = $this->extractOnuPortIndex($oid, $rxOid);
-                if ($index === null) {
-                    continue;
-                }
-                [$ifIndex, $onuId, $onuPort] = $index;
+            $index = $this->extractOnuPortIndex($oid, $rxOid);
+            if ($index === null) {
+                continue;
             }
+            [$ifIndex, $onuId, $onuPort] = $index;
 
             $dbm = $this->convertOnuRxPowerToDbm($raw);
             if ($dbm === null) {
@@ -493,7 +483,7 @@ class OltSnmpClient
             }
 
             $key = $this->onuRxPowerKey($ifIndex, $onuId);
-            if (isset($powers[$key]) && ! $isC600 && $onuPort !== 1) {
+            if (isset($powers[$key]) && $onuPort !== 1) {
                 continue;
             }
 

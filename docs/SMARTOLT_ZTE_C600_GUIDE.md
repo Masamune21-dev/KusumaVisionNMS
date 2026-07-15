@@ -110,6 +110,39 @@ Basis: **`1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.{kolom}`**, index **`{ifIndex}.{o
 | `.15` | `…20.2.1.2.1.15` | model ONU (duplikat `.8` di perangkat uji) | `F641` |
 | `.18` | `…20.2.1.2.1.18` | Timeticks; **jangan dipakai** — 0 untuk banyak ONU yang jelas online | — |
 
+### 4.0 Rx power ONU — `…500.20.2.2.2.1.10` (terverifikasi)
+
+**`1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10`**, index **`{ifIndex}.{onuId}.{onuPort}`** — kembaran
+langsung OID C300 (`.1012.3.50.12.1.1.10`): kolom akhir `.10` sama, index 3-level sama, skala raw sama
+(`raw*0.002-30`, ditangani `convertOnuRxPowerToDbm()`). Karena itu C600 **berbagi jalur parsing C300** —
+tak ada cabang khusus di `onuRxPowers()`.
+
+| ONU | raw | dBm | status (`.7`) |
+|---|---|---|---|
+| 1 | 6227 | −17,55 | online |
+| 2 | 5340 | −19,32 | online |
+| **3** | **65535** | **N/A (sentinel)** | **offline** |
+| 4 | 6901 | −16,20 | online |
+| 8 | 65535 | N/A | offline |
+
+Cocok **8/8** dengan kolom status: setiap ONU online punya raw wajar, setiap ONU offline mengembalikan
+sentinel `65535` (sudah ditangani `convertOnuRxPowerToDbm()`).
+
+**Ada dua metrik Rx berbeda di C600 — jangan tertukar:**
+
+| | OID | Arti | Index | Skala | Sentinel |
+|---|---|---|---|---|---|
+| **Rx ONU** (dipakai app) | `…500.20.2.2.2.1.10` | daya **downstream** yang diterima ONU | `{ifIndex}.{onuId}.{onuPort}` | `raw*0.002-30` | `65535` |
+| Rx OLT | `…500.1.2.4.2.1.2` (`zxAnPonRxOpticalPower`) | daya **upstream** yang diterima OLT dari ONU | `{ifIndex}.{onuId}` | `raw/1000` (milli-dBm) | `-80000` |
+
+Keduanya hidup dan sama-sama cocok 8/8 dengan status. Fisikanya konsisten: downstream (−16..−19 dBm)
+lebih kuat dari upstream (−23..−26 dBm) karena laser OLT lebih besar dari laser ONU. App memakai
+**Rx ONU** supaya artinya seragam dengan C300 (yang dulu diverifikasi vs CLI `show pon power onu-rx`).
+Rx OLT belum diekspos di UI — kalau nanti dipasang, beri label berbeda, jangan campur.
+
+> Semantik `raw/1000` + `-80000` di kode C600 lama sebenarnya **benar** — itu deskripsi Rx OLT. Yang
+> salah cuma OID-nya (`…500.10.2.11.1.2`, tak ada di perangkat).
+
 Cakupan kolom `.1`/`.3`/`.7`/`.8` = 18/18 ONU di port uji (penuh), jadi `.8` aman dipakai sebagai gerbang
 walk (`$types`). `onuId` **tidak kontigu** — di satu port ditemukan id `1..15, 80, 81, 87`.
 
@@ -146,7 +179,7 @@ Kolom `.4` (nilai `0`/`2`/`65535`) **bukan** state: nilainya berkorelasi sempurn
 | Nama / deskripsi ONU **via SNMP** | **tak ditemukan.** Satu-satunya kolom string kosong (`.19`) kosong di semua ONU — OLT uji memang tak menyetel nama, jadi tak ada bukti kolom mana pun. **Catatan:** di **CLI** C600 punya `name` **dan** `description` (terlihat di running-config) — yang hilang hanya OID SNMP-nya | `name`/`description` = `null` dari SNMP; `supports_onu_info_write=false`, `supports_separate_description=false` (keduanya soal jalur SNMP) |
 | Admin state (enable/disable) | **tak ditemukan** | `supports_onu_toggle=false`; `ZteRemoteOnuService::setActiveState()` melempar `RuntimeException` untuk C600 |
 | Last-down cause | **tak ditemukan** | `last_down_cause` = `null` |
-| **Rx power ONU** | **tak ditemukan via SNMP.** Seluruh cabang `1082.500` disisir; tak ada tabel optik | `supports_snmp_rx=false`, `rx_source_label` = `Rx ONU (CLI)`; `onuRxPowers()` mengembalikan `[]` |
+| ~~Rx power ONU~~ | **✅ SUDAH TERPETAKAN** — lihat §4.0 (`…500.20.2.2.2.1.10`) | `supports_snmp_rx=true` |
 | ONU unconfigured (discovery) | **tak ditemukan** (`C600_UNCFG_OIDS = []`) | Halaman Unconfigured kosong untuk C600 |
 | Provisioning | sintaks **beda struktur** dari C300 (§11) — builder C600 ada tapi **belum diuji tulis** | `supports_provisioning=false` untuk C600 |
 
@@ -168,11 +201,11 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
 
 | Flag | C300/C320 | C600 | Alasan |
 |---|---|---|---|
-| `supports_snmp_rx` | `true` | **`false`** | tak ada tabel Rx SNMP |
+| `supports_snmp_rx` | `true` | `true` | Rx ONU terpetakan (§4.0) |
 | `supports_onu_info_write` | `true` | **`false`** | OID nama tak terpetakan |
 | `supports_onu_toggle` | `true` | **`false`** | OID admin-state tak terpetakan |
 | `supports_separate_description` | `true` | `false` | tak ada kolom deskripsi terpisah |
-| `rx_source_label` | `Rx ONU (SNMP)` | `Rx ONU (CLI)` | — |
+| `rx_source_label` | `Rx ONU (SNMP)` | `Rx ONU (SNMP)` | — |
 | `supports_provisioning` | `true` | **`false`** | sintaks C600 beda struktur, builder belum diuji tulis (§11) |
 | `port_name_prefix` | `gpon-olt_1` | `gpon_olt-1` | eja CLI beda per-family (§3.1) |
 | `onu_interface_pattern` | `gpon-onu_1/%d/%d:%d` | `gpon_onu-1/%d/%d:%d` | **3-tier**, bukan 4-tier |
@@ -191,7 +224,7 @@ Sebelum 15 Juli 2026 kode memakai OID ini — **semuanya dijawab *No Such Object
 | `C600_ONU_SN` | `…1082.500.10.2.3.1.6` | idem |
 | `C600_ONU_ADMIN_STATE` | `…1082.500.10.2.8.1.1` | cabang `10.2.8` **tak ada sama sekali** |
 | `C600_ONU_PHASE_STATE` | `…1082.500.10.2.8.1.4` | idem |
-| `C600_ONU_RX_POWER` | `…1082.500.10.2.11.1.2` | cabang `10.2.11` **tak ada sama sekali** |
+| `C600_ONU_RX_POWER` | `…1082.500.10.2.11.1.2` | cabang `10.2.11` **tak ada sama sekali** (yang benar: `…500.20.2.2.2.1.10`, §4.0) |
 | `C600_UNCFG_OIDS` | `…1082.500.10.2.2.1.2` | tak ada |
 
 Akibatnya C600 mana pun terbaca **0 ONU** — diam-diam, tanpa error.
@@ -204,6 +237,21 @@ Aturannya sama seperti Section 6/7 guide C300: dokumen ≠ perangkat.
 
 **Prinsip:** OID vendor hanya masuk kode setelah dibaca dari perangkat asli. Kalau tak bisa diverifikasi,
 biarkan `null` dan matikan capability-nya — bukan diisi nilai yang "sepertinya benar".
+
+### 7.1 Cara yang benar memakai dokumen MIB
+
+Dokumen MIB **berguna sebagai sumber hipotesis, bukan sumber kebenaran**. Rx ONU (§4.0) ketemu persis
+lewat alur ini:
+
+1. **Riset** — [`ZTE-AN-PON-BASE-MIB` di mibbrowser.online](https://mibbrowser.online/mibdb_search.php?mib=ZTE-AN-PON-BASE-MIB)
+   dan [oid-base.com](https://oid-base.com/get/1.3.6.1.4.1.3902.1082.500) memberi nama & struktur cabang
+   (`zxAnPon(500)`, `zxAnPonRxOpticalPower`, `zxAnOpticalModuleMib`) → jadi daftar **kandidat**.
+2. **Uji ke perangkat** — `snmpwalk` tiap kandidat. Yang hidup dipakai, yang *No Such Object* dibuang.
+3. **Falsifikasi** — cocokkan dgn fakta independen: ONU yang **sudah terbukti offline** harus balas
+   sentinel, yang online harus balas nilai wajar. Cocok 8/8 → baru masuk kode.
+
+Langkah 3 yang membedakan riset dari tebakan. OID C600 lama juga "berasal dari dokumen" — bedanya tak
+pernah diuji ke perangkat, dan itulah kenapa salah semua.
 
 ---
 
@@ -334,12 +382,24 @@ snmpwalk -v2c -c <community> udp:<ip>:<port> 1.3.6.1.2.1.1
 snmpwalk -v2c -c <community> udp:<ip>:<port> 1.3.6.1.2.1.31.1.1.1.1 | grep gpon
 
 # tabel ONU satu port (ifIndex 285278977 = slot 3 port 1)
-snmpwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.3.285278977   # SN
-snmpwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.7.285278977   # state
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.3.285278977   # SN
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.7.285278977   # state
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10.285278977  # Rx ONU
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.1.2.4.2.1.2.285278977     # Rx OLT
 
 # ground truth state: snapshot counter 2x, yang naik = online
 snmpwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.10.2.3.2.2.1.1.285278977
 ```
 
-> Walk penuh `1.3.6.1.4.1.3902.1082` sangat besar dan akan timeout lewat VPN — selalu scope ke satu port,
-> dan pakai `snmpgetnext` bertahap untuk memetakan struktur cabang.
+> **Pakai `snmpbulkwalk`, bukan `snmpwalk`.** `snmpwalk` mengirim GETNEXT satu-satu dan selalu timeout di
+> link ber-latensi; bulkwalk (GETBULK) ~18 baris/detik pada perangkat uji. Walk penuh `3902.1082` tetap
+> **mati di tengah** (`Timeout: No Response`) walau dgn `-t 8 -r 4` — jadi **selalu scope ke satu port**
+> dan petakan struktur cabang dengan `snmpgetnext` bertahap.
+>
+> ⚠️ **Walk yang mati ≠ cabang kosong.** `snmpbulkwalk` bisa exit sukses tapi berhenti di tengah; kalau
+> hasilnya dipakai untuk menyimpulkan "OID X tidak ada", kesimpulannya salah. Selalu cek apakah output
+> memuat `Timeout|No Response` dan sampai OID mana ia berjalan.
+>
+> ⚠️ **Saat enumerasi cabang, jangan meloncat.** Rx OLT (`500.1.2.4.2.1.2`) & `zxAnPonRemoteOnuMib`
+> (`500.3`) sempat terlewat karena loop enumerasi memakai langkah `1, 2, 5, 10, 15, …` — `getnext(500.5)`
+> melompati `500.3`/`500.4`. Iterasi berurutan.

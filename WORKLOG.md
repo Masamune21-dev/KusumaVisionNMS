@@ -2,6 +2,25 @@
 
 ## 2026-07-15
 
+### C600: Rx ONU ketemu lewat riset MIB publik + verifikasi perangkat
+
+User minta ("cari di MIB yang ada di Google, research lagi") menelusuri MIB publik untuk OID Rx C600 yang sebelumnya disimpulkan "tak ada". **Ketemu** — kesimpulan lama saya salah.
+
+Changed:
+- **`OltSnmpClient::C600_ONU_RX_POWER`** = `1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10`, index `{ifIndex}.{onuId}.{onuPort}` — **kembaran langsung OID C300** (`.1012.3.50.12.1.1.10`): kolom akhir `.10` sama, index 3-level sama, skala raw sama (`raw*0.002-30`), sentinel `65535` sudah ditangani `convertOnuRxPowerToDbm()`.
+- **`onuRxPowers()` disederhanakan** — cabang khusus C600 (2-tuple + `raw/1000`) dihapus; kedua family kini berbagi jalur parsing 3-tuple yang sama.
+- **`supports_snmp_rx` C600 → `true`**, `rx_source_label` kembali `Rx ONU (SNMP)` (tak jadi CLI-only).
+- Guide C600 §4.0 (tabel Rx + tabel banding 2 metrik), §7.1 (cara benar memakai dokumen MIB), §12 (peringatan bulkwalk & enumerasi); CLAUDE.md + README diselaraskan.
+
+Notes:
+- **Dua metrik Rx berbeda di C600, jangan tertukar:** `…500.20.2.2.2.1.10` = **Rx ONU** (downstream, −16..−19 dBm, sentinel 65535) — dipakai app agar seragam dgn C300; `…500.1.2.4.2.1.2` (`zxAnPonRxOpticalPower`) = **Rx OLT** (upstream, −23..−26 dBm, milli-dBm, sentinel −80000) — belum diekspos. Fisikanya konsisten (downstream > upstream karena laser OLT lebih besar). Keduanya cocok 8/8 dgn kolom status.
+- Semantik `raw/1000` + `-80000` di kode C600 **lama sebenarnya benar** — itu deskripsi Rx OLT; yang salah cuma OID-nya.
+- **Verifikasi live:** port 3/1 → 18 ONU, rx_power count **13** = tepat jumlah ONU online; ONU offline `rx` kosong (bukan angka palsu). Contoh: `onu 1 ZTEG008EEB08 Working rx=-17.546 dBm`, `onu 6 HWTC123C28AE rx=-18.762 dBm`.
+- **Tiga kesalahan metode saya yang terungkap & terdokumentasi:** (1) memakai `snmpwalk` (GETNEXT satu-satu) → selalu timeout; `snmpbulkwalk` ~18 baris/detik. (2) **Walk yang mati dibaca sebagai cabang kosong** — dua walk penuh exit "sukses" tapi berhenti di tengah dgn `Timeout: No Response` (satu bahkan belum sampai `1082`), lalu hasil kosongnya sempat saya pakai menyimpulkan "tak ada Rx". (3) **Enumerasi cabang meloncat** (`1,2,5,10,15,…`) sehingga `500.3`/`500.4` tak pernah teruji — padahal `500.1.2.4.2.1.2` (Rx OLT) ada di sana. Heuristik "cari nilai negatif" juga keliru: Rx ONU justru **positif** (raw 6227).
+- **Metode yang berhasil:** MIB publik (mibbrowser.online `ZTE-AN-PON-BASE-MIB`, oid-base.com) sebagai sumber **hipotesis** → uji tiap kandidat ke perangkat → falsifikasi dgn fakta independen (ONU yang sudah terbukti offline **harus** balas sentinel). Langkah falsifikasi inilah yang membedakan riset dari tebakan — OID C600 lama juga "dari dokumen", bedanya tak pernah diuji.
+- **Temuan sampingan (keamanan):** tabel `…500.20.2.14.2.1` memuat konfigurasi TR069; kolom `.4`/`.5` berisi **username & password ACS dalam teks polos**, terbaca hanya dgn read community. Perlu ditindak di sisi operator OLT (batasi akses SNMP per-host, rotasi kredensial). Efek samping positif: status TR069/ACS C600 bisa dibaca via SNMP tanpa telnet.
+- Test suite: **354 lulus, 1 gagal** (`ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`, pre-existing).
+
 ### C600: pemetaan ulang OID ke perangkat asli — dukungan C600 ternyata tak pernah jalan
 
 **Permintaan user:** cek apakah dukungan C600 di projek sudah sesuai perangkat aslinya, lalu perbaiki + dokumentasikan ulang. Dipicu user memberi akses SNMP ke C600 sungguhan (`ZXA10 C600 V1.2.2`, sysObjectID `.1.3.6.1.4.1.3902.1082.1001.600.1.1`) — OLT C600 pertama yang pernah bisa disentuh; sebelumnya hanya C300/C320 live.

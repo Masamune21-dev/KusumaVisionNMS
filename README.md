@@ -2,7 +2,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320/C600 (ZXA10)** — plus dukungan multi-vendor untuk OLT **C-Data (EPON/GPON)** dan **HiOSO/V-Sol EPON**: monitoring OLT/ONU, provisioning ONU (ZTE), remote management, background polling, alarm engine, notifikasi Telegram, peta ONU, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT GPON **ZTE C300/C320 (ZXA10)** — plus **ZTE C600 (Titan, dukungan parsial)** dan dukungan multi-vendor untuk OLT **C-Data (EPON/GPON)** dan **HiOSO/V-Sol EPON**: monitoring OLT/ONU, provisioning ONU (ZTE C300/C320), remote management, background polling, alarm engine, notifikasi Telegram, peta ONU, dan dashboard. Dibangun sebagai alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **appliance Docker** yang lengkap di satu PC (Windows/Linux/macOS) untuk dibagikan ke banyak lokasi. Tersedia juga **REST API v1** (read-only, opsional) untuk integrasi aplikasi lain.
 
@@ -45,7 +45,7 @@ Bisa dipasang di server Ubuntu (satu perintah `install.sh`) **atau** sebagai **a
 
 ### Inventory & Monitoring
 
-- **Multi-vendor OLT** — selain ZTE C300/C320/C600, mendukung **C-Data EPON/GPON** dan **HiOSO/V-Sol EPON** (mis. HA7304): inventory, monitoring ONU, RX power, faceplate panel-depan, plus aksi ONU rename/reboot/delete via CLI. Tab terpisah (ZTE / C-Data / HiOSO) di halaman SmartOLT; semua ikut background polling & alarm. Provisioning penuh tetap khusus ZTE.
+- **Multi-vendor OLT** — selain ZTE C300/C320, mendukung **ZTE C600** (inventory & monitoring, [dukungan parsial](#bantu-uji--lengkapi-dukungan-olt-zte)), **C-Data EPON/GPON**, dan **HiOSO/V-Sol EPON** (mis. HA7304): inventory, monitoring ONU, RX power, faceplate panel-depan, plus aksi ONU rename/reboot/delete via CLI. Tab terpisah (ZTE / C-Data / HiOSO) di halaman SmartOLT; semua ikut background polling & alarm. Provisioning penuh tetap khusus ZTE C300/C320.
 - **Inventory OLT** — CRUD OLT, uji koneksi SNMP, kredensial tersimpan terenkripsi.
 - **Monitoring** — GPON port (up/down), ONU per port (online/offline, phase state, RX power via SNMP), search ONU langsung dari halaman Detail.
 - **ONU Monitoring (lintas OLT)** — halaman terpusat memantau seluruh ONU dari semua OLT & port dalam satu tabel, dengan filter OLT, port, status (online/LOS/dying-gasp/offline) dan admin; scan ulang seluruh ONU per-OLT dalam satu walk SNMP.
@@ -535,7 +535,8 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 
 ## Catatan & Batasan
 
-- **Vendor:** provisioning penuh hanya untuk **ZTE** C300/C320 dan C600 (ZXA10) — C600 terdeteksi otomatis dari nama/vendor mengandung `"c600"` (OID `.1082`, interface 4-tier). **OLT non-ZTE didukung untuk monitoring + aksi ONU terbatas:** C-Data EPON/GPON dan HiOSO/V-Sol EPON (inventory, RX power, faceplate, rename/reboot/delete ONU via CLI) — dikenali otomatis oleh `SmartOltSupport::driverKey()`. Vendor lain di luar itu → `unknown` (kapabilitas dimatikan). Detail: [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md), [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md).
+- **Vendor:** provisioning penuh hanya untuk **ZTE C300/C320** (ZXA10). **OLT non-ZTE didukung untuk monitoring + aksi ONU terbatas:** C-Data EPON/GPON dan HiOSO/V-Sol EPON (inventory, RX power, faceplate, rename/reboot/delete ONU via CLI) — dikenali otomatis oleh `SmartOltSupport::driverKey()`. Vendor lain di luar itu → `unknown` (kapabilitas dimatikan). Detail: [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md), [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md).
+- **ZTE C600 (Titan) — dukungan parsial**, terdeteksi otomatis dari sysDescr/sysObjectID. Yang **jalan**: inventory ONU (serial, model, status online), **RX power**, port PON, polling & alarm. Yang **belum**: provisioning, rename/enable-disable ONU, dan discovery ONU unconfigured — OID/kolomnya belum ditemukan di perangkat, jadi sengaja dimatikan ketimbang diisi tebakan. Lihat [`docs/SMARTOLT_ZTE_C600_GUIDE.md`](docs/SMARTOLT_ZTE_C600_GUIDE.md) — dan [bantu kami mengujinya](#bantu-uji--lengkapi-dukungan-olt-zte).
 - **SNMP:** v1/v2c saja (v3 belum didukung). Fitur enable/disable & edit info ONU butuh **write community** terisi.
 - **CLI:** eksekusi provisioning/reboot hanya via **Telnet** (`cli_transport=telnet`).
 - **Poll interval:** per-OLT, dapat diubah di form Edit OLT. Default 5 menit untuk polling SNMP, 5 menit untuk RX power.
@@ -560,12 +561,73 @@ Ringkasan konfigurasi production lokal yang direkomendasikan:
 - [`docs/BUILD_APK.md`](docs/BUILD_APK.md) — **build & install aplikasi Android** (toolchain dari nol di Linux/Windows, spek, signing, install di HP).
 - [`docs/API.md`](docs/API.md) — **REST API v1** (endpoint, autentikasi token, contoh JS/Kotlin/PHP).
 - [`docs/DOCKER.md`](docs/DOCKER.md) — **instalasi via Docker** (appliance 1 PC, backup, update, distribusi image).
-- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi otoritatif perintah CLI ZTE.
+- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi otoritatif perintah CLI ZTE (C300/C320).
+- [`docs/SMARTOLT_ZTE_C600_GUIDE.md`](docs/SMARTOLT_ZTE_C600_GUIDE.md) — referensi OID/CLI **ZTE C600 (Titan)**: peta SNMP hasil verifikasi live, daftar yang belum terpetakan, dan cara mengulang verifikasinya.
 - [`docs/SMARTOLT_CDATA_GUIDE.md`](docs/SMARTOLT_CDATA_GUIDE.md) — referensi OID/CLI OLT C-Data (EPON/GPON).
 - [`docs/SMARTOLT_HIOSO_GUIDE.md`](docs/SMARTOLT_HIOSO_GUIDE.md) — referensi OID/CLI OLT HiOSO/V-Sol EPON.
 - [`docs/LOCAL_PRODUCTION_HARDENING.md`](docs/LOCAL_PRODUCTION_HARDENING.md) — hardening produksi (nginx/UFW/SSH/PHP-FPM).
 - [`docs/DEMO_DEPLOYMENT.md`](docs/DEMO_DEPLOYMENT.md) — penyiapan data & mode demo.
 - [`WORKLOG.md`](WORKLOG.md) — riwayat pekerjaan fase per fase.
+
+---
+
+## Bantu Uji & Lengkapi Dukungan OLT ZTE
+
+**Kalau Anda punya OLT ZTE C600 (Titan) — kami butuh bantuan Anda.**
+
+Dukungan C600 di sini dipetakan dari **satu** unit C600 (`ZXA10 C600 V1.2.2`). Yang sudah jalan (inventory
+ONU, serial, model, status online, port PON) sudah diverifikasi langsung ke perangkat itu. Tapi beberapa
+bagian **masih buntu** karena belum ada akses CLI ke C600:
+
+| Belum bisa | Yang dibutuhkan untuk membukanya |
+|---|---|
+| Nama ONU, enable/disable ONU | OID SNMP-nya belum ketemu — perlu dicocokkan dengan output `show gpon onu detail-info` |
+| ONU unconfigured (discovery) | OID discovery belum ketemu |
+| Provisioning ONU | sintaksnya sudah ditulis dari 1 running-config, tapi **belum pernah diuji tulis** ke OLT |
+| Konfirmasi Rx | Rx ONU sudah jalan via SNMP — tapi belum pernah diadu dengan `show pon power onu-rx` di CLI |
+
+### Kenapa bantuan Anda penting
+
+**OLT ZTE bermerek sama pun sering berperilaku beda.** C300, C320, dan C600 punya subtree SNMP dan
+penamaan interface yang berlainan; bahkan antar-unit dengan tipe sama, **versi firmware, jenis kartu, dan
+gaya konfigurasi tiap ISP** bisa membuat OID atau perintah CLI yang jalan di satu OLT ditolak di OLT lain.
+Kami sudah beberapa kali menemukan hal ini: dukungan C600 versi awal ditulis dari dokumen pihak ketiga dan
+ternyata **salah total** — setiap OID-nya dijawab *No Such Object* oleh perangkat nyata, dan asumsi
+penamaan interface 4-tier terbantah oleh running-config asli. Satu perangkat nyata mengalahkan sepuluh PDF.
+
+### Cara membantu
+
+**1. Laporkan yang tidak jalan.** Sebutkan tipe OLT, versi firmware (`show version` / sysDescr), dan apa
+yang salah (mis. jumlah ONU 0, RX kosong, perintah ditolak).
+
+**2. Kirim output mentah** — ini yang paling berharga, dan aman dibagikan setelah Anda sensor bagian
+sensitif (IP publik, kredensial PPPoE/ACS, nama pelanggan):
+
+```bash
+# identitas perangkat
+snmpwalk -v2c -c <community> <ip> 1.3.6.1.2.1.1
+
+# nama interface (C600 memakai ifName, bukan ifDescr)
+snmpwalk -v2c -c <community> <ip> 1.3.6.1.2.1.31.1.1.1.1 | grep -i gpon
+```
+
+```
+# dari CLI OLT
+show card
+show gpon onu state <interface-port>
+show pon power onu-rx <interface-port>
+show running-config interface <interface-onu>
+```
+
+> ⚠️ **Jangan kirim community string, password, atau akses ke OLT Anda.** Output read-only sudah cukup —
+> kami tidak perlu (dan tidak minta) kredensial.
+
+**3. Bantu perbaiki data yang kurang pas.** Kalau OID, kode kartu, atau sintaks CLI di
+[`docs/`](docs/) tidak cocok dengan OLT Anda, laporkan bedanya. Aturan main kami: **OID dan perintah CLI
+hanya masuk kode setelah dibaca dari perangkat asli** — kalau belum bisa diverifikasi, kapabilitasnya
+dimatikan, bukan diisi nilai yang "sepertinya benar". Jadi laporan Anda langsung berpengaruh.
+
+Kirim lewat [grup Telegram](https://t.me/+RMTs-9c028g0MDdl) di bawah, atau buka issue di GitHub.
 
 ---
 

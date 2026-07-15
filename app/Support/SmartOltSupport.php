@@ -213,10 +213,10 @@ class SmartOltSupport
             'port_name_prefix' => $isC600 ? 'gpon_olt-1' : 'gpon-olt_1',
             'onu_interface_pattern' => $isC600 ? 'gpon_onu-1/%d/%d:%d' : 'gpon-onu_1/%d/%d:%d',
             'is_c600' => $isC600,
-            // C600: tak ada tabel RX ONU maupun OID tulis nama/admin-state yang ditemukan di
-            // perangkat asli (lihat docs/SMARTOLT_ZTE_C600_GUIDE.md), jadi rename & enable/disable
-            // ditutup sampai kolomnya terbukti — jangan dibuka dengan OID tebakan.
-            'supports_snmp_rx' => ! $isC600,
+            // C600: OID tulis nama/admin-state belum ditemukan di perangkat asli (lihat
+            // docs/SMARTOLT_ZTE_C600_GUIDE.md), jadi rename & enable/disable ditutup sampai
+            // kolomnya terbukti — jangan dibuka dengan OID tebakan. Rx ONU sudah terpetakan.
+            'supports_snmp_rx' => true,
             'supports_cli_rx' => true,
             'supports_cli_onu_detail' => true,
             'supports_cli_onu_configure' => true,
@@ -233,7 +233,7 @@ class SmartOltSupport
             'supports_onu_toggle' => ! $isC600,
             // Simpan running-config ke memori via CLI `write` (bisa ~30 detik di C300 config besar).
             'supports_config_save' => true,
-            'rx_source_label' => $isC600 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP)',
+            'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
 

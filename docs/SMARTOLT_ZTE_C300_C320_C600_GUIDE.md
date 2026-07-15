@@ -171,7 +171,7 @@ Tabel ONU C600 yang benar ada di basis **`.1082.500.20.2.1.2.1.*`** (index `{ifI
 
 `OltSnmpClient::convertOnuRxPowerToDbm()` auto-detect scale berdasarkan magnitude raw (C300/C320): sentinel no-signal → `null`; milli-dBm (`-50000..-3000` → `/1000`); 0.1-dBm (`-500..-5` → `/10`); legacy positif (`raw>0 → raw*0.002-30`). Scale dipilih dari magnitude, bukan flag firmware — terbukti benar di C320 live (`5635 → -18.73 dBm`, cocok CLI `-18.762 dBm`).
 
-**C600 tak punya Rx via SNMP** — tak ada tabel optik di seluruh cabang `1082.500` pada perangkat asli, jadi `supports_snmp_rx=false` dan `onuRxPowers()` mengembalikan `[]`.
+**C600 punya Rx via SNMP** di `…1082.500.20.2.2.2.1.10` — kembaran OID C300 (`.1012.3.50.12.1.1.10`): kolom akhir `.10`, index `{ifIndex}.{onuId}.{onuPort}`, dan skala raw yang sama, jadi `onuRxPowers()` memakai jalur parsing yang sama untuk kedua family. Sentinel C600 = `65535`. Metrik lain yang **jangan tertukar**: `…500.1.2.4.2.1.2` = Rx **OLT-side** (upstream, milli-dBm, sentinel `-80000`), belum dipakai. Detail: [`SMARTOLT_ZTE_C600_GUIDE.md` §4.0](SMARTOLT_ZTE_C600_GUIDE.md).
 
 ### 4.5 ONU Unconfigured / Auto Discovery
 
@@ -398,7 +398,7 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
   "port_name_prefix": "gpon-olt_1",       // C600 → "gpon_olt-1"
   "onu_interface_pattern": "gpon-onu_1/%d/%d:%d",   // C600 → "gpon_onu-1/%d/%d:%d" (3-tier)
   "is_c600": false,
-  "supports_snmp_rx": true, "supports_cli_rx": true,   // C600 → supports_snmp_rx: false (tak ada tabel Rx SNMP)
+  "supports_snmp_rx": true, "supports_cli_rx": true,
   "supports_cli_onu_detail": true, "supports_cli_onu_configure": true,
   "supports_reboot": true, "reboot_mode": "cli",
   "supports_provisioning": true,
@@ -407,7 +407,7 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
   "supports_onu_info_write": true, "description_mode": "snmp",   // C600 → false (OID nama tak terpetakan)
   "supports_onu_toggle": true,            // C600 → false (OID admin-state tak terpetakan)
   "supports_config_save": true,
-  "rx_source_label": "Rx ONU (SNMP)"      // C600 → "Rx ONU (CLI)"
+  "rx_source_label": "Rx ONU (SNMP)"
 }
 ```
 
