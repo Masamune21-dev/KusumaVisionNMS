@@ -2,6 +2,23 @@
 
 ## 2026-07-17
 
+### Mobile: ikon launcher Android mengikuti logo aplikasi web (logomark cyan)
+
+Ikon launcher APK masih default Flutter (biru); user minta disamakan dengan logo aplikasi web saat ini (logomark Laravel cyan `#22d3ee` + glow, fallback `ApplicationLogo.vue` — branding `logo_url` belum diisi).
+
+Created:
+
+- `mobile/assets/icon/icon.png` + `icon_foreground.png` (1024²) — di-render via Playwright/Chromium dari path SVG `ApplicationLogo.vue`: logo cyan + drop-shadow glow di latar navy `#070D18` (= `AppColors.bg`); foreground versi transparan dgn logo mengecil (safe zone adaptive 66%).
+- `mobile/android/.../mipmap-anydpi-v26/ic_launcher.xml`, `drawable-*/ic_launcher_foreground.png`, `values/colors.xml` — hasil generate `flutter_launcher_icons` (adaptive + legacy mipmap semua densitas).
+
+Changed:
+
+- `mobile/pubspec.yaml` — dev-dep `flutter_launcher_icons` + blok konfigurasinya (regenerasi: `dart run flutter_launcher_icons`); versi `1.2.0+12` → `1.2.1+13` (rilis APK baru wajib bump versionCode).
+
+Notes:
+
+- Ikon = logomark Laravel (dipakai sadar oleh user sebagai logo app saat ini). Bila nanti upload logo custom di Settings → Branding, render ulang kedua PNG dari logo baru lalu jalankan ulang generator + bump versi.
+
 ### Follow-up: unduhan APK di Settings menyajikan versi lama (cache Cloudflare)
 
 User install APK dari halaman Settings tapi masih v1.1.7 padahal server sudah v1.2.0. Diagnosis: domain di-proxy **Cloudflare** dan edge menyimpan salinan APK lama (`cf-cache-status: HIT`, `last-modified` 10 Jul, `cache-control: max-age=14400` disuntik CF) — origin nginx tidak mengirim Cache-Control sama sekali.

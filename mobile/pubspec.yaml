@@ -3,7 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.2.0+12
+version: 1.2.1+13
 
 environment:
   sdk: ^3.12.2
@@ -57,6 +57,19 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+# Ikon launcher Android — mengikuti logo web (logomark cyan #22d3ee + glow di
+# navy #070D18, lihat resources/js/Components/ApplicationLogo.vue). Sumber PNG
+# di assets/icon/ di-render dari SVG yang sama. Regenerasi:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#070D18"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
