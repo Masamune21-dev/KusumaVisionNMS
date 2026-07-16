@@ -94,7 +94,9 @@ mendaftarkan daemon Supervisor + Nginx site, dan opsional membuat akun admin.
 
 ```bash
 cd /var/www
-git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+sudo mkdir -p KusumaVisionNMS
+sudo chown "$USER:$USER" KusumaVisionNMS
+git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
 sudo bash install.sh                 # interaktif — ditanya APP_URL, DB, akun admin

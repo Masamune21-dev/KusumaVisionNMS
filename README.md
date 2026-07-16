@@ -164,7 +164,9 @@ daemon Supervisor (worker, scheduler, telnet-proxy) + Nginx site, dan opsional m
 
 ```bash
 cd /var/www
-git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+sudo mkdir -p KusumaVisionNMS
+sudo chown "$USER:$USER" KusumaVisionNMS
+git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
 sudo bash install.sh                 # interaktif (tanya APP_URL, DB, akun admin)
@@ -187,7 +189,9 @@ verifikasi dengan `bash scripts/check-requirements.sh`.
 
 ```bash
 cd /var/www
-git clone git@github.com:Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+sudo mkdir -p KusumaVisionNMS
+sudo chown "$USER:$USER" KusumaVisionNMS
+git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 ```
 

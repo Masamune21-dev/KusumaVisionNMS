@@ -17,8 +17,11 @@ Node, PostgreSQL, Redis, Nginx, Supervisor, Go, Net-SNMP), menyiapkan DB + `.env
 & Go poller, migrasi, lalu mendaftarkan daemon Supervisor + nginx site.
 
 ```bash
-git clone <repo> /var/www/KusumaVisionNMS
-cd /var/www/KusumaVisionNMS
+cd /var/www
+sudo mkdir -p KusumaVisionNMS
+sudo chown "$USER:$USER" KusumaVisionNMS
+git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
+cd KusumaVisionNMS
 sudo bash install.sh                 # interaktif (tanya APP_URL, DB, admin)
 # atau non-interaktif:
 sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=rahasia \

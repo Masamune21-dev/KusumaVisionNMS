@@ -1,5 +1,22 @@
 # Worklog
 
+## 2026-07-16
+
+### Docs: instruksi clone pakai HTTPS + siapkan folder tujuan
+
+Changed:
+
+- `README.md` — dua blok clone (Cara Cepat `install.sh` dan Langkah 1) diganti dari SSH `git@github.com:Masamune21-dev/KusumaVisionNMS.git` ke HTTPS `https://github.com/Masamune21-dev/KusumaVisionNMS.git`, didahului `sudo mkdir -p KusumaVisionNMS` + `sudo chown "$USER:$USER" KusumaVisionNMS`.
+- `docs/INSTALL.md` — blok clone di "Jalur B — `install.sh`" disamakan (HTTPS + mkdir/chown).
+- `docs/handbook/04-instalasi-deploy.md` — placeholder `git clone <repo> /var/www/KusumaVisionNMS` diganti perintah konkret yang sama dengan README/INSTALL.
+
+Notes:
+
+- **Alasan (dari user):** clone SSH mensyaratkan SSH key terdaftar di GitHub — gagal untuk orang yang deploy dari server kosong. HTTPS bisa langsung jalan tanpa setup key.
+- `sudo mkdir` + `chown` ke user berjalan mencegah folder `/var/www/KusumaVisionNMS` jadi milik root (clone sebagai user biasa akan permission denied di `/var/www`).
+- Dua penyesuaian dari perintah mentah user: `mkdir -p` (idempotent, aman diulang) dan `chown "$USER:$USER"` alih-alih hardcode `masamune:masamune` — README dibaca operator lain yang username servernya beda.
+- Murni dokumentasi; tak ada perubahan kode/skrip (`install.sh` tak menyentuh URL clone). Diverifikasi: `grep -rn "git@github.com"` di README/docs → nol hasil.
+
 ## 2026-07-15
 
 ### C600: Rx ONU ketemu lewat riset MIB publik + verifikasi perangkat
