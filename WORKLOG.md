@@ -1,5 +1,23 @@
 # Worklog
 
+## 2026-07-17
+
+### i18n follow-up: panel Sistem, format tanggal/jam, & sinkronisasi locale saat login SPA
+
+User melapor (screenshot panel sidebar): di mode English, "hari dan jam masih indo" — uptime "29 hari, 8 jam", label "SISTEM/Versi/Waktu", dan jam "00.37" masih format Indonesia.
+
+Changed:
+
+- `resources/js/Components/Shell/SystemInfoPanel.vue` — label Sistem/Versi/Waktu/Uptime/Online + sufiks "user" → `t('shell.sys_*')` (terlewat di sweep kemarin; kata-katanya tak tertangkap pola grep).
+- `app/Http/Middleware/HandleInertiaRequests.php` `formatUptime()` — `"{$days} hari, {$hours} jam"` / `"{$minutes} menit"` → `__('system.uptime_dh'/'uptime_m')` + file baru `lang/{id,en}/system.php`. Uptime tidak di-cache (hanya health 5s & users_online 30s), jadi selalu ikut locale request.
+- `resources/js/lib/datetime.js` — `LOCALE` hardcoded `'id-ID'` → `activeLocale()` dinamis dari `i18n.global.locale` (`id`→id-ID, `en`→en-GB): **semua** tanggal/jam app (formatDateTime/formatDate/formatClock/formatTimeOfDay) kini ikut bahasa aktif — "29 Mei, 16.42" vs "29 May, 16:42". Reaktif karena ref locale terbaca saat render.
+- **`resources/js/app.js` — bugfix sinkronisasi locale SPA**: `setI18nLocale` semula hanya dipanggil saat boot; login via SPA (halaman /login di-boot sebagai tamu `id` → redirect Inertia ke dashboard TANPA full reload) membuat user ber-locale `en` tetap melihat UI Indonesia sampai hard-refresh. Fix: `router.on('success')` menyinkronkan i18n ke prop `locale` hasil resolusi server pada tiap navigasi.
+
+Notes:
+
+- Verifikasi Playwright (login SPA sebagai user locale `en`, TANPA hard refresh): panel "System/Version/Uptime", uptime "days, hours", jam header `00:48 WIB` (separator `:` en-GB), tak ada "Sistem/hari,/jam", nol error JS. Bug sinkronisasi justru tertangkap karena skenario verifikasi kali ini tinggal di SPA setelah login (verifikasi kemarin memakai `page.goto()` per halaman = full reload, sehingga lolos).
+- Timezone tetap dipaku WIB (Asia/Jakarta) — yang berganti hanya bahasa/format tampilan.
+
 ## 2026-07-16
 
 ### Dwibahasa ID/EN — Fase akhir: rollout TUNTAS (Peta, Report, Panduan, admin, Welcome, Auth, komponen shared, backend lang)

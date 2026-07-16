@@ -1,7 +1,7 @@
 import '../css/app.css';
 import './bootstrap';
 
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
@@ -40,6 +40,14 @@ createInertiaApp({
     setup({ el, App, props, plugin }) {
         // Locale awal dari prop Inertia (di-set backend SetLocale), sebelum mount.
         setI18nLocale(props.initialPage.props.locale || 'id');
+
+        // Sinkronkan i18n dgn locale hasil resolusi server pada tiap navigasi SPA —
+        // tanpa ini, login via SPA (guest id → user en) tetap tampil bahasa lama
+        // sampai hard-refresh karena setI18nLocale hanya jalan saat boot.
+        router.on('success', (event) => {
+            const locale = event.detail.page?.props?.locale;
+            if (locale) setI18nLocale(locale);
+        });
 
         return createApp({ render: () => h(App, props) })
             .use(plugin)

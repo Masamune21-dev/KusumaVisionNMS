@@ -83,7 +83,13 @@
         "rx_range_30d": "30 days",
         "search_min_chars": "Type at least 2 characters to start searching.",
         "search_nav": "navigate",
-        "search_pick": "select"
+        "search_pick": "select",
+        "sys_title": "System",
+        "sys_version": "Version",
+        "sys_time": "Time",
+        "sys_uptime": "Uptime",
+        "sys_online": "Online",
+        "sys_user_suffix": "user"
     },
     "language": {
         "label": "Language"

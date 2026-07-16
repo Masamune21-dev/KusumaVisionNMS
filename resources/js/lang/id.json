@@ -83,7 +83,13 @@
         "rx_range_30d": "30 hari",
         "search_min_chars": "Ketik minimal 2 karakter untuk mulai mencari.",
         "search_nav": "navigasi",
-        "search_pick": "pilih"
+        "search_pick": "pilih",
+        "sys_title": "Sistem",
+        "sys_version": "Versi",
+        "sys_time": "Waktu",
+        "sys_uptime": "Uptime",
+        "sys_online": "Online",
+        "sys_user_suffix": "user"
     },
     "language": {
         "label": "Bahasa"

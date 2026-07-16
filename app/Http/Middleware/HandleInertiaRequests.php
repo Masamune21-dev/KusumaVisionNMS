@@ -248,10 +248,10 @@ class HandleInertiaRequests extends Middleware
         if ($days === 0 && $hours === 0) {
             $minutes = intdiv($seconds % 3600, 60);
 
-            return "{$minutes} menit";
+            return __('system.uptime_m', ['minutes' => $minutes]);
         }
 
-        return "{$days} hari, {$hours} jam";
+        return __('system.uptime_dh', ['days' => $days, 'hours' => $hours]);
     }
 
     private function estimateActiveUsers(): int
