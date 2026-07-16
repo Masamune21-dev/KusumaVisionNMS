@@ -48,7 +48,7 @@ class OltConfigBackupController extends Controller
         $result = $service->capture($olt, OltConfigBackup::TRIGGER_MANUAL, request()->user()?->id);
 
         if (! $result['ok']) {
-            return back()->with('error', 'Backup gagal: '.($result['error'] ?? 'kesalahan tidak diketahui'));
+            return back()->with('error', __('flash.backup_failed').($result['error'] ?? 'kesalahan tidak diketahui'));
         }
 
         return back()->with(

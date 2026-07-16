@@ -90,7 +90,7 @@ const onSaved = () => {
 </script>
 
 <template>
-    <Head title="Peta ONU" />
+    <Head :title="$t('map.title')" />
 
     <AuthenticatedLayout>
         <div class="flex flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
@@ -99,9 +99,9 @@ const onSaved = () => {
                 <div class="flex items-center gap-2">
                     <MapPin class="h-6 w-6 text-cyan-400" />
                     <div>
-                        <h1 class="text-lg font-semibold text-white">Peta ONU</h1>
+                        <h1 class="text-lg font-semibold text-white">{{ $t('map.title') }}</h1>
                         <p class="text-xs text-slate-400">
-                            {{ pins.length }} pin · {{ onlineCount }} online · sebaran ONU pelanggan lintas-OLT
+                            {{ $t('map.stats', { pins: pins.length, online: onlineCount }) }}
                         </p>
                     </div>
                 </div>
@@ -112,14 +112,14 @@ const onSaved = () => {
                     @click="toggleAddMode"
                 >
                     <Crosshair class="h-4 w-4" />
-                    {{ addMode ? 'Mode tambah aktif — klik di peta' : 'Tambah Pin' }}
+                    {{ addMode ? $t('map.add_mode_active') : $t('map.add_pin') }}
                 </button>
             </div>
 
             <!-- Banner mode placement -->
             <div v-if="addMode && presetForModal" class="flex items-center gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm text-cyan-200">
                 <Crosshair class="h-4 w-4" />
-                Klik lokasi di peta untuk menempatkan pin ONU terpilih.
+                {{ $t('map.placement_hint') }}
             </div>
 
             <!-- Peta + panel detail -->
@@ -150,7 +150,7 @@ const onSaved = () => {
                 <div v-if="!pins.length && !addMode" class="pointer-events-none absolute inset-x-0 bottom-6 z-[400] flex justify-center">
                     <div class="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/85 px-4 py-2 text-sm text-slate-300 backdrop-blur">
                         <MapPin class="h-4 w-4 text-cyan-400" />
-                        Belum ada pin. Klik <button type="button" class="font-semibold text-cyan-300 underline" @click="toggleAddMode">Tambah Pin</button> lalu klik lokasi di peta.
+                        {{ $t('map.empty_before') }} <button type="button" class="font-semibold text-cyan-300 underline" @click="toggleAddMode">{{ $t('map.add_pin') }}</button> {{ $t('map.empty_after') }}
                     </div>
                 </div>
             </div>

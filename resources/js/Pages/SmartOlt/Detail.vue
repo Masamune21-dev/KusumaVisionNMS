@@ -94,36 +94,36 @@ const oltImage = computed(() => {
                     <Link :href="route('smartolt.index')">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Kembali
+                            {{ $t('common.back') }}
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.edit', olt.id)">
                         <SecondaryButton type="button">
                             <Pencil class="mr-2 h-4 w-4" />
-                            Edit
+                            {{ $t('common.edit') }}
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.gpon-ports', olt.id)">
                         <SecondaryButton type="button">
                             <Cable class="mr-2 h-4 w-4" />
-                            GPON Port & ONU
+                            {{ $t('gponports.title') }}
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.registrations', olt.id)">
                         <SecondaryButton type="button">
                             <ClipboardList class="mr-2 h-4 w-4" />
-                            Registrasi
+                            {{ $t('detail.registrations') }}
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('smartolt.config-backups.index', olt.id)">
                         <SecondaryButton type="button">
                             <Database class="mr-2 h-4 w-4" />
-                            Backup Config
+                            {{ $t('detail.backup_config') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
-                        Refresh SNMP
+                        {{ $t('gponports.refresh_snmp') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -134,27 +134,27 @@ const oltImage = computed(() => {
 
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</p>
                         <p class="mt-3 text-2xl font-bold"
                             :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
-                            {{ snapshot.ok ? 'Online' : 'Unknown' }}
+                            {{ snapshot.ok ? $t('common.online') : $t('common.unknown') }}
                         </p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">GPON Port</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('gponports.stat_gpon_port') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('detail.total_onu') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">
-                            {{ onuOnline }}<span class="text-sm font-normal text-slate-500"> / {{ onuTotal }} online</span>
+                            {{ onuOnline }}<span class="text-sm font-normal text-slate-500">{{ $t('detail.onu_online_suffix', { total: onuTotal }) }}</span>
                         </p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.last_refresh') }}</p>
                         <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.last_tested_at) }}</p>
                         <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-400'">
-                            Auto-poll {{ olt.polling_enabled ? 'On' : 'Off' }}
+                            {{ $t('smartolt.col_autopoll') }} {{ olt.polling_enabled ? $t('common.on') : $t('common.off') }}
                         </p>
                     </div>
                 </div>
@@ -191,7 +191,7 @@ const oltImage = computed(() => {
                         <img v-if="oltImage" :src="oltImage" :alt="olt.name" class="max-h-96 w-full object-contain p-8" />
                         <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-slate-300">
                             <Router class="h-16 w-16" />
-                            <span class="text-sm text-slate-400">Gambar tidak tersedia</span>
+                            <span class="text-sm text-slate-400">{{ $t('detail.image_unavailable') }}</span>
                         </div>
                     </div>
                 </div>
@@ -208,7 +208,7 @@ const oltImage = computed(() => {
                     <template #actions>
                         <SecondaryButton type="button" :disabled="hardwareRefreshing" @click="refreshHardware">
                             <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': hardwareRefreshing }" />
-                            Refresh Hardware
+                            {{ $t('detail.refresh_hardware') }}
                         </SecondaryButton>
                     </template>
                 </OltChassis>

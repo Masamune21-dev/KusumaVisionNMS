@@ -4,9 +4,12 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime, formatTimeOfDay } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -226,7 +229,7 @@ const submitVlan = async () => {
         setTimeout(() => { vlanToast.show = false; }, 5000);
     } catch (e) {
         vlanToast.ok = false;
-        vlanToast.message = 'Request gagal: ' + (e.response?.data?.message ?? e.message);
+        vlanToast.message = t('portdetail.request_failed_prefix', { msg: e.response?.data?.message ?? e.message });
         vlanToast.show = true;
     } finally {
         vlanForm.submitting = false;
@@ -262,12 +265,12 @@ const submitVlan = async () => {
                     <Link :href="route('smartolt.detail', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Kembali
+                            {{ $t('common.back') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
-                        Refresh dari OLT
+                        {{ $t('portdetail.refresh_from_olt') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -276,16 +279,14 @@ const submitVlan = async () => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
-                <div v-if="!hasData" class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-8 text-center text-sm text-amber-200">
-                    Belum ada data detail untuk port ini. Klik <span class="font-semibold">Refresh dari OLT</span> untuk mengambil status, trafik &amp; SFP via CLI.
-                </div>
+                <div v-if="!hasData" class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-8 text-center text-sm text-amber-200" v-html="$t('portdetail.no_data')"></div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
                     <!-- Status -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <Network class="h-5 w-5 text-cyan-400" />
-                            <h3 class="text-base font-semibold text-white">Status Port</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('portdetail.port_status') }}</h3>
                         </div>
                         <dl class="grid grid-cols-2 gap-px bg-white/5">
                             <div class="bg-slate-900/40 px-4 py-3">
@@ -302,7 +303,7 @@ const submitVlan = async () => {
                                     <dd class="mt-1 text-sm text-white">{{ d.speed_mbps ? `${d.speed_mbps} Mbps` : '-' }} · {{ d.duplex || '-' }}</dd>
                                 </div>
                                 <div class="bg-slate-900/40 px-4 py-3">
-                                    <dt class="text-xs uppercase tracking-wide text-slate-500">Negosiasi</dt>
+                                    <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portdetail.negotiation') }}</dt>
                                     <dd class="mt-1 text-sm text-white">{{ d.negotiation || '-' }}</dd>
                                 </div>
                                 <div class="bg-slate-900/40 px-4 py-3">
@@ -316,20 +317,20 @@ const submitVlan = async () => {
                             </template>
                             <template v-else>
                                 <div class="bg-slate-900/40 px-4 py-3">
-                                    <dt class="text-xs uppercase tracking-wide text-slate-500">ONU Terdaftar</dt>
+                                    <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portdetail.registered_onu') }}</dt>
                                     <dd class="mt-1 text-sm text-white">{{ d.registered_onu_count ?? onu_summary?.total ?? '-' }}</dd>
                                 </div>
                                 <div class="bg-slate-900/40 px-4 py-3">
-                                    <dt class="text-xs uppercase tracking-wide text-slate-500">Kapasitas</dt>
+                                    <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portdetail.capacity') }}</dt>
                                     <dd class="mt-1 text-sm text-white">{{ d.onu_capacity ?? '-' }}</dd>
                                 </div>
                                 <div class="col-span-2 bg-slate-900/40 px-4 py-3">
-                                    <dt class="text-xs uppercase tracking-wide text-slate-500">Deskripsi</dt>
+                                    <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.description') }}</dt>
                                     <dd class="mt-1 break-words text-sm text-white">{{ d.description || '-' }}</dd>
                                 </div>
                             </template>
                             <div class="col-span-2 bg-slate-900/40 px-4 py-3">
-                                <dt class="text-xs uppercase tracking-wide text-slate-500">Diperbarui</dt>
+                                <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portdetail.updated') }}</dt>
                                 <dd class="mt-1 text-sm text-slate-300">{{ formatDate(d.status_refreshed_at || d.refreshed_at) }}</dd>
                             </div>
                         </dl>
@@ -339,7 +340,7 @@ const submitVlan = async () => {
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <Zap class="h-5 w-5 text-cyan-400" />
-                            <h3 class="text-base font-semibold text-white">Optical / SFP (Redaman)</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('portdetail.optical_title') }}</h3>
                         </div>
                         <div v-if="d.optical_vendor_name || d.rx_power_dbm !== null && d.rx_power_dbm !== undefined" class="p-4 sm:p-6">
                             <div class="grid grid-cols-2 gap-4">
@@ -359,14 +360,12 @@ const submitVlan = async () => {
                             <dl class="mt-4 divide-y divide-white/5 text-sm">
                                 <div class="flex justify-between py-2"><dt class="text-slate-500">Vendor</dt><dd class="text-white">{{ d.optical_vendor_name || '-' }}</dd></div>
                                 <div class="flex justify-between py-2"><dt class="text-slate-500">PN / SN</dt><dd class="font-mono text-xs text-slate-300">{{ d.optical_vendor_pn || '-' }} / {{ d.optical_vendor_sn || '-' }}</dd></div>
-                                <div class="flex justify-between py-2"><dt class="text-slate-500">Tipe / Wavelength</dt><dd class="text-slate-300">{{ d.optical_module_type || '-' }} · {{ formatNumber(d.optical_wavelength_nm, ' nm') }}</dd></div>
+                                <div class="flex justify-between py-2"><dt class="text-slate-500">{{ $t('portdetail.type_wavelength') }}</dt><dd class="text-slate-300">{{ d.optical_module_type || '-' }} · {{ formatNumber(d.optical_wavelength_nm, ' nm') }}</dd></div>
                                 <div class="flex justify-between py-2"><dt class="text-slate-500">Bias / Temp / Volt</dt><dd class="text-slate-300">{{ formatNumber(d.tx_bias_current_ma, ' mA') }} · {{ formatNumber(d.temperature_c, '°C') }} · {{ formatNumber(d.supply_voltage_v, ' V') }}</dd></div>
-                                <div class="flex justify-between py-2"><dt class="text-slate-500">Diperbarui</dt><dd class="text-slate-300">{{ formatDate(d.optical_refreshed_at) }}</dd></div>
+                                <div class="flex justify-between py-2"><dt class="text-slate-500">{{ $t('portdetail.updated') }}</dt><dd class="text-slate-300">{{ formatDate(d.optical_refreshed_at) }}</dd></div>
                             </dl>
                         </div>
-                        <div v-else class="px-5 py-10 text-center text-sm text-slate-500">
-                            Data SFP belum tersedia. Klik <span class="text-slate-300">Refresh dari OLT</span>.
-                        </div>
+                        <div v-else class="px-5 py-10 text-center text-sm text-slate-500" v-html="$t('portdetail.sfp_empty')"></div>
                     </div>
                 </div>
 
@@ -375,11 +374,11 @@ const submitVlan = async () => {
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
                             <Activity class="h-5 w-5 text-cyan-400" />
-                            <h3 class="text-base font-semibold text-white">Trafik</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('portdetail.traffic') }}</h3>
                         </div>
                         <SecondaryButton v-if="isUplink" type="button" @click="toggleLiveTraffic">
                             <Gauge class="mr-2 h-4 w-4" :class="{ 'animate-pulse text-emerald-400': liveTrafficEnabled }" />
-                            {{ liveTrafficEnabled ? 'Stop Live' : 'Live Trafik' }}
+                            {{ liveTrafficEnabled ? $t('portdetail.stop_live') : $t('portdetail.live_traffic') }}
                         </SecondaryButton>
                     </div>
                     <div class="p-4 sm:p-6">
@@ -403,13 +402,11 @@ const submitVlan = async () => {
                         </div>
 
                         <div v-if="isUplink" class="mt-4">
-                            <p v-if="trafficError" class="mb-2 text-xs text-red-300">Gagal ambil trafik: {{ trafficError }}</p>
+                            <p v-if="trafficError" class="mb-2 text-xs text-red-300">{{ $t('portdetail.traffic_error', { error: trafficError }) }}</p>
                             <div v-if="liveTrafficEnabled" class="rounded-lg border border-white/10 bg-slate-950/40 p-2">
                                 <VueApexCharts type="area" height="260" :options="chartOptions" :series="chartSeries" />
                             </div>
-                            <p v-else class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-500">
-                                Aktifkan <span class="text-slate-300">Live Trafik</span> untuk grafik real-time (polling tiap 10 detik via CLI).
-                            </p>
+                            <p v-else class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-500" v-html="$t('portdetail.live_hint')"></p>
                         </div>
                     </div>
                 </div>
@@ -432,7 +429,7 @@ const submitVlan = async () => {
                                 :class="isVlanRange(v)
                                     ? 'bg-violet-500/15 text-violet-200 ring-violet-500/30'
                                     : 'bg-sky-500/15 text-cyan-300 ring-cyan-500/30'"
-                                :title="isVlanRange(v) ? 'Rentang VLAN' : 'VLAN'"
+                                :title="isVlanRange(v) ? $t('portdetail.vlan_range') : 'VLAN'"
                             >
                                 <Network v-if="isVlanRange(v)" class="h-3 w-3 opacity-70" />
                                 {{ formatVlan(v) }}
@@ -440,11 +437,11 @@ const submitVlan = async () => {
                         </div>
                         <div v-else class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
                             <Tag class="h-4 w-4 flex-shrink-0 text-slate-600" />
-                            Belum ada VLAN tagged pada port ini.
+                            {{ $t('portdetail.no_vlan') }}
                         </div>
 
                         <div class="mt-5 border-t border-white/10 pt-5">
-                            <label for="vlan-add" class="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Tambah VLAN tagged</label>
+                            <label for="vlan-add" class="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">{{ $t('portdetail.add_vlan_label') }}</label>
                             <form class="flex flex-col gap-2 sm:flex-row sm:items-center" @submit.prevent="submitVlan">
                                 <input
                                     id="vlan-add"
@@ -454,7 +451,7 @@ const submitVlan = async () => {
                                 />
                                 <PrimaryButton type="submit" :disabled="vlanForm.submitting || !vlanForm.vlan_id">
                                     <Plus class="mr-2 h-4 w-4" />
-                                    {{ vlanForm.submitting ? 'Menyimpan...' : 'Tambah & Tag VLAN' }}
+                                    {{ vlanForm.submitting ? $t('portdetail.saving') : $t('portdetail.add_tag_vlan') }}
                                 </PrimaryButton>
                             </form>
                             <div
@@ -476,22 +473,22 @@ const submitVlan = async () => {
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
                             <Users class="h-5 w-5 text-cyan-400" />
-                            <h3 class="text-base font-semibold text-white">ONU pada Port Ini</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('portdetail.onu_on_port') }}</h3>
                         </div>
                         <Link v-if="slot !== null" :href="route('smartolt.port-onus', [olt.id, slot, port])">
                             <SecondaryButton type="button">
                                 <Users class="mr-2 h-4 w-4" />
-                                Lihat Daftar ONU
+                                {{ $t('portdetail.view_onu_list') }}
                             </SecondaryButton>
                         </Link>
                     </div>
                     <div class="grid grid-cols-2 gap-4 p-4 sm:p-6">
                         <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
-                            <p class="text-xs uppercase tracking-wide text-slate-500">Total ONU</p>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
                             <p class="mt-1 text-2xl font-bold text-white">{{ onu_summary?.total ?? d.registered_onu_count ?? 0 }}</p>
                         </div>
                         <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
-                            <p class="text-xs uppercase tracking-wide text-slate-500">Online</p>
+                            <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('common.online') }}</p>
                             <p class="mt-1 text-2xl font-bold text-emerald-400">{{ onu_summary?.online ?? '-' }}</p>
                         </div>
                     </div>

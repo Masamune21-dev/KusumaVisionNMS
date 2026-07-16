@@ -24,7 +24,7 @@ const totals = computed(() => props.items.reduce(
                 <span class="kv-circle-sky">
                     <Server class="h-5 w-5" />
                 </span>
-                <h3 class="text-base font-semibold text-white">Inventory OLT</h3>
+                <h3 class="text-base font-semibold text-white">{{ $t('dashboard.olt_inventory') }}</h3>
             </div>
             <Link :href="route('smartolt.index')" class="text-slate-400 transition-colors hover:text-cyan-400">
                 <ChevronRight class="h-5 w-5" />
@@ -45,20 +45,20 @@ const totals = computed(() => props.items.reduce(
                         </div>
                     </div>
                     <span :class="row.reachable ? 'kv-pill-success' : 'kv-pill-danger'">
-                        {{ row.reachable ? 'Up' : 'Down' }}
+                        {{ row.reachable ? $t('dashboard.status_up') : $t('dashboard.status_down') }}
                     </span>
                 </li>
             </ul>
         </div>
         <div v-else class="flex flex-1 items-center justify-center px-5 py-10 text-center text-sm text-slate-500">
-            Belum ada OLT terdaftar.
+            {{ $t('dashboard.no_olt') }}
         </div>
 
         <div v-if="items.length > 0" class="flex items-center justify-between border-t border-white/10 bg-slate-950/30 px-5 py-3">
-            <p class="text-sm font-semibold text-slate-300">Total <span class="ml-2 text-xs font-normal text-slate-500">{{ totals.unit }} Unit</span></p>
+            <p class="text-sm font-semibold text-slate-300">{{ $t('dashboard.total') }} <span class="ml-2 text-xs font-normal text-slate-500">{{ $t('dashboard.unit_count', { count: totals.unit }) }}</span></p>
             <div class="flex items-center gap-2">
-                <span class="kv-pill-success">Up {{ totals.up }}</span>
-                <span class="kv-pill-danger">Down {{ totals.down }}</span>
+                <span class="kv-pill-success">{{ $t('dashboard.status_up') }} {{ totals.up }}</span>
+                <span class="kv-pill-danger">{{ $t('dashboard.status_down') }} {{ totals.down }}</span>
             </div>
         </div>
     </div>

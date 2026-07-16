@@ -46,7 +46,7 @@ class SmartOltProfileController extends Controller
 
         return redirect()
             ->route('smartolt.profiles.index', $olt)
-            ->with('success', $request->boolean('execute_cli') ? 'Profile berhasil ditambahkan ke OLT dan cache lokal.' : 'Profile berhasil ditambahkan ke cache lokal.');
+            ->with('success', $request->boolean('execute_cli') ? __('flash.profile_added_olt') : __('flash.profile_added_cache'));
     }
 
     public function update(Request $request, SnmpOlt $olt, SmartOltProfile $profile, ZteProfileCatalogService $catalog, ZteCliProvisioningExecutor $executor): RedirectResponse
@@ -68,7 +68,7 @@ class SmartOltProfileController extends Controller
 
         return redirect()
             ->route('smartolt.profiles.index', $olt)
-            ->with('success', $request->boolean('execute_cli') ? 'Profile berhasil diperbarui di OLT dan cache lokal.' : 'Profile berhasil diperbarui di cache lokal.');
+            ->with('success', $request->boolean('execute_cli') ? __('flash.profile_updated_olt') : __('flash.profile_updated_cache'));
     }
 
     public function destroy(Request $request, SnmpOlt $olt, SmartOltProfile $profile, ZteProfileCatalogService $catalog, ZteCliProvisioningExecutor $executor): RedirectResponse
@@ -83,7 +83,7 @@ class SmartOltProfileController extends Controller
 
         return redirect()
             ->route('smartolt.profiles.index', $olt)
-            ->with('success', $request->boolean('execute_cli') ? 'Profile berhasil dihapus dari OLT dan cache lokal.' : 'Profile berhasil dihapus dari cache lokal.');
+            ->with('success', $request->boolean('execute_cli') ? __('flash.profile_deleted_olt') : __('flash.profile_deleted_cache'));
     }
 
     public function syncFromOlt(SnmpOlt $olt, ZteProfileCatalogService $catalog): RedirectResponse
@@ -93,11 +93,11 @@ class SmartOltProfileController extends Controller
 
             return redirect()
                 ->route('smartolt.profiles.index', $olt)
-                ->with('success', sprintf('Sync profile dari OLT selesai. %s profile diproses.', $result['count']));
+                ->with('success', sprintf(__('flash.profile_sync_ok_fmt'), $result['count']));
         } catch (\Throwable $exception) {
             return redirect()
                 ->route('smartolt.profiles.index', $olt)
-                ->with('error', 'Sync profile dari OLT gagal: '.$exception->getMessage());
+                ->with('error', __('flash.profile_sync_failed').$exception->getMessage());
         }
     }
 
@@ -147,7 +147,7 @@ class SmartOltProfileController extends Controller
             $query->where('snmp_olt_id', $olt->id);
 
             if ($includeGlobalFallback) {
-                $query->orWhere(function ($query) use ($olt, $includeInactive) {
+                $query->orWhere(function ($query) use ($includeInactive) {
                     $query->whereNull('snmp_olt_id');
 
                     if (! $includeInactive) {

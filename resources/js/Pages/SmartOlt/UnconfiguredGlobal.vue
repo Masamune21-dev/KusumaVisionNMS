@@ -41,19 +41,19 @@ const formatDate = (value) => formatDateTime(value);
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Unconfigured ONU</h2>
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ $t('unconfigured.title') }}</h2>
                 </div>
 
                 <div v-if="selected_olt" class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
                     <Link :href="route('smartolt.registrations', selected_olt.id)">
                         <SecondaryButton type="button">
                             <ClipboardList class="mr-2 h-4 w-4" />
-                            Registration History
+                            {{ $t('unconfigured.registration_history') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
-                        Refresh Discovery
+                        {{ $t('common.refresh_discovery') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -68,7 +68,7 @@ const formatDate = (value) => formatDateTime(value);
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <Router class="h-5 w-5 text-cyan-400" />
                         </div>
-                        <h3 class="text-base font-semibold text-white">Pilih OLT</h3>
+                        <h3 class="text-base font-semibold text-white">{{ $t('unconfigured.select_olt') }}</h3>
                     </div>
                     <div class="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         <button
@@ -97,17 +97,17 @@ const formatDate = (value) => formatDateTime(value);
                     <!-- Summary cards -->
                     <div class="grid gap-4 md:grid-cols-3">
                         <div class="kv-stat">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Data</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('unconfigured.stat_data') }}</p>
                             <p class="mt-3 text-2xl font-bold" :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
-                                {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
+                                {{ snapshot.ok ? $t('common.available') : $t('common.empty') }}
                             </p>
                         </div>
                         <div class="kv-stat">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">ONU Baru Terdeteksi</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('unconfigured.new_onu_detected') }}</p>
                             <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.count }}</p>
                         </div>
                         <div class="kv-stat">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.last_refresh') }}</p>
                             <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.refreshed_at) }}</p>
                         </div>
                     </div>
@@ -118,11 +118,11 @@ const formatDate = (value) => formatDateTime(value);
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                                 <Wifi class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="text-base font-semibold text-white">ONU Terdeteksi</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('unconfigured.detected_onu') }}</h3>
                         </div>
 
                         <div v-if="snapshot.onus.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
-                            Belum ada data. Jalankan <strong class="text-slate-200">Refresh Discovery</strong>.
+                            {{ $t('unconfigured.empty_discovery') }}
                         </div>
 
                         <template v-else>
@@ -138,7 +138,7 @@ const formatDate = (value) => formatDateTime(value);
                                         </div>
                                         <IconButton
                                             variant="primary"
-                                            title="Register ONU"
+                                            :title="$t('common.register_onu')"
                                             :href="route('smartolt.register', {
                                                 olt: selected_olt.id,
                                                 sn: onu.serial_number,
@@ -158,9 +158,9 @@ const formatDate = (value) => formatDateTime(value);
                             <table class="min-w-[720px] w-full">
                                 <thead>
                                     <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Serial</th>
-                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Port</th>
-                                        <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
+                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
+                                        <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
@@ -175,7 +175,7 @@ const formatDate = (value) => formatDateTime(value);
                                             <div class="flex justify-center">
                                                 <IconButton
                                                     variant="primary"
-                                                    title="Register ONU"
+                                                    :title="$t('common.register_onu')"
                                                     :href="route('smartolt.register', {
                                                         olt: selected_olt.id,
                                                         sn: onu.serial_number,
@@ -201,7 +201,7 @@ const formatDate = (value) => formatDateTime(value);
                 <div v-else-if="!selected_olt"
                      class="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/10 py-16">
                     <Wifi class="h-12 w-12 mb-3 text-slate-300" />
-                    <p class="text-sm font-medium text-slate-400">Pilih OLT di atas untuk melihat ONU yang belum terkonfigurasi</p>
+                    <p class="text-sm font-medium text-slate-400">{{ $t('unconfigured.select_olt_hint') }}</p>
                 </div>
 
             </div>

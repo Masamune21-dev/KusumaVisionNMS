@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Head, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import HeroBanner from '@/Components/Dashboard/HeroBanner.vue';
 import StatCard from '@/Components/Dashboard/StatCard.vue';
@@ -24,49 +25,50 @@ const props = defineProps({
 });
 
 const page = usePage();
+const { t } = useI18n({ useScope: 'global' });
 
 const heroCards = computed(() => [
     {
-        label: 'Total OLT',
+        label: t('dashboard.card_total_olt'),
         value: props.cards.olt.total.toLocaleString('id-ID'),
         icon: Server,
         accent: 'sky',
         sparkline: props.cards.olt.history,
         sublabels: [
-            { label: 'Online', value: props.cards.olt.online, color: '#10b981' },
-            { label: 'Offline', value: props.cards.olt.offline, color: '#94a3b8' },
+            { label: t('dashboard.status_online'), value: props.cards.olt.online, color: '#10b981' },
+            { label: t('dashboard.status_offline'), value: props.cards.olt.offline, color: '#94a3b8' },
         ],
     },
     {
-        label: 'Total ONU',
+        label: t('dashboard.card_total_onu'),
         value: props.cards.onu.total.toLocaleString('id-ID'),
         icon: Wifi,
         accent: 'cyan',
         sparkline: props.cards.onu.history,
         sublabels: [
-            { label: 'Online', value: props.cards.onu.online, color: '#10b981' },
-            { label: 'Offline', value: props.cards.onu.offline, color: '#ef4444' },
+            { label: t('dashboard.status_online'), value: props.cards.onu.online, color: '#10b981' },
+            { label: t('dashboard.status_offline'), value: props.cards.onu.offline, color: '#ef4444' },
         ],
     },
     {
-        label: 'Online ONU',
+        label: t('dashboard.card_online_onu'),
         value: props.cards.onu.online.toLocaleString('id-ID'),
         icon: Wifi,
         accent: 'emerald',
         sparkline: props.cards.onu.history,
         sublabels: [
-            { label: `${props.cards.online_share}% dari total ONU`, value: '', color: '#10b981' },
+            { label: t('dashboard.online_share', { pct: props.cards.online_share }), value: '', color: '#10b981' },
         ],
     },
     {
-        label: 'Active Alarms',
+        label: t('dashboard.card_active_alarms'),
         value: props.cards.alarms.total.toLocaleString('id-ID'),
         icon: BellRing,
         accent: 'purple',
         sparkline: props.cards.alarms.history,
         sublabels: [
-            { label: 'Critical', value: props.cards.alarms.critical, color: '#ef4444' },
-            { label: 'Major', value: props.cards.alarms.major, color: '#f97316' },
+            { label: t('dashboard.severity_critical'), value: props.cards.alarms.critical, color: '#ef4444' },
+            { label: t('dashboard.severity_major'), value: props.cards.alarms.major, color: '#f97316' },
         ],
     },
 ]);
@@ -82,11 +84,11 @@ const onSelectAction = (action) => {
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head :title="t('nav.dashboard')" />
 
     <AuthenticatedLayout>
         <div class="space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-            <HeroBanner />
+            <HeroBanner :title="t('dashboard.hero_title')" :subtitle="t('dashboard.hero_subtitle')" />
 
             <!-- Stat cards -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

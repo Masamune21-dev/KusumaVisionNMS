@@ -1,11 +1,15 @@
 <script setup>
 import Pagination from '@/Components/Pagination.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
+import { alarmStatusLabel, alarmTypeLabel } from '@/lib/alarm';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { BellRing, Filter, RotateCcw, Search, ShieldCheck } from '@lucide/vue';
 import { computed, reactive, watch } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     alarms: {
@@ -54,10 +58,10 @@ watch(() => props.filter, (filter) => {
 }, { deep: true });
 
 const statusTitle = computed(() => ({
-    active: 'Alarm Aktif',
-    cleared: 'Alarm Selesai',
-    all: 'Semua Alarm',
-}[props.filter.status] ?? 'Alarm Aktif'));
+    active: t('alarms.title_active'),
+    cleared: t('alarms.title_cleared'),
+    all: t('alarms.title_all'),
+}[props.filter.status] ?? t('alarms.title_active')));
 
 const hasFilters = computed(() => (
     form.status !== 'active'
@@ -154,7 +158,7 @@ const formatDate = (value) => {
                         :class="form.status === 'active' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('active')"
                     >
-                        Aktif
+                        {{ $t('alarms.tab_active') }}
                     </button>
                     <button
                         type="button"
@@ -162,7 +166,7 @@ const formatDate = (value) => {
                         :class="form.status === 'cleared' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('cleared')"
                     >
-                        Selesai
+                        {{ $t('alarms.tab_cleared') }}
                     </button>
                     <button
                         type="button"
@@ -170,7 +174,7 @@ const formatDate = (value) => {
                         :class="form.status === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('all')"
                     >
-                        Semua
+                        {{ $t('alarms.tab_all') }}
                     </button>
                 </div>
             </div>
@@ -199,33 +203,33 @@ const formatDate = (value) => {
                             <input
                                 v-model="form.q"
                                 type="search"
-                                placeholder="Cari serial, pesan, tipe, OLT…"
+                                :placeholder="$t('alarms.search_placeholder')"
                                 class="kv-filter-control !pl-9"
                             >
                         </div>
                         <select v-model="form.severity" class="kv-filter-control w-full sm:w-auto">
-                            <option value="all">Semua Severity</option>
+                            <option value="all">{{ $t('alarms.all_severity') }}</option>
                             <option v-for="severity in filterOptions.severities" :key="severity" :value="severity">{{ severity }}</option>
                         </select>
                         <select v-model="form.olt_id" class="kv-filter-control w-full sm:w-auto">
-                            <option value="">Semua OLT</option>
+                            <option value="">{{ $t('alarms.all_olt') }}</option>
                             <option v-for="olt in filterOptions.olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
                         </select>
                         <select v-model="form.scope" class="kv-filter-control w-full sm:w-auto">
-                            <option value="all">Semua Scope</option>
+                            <option value="all">{{ $t('alarms.all_scope') }}</option>
                             <option v-for="scope in filterOptions.scopes" :key="scope" :value="scope">{{ scopeOptionLabel(scope) }}</option>
                         </select>
                         <select v-model="form.type" class="kv-filter-control w-full sm:w-auto">
-                            <option value="all">Semua Tipe</option>
-                            <option v-for="type in filterOptions.types" :key="type" :value="type">{{ type }}</option>
+                            <option value="all">{{ $t('alarms.all_type') }}</option>
+                            <option v-for="type in filterOptions.types" :key="type" :value="type">{{ alarmTypeLabel(t, type) }}</option>
                         </select>
                         <button type="button" class="kv-filter-reset w-full sm:w-auto" :disabled="!hasFilters" @click="resetFilters">
                             <RotateCcw class="h-4 w-4" />
-                            Reset
+                            {{ $t('common.reset') }}
                         </button>
                         <button type="submit" class="kv-filter-apply w-full sm:w-auto">
                             <Search class="h-4 w-4" />
-                            Terapkan
+                            {{ $t('alarms.apply') }}
                         </button>
                     </form>
                 </FilterCard>
@@ -239,7 +243,7 @@ const formatDate = (value) => {
                             <h3 class="text-base font-semibold text-white">
                                 {{ statusTitle }}
                             </h3>
-                            <p class="mt-0.5 text-xs text-slate-500">Hasil evaluasi otomatis dari background poll.</p>
+                            <p class="mt-0.5 text-xs text-slate-500">{{ $t('alarms.subtitle') }}</p>
                         </div>
                     </div>
 
@@ -247,9 +251,9 @@ const formatDate = (value) => {
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <ShieldCheck class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-white">Tidak ada alarm</h3>
+                        <h3 class="text-sm font-semibold text-white">{{ $t('alarms.empty_title') }}</h3>
                         <p class="mt-1 text-sm text-slate-500">
-                            {{ hasFilters ? 'Tidak ada alarm yang cocok dengan filter.' : 'Semua kondisi normal pada poll terakhir.' }}
+                            {{ hasFilters ? $t('alarms.empty_filtered') : $t('alarms.empty_normal') }}
                         </p>
                     </div>
 
@@ -263,10 +267,10 @@ const formatDate = (value) => {
                                                 {{ alarm.severity }}
                                             </span>
                                             <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
-                                                {{ alarm.status }}
+                                                {{ alarmStatusLabel(t, alarm.status) }}
                                             </span>
                                         </div>
-                                        <h4 class="mt-3 kv-mobile-card-title">{{ alarm.type }}</h4>
+                                        <h4 class="mt-3 kv-mobile-card-title">{{ alarmTypeLabel(t, alarm.type) }}</h4>
                                         <p class="kv-mobile-card-subtitle">{{ alarm.message }}</p>
                                     </div>
                                 </div>
@@ -278,19 +282,19 @@ const formatDate = (value) => {
                                         </Link>
                                     </div>
                                     <div v-if="alarm.customer_name" class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Customer</span>
+                                        <span class="kv-mobile-label">{{ $t('alarms.col_customer') }}</span>
                                         <span class="kv-mobile-value">{{ alarm.customer_name }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Target</span>
+                                        <span class="kv-mobile-label">{{ $t('alarms.col_target') }}</span>
                                         <span class="kv-mobile-value">{{ scopeLabel(alarm) }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Terakhir</span>
+                                        <span class="kv-mobile-label">{{ $t('alarms.col_last') }}</span>
                                         <span class="kv-mobile-value">{{ formatDate(alarm.last_seen_at) }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Sejak</span>
+                                        <span class="kv-mobile-label">{{ $t('alarms.col_since') }}</span>
                                         <span class="kv-mobile-value">{{ formatDate(alarm.first_seen_at) }}</span>
                                     </div>
                                 </div>
@@ -301,12 +305,12 @@ const formatDate = (value) => {
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Severity</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Tipe</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">OLT / Target</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Pesan</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Terakhir</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_severity') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_type') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_olt_target') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_message') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_last') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -316,7 +320,7 @@ const formatDate = (value) => {
                                             {{ alarm.severity }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-4 text-sm font-medium text-white">{{ alarm.type }}</td>
+                                    <td class="px-4 py-4 text-sm font-medium text-white">{{ alarmTypeLabel(t, alarm.type) }}</td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
                                         <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-cyan-400 hover:text-cyan-400">
                                             {{ alarm.olt.name }}
@@ -329,12 +333,12 @@ const formatDate = (value) => {
                                     <td class="px-4 py-4 text-sm text-slate-200">{{ alarm.message }}</td>
                                     <td class="px-4 py-4">
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
-                                            {{ alarm.status }}
+                                            {{ alarmStatusLabel(t, alarm.status) }}
                                         </span>
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
                                         <div>{{ formatDate(alarm.last_seen_at) }}</div>
-                                        <div class="text-xs text-slate-500">sejak {{ formatDate(alarm.first_seen_at) }}</div>
+                                        <div class="text-xs text-slate-500">{{ $t('alarms.since_prefix', { date: formatDate(alarm.first_seen_at) }) }}</div>
                                     </td>
                                 </tr>
                             </tbody>
@@ -344,7 +348,7 @@ const formatDate = (value) => {
 
                     <div v-if="rows.length > 0" class="flex flex-col items-center justify-between gap-3 border-t border-white/10 px-6 py-4 sm:flex-row">
                         <p class="text-sm text-slate-500">
-                            Menampilkan {{ alarms.from }}–{{ alarms.to }} dari {{ alarms.total }} alarm
+                            {{ $t('alarms.showing', { from: alarms.from, to: alarms.to, total: alarms.total }) }}
                         </p>
                         <Pagination :links="alarms.links" />
                     </div>

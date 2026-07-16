@@ -63,9 +63,9 @@ class HiosoOltController extends Controller
         try {
             $count = $scanner->scan($olt);
 
-            return $redirect->with('success', sprintf('OLT ditambahkan. Scan awal: %s ONU.', $count));
+            return $redirect->with('success', sprintf(__('flash.olt_added_scan_fmt'), $count));
         } catch (Throwable $exception) {
-            return $redirect->with('success', 'OLT ditambahkan. Scan awal gagal ('.$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
+            return $redirect->with('success', __('flash.olt_added_scan_failed').$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
         }
     }
 
@@ -82,7 +82,7 @@ class HiosoOltController extends Controller
 
         return redirect()
             ->route('smartolt.index', ['tab' => 'hioso'])
-            ->with('success', 'OLT HiOSO berhasil diperbarui.');
+            ->with('success', __('flash.olt_hioso_updated'));
     }
 
     public function destroy(Request $request, SnmpOlt $olt): RedirectResponse
@@ -92,7 +92,7 @@ class HiosoOltController extends Controller
 
         return redirect()
             ->route('smartolt.index', ['tab' => 'hioso'])
-            ->with('success', 'OLT HiOSO berhasil dihapus.');
+            ->with('success', __('flash.olt_hioso_deleted'));
     }
 
     public function test(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
@@ -121,7 +121,7 @@ class HiosoOltController extends Controller
                 SmartOltSupport::capabilities($result['driver'], $olt)['vendor_family'],
                 $result['latency_ms'],
             )
-            : sprintf('SNMP gagal: %s', $result['error'] ?? 'unknown error');
+            : sprintf(__('flash.snmp_failed_fmt'), $result['error'] ?? 'unknown error');
 
         return redirect()
             ->route('smartolt.index', ['tab' => 'hioso'])
@@ -169,9 +169,9 @@ class HiosoOltController extends Controller
         try {
             $count = $scanner->scan($olt);
 
-            return $back->with('success', sprintf('Scan ONU OK. %s ONU ditemukan di %s.', $count, $olt->name));
+            return $back->with('success', sprintf(__('flash.scan_ok_fmt'), $count, $olt->name));
         } catch (Throwable $exception) {
-            return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_scan_failed').$exception->getMessage());
         }
     }
 
@@ -214,9 +214,9 @@ class HiosoOltController extends Controller
             ]);
             $olt->forceFill(['last_test_result' => $snapshot])->save();
 
-            return $back->with('success', sprintf('Refresh ONU OK. %s ONU di slot %s port %s.', count($onus), $slot, $port));
+            return $back->with('success', sprintf(__('flash.refresh_ok_fmt'), count($onus), $slot, $port));
         } catch (Throwable $exception) {
-            return $back->with('error', 'Refresh ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_refresh_failed').$exception->getMessage());
         }
     }
 
@@ -231,11 +231,11 @@ class HiosoOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? sprintf('Perintah reboot ONU %d/%d/%d terkirim. ONU restart ~30–60 detik.', $slot, $port, $onuId)
-                    : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
+                    ? sprintf(__('flash.reboot_sent_slot_fmt'), $slot, $port, $onuId)
+                    : __('flash.reboot_warn').$result['error'],
             );
         } catch (Throwable $exception) {
-            return $back->with('error', 'Reboot ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_reboot_failed').$exception->getMessage());
         }
     }
 
@@ -252,7 +252,7 @@ class HiosoOltController extends Controller
         try {
             $result = $hioso->setState($olt, $port, $onuId, $active);
             if (! $result['ok']) {
-                return $back->with('error', 'Ubah status ONU selesai dengan indikasi error: '.$result['error']);
+                return $back->with('error', __('flash.onu_state_warn').$result['error']);
             }
 
             $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($active) {
@@ -261,9 +261,9 @@ class HiosoOltController extends Controller
                 return $onu;
             });
 
-            return $back->with('success', $active ? 'ONU berhasil di-enable.' : 'ONU berhasil di-disable.');
+            return $back->with('success', $active ? __('flash.onu_enabled') : __('flash.onu_disabled'));
         } catch (Throwable $exception) {
-            return $back->with('error', 'Ubah status ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_state_failed').$exception->getMessage());
         }
     }
 
@@ -277,7 +277,7 @@ class HiosoOltController extends Controller
         try {
             $result = $hioso->setName($olt, $port, $onuId, $name);
             if (! $result['ok']) {
-                return $back->with('error', 'Ubah nama ONU gagal: '.$result['error']);
+                return $back->with('error', __('flash.onu_rename_failed').$result['error']);
             }
 
             $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($name) {
@@ -287,9 +287,9 @@ class HiosoOltController extends Controller
                 return $onu;
             });
 
-            return $back->with('success', $name !== '' ? 'Nama ONU berhasil diperbarui.' : 'Nama ONU berhasil dihapus.');
+            return $back->with('success', $name !== '' ? __('flash.onu_renamed') : __('flash.onu_name_cleared'));
         } catch (Throwable $exception) {
-            return $back->with('error', 'Ubah nama ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_rename_failed').$exception->getMessage());
         }
     }
 
@@ -312,11 +312,11 @@ class HiosoOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? sprintf('ONU %d/%d/%d berhasil dihapus dari OLT.', $slot, $port, $onuId)
-                    : 'Hapus ONU selesai dengan indikasi error: '.$result['error'],
+                    ? sprintf(__('flash.onu_deleted_fmt'), $slot, $port, $onuId)
+                    : __('flash.onu_delete_warn').$result['error'],
             );
         } catch (Throwable $exception) {
-            return $back->with('error', 'Hapus ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_delete_failed').$exception->getMessage());
         }
     }
 
@@ -335,11 +335,11 @@ class HiosoOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? "Konfigurasi OLT {$olt->name} berhasil disimpan (write)."
-                    : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
+                    ? __('flash.config_saved_write', ['name' => $olt->name])
+                    : __('flash.config_save_warn').$result['error'],
             );
         } catch (Throwable $exception) {
-            return $back->with('error', 'Simpan konfigurasi gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.config_save_failed').$exception->getMessage());
         }
     }
 

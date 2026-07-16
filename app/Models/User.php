@@ -40,6 +40,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'locale',
         'last_notifications_read_at',
     ];
 

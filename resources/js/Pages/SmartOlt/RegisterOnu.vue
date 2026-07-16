@@ -9,8 +9,11 @@ import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { Check, Copy, Cpu, Globe, LayoutList, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: {
@@ -82,7 +85,7 @@ watch(() => form.wan_mode, (mode) => {
 });
 
 // --- live raw CLI preview (debounced, read-only ke server) ---
-const preview = reactive({ script: '# Mengisi form untuk melihat script…', loading: false });
+const preview = reactive({ script: t('registeronu.fill_form_comment'), loading: false });
 let debounceTimer = null;
 
 const runPreview = () => {
@@ -96,10 +99,10 @@ const runPreview = () => {
     window.axios
         .post(url, payload)
         .then(({ data }) => {
-            preview.script = data.script && data.script.trim() !== '' ? data.script : '# (script kosong)';
+            preview.script = data.script && data.script.trim() !== '' ? data.script : t('registeronu.empty_script_comment');
         })
         .catch(() => {
-            preview.script = '# Gagal memuat preview script.';
+            preview.script = t('registeronu.preview_failed_comment');
         })
         .finally(() => {
             preview.loading = false;
@@ -116,7 +119,7 @@ const activePayload = computed(() => (mode.value === 'advanced'
     : JSON.stringify(form.data())));
 
 watch(activePayload, schedulePreview);
-watch(mode, () => { preview.script = '# Memuat…'; runPreview(); });
+watch(mode, () => { preview.script = t('registeronu.loading_comment'); runPreview(); });
 onMounted(runPreview);
 onUnmounted(() => clearTimeout(debounceTimer));
 
@@ -136,9 +139,9 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 const submit = async (execute) => {
     if (execute) {
         const ok = await confirm({
-            title: 'Eksekusi ke OLT',
-            message: `Register & eksekusi ONU ${form.serial_number || ''} ke ${props.olt.name} sekarang? Script akan langsung dijalankan via CLI Telnet.`,
-            confirmLabel: 'Eksekusi',
+            title: t('registeronu.confirm_exec_title'),
+            message: t('registeronu.confirm_exec_msg', { sn: form.serial_number || '', olt: props.olt.name }),
+            confirmLabel: t('registeronu.confirm_exec_label'),
         });
 
         if (!ok) {
@@ -156,9 +159,9 @@ const submit = async (execute) => {
 const submitAdvanced = async (execute) => {
     if (execute) {
         const ok = await confirm({
-            title: 'Eksekusi ke OLT',
-            message: `Register & eksekusi ONU ${advForm.serial_number || ''} ke ${props.olt.name} sekarang? Script granular akan langsung dijalankan via CLI Telnet.`,
-            confirmLabel: 'Eksekusi',
+            title: t('registeronu.confirm_exec_title'),
+            message: t('registeronu.confirm_exec_msg_adv', { sn: advForm.serial_number || '', olt: props.olt.name }),
+            confirmLabel: t('registeronu.confirm_exec_label'),
         });
 
         if (!ok) {
@@ -181,7 +184,7 @@ const submitAdvanced = async (execute) => {
         <template #header>
             <div>
                 <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Register ONU</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · provisioning ONU + eksekusi langsung ke OLT</p>
+                <p class="mt-1 text-sm text-slate-500">{{ $t('registeronu.subtitle', { olt: olt.name }) }}</p>
             </div>
         </template>
 
@@ -202,25 +205,23 @@ const submitAdvanced = async (execute) => {
                                             Live Raw CLI
                                             <span v-if="preview.loading" class="h-1.5 w-1.5 animate-ping rounded-full bg-emerald-400"></span>
                                         </h3>
-                                        <p class="text-xs text-slate-500">Script yang akan dieksekusi ke OLT</p>
+                                        <p class="text-xs text-slate-500">{{ $t('registeronu.preview_hint') }}</p>
                                     </div>
                                 </div>
                                 <button
                                     type="button"
                                     class="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-                                    title="Salin script"
+                                    :title="$t('registeronu.copy_title')"
                                     @click="copyScript"
                                 >
                                     <Check v-if="copied" class="h-3.5 w-3.5 text-emerald-400" />
                                     <Copy v-else class="h-3.5 w-3.5" />
-                                    {{ copied ? 'Tersalin' : 'Salin' }}
+                                    {{ copied ? $t('configonu.copied') : $t('registeronu.copy') }}
                                 </button>
                             </div>
                             <pre class="max-h-[70vh] overflow-auto whitespace-pre-wrap break-words bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ preview.script }}</pre>
                         </div>
-                        <p class="mt-2 px-1 text-xs text-slate-500">
-                            Preview diperbarui otomatis tiap form berubah. Eksekusi nyata dijalankan saat menekan tombol <span class="text-slate-300">Eksekusi ke OLT</span>.
-                        </p>
+                        <p class="mt-2 px-1 text-xs text-slate-500" v-html="$t('registeronu.preview_note')"></p>
                     </div>
 
                     <!-- Kolom kanan: form konfigurasi -->
@@ -229,8 +230,8 @@ const submitAdvanced = async (execute) => {
                     <!-- Mode toggle: Sederhana vs Lanjutan -->
                     <div class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
-                            <h3 class="text-sm font-semibold text-white">Mode Registrasi</h3>
-                            <p class="text-xs text-slate-500">Sederhana: template 1 service. Lanjutan: atur tcont/gemport/service per baris.</p>
+                            <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.mode_title') }}</h3>
+                            <p class="text-xs text-slate-500">{{ $t('registeronu.mode_hint') }}</p>
                         </div>
                         <div class="inline-flex rounded-lg border border-white/10 bg-slate-950/40 p-1">
                             <button
@@ -239,7 +240,7 @@ const submitAdvanced = async (execute) => {
                                 :class="mode === 'simple' ? 'bg-cyan-500 text-white' : 'text-slate-300 hover:text-white'"
                                 @click="mode = 'simple'"
                             >
-                                <LayoutList class="h-4 w-4" /> Sederhana
+                                <LayoutList class="h-4 w-4" /> {{ $t('registeronu.mode_simple') }}
                             </button>
                             <button
                                 type="button"
@@ -247,7 +248,7 @@ const submitAdvanced = async (execute) => {
                                 :class="mode === 'advanced' ? 'bg-cyan-500 text-white' : 'text-slate-300 hover:text-white'"
                                 @click="mode = 'advanced'"
                             >
-                                <SlidersHorizontal class="h-4 w-4" /> Lanjutan
+                                <SlidersHorizontal class="h-4 w-4" /> {{ $t('registeronu.mode_advanced') }}
                             </button>
                         </div>
                     </div>
@@ -261,8 +262,8 @@ const submitAdvanced = async (execute) => {
                                 <User class="h-4 w-4 text-cyan-400" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-white">Identitas ONU</h3>
-                                <p class="text-xs text-slate-500">Serial number, posisi port, dan data pelanggan</p>
+                                <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.identity') }}</h3>
+                                <p class="text-xs text-slate-500">{{ $t('registeronu.identity_hint') }}</p>
                             </div>
                         </div>
                         <div class="grid gap-5 p-6 md:grid-cols-3">
@@ -287,7 +288,7 @@ const submitAdvanced = async (execute) => {
                                 <InputError class="mt-1.5" :message="form.errors.onu_id" />
                             </div>
                             <div class="md:col-span-3">
-                                <InputLabel for="customer_name" value="Nama Pelanggan" />
+                                <InputLabel for="customer_name" :value="$t('registeronu.customer_name')" />
                                 <TextInput id="customer_name" v-model="form.customer_name" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.customer_name" />
                             </div>
@@ -301,8 +302,8 @@ const submitAdvanced = async (execute) => {
                                 <Cpu class="h-4 w-4 text-cyan-400" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-white">Konfigurasi GPON</h3>
-                                <p class="text-xs text-slate-500">ONU type, TCONT, VLAN, dan service name</p>
+                                <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.gpon_config') }}</h3>
+                                <p class="text-xs text-slate-500">{{ $t('registeronu.gpon_hint') }}</p>
                             </div>
                         </div>
                         <div class="grid gap-5 p-6 md:grid-cols-3">
@@ -346,7 +347,7 @@ const submitAdvanced = async (execute) => {
                                     v-model="form.vlan_profile"
                                     class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                 >
-                                    <option value="">Tanpa profile</option>
+                                    <option value="">{{ $t('registeronu.no_profile') }}</option>
                                     <option v-for="profile in vlanProfiles" :key="profile.id" :value="profile.name">
                                         {{ profile.name }} · VLAN {{ profile.vlan }}
                                     </option>
@@ -376,8 +377,8 @@ const submitAdvanced = async (execute) => {
                                 </div>
                                 <p class="mt-1.5 text-xs text-slate-500">
                                     {{ form.service_mode === 'transparent'
-                                        ? 'CLI: service ' + (form.service_name || 'ServiceName') + ' gemport 1 (tanpa cos/vlan).'
-                                        : 'CLI: service ' + (form.service_name || 'ServiceName') + ' gemport 1 cos 0 vlan ' + (form.vlan || '—') + '.' }}
+                                        ? $t('registeronu.svc_hint_transparent', { name: form.service_name || 'ServiceName' })
+                                        : $t('registeronu.svc_hint_vlanpri', { name: form.service_name || 'ServiceName', vlan: form.vlan || '—' }) }}
                                 </p>
                                 <InputError class="mt-1.5" :message="form.errors.service_mode" />
                             </div>
@@ -392,7 +393,7 @@ const submitAdvanced = async (execute) => {
                             </div>
                             <div>
                                 <h3 class="text-sm font-semibold text-white">WAN Mode</h3>
-                                <p class="text-xs text-slate-500">Metode koneksi internet pelanggan</p>
+                                <p class="text-xs text-slate-500">{{ $t('registeronu.wan_hint') }}</p>
                             </div>
                         </div>
                         <div class="p-6 space-y-5">
@@ -432,13 +433,11 @@ const submitAdvanced = async (execute) => {
 
                             <!-- DHCP: no extra fields -->
                             <div v-if="form.wan_mode === 'dhcp'" class="rounded-lg border border-white/10 bg-sky-500/15 px-4 py-3 text-sm text-cyan-300">
-                                DHCP mode — IP otomatis dari server, tidak ada field tambahan.
+                                {{ $t('registeronu.dhcp_note') }}
                             </div>
 
                             <!-- Bridge: L2 transparan, tanpa WAN di OLT -->
-                            <div v-if="form.wan_mode === 'bridge'" class="rounded-lg border border-white/10 bg-sky-500/15 px-4 py-3 text-sm text-cyan-300">
-                                Bridge mode — ONU jadi jembatan L2 murni (VLAN transparan, gunakan <span class="font-semibold">VLAN ID</span> di atas, mis. 100). Tidak ada <code>wan-ip</code>/PPPoE/TR069 di OLT; router pelanggan yang ber-PPPoE. Cocok untuk OLT gaya bridge (mis. Bulumanis Lor). VLAN Profile diabaikan pada mode ini.
-                            </div>
+                            <div v-if="form.wan_mode === 'bridge'" class="rounded-lg border border-white/10 bg-sky-500/15 px-4 py-3 text-sm text-cyan-300" v-html="$t('registeronu.bridge_note')"></div>
 
                             <!-- Static fields -->
                             <div v-if="form.wan_mode === 'static'" class="grid gap-5 md:grid-cols-3">
@@ -477,8 +476,8 @@ const submitAdvanced = async (execute) => {
                                 <Settings class="h-4 w-4 text-cyan-400" />
                             </div>
                             <div>
-                                <h3 class="text-sm font-semibold text-white">Fitur Tambahan</h3>
-                                <p class="text-xs text-slate-500">TR069 remote management dan Remote ONT (opsional)</p>
+                                <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.extra_features') }}</h3>
+                                <p class="text-xs text-slate-500">{{ $t('registeronu.extra_hint') }}</p>
                             </div>
                         </div>
                         <div class="grid gap-5 p-6 md:grid-cols-2">
@@ -551,19 +550,19 @@ const submitAdvanced = async (execute) => {
                     <!-- Submit bar -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6">
                         <p v-if="!canExecute" class="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
-                            Driver OLT ini tidak mendukung eksekusi CLI otomatis — script hanya bisa di-generate & disimpan ke audit log.
+                            {{ $t('registeronu.no_cli_note') }}
                         </p>
                         <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
                             <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
-                                <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
+                                <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                             </Link>
                             <SecondaryButton type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(false)">
                                 <LayoutList class="mr-2 h-4 w-4" />
-                                Generate script saja
+                                {{ $t('registeronu.generate_only') }}
                             </SecondaryButton>
                             <PrimaryButton v-if="canExecute" type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(true)">
                                 <Zap class="mr-2 h-4 w-4" />
-                                {{ form.processing ? 'Mengeksekusi…' : 'Eksekusi ke OLT' }}
+                                {{ form.processing ? $t('registeronu.executing') : $t('registeronu.execute_to_olt') }}
                             </PrimaryButton>
                         </div>
                     </div>
@@ -572,7 +571,7 @@ const submitAdvanced = async (execute) => {
                     <!-- Mode Lanjutan: editor granular -->
                     <div v-else class="space-y-5">
                         <div v-if="advErrorList.length" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                            <p class="font-semibold">Periksa kembali input berikut:</p>
+                            <p class="font-semibold">{{ $t('configonu.check_input') }}</p>
                             <ul class="mt-1 list-inside list-disc space-y-0.5">
                                 <li v-for="(msg, i) in advErrorList" :key="i">{{ msg }}</li>
                             </ul>
@@ -585,8 +584,8 @@ const submitAdvanced = async (execute) => {
                                     <User class="h-4 w-4 text-cyan-400" />
                                 </div>
                                 <div>
-                                    <h3 class="text-sm font-semibold text-white">Identitas ONU</h3>
-                                    <p class="text-xs text-slate-500">SN & posisi port — nama pelanggan diisi di kolom <span class="text-slate-300">Name</span> bawah.</p>
+                                    <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.identity') }}</h3>
+                                    <p class="text-xs text-slate-500" v-html="$t('registeronu.adv_identity_hint')"></p>
                                 </div>
                             </div>
                             <div class="grid gap-5 p-6 md:grid-cols-4">
@@ -628,19 +627,19 @@ const submitAdvanced = async (execute) => {
                         <!-- Submit bar (Lanjutan) -->
                         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6">
                             <p v-if="!canExecute" class="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
-                                Driver OLT ini tidak mendukung eksekusi CLI otomatis — script hanya bisa di-generate &amp; disimpan ke audit log.
+                                {{ $t('registeronu.no_cli_note') }}
                             </p>
                             <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
                                 <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
-                                    <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
+                                    <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                                 </Link>
                                 <SecondaryButton type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(false)">
                                     <LayoutList class="mr-2 h-4 w-4" />
-                                    Generate script saja
+                                    {{ $t('registeronu.generate_only') }}
                                 </SecondaryButton>
                                 <PrimaryButton v-if="canExecute" type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(true)">
                                     <Zap class="mr-2 h-4 w-4" />
-                                    {{ advForm.processing ? 'Mengeksekusi…' : 'Eksekusi ke OLT' }}
+                                    {{ advForm.processing ? $t('registeronu.executing') : $t('registeronu.execute_to_olt') }}
                                 </PrimaryButton>
                             </div>
                         </div>

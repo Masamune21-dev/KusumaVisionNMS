@@ -19,7 +19,7 @@ const actions = [
             <span class="kv-circle-cyan">
                 <Power class="h-5 w-5" />
             </span>
-            <h3 class="text-base font-semibold text-white">Aksi ONU Jarak Jauh</h3>
+            <h3 class="text-base font-semibold text-white">{{ $t('dashboard.remote_actions') }}</h3>
         </div>
         <div class="grid flex-1 grid-cols-3 gap-2 p-4">
             <button

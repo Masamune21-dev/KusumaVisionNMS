@@ -2,7 +2,10 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import axios from 'axios';
 import { router } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { AlertTriangle, Loader2, Search, WifiOff, X } from '@lucide/vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     open: { type: Boolean, default: false },
@@ -10,16 +13,16 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:open', 'success', 'error']);
 
-const ACTION_META = {
-    reboot:  { title: 'Reboot ONU',         verb: 'me-reboot',          confirm: 'Reboot',  destructive: true,  available: true,  body: 'Pilih ONU yang ingin di-reboot.' },
-    reset:   { title: 'Reset ONU',          verb: 'me-reset',           confirm: 'Reset',   destructive: true,  available: false, body: 'Endpoint reset ONU belum tersedia.' },
-    upgrade: { title: 'Upgrade Firmware',   verb: 'mengupgrade firmware', confirm: 'Upgrade', destructive: false, available: false, body: 'Upgrade firmware bulk belum tersedia.' },
-    enable:  { title: 'Enable ONU',         verb: 'meng-enable',        confirm: 'Enable',  destructive: false, available: true,  body: 'Pilih ONU yang ingin diaktifkan.' },
-    disable: { title: 'Disable ONU',        verb: 'me-disable',         confirm: 'Disable', destructive: true,  available: true,  body: 'Pilih ONU yang ingin di-nonaktifkan.' },
-    log:     { title: 'Log ONU',            verb: 'membuka log',        confirm: 'Buka',    destructive: false, available: false, body: 'Halaman log ONU belum tersedia.' },
-};
+const actionMeta = computed(() => ({
+    reboot:  { title: t('dashboard.modal.reboot_title'),  confirm: t('dashboard.modal.confirm_reboot'),  destructive: true,  available: true,  body: t('dashboard.modal.reboot_body') },
+    reset:   { title: t('dashboard.modal.reset_title'),   confirm: t('dashboard.modal.confirm_reset'),   destructive: true,  available: false, body: t('dashboard.modal.reset_body') },
+    upgrade: { title: t('dashboard.modal.upgrade_title'), confirm: t('dashboard.modal.confirm_upgrade'), destructive: false, available: false, body: t('dashboard.modal.upgrade_body') },
+    enable:  { title: t('dashboard.modal.enable_title'),  confirm: t('dashboard.modal.confirm_enable'),  destructive: false, available: true,  body: t('dashboard.modal.enable_body') },
+    disable: { title: t('dashboard.modal.disable_title'), confirm: t('dashboard.modal.confirm_disable'), destructive: true,  available: true,  body: t('dashboard.modal.disable_body') },
+    log:     { title: t('dashboard.modal.log_title'),     confirm: t('dashboard.modal.confirm_open'),    destructive: false, available: false, body: t('dashboard.modal.log_body') },
+}));
 
-const meta = computed(() => ACTION_META[props.action] ?? null);
+const meta = computed(() => actionMeta.value[props.action] ?? null);
 
 const query = ref('');
 const results = ref([]);
@@ -141,20 +144,20 @@ const submit = () => {
                     <div v-if="!meta.available" class="px-5 py-5">
                         <div class="kv-alert-danger !mb-0">
                             <AlertTriangle class="h-5 w-5 flex-shrink-0" />
-                            <span>Fitur ini belum diimplementasi di backend.</span>
+                            <span>{{ $t('dashboard.modal.not_implemented') }}</span>
                         </div>
                     </div>
 
                     <template v-else>
                         <div class="px-5 py-4">
-                            <label class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">Cari ONU</label>
+                            <label class="mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('dashboard.modal.search_onu') }}</label>
                             <div class="relative">
                                 <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                                 <input
                                     ref="inputRef"
                                     v-model="query"
                                     type="text"
-                                    placeholder="Serial / nama ONU&hellip;"
+                                    :placeholder="$t('dashboard.modal.search_placeholder')"
                                     class="kv-input block w-full pl-9"
                                 />
                                 <Loader2 v-if="loading" class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-cyan-400" />
@@ -175,7 +178,7 @@ const submit = () => {
                                     </div>
                                 </li>
                             </ul>
-                            <p v-else-if="query.length >= 2 && !loading" class="mt-3 text-center text-xs text-slate-500">Tidak ada ONU ditemukan.</p>
+                            <p v-else-if="query.length >= 2 && !loading" class="mt-3 text-center text-xs text-slate-500">{{ $t('dashboard.modal.no_onu_found') }}</p>
                         </div>
 
                         <div class="flex items-center justify-end gap-2 border-t border-white/10 bg-slate-950/40 px-5 py-3">
@@ -184,7 +187,7 @@ const submit = () => {
                                 class="rounded-lg border border-white/10 bg-slate-900/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-white/20 hover:text-white"
                                 @click="close"
                             >
-                                Batal
+                                {{ $t('dashboard.modal.cancel') }}
                             </button>
                             <button
                                 type="button"

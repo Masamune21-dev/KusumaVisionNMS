@@ -9,8 +9,11 @@ import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { ArrowLeft, Check, Database, Pencil, Plus, RefreshCw, ServerOff, Trash2, X } from '@lucide/vue';
 import { computed, reactive } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: {
@@ -110,11 +113,12 @@ const update = (profile) => {
 };
 
 const destroyProfile = async (profile, executeCli = false) => {
-    const target = executeCli ? 'OLT dan cache lokal' : 'cache lokal';
     const ok = await confirm({
-        title: executeCli ? 'Hapus Profile dari OLT' : 'Hapus Profile',
-        message: `Hapus profile ${profile.name} dari ${target}?`,
-        confirmLabel: 'Hapus',
+        title: executeCli ? t('profiles.confirm_del_olt_title') : t('profiles.confirm_del_title'),
+        message: executeCli
+            ? t('profiles.confirm_del_msg_olt', { name: profile.name })
+            : t('profiles.confirm_del_msg_local', { name: profile.name }),
+        confirmLabel: t('common.delete'),
     });
 
     if (!ok) {
@@ -148,12 +152,12 @@ const syncFromOlt = () => {
                     <Link :href="route('smartolt.detail', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Detail OLT
+                            {{ $t('common.detail_olt') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="syncFromOlt">
                         <RefreshCw class="mr-2 h-4 w-4" />
-                        Sync Dari OLT
+                        {{ $t('profiles.sync_from_olt') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -175,7 +179,7 @@ const syncFromOlt = () => {
                         <div>
                             <h3 class="text-base font-semibold text-white">{{ type.label }}</h3>
                             <p class="text-sm text-slate-500">
-                                {{ type.uses_vlan ? 'Profile service dan VLAN ID dari OLT.' : 'Profile CLI yang dipakai pada script provisioning.' }}
+                                {{ type.uses_vlan ? $t('profiles.desc_vlan') : $t('profiles.desc_cli') }}
                             </p>
                         </div>
                     </div>
@@ -184,7 +188,7 @@ const syncFromOlt = () => {
                     <div class="border-b border-white/10 bg-slate-950/40 px-6 py-4">
                         <form class="grid gap-4 md:grid-cols-12 md:items-end" @submit.prevent="store(type)">
                             <div class="md:col-span-3">
-                                <InputLabel :for="`name-${type.key}`" value="Nama Profile" />
+                                <InputLabel :for="`name-${type.key}`" :value="$t('profiles.name_profile')" />
                                 <TextInput :id="`name-${type.key}`" v-model="createForms[type.key].name" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.name" />
                             </div>
@@ -209,20 +213,20 @@ const syncFromOlt = () => {
                                 <InputError class="mt-2" :message="createForms[type.key].errors['params.gateway']" />
                             </div>
                             <div class="md:col-span-3">
-                                <InputLabel :for="`notes-${type.key}`" value="Catatan" />
+                                <InputLabel :for="`notes-${type.key}`" :value="$t('profiles.notes')" />
                                 <TextInput :id="`notes-${type.key}`" v-model="createForms[type.key].notes" class="mt-1 block w-full" />
                                 <InputError class="mt-2" :message="createForms[type.key].errors.notes" />
                             </div>
                             <div class="md:col-span-2">
                                 <label class="inline-flex items-center gap-2 text-sm text-slate-200">
                                     <input v-model="createForms[type.key].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
-                                    Eksekusi CLI
+                                    {{ $t('profiles.execute_cli') }}
                                 </label>
                             </div>
                             <div class="md:col-span-2">
                                 <PrimaryButton class="w-full justify-center" :disabled="createForms[type.key].processing">
                                     <Plus class="mr-2 h-4 w-4" />
-                                    Tambah
+                                    {{ $t('profiles.add') }}
                                 </PrimaryButton>
                             </div>
                         </form>
@@ -231,14 +235,14 @@ const syncFromOlt = () => {
                     <!-- Table / mobile cards -->
                     <div class="kv-mobile-list">
                         <div v-if="rowsFor(type).length === 0" class="px-4 py-8 text-center text-sm text-slate-500">
-                            Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
+                            {{ $t('profiles.empty') }}
                         </div>
 
                         <article v-for="profile in rowsFor(type)" :key="profile.id" class="kv-mobile-card">
                             <template v-if="editing[profile.id]">
                                 <div class="space-y-3">
                                     <div>
-                                        <InputLabel value="Nama" />
+                                        <InputLabel :value="$t('profiles.name')" />
                                         <TextInput v-model="editing[profile.id].name" class="mt-1 block w-full" required />
                                         <InputError class="mt-2" :message="editing[profile.id].errors.name" />
                                     </div>
@@ -256,20 +260,20 @@ const syncFromOlt = () => {
                                     <div class="space-y-2">
                                         <label class="inline-flex items-center gap-2 text-sm text-slate-200">
                                             <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
-                                            Aktif
+                                            {{ $t('profiles.active') }}
                                         </label>
                                         <label class="block">
                                             <span class="inline-flex items-center gap-2 text-sm text-slate-200">
                                                 <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
-                                                Eksekusi CLI
+                                                {{ $t('profiles.execute_cli') }}
                                             </span>
                                         </label>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <IconButton variant="success" title="Simpan" :disabled="editing[profile.id].processing" @click="update(profile)">
+                                        <IconButton variant="success" :title="$t('common.save')" :disabled="editing[profile.id].processing" @click="update(profile)">
                                             <Check class="h-4 w-4" />
                                         </IconButton>
-                                        <IconButton title="Batal" @click="cancelEdit(profile)">
+                                        <IconButton :title="$t('common.cancel')" @click="cancelEdit(profile)">
                                             <X class="h-4 w-4" />
                                         </IconButton>
                                     </div>
@@ -288,7 +292,7 @@ const syncFromOlt = () => {
                                             ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
                                             : 'bg-slate-800/60 text-slate-500 ring-slate-500/30'"
                                     >
-                                        {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
+                                        {{ profile.is_active ? $t('profiles.active') : $t('profiles.inactive') }}
                                     </span>
                                 </div>
                                 <div class="kv-mobile-fields">
@@ -306,16 +310,16 @@ const syncFromOlt = () => {
                                     </div>
                                 </div>
                                 <div class="mt-4 flex flex-wrap gap-2">
-                                    <IconButton v-if="ownedByCurrentOlt(profile)" title="Edit profile" @click="startEdit(profile)">
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" :title="$t('profiles.edit_profile')" @click="startEdit(profile)">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari cache lokal" @click="destroyProfile(profile, false)">
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" :title="$t('profiles.del_local')" @click="destroyProfile(profile, false)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari OLT + cache" @click="destroyProfile(profile, true)">
+                                    <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" :title="$t('profiles.del_olt')" @click="destroyProfile(profile, true)">
                                         <ServerOff class="h-4 w-4" />
                                     </IconButton>
-                                    <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-400">Fallback global</span>
+                                    <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-400">{{ $t('profiles.fallback_global') }}</span>
                                 </div>
                             </template>
                         </article>
@@ -325,17 +329,17 @@ const syncFromOlt = () => {
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Nama</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('profiles.name') }}</th>
                                     <th v-if="type.key === 'vlan'" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">VLAN</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Params</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr v-if="rowsFor(type).length === 0">
                                     <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-slate-500">
-                                        Belum ada profile. Klik Sync Dari OLT untuk mengambil katalog real.
+                                        {{ $t('profiles.empty') }}
                                     </td>
                                 </tr>
                                 <tr v-for="profile in rowsFor(type)" :key="profile.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
@@ -359,19 +363,19 @@ const syncFromOlt = () => {
                                         <td class="px-6 py-4">
                                             <label class="inline-flex items-center gap-2 text-sm text-slate-200">
                                                 <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
-                                                Aktif
+                                                {{ $t('profiles.active') }}
                                             </label>
                                             <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-200">
                                                 <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
-                                                Eksekusi CLI
+                                                {{ $t('profiles.execute_cli') }}
                                             </label>
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="flex justify-center gap-1.5">
-                                                <IconButton variant="success" title="Simpan" :disabled="editing[profile.id].processing" @click="update(profile)">
+                                                <IconButton variant="success" :title="$t('common.save')" :disabled="editing[profile.id].processing" @click="update(profile)">
                                                     <Check class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton title="Batal" @click="cancelEdit(profile)">
+                                                <IconButton :title="$t('common.cancel')" @click="cancelEdit(profile)">
                                                     <X class="h-4 w-4" />
                                                 </IconButton>
                                             </div>
@@ -393,23 +397,23 @@ const syncFromOlt = () => {
                                                         ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
                                                         : 'bg-slate-800/60 text-slate-500 ring-slate-500/30'"
                                                 >
-                                                    {{ profile.is_active ? 'Aktif' : 'Nonaktif' }}
+                                                    {{ profile.is_active ? $t('profiles.active') : $t('profiles.inactive') }}
                                                 </span>
                                                 <div class="text-xs text-slate-400">{{ profile.source || 'manual' }}</div>
                                             </div>
                                         </td>
                                         <td class="px-6 py-4">
                                             <div class="flex items-center justify-center gap-1.5">
-                                                <IconButton v-if="ownedByCurrentOlt(profile)" title="Edit profile" @click="startEdit(profile)">
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" :title="$t('profiles.edit_profile')" @click="startEdit(profile)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari cache lokal" @click="destroyProfile(profile, false)">
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" :title="$t('profiles.del_local')" @click="destroyProfile(profile, false)">
                                                     <Trash2 class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" title="Hapus dari OLT + cache" @click="destroyProfile(profile, true)">
+                                                <IconButton v-if="ownedByCurrentOlt(profile)" variant="danger" :title="$t('profiles.del_olt')" @click="destroyProfile(profile, true)">
                                                     <ServerOff class="h-4 w-4" />
                                                 </IconButton>
-                                                <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-400">Fallback global</span>
+                                                <span v-if="!ownedByCurrentOlt(profile)" class="text-xs text-slate-400">{{ $t('profiles.fallback_global') }}</span>
                                             </div>
                                         </td>
                                     </template>

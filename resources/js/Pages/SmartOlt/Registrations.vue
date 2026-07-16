@@ -6,8 +6,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, Trash2, XCircle } from '@lucide/vue';
 import { computed, ref } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: {
@@ -42,30 +45,30 @@ const toggleLogScript = (id) => {
         : [...expandedLogs.value, id];
 };
 
-const statuses = {
+const statuses = computed(() => ({
     generated: {
-        label: 'Belum dieksekusi',
+        label: t('registrations.status_generated'),
         pillClass: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30',
         textClass: 'text-amber-300',
         icon: Clock3,
     },
     executed: {
-        label: 'Teregister',
+        label: t('registrations.status_executed'),
         pillClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30',
         textClass: 'text-emerald-300',
         icon: CheckCircle2,
     },
     failed: {
-        label: 'Gagal',
+        label: t('registrations.status_failed'),
         pillClass: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30',
         textClass: 'text-red-300',
         icon: XCircle,
     },
-};
+}));
 
 const formatDate = (value) => formatDateTime(value);
 
-const statusMeta = (status) => statuses[status] ?? statuses.generated;
+const statusMeta = (status) => statuses.value[status] ?? statuses.value.generated;
 
 const canExecute = (registration) => registration.status !== 'executed';
 
@@ -74,17 +77,17 @@ const canDelete = (registration) => registration.status !== 'executed';
 const statusDescription = (registration) => {
     if (registration.status === 'executed') {
         return registration.executed_at
-            ? `Teregister di OLT pada ${formatDate(registration.executed_at)}.`
-            : 'Teregister di OLT.';
+            ? t('registrations.desc_registered_at', { date: formatDate(registration.executed_at) })
+            : t('registrations.desc_registered');
     }
 
     if (registration.status === 'failed') {
         return registration.executed_at
-            ? `Eksekusi terakhir gagal pada ${formatDate(registration.executed_at)}.`
-            : 'Eksekusi terakhir gagal, bisa dicoba ulang.';
+            ? t('registrations.desc_failed_at', { date: formatDate(registration.executed_at) })
+            : t('registrations.desc_failed');
     }
 
-    return 'Belum dikirim ke CLI OLT.';
+    return t('registrations.desc_pending');
 };
 
 const executeRegistration = async (registration) => {
@@ -93,9 +96,11 @@ const executeRegistration = async (registration) => {
     }
 
     const ok = await confirm({
-        title: 'Eksekusi Provisioning',
-        message: `${registration.status === 'failed' ? 'Ulangi eksekusi' : 'Eksekusi'} script provisioning untuk ${registration.pon_port} ke OLT?`,
-        confirmLabel: registration.status === 'failed' ? 'Coba Lagi' : 'Eksekusi',
+        title: t('registrations.confirm_exec_title'),
+        message: registration.status === 'failed'
+            ? t('registrations.confirm_exec_msg_retry', { port: registration.pon_port })
+            : t('registrations.confirm_exec_msg_new', { port: registration.pon_port }),
+        confirmLabel: registration.status === 'failed' ? t('registrations.confirm_retry_label') : t('registrations.confirm_exec_label'),
         variant: 'primary',
     });
 
@@ -117,9 +122,9 @@ const deleteRegistration = async (registration) => {
     }
 
     const ok = await confirm({
-        title: 'Hapus Provisioning Script',
-        message: `Hapus script provisioning untuk ${registration.customer_name} · ${registration.pon_port}? Tindakan ini tidak bisa dibatalkan.`,
-        confirmLabel: 'Hapus',
+        title: t('registrations.confirm_del_title'),
+        message: t('registrations.confirm_del_msg', { customer: registration.customer_name, port: registration.pon_port }),
+        confirmLabel: t('common.delete'),
         variant: 'danger',
     });
 
@@ -144,7 +149,7 @@ const deleteRegistration = async (registration) => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Registration History</h2>
+                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ $t('registrations.title') }}</h2>
                     <p class="mt-1 text-sm text-slate-500">{{ olt.name }}</p>
                 </div>
                 <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
@@ -161,7 +166,7 @@ const deleteRegistration = async (registration) => {
 
                 <div v-if="registrations.length === 0" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="px-6 py-10 text-center text-sm text-slate-500">
-                        Belum ada provisioning script.
+                        {{ $t('registrations.empty') }}
                     </div>
                 </div>
 
@@ -171,7 +176,7 @@ const deleteRegistration = async (registration) => {
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <ClipboardList class="h-5 w-5 text-cyan-400" />
                         </div>
-                        <h3 class="text-base font-semibold text-white">Provisioning Scripts</h3>
+                        <h3 class="text-base font-semibold text-white">{{ $t('registrations.pending_title') }}</h3>
                     </div>
 
                     <div class="divide-y divide-white/5">
@@ -193,10 +198,10 @@ const deleteRegistration = async (registration) => {
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}
                                     </span>
-                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? 'Coba eksekusi lagi' : 'Eksekusi ke OLT'" @click="executeRegistration(registration)">
+                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canDelete(registration)" variant="danger" title="Hapus script" @click="deleteRegistration(registration)">
+                                    <IconButton v-if="canDelete(registration)" variant="danger" :title="$t('registrations.delete_script_title')" @click="deleteRegistration(registration)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                 </div>
@@ -212,7 +217,7 @@ const deleteRegistration = async (registration) => {
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/30">
                             <History class="h-5 w-5 text-violet-300" />
                         </div>
-                        <h3 class="text-base font-semibold text-white">Logs</h3>
+                        <h3 class="text-base font-semibold text-white">{{ $t('registrations.logs') }}</h3>
                     </div>
 
                     <div class="divide-y divide-white/5">
@@ -234,10 +239,10 @@ const deleteRegistration = async (registration) => {
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}
                                     </span>
-                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? 'Coba eksekusi lagi' : 'Eksekusi ke OLT'" @click="executeRegistration(registration)">
+                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canDelete(registration)" variant="danger" title="Hapus script" @click="deleteRegistration(registration)">
+                                    <IconButton v-if="canDelete(registration)" variant="danger" :title="$t('registrations.delete_script_title')" @click="deleteRegistration(registration)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
                                     <button
@@ -246,7 +251,7 @@ const deleteRegistration = async (registration) => {
                                         @click="toggleLogScript(registration.id)"
                                     >
                                         <component :is="isLogExpanded(registration.id) ? EyeOff : Eye" class="h-3.5 w-3.5" />
-                                        {{ isLogExpanded(registration.id) ? 'Sembunyikan' : 'Lihat script' }}
+                                        {{ isLogExpanded(registration.id) ? $t('registrations.hide') : $t('registrations.show_script') }}
                                     </button>
                                 </div>
                             </div>

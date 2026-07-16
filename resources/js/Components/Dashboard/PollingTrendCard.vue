@@ -2,21 +2,24 @@
 import { computed, ref } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
 import { router } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { ChevronDown, TrendingUp } from '@lucide/vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     trend: { type: Object, required: true },
     range: { type: String, default: '24h' },
 });
 
-const ranges = [
-    { value: '24h', label: '24 Jam Terakhir' },
-    { value: '7d', label: '7 Hari Terakhir' },
-    { value: '30d', label: '30 Hari Terakhir' },
-];
+const ranges = computed(() => [
+    { value: '24h', label: t('dashboard.range_24h') },
+    { value: '7d', label: t('dashboard.range_7d') },
+    { value: '30d', label: t('dashboard.range_30d') },
+]);
 
 const rangeOpen = ref(false);
-const currentLabel = computed(() => ranges.find((r) => r.value === props.range)?.label ?? '24 Jam Terakhir');
+const currentLabel = computed(() => ranges.value.find((r) => r.value === props.range)?.label ?? t('dashboard.range_24h'));
 
 const setRange = (value) => {
     rangeOpen.value = false;
@@ -73,8 +76,8 @@ const chartOptions = computed(() => ({
 }));
 
 const series = computed(() => [
-    { name: 'Polling Success', data: props.trend.success ?? [] },
-    { name: 'Polling Failed', data: props.trend.failed ?? [] },
+    { name: t('dashboard.polling_success'), data: props.trend.success ?? [] },
+    { name: t('dashboard.polling_failed'), data: props.trend.failed ?? [] },
 ]);
 
 const totalSuccess = computed(() => props.trend.totals?.success ?? 0);
@@ -91,7 +94,7 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
                 <span class="kv-circle-cyan">
                     <TrendingUp class="h-5 w-5" />
                 </span>
-                <h3 class="text-base font-semibold text-white">Tren Aktivitas Jaringan (Polling)</h3>
+                <h3 class="text-base font-semibold text-white">{{ t('dashboard.polling_trend_title') }}</h3>
             </div>
             <div class="relative w-full sm:w-auto">
                 <button
@@ -135,13 +138,13 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
             </div>
             <div class="flex flex-col justify-center gap-4 border-t border-white/5 px-4 pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                 <div>
-                    <p class="text-xs uppercase tracking-wider text-slate-500">Total Success</p>
+                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ t('dashboard.total_success') }}</p>
                     <p class="mt-1 text-2xl font-bold text-white">{{ totalSuccess.toLocaleString('id-ID') }}</p>
                     <p v-if="total > 0" class="mt-0.5 text-xs font-medium text-emerald-400">{{ successRate }}%</p>
-                    <p v-else class="mt-0.5 text-xs text-slate-500">belum ada data</p>
+                    <p v-else class="mt-0.5 text-xs text-slate-500">{{ t('dashboard.no_data_yet') }}</p>
                 </div>
                 <div>
-                    <p class="text-xs uppercase tracking-wider text-slate-500">Total Failed</p>
+                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ t('dashboard.total_failed') }}</p>
                     <p class="mt-1 text-2xl font-bold text-white">{{ totalFailed.toLocaleString('id-ID') }}</p>
                     <p v-if="total > 0" class="mt-0.5 text-xs font-medium text-red-400">{{ failureRate }}%</p>
                     <p v-else class="mt-0.5 text-xs text-slate-500">&mdash;</p>

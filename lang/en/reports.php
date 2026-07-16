@@ -1,0 +1,62 @@
+<?php
+
+// Report labels (Report page + CSV/PDF export). Active locale is set by the SetLocale middleware.
+return [
+    'title_onu' => 'ONU Inventory & RX Power Report',
+    'title_olt' => 'OLT Status Report',
+    'title_alarm' => 'Alarm History Report',
+    'title_provisioning' => 'ONU Provisioning Report',
+
+    'type_onu' => 'ONU Inventory & RX Power',
+    'type_olt' => 'OLT Status',
+    'type_alarm' => 'Alarm History',
+    'type_provisioning' => 'ONU Provisioning',
+
+    'range_24h' => 'Last 24 Hours',
+    'range_7d' => 'Last 7 Days',
+    'range_30d' => 'Last 30 Days',
+    'range_all' => 'All Time',
+
+    'col_olt' => 'OLT',
+    'col_interface' => 'Interface',
+    'col_onu_id' => 'ONU ID',
+    'col_serial_mac' => 'Serial Number / MAC',
+    'col_serial' => 'Serial Number',
+    'col_name' => 'Name / Customer',
+    'col_rx_power' => 'RX Power',
+    'col_status' => 'Status',
+    'col_ip' => 'IP',
+    'col_onu_total' => 'Total ONUs',
+    'col_online' => 'Online',
+    'col_offline' => 'Offline',
+    'col_last_polled' => 'Last Polled',
+    'col_severity' => 'Severity',
+    'col_type' => 'Type',
+    'col_message' => 'Message',
+    'col_last_seen' => 'Last Seen',
+    'col_date' => 'Date',
+    'col_customer' => 'Customer',
+    'col_wan_mode' => 'WAN Mode',
+    'col_created_by' => 'Created By',
+
+    'sum_total_onu' => 'Total ONUs',
+    'sum_online' => 'Online',
+    'sum_offline' => 'Offline',
+    'sum_rx_warning' => 'RX Warning (< -25 dBm)',
+    'sum_rx_critical' => 'RX Critical (< -28 dBm)',
+    'sum_total_olt' => 'Total OLTs',
+    'sum_total_alarm' => 'Total Alarms',
+    'sum_critical' => 'Critical',
+    'sum_major' => 'Major',
+    'sum_minor_warning' => 'Minor + Warning',
+    'sum_total_reg' => 'Total Registrations',
+    'sum_success' => 'Succeeded',
+    'sum_failed' => 'Failed',
+
+    'status_active' => 'Active',
+    'status_cleared' => 'Cleared',
+
+    'pdf_generated' => 'Generated',
+    'pdf_no_data' => 'No data for this filter.',
+    'pdf_footer' => 'Report generated automatically',
+];

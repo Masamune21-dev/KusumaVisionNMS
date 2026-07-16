@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\AlarmEvent;
 use App\Models\GeneralSetting;
+use App\Support\Locale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -44,6 +45,8 @@ class HandleInertiaRequests extends Middleware
             'notifications' => fn () => $this->notificationsPayload($request),
             'systemInfo' => fn () => $this->systemInfoPayload(),
             'branding' => fn () => GeneralSetting::brandingPayload(),
+            'locale' => app()->getLocale(),
+            'locales' => Locale::options(),
         ];
     }
 

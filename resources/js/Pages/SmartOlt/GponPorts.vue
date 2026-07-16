@@ -59,13 +59,13 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                        GPON Port & ONU
+                        {{ $t('gponports.title') }}
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
                         {{ olt.name }} · {{ olt.ip }}
                         <span class="mx-1">·</span>
                         <span class="text-emerald-400 font-medium">{{ onuOnline }}</span>
-                        <span class="text-slate-400"> / {{ onuTotal }} ONU online</span>
+                        <span class="text-slate-400">{{ $t('gponports.onu_online_of', { total: onuTotal }) }}</span>
                     </p>
                 </div>
 
@@ -73,12 +73,12 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                     <Link :href="route('smartolt.detail', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Detail OLT
+                            {{ $t('common.detail_olt') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
-                        Refresh SNMP
+                        {{ $t('gponports.refresh_snmp') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -90,17 +90,17 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                 <!-- Summary stat cards -->
                 <div class="grid gap-4 sm:grid-cols-3">
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">GPON Port</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('gponports.stat_gpon_port') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">ONU Online</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('gponports.stat_onu_online') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ onuOnline }}<span class="text-sm font-normal text-slate-500"> / {{ onuTotal }}</span></p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status SNMP</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('gponports.stat_snmp_status') }}</p>
                         <p class="mt-3 text-2xl font-bold" :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
-                            {{ snapshot.ok ? 'Online' : 'Unknown' }}
+                            {{ snapshot.ok ? $t('common.online') : $t('common.unknown') }}
                         </p>
                     </div>
                 </div>
@@ -112,7 +112,7 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                                 <Cable class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="text-base font-semibold text-white">GPON Port & ONU</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('gponports.title') }}</h3>
                         </div>
 
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -120,20 +120,20 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                                 v-model="portSearch"
                                 type="search"
                                 class="kv-filter-control sm:w-72"
-                                placeholder="Cari ONU (SN/Nama)..."
+                                :placeholder="$t('gponports.search_placeholder')"
                             />
                             <span class="inline-flex h-8 items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
                                 <CheckCircle2 class="h-4 w-4" />
-                                Selesai
+                                {{ $t('common.done') }}
                             </span>
                         </div>
                     </div>
 
                     <div v-if="snapshot.ports.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
-                        Belum ada data port. Jalankan <strong class="text-slate-200">Refresh SNMP</strong>.
+                        {{ $t('gponports.empty_ports') }}
                     </div>
                     <div v-else-if="filteredPorts.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
-                        Port atau ONU tidak ditemukan.
+                        {{ $t('gponports.no_match') }}
                     </div>
                     <div v-else class="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                         <Link

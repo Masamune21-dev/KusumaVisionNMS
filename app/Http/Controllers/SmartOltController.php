@@ -192,9 +192,9 @@ class SmartOltController extends Controller
                 $service->refreshUplinkInterface($olt, $interface);
             }
 
-            return $back->with('success', "Detail {$interface} berhasil diperbarui dari OLT.");
+            return $back->with('success', __('flash.port_detail_refreshed', ['interface' => $interface]));
         } catch (\Throwable $e) {
-            return $back->with('error', "Refresh {$interface} gagal: ".$e->getMessage());
+            return $back->with('error', __('flash.port_refresh_failed', ['interface' => $interface]).$e->getMessage());
         }
     }
 
@@ -212,9 +212,9 @@ class SmartOltController extends Controller
                 //
             }
 
-            $msg = sprintf('Status hardware berhasil diperbarui. %s card ditemukan.', count($cards));
+            $msg = sprintf(__('flash.hardware_ok_fmt'), count($cards));
             if ($uplinkCount > 0) {
-                $msg .= sprintf(' %s interface uplink diperbarui.', $uplinkCount);
+                $msg .= sprintf(__('flash.hardware_uplink_fmt'), $uplinkCount);
             }
 
             return redirect()
@@ -223,7 +223,7 @@ class SmartOltController extends Controller
         } catch (\Throwable $e) {
             return redirect()
                 ->route('smartolt.detail', $olt)
-                ->with('error', 'Refresh hardware gagal: '.$e->getMessage());
+                ->with('error', __('flash.hardware_refresh_failed').$e->getMessage());
         }
     }
 
@@ -255,8 +255,8 @@ class SmartOltController extends Controller
             return response()->json([
                 'ok' => $result['ok'],
                 'message' => $result['ok']
-                    ? "VLAN {$data['vlan_id']} berhasil ditambahkan ke {$data['interface']}."
-                    : 'Eksekusi CLI selesai dengan error: '.($result['error'] ?? 'unknown'),
+                    ? __('flash.vlan_added', ['vlan' => $data['vlan_id'], 'interface' => $data['interface']])
+                    : __('flash.cli_error_prefix').($result['error'] ?? 'unknown'),
             ]);
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
@@ -364,14 +364,14 @@ class SmartOltController extends Controller
 
             $olt->forceFill(['last_test_result' => $snapshot])->save();
 
-            $message = sprintf('Scan ONU OK. %s ONU ditemukan di %s.', count($onus), $olt->name);
+            $message = sprintf(__('flash.scan_ok_fmt'), count($onus), $olt->name);
             if ($rxError !== null) {
-                $message .= ' (RX power gagal dibaca)';
+                $message .= __('flash.rx_read_failed_suffix');
             }
 
             return $back->with('success', $message);
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_scan_failed').$exception->getMessage());
         }
     }
 
@@ -416,9 +416,9 @@ class SmartOltController extends Controller
 
             $olt->forceFill(['last_test_result' => $snapshot, 'last_polled_at' => now()])->save();
 
-            return $back->with('success', sprintf('Scan ONU OK. %s ONU ditemukan di %s.', count($onus), $olt->name));
+            return $back->with('success', sprintf(__('flash.scan_ok_fmt'), count($onus), $olt->name));
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Scan ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_scan_failed').$exception->getMessage());
         }
     }
 
@@ -510,7 +510,7 @@ class SmartOltController extends Controller
 
         return redirect()
             ->route('smartolt.index')
-            ->with('success', 'OLT berhasil ditambahkan.');
+            ->with('success', __('flash.olt_added'));
     }
 
     public function edit(SnmpOlt $olt): Response
@@ -526,7 +526,7 @@ class SmartOltController extends Controller
 
         return redirect()
             ->route('smartolt.index')
-            ->with('success', 'OLT berhasil diperbarui.');
+            ->with('success', __('flash.olt_updated'));
     }
 
     public function destroy(Request $request, SnmpOlt $olt): RedirectResponse
@@ -536,7 +536,7 @@ class SmartOltController extends Controller
 
         return redirect()
             ->route('smartolt.index')
-            ->with('success', 'OLT berhasil dihapus.');
+            ->with('success', __('flash.olt_deleted'));
     }
 
     public function test(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
@@ -559,8 +559,8 @@ class SmartOltController extends Controller
         );
 
         $message = $result['ok']
-            ? sprintf('SNMP OK. Driver: %s. Latency: %sms.', $result['driver'], $result['latency_ms'])
-            : sprintf('SNMP gagal: %s', $result['error'] ?? 'unknown error');
+            ? sprintf(__('flash.snmp_ok_fmt'), $result['driver'], $result['latency_ms'])
+            : sprintf(__('flash.snmp_failed_fmt'), $result['error'] ?? 'unknown error');
 
         return redirect()
             ->route('smartolt.index')
@@ -598,8 +598,8 @@ class SmartOltController extends Controller
             return back()->with(
                 'success',
                 $enabled
-                    ? "Alarm OLT {$olt->name} diaktifkan untuk webhook Anda."
-                    : "Alarm OLT {$olt->name} dimatikan untuk webhook Anda.",
+                    ? __('flash.alarm_partner_on', ['name' => $olt->name])
+                    : __('flash.alarm_partner_off', ['name' => $olt->name]),
             );
         }
 
@@ -609,8 +609,8 @@ class SmartOltController extends Controller
         return back()->with(
             'success',
             $enabled
-                ? "Alarm untuk OLT {$olt->name} diaktifkan."
-                : "Alarm untuk OLT {$olt->name} dimatikan.",
+                ? __('flash.alarm_on', ['name' => $olt->name])
+                : __('flash.alarm_off', ['name' => $olt->name]),
         );
     }
 
@@ -629,11 +629,11 @@ class SmartOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? "Konfigurasi OLT {$olt->name} berhasil disimpan (write)."
+                    ? __('flash.config_saved_write', ['name' => $olt->name])
                     : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
             );
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Simpan konfigurasi gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.config_save_failed').$exception->getMessage());
         }
     }
 
@@ -657,8 +657,8 @@ class SmartOltController extends Controller
         );
 
         $message = $result['ok']
-            ? sprintf('Refresh SNMP OK. %s GPON port ditemukan.', count($result['ports'] ?? []))
-            : sprintf('Refresh SNMP gagal: %s', $result['error'] ?? 'unknown error');
+            ? sprintf(__('flash.refresh_snmp_ok_fmt'), count($result['ports'] ?? []))
+            : sprintf(__('flash.refresh_snmp_failed_fmt'), $result['error'] ?? 'unknown error');
 
         return redirect()
             ->route('smartolt.detail', $olt)
@@ -678,8 +678,8 @@ class SmartOltController extends Controller
         ])->save();
 
         $message = $result['ok']
-            ? sprintf('Refresh ONU OK. %s ONU ditemukan di slot %s port %s.', $result['count'], $slot, $port)
-            : sprintf('Refresh ONU gagal: %s', $result['error'] ?? 'unknown error');
+            ? sprintf(__('flash.refresh_onu_ok_slot_fmt'), $result['count'], $slot, $port)
+            : sprintf(__('flash.refresh_onu_failed_fmt'), $result['error'] ?? 'unknown error');
 
         return redirect()
             ->route('smartolt.port-onus', [$olt, $slot, $port])
@@ -699,8 +699,8 @@ class SmartOltController extends Controller
         ])->save();
 
         $message = $result['ok']
-            ? sprintf('Discovery unconfigured ONU OK. %s ONU ditemukan.', $result['count'])
-            : sprintf('Discovery unconfigured ONU gagal: %s', $result['error'] ?? 'unknown error');
+            ? sprintf(__('flash.uncfg_ok_fmt'), $result['count'])
+            : sprintf(__('flash.uncfg_failed_fmt'), $result['error'] ?? 'unknown error');
 
         return redirect()
             ->route('smartolt.unconfigured-all', ['olt_id' => $olt->id])
@@ -719,13 +719,13 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? sprintf('Perintah reboot ONU %s terkirim. ONU restart 30-60 detik.', SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)))
+                        ? sprintf(__('flash.reboot_sent_iface_fmt'), SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)))
                         : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
                 );
         } catch (\Throwable $exception) {
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('error', 'Reboot ONU gagal: '.$exception->getMessage());
+                ->with('error', __('flash.onu_reboot_failed').$exception->getMessage());
         }
     }
 
@@ -752,11 +752,11 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('success', $active ? 'ONU berhasil di-enable.' : 'ONU berhasil di-disable.');
+                ->with('success', $active ? __('flash.onu_enabled') : __('flash.onu_disabled'));
         } catch (\Throwable $exception) {
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('error', 'Ubah status ONU gagal: '.$exception->getMessage());
+                ->with('error', __('flash.onu_state_failed').$exception->getMessage());
         }
     }
 
@@ -776,7 +776,7 @@ class SmartOltController extends Controller
         if ($name === null && $description === null) {
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('error', 'Isi minimal nama atau deskripsi ONU.');
+                ->with('error', __('flash.onu_info_required'));
         }
 
         $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
@@ -796,11 +796,11 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('success', 'Info ONU berhasil diperbarui.');
+                ->with('success', __('flash.onu_info_updated'));
         } catch (\Throwable $exception) {
             return redirect()
                 ->route('smartolt.port-onus', [$olt, $slot, $port])
-                ->with('error', 'Update info ONU gagal: '.$exception->getMessage());
+                ->with('error', __('flash.onu_info_failed').$exception->getMessage());
         }
     }
 
@@ -914,7 +914,7 @@ class SmartOltController extends Controller
         $back = redirect()->route('smartolt.onu.configure', [$olt, $slot, $port, $onuId]);
 
         if ($delta['script'] === '') {
-            return $back->with('error', 'Tidak ada perubahan config untuk di-apply.');
+            return $back->with('error', __('flash.no_config_changes'));
         }
 
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
@@ -962,8 +962,8 @@ class SmartOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? 'Konfigurasi ONU berhasil di-apply ke OLT.'
-                    : 'Konfigurasi belum berhasil — bagian ini ditolak OLT: '.$error,
+                    ? __('flash.config_applied')
+                    : __('flash.config_apply_rejected').$error,
             );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -976,7 +976,7 @@ class SmartOltController extends Controller
                 'status' => 'reconfig_failed',
             ]);
 
-            return $back->with('error', 'Apply konfigurasi gagal: '.$error);
+            return $back->with('error', __('flash.apply_config_failed').$error);
         }
     }
 
@@ -1106,7 +1106,7 @@ class SmartOltController extends Controller
                     : 'Hapus ONU selesai dengan indikasi error: '.$error,
             );
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Hapus ONU gagal: '.CliOutputSanitizer::clean($exception->getMessage()));
+            return $back->with('error', __('flash.onu_delete_failed').CliOutputSanitizer::clean($exception->getMessage()));
         }
     }
 
@@ -1150,7 +1150,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('success', 'Provisioning script berhasil digenerate dan disimpan ke audit log.');
+                ->with('success', __('flash.prov_generated'));
         }
 
         // Eksekusi langsung ke OLT via Telnet.
@@ -1175,8 +1175,8 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? 'ONU berhasil diregister & dieksekusi ke OLT.'
-                        : 'Registrasi belum berhasil — bagian ini ditolak OLT: '.$error,
+                        ? __('flash.registered_ok')
+                        : __('flash.register_rejected').$error,
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1191,7 +1191,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', 'Eksekusi register gagal: '.$error);
+                ->with('error', __('flash.register_exec_failed').$error);
         }
     }
 
@@ -1257,7 +1257,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('success', 'Provisioning script (mode lanjutan) berhasil digenerate dan disimpan ke audit log.');
+                ->with('success', __('flash.prov_generated_advanced'));
         }
 
         // Eksekusi langsung ke OLT via Telnet.
@@ -1282,8 +1282,8 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? 'ONU berhasil diregister & dieksekusi ke OLT.'
-                        : 'Registrasi belum berhasil — bagian ini ditolak OLT: '.$error,
+                        ? __('flash.registered_ok')
+                        : __('flash.register_rejected').$error,
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1298,7 +1298,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', 'Eksekusi register gagal: '.$error);
+                ->with('error', __('flash.register_exec_failed').$error);
         }
     }
 
@@ -1380,7 +1380,7 @@ class SmartOltController extends Controller
         if ($registration->status === 'executed') {
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('success', 'Provisioning script ini sudah teregister di OLT.');
+                ->with('success', __('flash.prov_already_registered'));
         }
 
         try {
@@ -1401,8 +1401,8 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? 'Provisioning script berhasil dieksekusi ke OLT.'
-                        : 'Provisioning belum berhasil — bagian ini ditolak OLT: '.$error,
+                        ? __('flash.prov_executed')
+                        : __('flash.prov_rejected').$error,
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -1416,7 +1416,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', 'Eksekusi provisioning gagal: '.$error);
+                ->with('error', __('flash.prov_exec_failed').$error);
         }
     }
 
@@ -1429,14 +1429,14 @@ class SmartOltController extends Controller
         if ($registration->status === 'executed') {
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', 'Provisioning script yang sudah teregister di OLT tidak bisa dihapus.');
+                ->with('error', __('flash.prov_delete_blocked'));
         }
 
         $registration->delete();
 
         return redirect()
             ->route('smartolt.registrations', $olt)
-            ->with('success', 'Provisioning script berhasil dihapus.');
+            ->with('success', __('flash.prov_deleted'));
     }
 
     /**

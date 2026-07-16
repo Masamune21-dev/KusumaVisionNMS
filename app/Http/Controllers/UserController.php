@@ -57,7 +57,7 @@ class UserController extends Controller
 
         $this->syncPartnerOlts($user, $data);
 
-        return back()->with('success', 'User berhasil ditambahkan.');
+        return back()->with('success', __('flash.user_added'));
     }
 
     public function update(Request $request, User $user): RedirectResponse
@@ -66,7 +66,7 @@ class UserController extends Controller
 
         // Cegah admin terakhir menurunkan rolenya sendiri sehingga sistem terkunci.
         if ($user->isAdmin() && $data['role'] !== UserRole::Admin->value && $this->isLastAdmin($user)) {
-            return back()->with('error', 'Tidak dapat menurunkan role admin terakhir.');
+            return back()->with('error', __('flash.cant_demote_last_admin'));
         }
 
         $user->name = $data['name'];
@@ -81,7 +81,7 @@ class UserController extends Controller
 
         $this->syncPartnerOlts($user, $data);
 
-        return back()->with('success', 'User berhasil diperbarui.');
+        return back()->with('success', __('flash.user_updated'));
     }
 
     /**
@@ -126,11 +126,11 @@ class UserController extends Controller
     public function destroy(Request $request, User $user): RedirectResponse
     {
         if ($user->id === $request->user()->id) {
-            return back()->with('error', 'Tidak dapat menghapus akun Anda sendiri.');
+            return back()->with('error', __('flash.cant_delete_self'));
         }
 
         if ($user->isAdmin() && $this->isLastAdmin($user)) {
-            return back()->with('error', 'Tidak dapat menghapus admin terakhir.');
+            return back()->with('error', __('flash.cant_delete_last_admin'));
         }
 
         // OLT privat milik user yang dihapus dikembalikan ke pool global (owner_user_id
@@ -141,7 +141,7 @@ class UserController extends Controller
 
         $user->delete();
 
-        return back()->with('success', 'User berhasil dihapus.');
+        return back()->with('success', __('flash.user_deleted'));
     }
 
     private function isLastAdmin(User $user): bool

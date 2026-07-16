@@ -5,6 +5,9 @@ import '@xterm/xterm/css/xterm.css';
 import axios from 'axios';
 import { Loader2, Maximize2, Minus, TerminalSquare, X } from '@lucide/vue';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     // { id, name, ip } to open a session, or null to close.
@@ -137,7 +140,7 @@ function setupTerm() {
 
 async function start() {
     status.value = 'connecting';
-    statusMessage.value = 'Meminta token…';
+    statusMessage.value = t('shell.telnet_requesting_token');
     await nextTick();
     setupTerm();
     try {
@@ -145,7 +148,7 @@ async function start() {
         connect(data.ws_url);
     } catch (e) {
         status.value = 'error';
-        statusMessage.value = e?.response?.data?.message ?? 'Gagal mendapatkan token telnet.';
+        statusMessage.value = e?.response?.data?.message ?? t('shell.telnet_token_failed');
         term?.writeln(`\x1b[31m${statusMessage.value}\x1b[0m`);
     }
 }
@@ -166,7 +169,7 @@ function connect(url) {
     ws.onclose = () => {
         if (status.value !== 'error') {
             status.value = 'closed';
-            statusMessage.value = 'Koneksi ditutup';
+            statusMessage.value = t('shell.telnet_closed');
         }
         term?.writeln('\r\n\x1b[33m[koneksi ditutup]\x1b[0m');
     };
@@ -273,7 +276,7 @@ onBeforeUnmount(() => {
                     <button type="button" class="rounded p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" :title="maximized ? 'Restore' : 'Maximize'" @mousedown.stop @click="toggleMax">
                         <Maximize2 class="h-4 w-4" />
                     </button>
-                    <button type="button" class="rounded p-1 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300" title="Tutup" @mousedown.stop @click="close">
+                    <button type="button" class="rounded p-1 text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300" :title="$t('common.close')" @mousedown.stop @click="close">
                         <X class="h-4 w-4" />
                     </button>
                 </div>

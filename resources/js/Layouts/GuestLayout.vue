@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
+import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
 
@@ -33,8 +34,13 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
             class="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-xs font-medium text-slate-400 backdrop-blur transition-colors hover:border-white/20 hover:text-white sm:left-6 sm:top-6"
         >
             <ArrowLeft class="h-3.5 w-3.5" />
-            Beranda
+            {{ $t('guest.back_home') }}
         </Link>
+
+        <!-- Language switcher (tamu bisa ganti bahasa sebelum login) -->
+        <div class="absolute right-4 top-4 sm:right-6 sm:top-6">
+            <LanguageSwitcher />
+        </div>
 
         <!-- Brand -->
         <Link href="/" class="relative flex flex-col items-center gap-2">

@@ -2,6 +2,35 @@
 
 ## 2026-07-16
 
+### Dwibahasa ID/EN — Fase akhir: rollout TUNTAS (Peta, Report, Panduan, admin, Welcome, Auth, komponen shared, backend lang)
+
+Melanjutkan handoff sesi 14–16 Jul ("lanjutkan pengerjaan sebelumnya") — menyelesaikan seluruh sisa rollout dwibahasa. **Seluruh aplikasi web kini dwibahasa ID/EN** (frontend + backend). `lang/{id,en}.json` kini 36 namespace / ±1.200 key per bahasa.
+
+Changed (frontend, per kluster):
+
+- **Peta** — namespace `map.*`: `Pages/Map/Index.vue` (header/stats/toolbar/empty), `Components/Map/AddPinModal.vue` (search, dropdown bertingkat, form, tombol), `PinDetailCard.vue` (status/detail/aksi/2 modal + dialog konfirmasi via `t()`), `OnuMap.vue` — legenda RX & kontrol layer Leaflet **dibuat ulang saat switch bahasa** (`watch(locale)`; label Leaflet bukan reactive Vue).
+- **Report** — `Pages/Reports/Index.vue` (filter bar, empty, jumlah baris) + `statusClass` mengenali nilai EN `active`. Label backend (judul/jenis/rentang/kolom/summary) diterjemahkan **di backend** (lihat bawah) karena `useLocale.change()` me-refresh props via redirect-back → label ikut locale tanpa mapping frontend.
+- **Panduan** — `Pages/Panduan/Index.vue` dirombak: array `sections` (19 topik × judul/intro/butir/tip ≈ 155 string) jadi `SECTION_DEFS` struktural (ikon/aksen/urutan/`items:[bool]` penanda butir ber-strong) + computed yang merakit teks dari `panduan.*` — reaktif switch bahasa; scroll-spy/TOC pindah referensi ke `SECTION_DEFS`.
+- **Label alarm by-key** — helper baru [`resources/js/lib/alarm.js`](resources/js/lib/alarm.js) (`alarmTypeLabel`/`alarmStatusLabel`, fallback prettify utk tipe tak dikenal) + key `alarms.type_*`/`status_*`/`sev_opt_*`. Dipakai `RecentAlarmsTable` (dashboard), `Alarms.vue` (badge status, kolom tipe, dropdown filter tipe), `Partner/TelegramBot.vue` & `Settings/Index.vue` (checkbox jenis alarm + dropdown severity by-value — label backend Indonesia tak dipakai lagi).
+- **Admin pages** — `Users/Index.vue` (`users.*`), `AuditLogs/Index.vue` (`auditlogs.*`, EVENT_META label→key), `Profile/Edit.vue` + 3 partial (`profile.*` — sebelumnya masih English bawaan Breeze, kini dwibahasa), `Partner/TelegramBot.vue` (`telegrambot.*`), `Settings/Index.vue` 1067 baris — 6 tab (`settings.*`; tab Telegram **reuse `telegrambot.*`** + 4 varian `_admin`; tabs jadi computed; kalimat ber-tag pakai `v-html`).
+- **Welcome.vue** (landing 1406 baris) — namespace `welcome.*` (±123 key): nav/hero/stats/steps/15 kartu fitur (jadi `FEATURE_DEFS`+computed, ikon-aksen diverifikasi identik aslinya)/marquee/galeri screenshot (label/desc via `$t` by `shot.key`; field label/desc/alt dihapus dari array)/tech/modul/CTA/footer.
+- **Auth sisa** — Register/ForgotPassword/ResetPassword/ConfirmPassword/VerifyEmail (sebelumnya English bawaan Breeze) → `auth.*` dwibahasa.
+- **Komponen shared** — `NotificationBell`, `GlobalSearch` (placeholder/empty/hint kbd), `FlashMessages` (aria), `ClientPagination` (title), `TelnetWindow` (status koneksi via `t()`), `RxTrendCard` (rentang/stat/empty), `OltChassis` (tooltip port + legenda + catatan panjang via `v-html`), `OnuConfigEditor` (tombol Tambah/Hapus baris + semua empty state) → key di `shell.*`/`configonu.*`. **`lib/onu.js`** `lastDownCauseLabel` kini pakai `i18n.global.t` (key `onu.ldc_*`) — reaktif saat dipanggil di render.
+
+Created/Changed (backend lang):
+
+- **`lang/id/{validation,auth,passwords,pagination}.php`** — terjemahan Indonesia standar; sebelumnya locale `id` **fallback ke pesan English bawaan framework** (bug laten: form error tampil English di mode ID). EN pakai bawaan framework.
+- **`lang/{id,en}/flash.php`** (±109 key) + sweep **9 controller** (SmartOlt, Settings, CData, Hioso, OnuMap, Partner/TelegramBot, User, SmartOltProfile, OltConfigBackup): semua flash message (`with('success|error', …)`) → `__('flash.*')` — literal penuh, prefix error ber-concat (nilai key menyimpan trailing `": "`), format `sprintf` (key `*_fmt`, `%s` dipertahankan), cabang ternary, dan string interpolasi → `__()` dengan `:param`. Pesan JSON tombol VLAN ikut. `Api/V1` sengaja tidak disentuh (aplikasi mobile berbahasa Indonesia).
+- **`ReportService` + `reports.pdf` blade** → `__('reports.*')` (`lang/{id,en}/reports.php`): judul/opsi jenis & rentang/kolom/summary/status Aktif-Selesai + 3 string PDF — **export CSV/PDF ikut bahasa aktif** (middleware `SetLocale` berlaku juga utk request export).
+
+Notes:
+
+- **Verifikasi Playwright headless** (user sementara `i18n-verify@local.test` locale `en`, lalu dihapus): 7 halaman — `/map`, `/reports`, `/panduan`, `/users`, `/settings`, `/audit-logs`, `/alarms` — semua teks EN muncul, teks ID hilang, **nol pageerror/console-error**. Welcome (tamu, default ID) diverifikasi terpisah: 4 teks kunci ID render, nol error JS.
+- Build vite bersih (4× sepanjang sesi, per kluster); Pint bersih; `php -l` lulus utk semua PHP yang diubah; php-fpm di-reload.
+- Test suite: **354 lulus, 1 gagal** (`ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`, pre-existing — bukan regresi).
+- Pola khusus yang dipakai: (1) label kontrol Leaflet & legenda di-rebuild manual saat `watch(locale)` karena berada di luar reactivity Vue; (2) opsi backend dengan `value` enum stabil (severity, jenis alarm, role) diterjemahkan **frontend by-key**, sedangkan data backend murni (Report) diterjemahkan **backend `__()`** karena ikut ke CSV/PDF; (3) trailing `": "` disimpan di nilai key flash supaya concat error message di controller tak berubah bentuk.
+- **Rollout dwibahasa DINYATAKAN SELESAI** — tidak ada lagi batch tersisa dari rencana handoff (1)–(6).
+
 ### Docs: instruksi clone pakai HTTPS + siapkan folder tujuan
 
 Changed:
@@ -87,6 +116,73 @@ Notes:
 - **Konfirmasi silang:** SNMP menemukan 64 port PON di slot 3/4/5/17 (16 masing-masing) — persis cocok `show card` (GFGL/GFGL/GFGM/GFGN). Dua sumber independen, hasil sama.
 - Test suite: **354 lulus, 1 gagal** (`ApiV1WriteTest::test_refresh_port_non_zte_queries_driver`, pre-existing).
 - **Masih buntu** (user: belum ada akses telnet): nama ONU/admin-state/Rx via SNMP, verifikasi tulis provisioning C600, dan sintaks WAN PPPoE/DHCP/static C600.
+
+## 2026-07-14
+
+### Dwibahasa ID/EN — Fase 3+: rollout menyeluruh (user minta "semuanya selesai")
+
+User mendelegasikan penuh ("atur sesuai kamu, yang penting semuanya selesai") → target: seluruh app dwibahasa, dikerjakan per-kluster halaman dengan verifikasi build + Playwright tiap langkah. Progres kumulatif dicatat di sini.
+
+- **`common.*` diperluas** (id/en): on, off, ok, failed, not_tested, detail, edit, delete, save, cancel, test_snmp, private, private_hint, telnet_to_olt — key generik lintas-halaman.
+- **Namespace `smartolt.*`** ditambah (id/en): judul/subtitle inventory per-family (ZTE/C-Data/HiOSO), empty state, header tabel & label mobile, judul aksi (profile/save-config/telnet/delete), teks toggle alarm (admin & partner), dan dialog konfirmasi (hapus OLT, simpan config) dengan interpolasi `{name}`.
+- **`Pages/SmartOlt/Index.vue`** — sepenuhnya di-i18n: `useI18n` di script (computed header/empty/alarm/confirm), template via `$t` (tab tetap "OLT ZTE" dsb identik). Diverifikasi Playwright: `/smartolt` EN → "Add OLT"/"Last Test" muncul, "Test Terakhir" hilang, nol error.
+- **Namespace `oltform.*`** (id/en) + **`Create.vue`/`Edit.vue`/`Partials/OltForm.vue`** (Tambah/Edit OLT ZTE): seluruh form (Identitas/SNMP/CLI/Auto-Poll, label, catatan "kosongkan…", opsi, tombol) via `$t`. Diverifikasi Playwright EN (`/smartolt/create` → "OLT Identity/Name/Save OLT", ID hilang, nol error). `oltform.*` akan dipakai ulang form C-Data/HiOSO.
+- **Namespace `portonus.*`** (id/en, ~80 key) + **`Pages/SmartOlt/PortOnus.vue`** (1161 baris) sepenuhnya di-i18n: header/nav-port, kartu stat, toolbar search+filter, toolbar seleksi/copy, empty & no-match state, kartu mobile + tabel desktop, judul aksi ONU, **3 modal** (Edit Info ONU, Add-to-Map, Copy-to-port 3-fase form/running/done) termasuk dialog konfirmasi reboot/enable/disable/delete via `t()` dengan interpolasi. `common.clear/close/reset` ditambah. Diverifikasi Playwright (`/smartolt/1/ports/2/1/onus`): EN "Registered ONUs/Last Refresh/Refresh ONU" muncul, "Refresh Terakhir" hilang, nol error.
+- **Namespace `tr069.*`** (id/en) + **`Components/SmartOlt/Tr069BulkModal.vue`** (modal TR069 massal 4-fase: intro/running/dry-done/execute-done) di-i18n; kalimat ber-`<strong>` + nilai dinamis pakai `v-html="$t(key, {...})"` (compiler literal aman). Build clean. **PortOnus cluster (todo #3) selesai.**
+- **Detail SmartOLT (loop, berjalan)** — `common.*` diperluas (available/empty/last_refresh/serial/port/slot/actions/online/unknown/done/register_onu/detail_olt/refresh_discovery) + namespace `unconfigured.*` & `gponports.*`. Namespace tambahan `detail.*`, `configonu.*`, `registrations.*`, `configbackups.*` (+`common` back/status/refresh/download/view/loading/processing). Plus namespace `alarms.*`. Selesai: **Unconfigured, GponPorts, UnconfiguredGlobal, Detail, ConfigureOnu, Registrations, ConfigBackups, Alarms** (8/13). Build clean, tak ada string ID tersisa. **Alarms diverifikasi Playwright** (`/alarms`): EN "Active Alarms/Apply/All Severities" muncul, "Terapkan" hilang, nol error. Plus namespace `profiles.*`, `onumonitor.*` → **Profiles, OnuMonitor** selesai (10/13). OnuMonitor diverifikasi Playwright (`/onu-monitoring`): EN "Filter ONUs/Pick an OLT first/Scan this OLT's ONUs", ID hilang, nol error. Plus namespace `onudetail.*` (+`common.offline`), `portdetail.*`, `registeronu.*` → **KLUSTER HALAMAN DETAIL SmartOLT SELESAI 13/13** (Unconfigured, GponPorts, UnconfiguredGlobal, Detail, ConfigureOnu, Registrations, ConfigBackups, Alarms, Profiles, OnuMonitor, OnuDetail, PortDetail, RegisterOnu). Scan `Pages/SmartOlt/` bersih dari string Indonesia hardcoded; build clean. Alarms & OnuMonitor diverifikasi Playwright. **Seluruh area SmartOLT (daftar + form + port + detail) kini dwibahasa.**
+
+- **Kluster C-Data + HiOSO (loop, berjalan)** — namespace `cdataform.*` (id/en) untuk hint spesifik family; label form generik **reuse `oltform.*`**. Selesai: `CDataOlt/{Create,Edit}.vue` + `Partials/CDataOltForm.vue` (Identitas/Family/SNMP/CLI/Auto-Poll + catatan GPON V3). Build clean. Ditambah `cdataform.hioso_*` + **Hioso `{Create,Edit}.vue` + `Partials/HiosoOltForm.vue`** selesai. **Kedua form add/edit family non-ZTE tuntas.** Ditambah namespace `cdatadetail.*` (dipakai bersama) → **CDataOlt/Detail.vue + Hioso/Detail.vue** selesai (ringkasan, faceplate header, info sistem, port PON, tabel+mobile). Build clean. Ditambah `cdataportonus.*` (+`delete_msg_hioso` — verb delete beda per family) → **CDataOlt/PortOnus.vue + Hioso/PortOnus.vue** selesai (header, tabel+mobile, aksi rename/reboot/toggle/delete + dialog, Add-Map & rename modal — reuse `portonus.*`). **OltFaceplate.vue dicek: tak ada teks yang perlu diterjemahkan** (label port dari data). **KLUSTER C-DATA + HiOSO TUNTAS.** Build clean; scan `Pages/{SmartOlt,CDataOlt,Hioso}` bebas string ID hardcoded.
+
+**⏸️ SESI DIHENTIKAN DI SINI (16 Jul 2026, permintaan user — lanjut di sesi baru untuk hemat token). STATUS HANDOFF:**
+- ✅ **Selesai & live**: infra i18n (vue-i18n custom literal compiler, switcher, backend locale) · Shell · Login · Dashboard (+9 komponen + label provisioning by-key) · **SmartOLT lengkap** (Index, Create/Edit+OltForm, PortOnus+Tr069BulkModal, 13 halaman detail) · **C-Data + HiOSO lengkap** (Create/Edit+form ×2, Detail ×2, PortOnus ×2, OltFaceplate n/a).
+- ⏭️ **Sisa (urutan)**: (1) **Peta** `Pages/Map/Index.vue` + `Components/Map/{OnuMap,AddPinModal,PinDetailCard}.vue`; (2) **Report** `Pages/Reports/*` + **Panduan** `Pages/Panduan/Index.vue` (43 string) + helper label alarm by-key utk `RecentAlarmsTable`/`Alarms` (status_label/type backend); (3) **Users/Settings/AuditLogs/Profile/Partner Telegram** pages; (4) **Welcome.vue** (41 string) + Auth sisa (Register/ForgotPassword/ResetPassword/ConfirmPassword/VerifyEmail); (5) **komponen shared**: `Components/SmartOlt/{OnuConfigEditor(23 str),OltChassis,RxTrendCard}`, `Components/Shell/{GlobalSearch,NotificationBell,SystemInfoPanel,FlashMessages,FilterCard,ClientPagination,ListSkeleton,TelnetWindow}`, `Components/{ConfirmModal,Pagination}`, `lib/onu.js` (lastDownCauseLabel); (6) **backend `lang/{id,en}`** utk flash message controller + validasi.
+- **Pola kerja**: baca file → tambah key ke `resources/js/lang/{id,en}.json` (namespace per halaman; generik ke `common.*`) → `$t()` template / `t()` script (`useI18n({useScope:'global'})`; array label → computed) → kalimat ber-tag HTML pakai `v-html="$t(...)"` → `npm run build` → grep leftover → Playwright utk halaman penting (buat/hapus user `i18n-verify@local.test`). Detail arsitektur di memori `project_i18n_architecture`.
+- **Mode `/loop` (self-paced)**: rollout dilanjutkan otomatis batch-demi-batch via ScheduleWakeup. Batch berikutnya: halaman detail SmartOLT (Detail/RegisterOnu/Profiles/ConfigBackups/Unconfigured/OnuMonitor/GponPorts/PortDetail/OnuDetail/ConfigureOnu/Registrations/Alarms/UnconfiguredGlobal), lalu C-Data/Hioso, Peta, Alarms/Report/Panduan, admin pages, Welcome+Auth, komponen shared, backend `lang/`.
+
+### Dwibahasa ID/EN — Fase 2: terjemahan halaman Dashboard (+9 komponen)
+
+**Permintaan user:** lanjut rollout terjemahan (batch berikutnya) setelah Fase 1 infra.
+
+Changed:
+- **Namespace `dashboard.*`** ditambahkan ke `resources/js/lang/{id,en}.json` (~55 key: kartu statistik, status donut, inventory OLT, tren polling + rentang waktu, tabel alarm + header kolom, timeline provisioning, grid aksi, modal aksi cepat ONU, hero).
+- **`Pages/Dashboard.vue`** — `heroCards` (label + sublabel + `online_share` dgn interpolasi `{pct}`) via `t()`; `<Head>` + `<HeroBanner :title :subtitle>` diteruskan terjemahan.
+- **9 komponen `Components/Dashboard/`**: `OnuStatusDonut` (label chart/legend/total donut + empty state + "update terakhir {time}"), `OltInventoryList` (header/Up-Down/empty/total-unit), `PollingTrendCard` (`ranges` jadi computed reaktif locale, judul, nama seri chart, total sukses/gagal), `RecentAlarmsTable` (judul, header kolom, empty, unknown device), `ProvisioningTimeline` (judul + "Lihat Semua"), `RemoteActionsGrid` (judul), `OnuQuickActionModal` (`ACTION_META`→computed dgn `t()`: title/confirm/body per aksi + label/placeholder/tombol), `HeroBanner` (via props). `StatCard` (prop default 'Trend', tak tampak) dibiarkan.
+- **Follow-up (user lapor "masih indo" di kartu Provisioning):** label baris provisioning dulu dari backend (`item.label`/`sublabel`). Diperbaiki tanpa backend-lang: `ProvisioningTimeline` kini render label dari i18n berbasis `item.key` stabil (pending/processing/success/failed) → `dashboard.provisioning.{key}_{label,sublabel}`, reaktif ke switcher. Terverifikasi EN: "Pending/Processing/Success/Failed" tampil, "Menunggu/Sedang Diproses" hilang.
+- Catatan: label backend lain yang enum-like (mis. `alarm.status_label`, `alarmType`, `severity` di tabel alarm) **belum** diterjemahkan — pola sama (map by-key di frontend) atau fase `lang/` backend.
+
+Notes:
+- **Verifikasi Playwright headless** (user admin sementara, login → `/dashboard`, lalu dihapus): nol pageerror/console-error; teks ID tampil (hero/aksi/inventory); **switch ID→EN live** mengubah semua (hero, header, chart) — hero_en/remote_en/inv_en semuanya render. Build sukses, JSON valid, tak ada string ID hardcoded tersisa di klaster Dashboard.
+
+
+
+### Dwibahasa ID/EN — Fase 1: infrastruktur i18n + switcher + terjemahan shell/Login
+
+**Permintaan user:** rombak seluruh web app agar mendukung Bahasa Indonesia & Inggris. Cakupan disepakati (AskUserQuestion): **"Infra + bertahap"** — bangun mesin i18n + tombol ganti bahasa + terjemahkan shell & halaman inti dulu sebagai pola; sisa 94 file digulirkan per-batch berikutnya. Default tetap Indonesia (aditif, existing user tak terpengaruh).
+
+Created:
+- `resources/js/i18n.js` — instance vue-i18n (composition/`legacy:false`, `globalInjection` → `$t` di template, `missingWarn/fallbackWarn` off untuk rollout bertahap, fallback `en`). JIT vue-i18n v11 tak pakai eval/Function → lolos CSP nonce ketat app. `setI18nLocale()` set locale + `<html lang>` seketika.
+- `resources/js/lang/id.json` + `en.json` — pesan awal: namespace `nav`, `common`, `shell`, `language`, `auth.login`, `guest`.
+- `resources/js/Composables/useLocale.js` — `current`/`options` dari prop Inertia `locale`/`locales`; `change()` flip UI seketika lalu persist ke server (`router.post('locale.update')`, preserveState/scroll).
+- `resources/js/Components/Shell/LanguageSwitcher.vue` — dropdown globe (kode locale + daftar label native + centang aktif), gaya dark-glass `kv-*`.
+- `app/Support/Locale.php` — sumber tunggal locale didukung (`id`/`en`), `normalize()`, `options()`.
+- `app/Http/Middleware/SetLocale.php` — resolusi locale per-request: user login → session → `config('app.locale')`; jalan **sebelum** `HandleInertiaRequests` (urutan di `bootstrap/app.php`).
+- `app/Http/Controllers/LocaleController.php` — `update()` validasi `Rule::in(Locale::codes())`, simpan ke session + `users.locale` (bila login), `back()`.
+- `database/migrations/2026_07_14_202142_add_locale_to_users_table.php` — kolom `users.locale` nullable (sqlite-compatible).
+- `tests/Feature/LocaleTest.php` — 5 test (tamu persist session, user persist profil, locale tak didukung ditolak, middleware terapkan preferensi, locale+locales dibagikan ke Inertia). Semua lulus.
+
+Changed:
+- `resources/js/app.js` — pasang plugin i18n; set locale awal dari `props.initialPage.props.locale` sebelum mount.
+- `app/Http/Middleware/HandleInertiaRequests.php` — share `locale` (`app()->getLocale()`) + `locales` (`Locale::options()`).
+- `app/Models/User.php` — `locale` ke `$fillable`.
+- `bootstrap/app.php` — daftarkan `SetLocale` di web group (sebelum `HandleInertiaRequests`).
+- `routes/web.php` — `POST /locale` → `locale.update` (terbuka untuk tamu & user login).
+- **Terjemahan shell + halaman inti** (pola batch): `Layouts/AuthenticatedLayout.vue` (nav 12 item via `t('nav.*')`, placeholder search, banner demo, footer, aria-label, mobile Profile/Keluar) + `LanguageSwitcher` di header desktop & top-bar mobile; `Components/Shell/UserMenu.vue`; `Pages/Auth/Login.vue` (semua string); `Layouts/GuestLayout.vue` ("Beranda" + switcher untuk tamu).
+
+Notes:
+- **Verifikasi**: `npm run build` sukses (bundle memuat pesan EN + runtime vue-i18n); `migrate --force` OK; `route:cache` regen (route ter-cache) + `locale.update` terdaftar; `php-fpm` reload; `/login` HTTP 200 dengan `<html lang="id">` + prop `locale`/`locales` benar di data-page Inertia; **test suite: 344 lulus** (+5 LocaleTest baru), 1 gagal = pre-existing `ApiV1WriteTest::refresh_port_non_zte_queries_driver` (bukan regresi).
+- **Sisa rollout**: ~89 file Vue lain masih pakai teks Indonesia hardcoded (tetap tampil normal karena default `id`); diterjemahkan per-batch di sesi berikut. Backend flash message/validasi (`lang/id`,`lang/en`) belum dibuat (fase berikut).
+
+**Hotfix (sesi sama):** halaman Login blank hitam — `@` pada placeholder email di-parse sebagai sintaks *linked message* vue-i18n → `SyntaxError` di message-compiler → render Vue gagal total. Fix: **custom `messageCompiler`** di `resources/js/i18n.js` yang memperlakukan tiap pesan sebagai **teks literal + interpolasi `{param}` saja**, mematikan sintaks khusus vue-i18n (`@`linked, `|`plural, `{'literal'}`) yang jadi ranjau untuk 750+ string (email/`|`/dsb). Pure `String.replace`, tanpa eval (CSP aman). **Diverifikasi Playwright headless** (`nms.kusumavision.net/login`): nol pageerror/console-error, form ter-render, placeholder `@` tampil literal, switch ID→EN sukses ("Welcome Back" + `name@company.com`).
 
 ## 2026-07-13
 

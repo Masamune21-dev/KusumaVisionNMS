@@ -4,10 +4,13 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import {
     AlertTriangle, ArrowLeft, Check, Copy, Eye, ListChecks, RefreshCw, Settings, Terminal,
 } from '@lucide/vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -57,7 +60,7 @@ const summary = computed(() => {
 });
 
 // --- delta-live preview ---
-const preview = reactive({ script: '# Memuat...', changes: [], loading: false });
+const preview = reactive({ script: t('configonu.loading_comment'), changes: [], loading: false });
 const copied = ref(false);
 let debounceTimer = null;
 
@@ -71,11 +74,11 @@ const runPreview = () => {
         .then(({ data }) => {
             preview.script = data.script && data.script.trim() !== ''
                 ? data.script
-                : '# Tidak ada perubahan vs current config.';
+                : t('configonu.no_change_comment');
             preview.changes = data.changes ?? [];
         })
         .catch(() => {
-            preview.script = '# Gagal memuat preview.';
+            preview.script = t('configonu.preview_failed_comment');
             preview.changes = [];
         })
         .finally(() => { preview.loading = false; });
@@ -135,7 +138,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                 <Link :href="route('smartolt.port-onus', [olt.id, slot, port])">
                     <SecondaryButton type="button">
                         <ArrowLeft class="mr-2 h-4 w-4" />
-                        Kembali ke Port
+                        {{ $t('configonu.back_to_port') }}
                     </SecondaryButton>
                 </Link>
             </div>
@@ -147,18 +150,15 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                 <!-- Warning banner -->
                 <div class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                     <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
-                    <p>
-                        <span class="font-semibold">Perhatian:</span> Setiap perubahan VLAN, service-port, atau WAN credentials akan
-                        <span class="font-semibold">memutus koneksi pelanggan ±5-10 detik</span> (re-PPPoE auth). Pastikan info SN &amp; ONU ID benar sebelum Apply.
-                    </p>
+                    <p v-html="$t('configonu.warning')"></p>
                 </div>
 
                 <div v-if="fetch_error" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                    Gagal baca running-config live: {{ fetch_error }}
+                    {{ $t('configonu.fetch_error', { error: fetch_error }) }}
                 </div>
 
                 <div v-if="errorList.length" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                    <p class="font-semibold">Periksa kembali input berikut:</p>
+                    <p class="font-semibold">{{ $t('configonu.check_input') }}</p>
                     <ul class="mt-1 list-inside list-disc space-y-0.5">
                         <li v-for="(msg, i) in errorList" :key="i">{{ msg }}</li>
                     </ul>
@@ -172,7 +172,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200">
                                     <Eye class="h-4 w-4 text-cyan-400" /> Current Config
                                 </h3>
-                                <button type="button" class="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white" title="Refresh" @click="refresh">
+                                <button type="button" class="rounded-md p-1.5 text-slate-400 hover:bg-white/5 hover:text-white" :title="$t('common.refresh')" @click="refresh">
                                     <RefreshCw class="h-4 w-4" />
                                 </button>
                             </div>
@@ -188,7 +188,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                             <div class="flex items-center gap-2 border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 sm:px-6">
                                 <Terminal class="h-4 w-4" /> Raw running-config
                             </div>
-                            <pre class="overflow-x-auto whitespace-pre-wrap break-words bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || '(kosong)' }}</pre>
+                            <pre class="overflow-x-auto whitespace-pre-wrap break-words bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || $t('configonu.empty_paren') }}</pre>
                         </div>
                     </div>
 
@@ -205,7 +205,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                                 <RefreshCw v-if="preview.loading" class="h-3.5 w-3.5 animate-spin text-slate-500" />
                             </h3>
                             <button type="button" class="kv-add" @click="copyScript">
-                                <Check v-if="copied" class="h-3.5 w-3.5" /><Copy v-else class="h-3.5 w-3.5" /> {{ copied ? 'Tersalin' : 'Copy' }}
+                                <Check v-if="copied" class="h-3.5 w-3.5" /><Copy v-else class="h-3.5 w-3.5" /> {{ copied ? $t('configonu.copied') : 'Copy' }}
                             </button>
                         </header>
                         <pre class="max-h-[360px] overflow-auto bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-cyan-200/90">{{ preview.script }}</pre>
@@ -217,7 +217,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                             <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">What Will Change</h3>
                         </header>
                         <div class="p-4 sm:p-6">
-                            <p v-if="!preview.changes.length" class="text-sm text-slate-500">Tidak ada perubahan.</p>
+                            <p v-if="!preview.changes.length" class="text-sm text-slate-500">{{ $t('configonu.no_changes') }}</p>
                             <ul v-else class="space-y-2">
                                 <li v-for="(c, i) in preview.changes" :key="i" class="border-l-2 border-amber-500/50 pl-3 text-sm">
                                     <div class="font-medium text-slate-200">{{ c.label }}</div>
@@ -235,11 +235,11 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                 <!-- Action bar -->
                 <div class="grid gap-2 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-4 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6">
                     <Link :href="route('smartolt.port-onus', [olt.id, slot, port])" class="block w-full sm:w-auto">
-                        <SecondaryButton type="button" class="w-full sm:w-auto">Batal</SecondaryButton>
+                        <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                     </Link>
                     <PrimaryButton class="w-full sm:w-auto" :disabled="form.processing" @click="apply">
                         <Check class="mr-2 h-4 w-4" />
-                        Apply ke OLT (CLI)
+                        {{ $t('configonu.apply') }}
                     </PrimaryButton>
                 </div>
             </div>

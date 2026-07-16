@@ -98,7 +98,7 @@ onUnmounted(() => {
                 <button
                     type="button"
                     class="-mr-1 -mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md opacity-70 transition hover:bg-white/10 hover:opacity-100"
-                    aria-label="Tutup notifikasi"
+                    :aria-label="$t('shell.close_notification')"
                     @click="remove(toast.id)"
                 >
                     <X class="h-4 w-4" />

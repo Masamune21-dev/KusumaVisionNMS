@@ -2,7 +2,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import CDataOltForm from './Partials/CDataOltForm.vue';
 import { Head } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { computed } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     defaults: {
@@ -11,7 +14,7 @@ const props = defineProps({
     },
 });
 
-const title = computed(() => (props.defaults.family === 'hioso' ? 'Tambah OLT HiOSO' : 'Tambah OLT C-Data'));
+const title = computed(() => (props.defaults.family === 'hioso' ? t('cdataform.create_hioso') : t('cdataform.create_cdata')));
 </script>
 
 <template>
@@ -26,7 +29,7 @@ const title = computed(() => (props.defaults.family === 'hioso' ? 'Tambah OLT Hi
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-                <CDataOltForm :defaults="defaults" submit-label="Simpan OLT" />
+                <CDataOltForm :defaults="defaults" :submit-label="$t('oltform.submit_create')" />
             </div>
         </div>
     </AuthenticatedLayout>

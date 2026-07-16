@@ -64,7 +64,7 @@ const statusClass = (value) => {
     if (['online', 'normal', 'berhasil', 'success', 'executed', 'completed'].includes(v)) {
         return 'border-emerald-500/30 bg-emerald-500/15 text-emerald-300';
     }
-    if (['warning', 'minor', 'aktif', 'dying gasp'].includes(v)) {
+    if (['warning', 'minor', 'aktif', 'active', 'dying gasp'].includes(v)) {
         return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
     }
     if (['offline', 'critical', 'gagal', 'failed', 'error', 'major', 'los'].includes(v)) {
@@ -85,12 +85,12 @@ const rxClass = (level) => {
 </script>
 
 <template>
-    <Head title="Report" />
+    <Head :title="$t('reports.title')" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">Report</h2>
+                <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ $t('reports.title') }}</h2>
                 <div class="flex gap-2">
                     <a :href="exportUrl('csv')">
                         <SecondaryButton class="w-full sm:w-auto">
@@ -109,16 +109,16 @@ const rxClass = (level) => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
                 <!-- Filter bar -->
-                <FilterCard title="Filter Laporan" :icon="SlidersHorizontal">
+                <FilterCard :title="$t('reports.filter_title')" :icon="SlidersHorizontal">
                     <div class="flex flex-wrap items-center gap-2">
-                        <select id="type" v-model="state.type" class="kv-filter-control w-full sm:w-auto" title="Jenis laporan">
+                        <select id="type" v-model="state.type" class="kv-filter-control w-full sm:w-auto" :title="$t('reports.filter_type')">
                             <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                        <select v-if="state.type === 'alarm' || state.type === 'provisioning'" id="range" v-model="state.range" class="kv-filter-control w-full sm:w-auto" title="Rentang waktu">
+                        <select v-if="state.type === 'alarm' || state.type === 'provisioning'" id="range" v-model="state.range" class="kv-filter-control w-full sm:w-auto" :title="$t('reports.filter_range')">
                             <option v-for="opt in rangeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                         <select id="olt" v-model="state.olt_id" class="kv-filter-control w-full sm:w-auto" title="OLT">
-                            <option value="">Semua OLT</option>
+                            <option value="">{{ $t('reports.all_olt') }}</option>
                             <option v-for="opt in oltOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                         <select
@@ -128,17 +128,17 @@ const rxClass = (level) => {
                             class="kv-filter-control w-full sm:w-auto"
                             title="PON port"
                         >
-                            <option value="">{{ state.olt_id ? 'Semua Port' : 'Pilih OLT dulu' }}</option>
+                            <option value="">{{ state.olt_id ? $t('reports.all_port') : $t('reports.pick_olt_first') }}</option>
                             <option v-for="opt in ponPortOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
-                        <select v-if="state.type === 'onu'" id="rx_status" v-model="state.rx_status" class="kv-filter-control w-full sm:w-auto" title="Redaman RX">
-                            <option value="">Semua Redaman</option>
+                        <select v-if="state.type === 'onu'" id="rx_status" v-model="state.rx_status" class="kv-filter-control w-full sm:w-auto" :title="$t('reports.rx_title')">
+                            <option value="">{{ $t('reports.all_rx') }}</option>
                             <option value="normal">Normal (&ge; -25 dBm)</option>
                             <option value="warning">Warning (&lt; -25 dBm)</option>
                             <option value="critical">Critical (&lt; -28 dBm)</option>
                         </select>
                         <select v-if="(report.status_options?.length ?? 0) > 0" id="status" v-model="state.status" class="kv-filter-control w-full sm:w-auto" title="Status">
-                            <option value="">Semua Status</option>
+                            <option value="">{{ $t('reports.all_status') }}</option>
                             <option v-for="opt in report.status_options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                         </select>
                     </div>
@@ -160,12 +160,12 @@ const rxClass = (level) => {
                         </div>
                         <div>
                             <h3 class="text-base font-semibold text-white">{{ report.title }}</h3>
-                            <p class="mt-0.5 text-xs text-slate-500">{{ report.rows.length }} baris data.</p>
+                            <p class="mt-0.5 text-xs text-slate-500">{{ $t('reports.rows_count', { n: report.rows.length }) }}</p>
                         </div>
                     </div>
 
                     <div v-if="report.rows.length === 0" class="px-6 py-12 text-center">
-                        <p class="text-sm text-slate-500">Tidak ada data untuk filter ini.</p>
+                        <p class="text-sm text-slate-500">{{ $t('reports.no_data') }}</p>
                     </div>
 
                     <template v-else>

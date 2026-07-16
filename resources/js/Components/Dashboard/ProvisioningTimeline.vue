@@ -35,10 +35,10 @@ const countColorMap = {
                 <span class="kv-circle-purple">
                     <Cog class="h-5 w-5" />
                 </span>
-                <h3 class="text-base font-semibold text-white">Pekerjaan Provisioning</h3>
+                <h3 class="text-base font-semibold text-white">{{ $t('dashboard.provisioning_jobs') }}</h3>
             </div>
             <Link :href="route('smartolt.index')" class="text-xs font-medium text-cyan-400 hover:text-cyan-300">
-                Lihat Semua &rsaquo;
+                {{ $t('dashboard.view_all') }} &rsaquo;
             </Link>
         </div>
 
@@ -52,8 +52,8 @@ const countColorMap = {
                     <component :is="iconMap[item.key]" class="h-4 w-4" />
                 </span>
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-semibold text-white">{{ item.label }}</p>
-                    <p class="truncate text-xs text-slate-500">{{ item.sublabel }}</p>
+                    <p class="truncate text-sm font-semibold text-white">{{ $t('dashboard.provisioning.' + item.key + '_label') }}</p>
+                    <p class="truncate text-xs text-slate-500">{{ $t('dashboard.provisioning.' + item.key + '_sublabel') }}</p>
                 </div>
                 <span class="text-lg font-bold tabular-nums" :class="countColorMap[item.key]">{{ item.count }}</span>
             </li>

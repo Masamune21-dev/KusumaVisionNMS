@@ -11,9 +11,9 @@ const props = defineProps({
 });
 
 const RANGES = [
-    { key: '24h', label: '24 jam' },
-    { key: '7d', label: '7 hari' },
-    { key: '30d', label: '30 hari' },
+    { key: '24h', labelKey: 'shell.rx_range_24h' },
+    { key: '7d', labelKey: 'shell.rx_range_7d' },
+    { key: '30d', labelKey: 'shell.rx_range_30d' },
 ];
 
 const points = computed(() =>
@@ -106,7 +106,7 @@ const fmt = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(2)} dBm
                     :class="r.key === range ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:text-white'"
                     @click="setRange(r.key)"
                 >
-                    {{ r.label }}
+                    {{ $t(r.labelKey) }}
                 </button>
             </div>
         </div>
@@ -115,26 +115,26 @@ const fmt = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(2)} dBm
             <template v-if="hasData">
                 <div class="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div class="rounded-lg bg-slate-900/40 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wider text-slate-500">Terakhir</p>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500">{{ $t('shell.rx_last') }}</p>
                         <p class="text-sm font-semibold text-white tabular-nums">{{ fmt(stats.last) }}</p>
                     </div>
                     <div class="rounded-lg bg-slate-900/40 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wider text-slate-500">Rata-rata</p>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500">{{ $t('shell.rx_avg') }}</p>
                         <p class="text-sm font-semibold text-slate-200 tabular-nums">{{ fmt(stats.avg) }}</p>
                     </div>
                     <div class="rounded-lg bg-slate-900/40 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wider text-slate-500">Tertinggi</p>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500">{{ $t('shell.rx_max') }}</p>
                         <p class="text-sm font-semibold text-emerald-300 tabular-nums">{{ fmt(stats.max) }}</p>
                     </div>
                     <div class="rounded-lg bg-slate-900/40 px-3 py-2">
-                        <p class="text-[10px] uppercase tracking-wider text-slate-500">Terendah</p>
+                        <p class="text-[10px] uppercase tracking-wider text-slate-500">{{ $t('shell.rx_min') }}</p>
                         <p class="text-sm font-semibold text-amber-300 tabular-nums">{{ fmt(stats.min) }}</p>
                     </div>
                 </div>
                 <VueApexCharts type="area" height="240" :options="chartOptions" :series="series" />
             </template>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
-                Belum ada riwayat RX pada rentang ini. Tunggu siklus polling RX berikutnya.
+                {{ $t('shell.rx_empty') }}
             </div>
         </div>
     </div>

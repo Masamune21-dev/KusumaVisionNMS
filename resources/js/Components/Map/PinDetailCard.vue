@@ -10,6 +10,9 @@ import { rxBadgeClass } from '@/Composables/useRxLevel';
 import { Link, router, useForm } from '@inertiajs/vue3';
 import { ExternalLink, Info, MapPin, Pencil, Power, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     pin: { type: Object, required: true },
@@ -51,8 +54,8 @@ const submitRename = () => {
 // --- reboot ---
 const rebootOnu = async () => {
     const ok = await confirm({
-        title: 'Reboot ONU',
-        message: `Reboot ${props.pin.interface}? ONU akan restart 30-60 detik.`,
+        title: t('portonus.act_reboot'),
+        message: t('portonus.reboot_msg', { interface: props.pin.interface }),
         confirmLabel: 'Reboot',
         variant: 'danger',
     });
@@ -68,9 +71,9 @@ const rebootOnu = async () => {
 // --- hapus pin ---
 const deletePin = async () => {
     const ok = await confirm({
-        title: 'Hapus pin',
-        message: 'Hapus pin ONU ini dari peta? ONU di OLT tidak terpengaruh.',
-        confirmLabel: 'Hapus',
+        title: t('map.delete_title'),
+        message: t('map.delete_msg'),
+        confirmLabel: t('common.delete'),
         variant: 'danger',
     });
     if (!ok) return;
@@ -88,10 +91,10 @@ const deletePin = async () => {
         <!-- Header -->
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <h3 class="truncate text-sm font-semibold text-white">{{ pin.customer_name || 'ONU tanpa nama' }}</h3>
+                <h3 class="truncate text-sm font-semibold text-white">{{ pin.customer_name || $t('map.onu_unnamed') }}</h3>
                 <p class="mt-0.5 truncate text-[11px] text-slate-400">{{ pin.interface }} · {{ pin.olt_name }}</p>
             </div>
-            <button type="button" class="-mr-1 -mt-1 rounded-lg p-1 text-slate-400 transition hover:bg-white/10 hover:text-white" title="Tutup" @click="emit('close')">
+            <button type="button" class="-mr-1 -mt-1 rounded-lg p-1 text-slate-400 transition hover:bg-white/10 hover:text-white" :title="$t('common.close')" @click="emit('close')">
                 <X class="h-4 w-4" />
             </button>
         </div>
@@ -100,33 +103,33 @@ const deletePin = async () => {
         <div class="flex flex-wrap items-center gap-1.5">
             <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="pin.online ? 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' : 'bg-slate-800/60 text-slate-400 ring-1 ring-slate-500/30'">
                 <component :is="pin.online ? Wifi : WifiOff" class="h-3 w-3" />
-                {{ pin.online ? 'Online' : 'Offline' }}
+                {{ pin.online ? $t('common.online') : $t('common.offline') }}
             </span>
             <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="rxBadgeClass(pin.rx_power_dbm)">
                 RX {{ pin.rx_power_label || '—' }}
             </span>
-            <span v-if="!pin.has_live" class="text-[11px] text-amber-400">tidak ada di cache OLT</span>
+            <span v-if="!pin.has_live" class="text-[11px] text-amber-400">{{ $t('map.not_in_cache') }}</span>
         </div>
 
         <!-- Detail -->
         <dl class="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-            <dt class="text-slate-500">Serial</dt>
+            <dt class="text-slate-500">{{ $t('common.serial') }}</dt>
             <dd class="col-span-2 truncate text-slate-200">{{ pin.serial_number || '—' }}</dd>
-            <dt class="text-slate-500">Slot/Port/ONU</dt>
+            <dt class="text-slate-500">{{ $t('map.slot_port_onu') }}</dt>
             <dd class="col-span-2 text-slate-200">{{ pin.slot }}/{{ pin.port }}/{{ pin.onu_id }}</dd>
             <template v-if="pin.address">
-                <dt class="text-slate-500">Alamat</dt>
+                <dt class="text-slate-500">{{ $t('map.address') }}</dt>
                 <dd class="col-span-2 text-slate-200">{{ pin.address }}</dd>
             </template>
             <template v-if="pin.phone">
-                <dt class="text-slate-500">No. HP</dt>
+                <dt class="text-slate-500">{{ $t('map.phone') }}</dt>
                 <dd class="col-span-2 text-slate-200">{{ pin.phone }}</dd>
             </template>
             <template v-if="pin.notes">
-                <dt class="text-slate-500">Catatan</dt>
+                <dt class="text-slate-500">{{ $t('map.notes') }}</dt>
                 <dd class="col-span-2 text-slate-200">{{ pin.notes }}</dd>
             </template>
-            <dt class="text-slate-500">Koordinat</dt>
+            <dt class="text-slate-500">{{ $t('map.coords') }}</dt>
             <dd class="col-span-2 text-slate-400">{{ Number(pin.latitude).toFixed(6) }}, {{ Number(pin.longitude).toFixed(6) }}</dd>
         </dl>
 
@@ -140,7 +143,7 @@ const deletePin = async () => {
                     :disabled="busy"
                     @click="openRename"
                 >
-                    <Pencil class="h-4 w-4" /> Edit Nama
+                    <Pencil class="h-4 w-4" /> {{ $t('map.edit_name') }}
                 </button>
                 <button
                     v-if="caps.supports_reboot"
@@ -156,30 +159,30 @@ const deletePin = async () => {
                     :href="route('smartolt.onu.detail', [pin.snmp_olt_id, pin.slot, pin.port, pin.onu_id])"
                     class="kv-action-btn"
                 >
-                    <Info class="h-4 w-4" /> Detail ONU
+                    <Info class="h-4 w-4" /> {{ $t('map.onu_detail') }}
                 </Link>
                 <Link :href="portOnuHref" class="kv-action-btn">
-                    <ExternalLink class="h-4 w-4" /> Port
+                    <ExternalLink class="h-4 w-4" /> {{ $t('common.port') }}
                 </Link>
                 <a :href="googleHref" target="_blank" rel="noopener" class="kv-action-btn">
                     <MapPin class="h-4 w-4" /> Maps
                 </a>
             </div>
             <button type="button" class="kv-action-btn kv-action-btn--danger w-full" :disabled="busy" @click="deletePin">
-                <Trash2 class="h-4 w-4" /> Hapus Pin
+                <Trash2 class="h-4 w-4" /> {{ $t('map.delete_pin') }}
             </button>
         </div>
 
         <!-- Modal ganti nama -->
         <Modal :show="renameOpen" max-width="md" @close="renameOpen = false">
             <div class="p-6">
-                <h3 class="mb-4 text-lg font-semibold text-white">Ganti Nama ONU</h3>
-                <InputLabel value="Nama pelanggan" />
-                <TextInput v-model="renameForm.name" type="text" class="mt-1 w-full" placeholder="Nama / deskripsi ONU" @keyup.enter="submitRename" />
-                <p class="mt-1 text-xs text-slate-500">Ditulis langsung ke OLT ({{ pin.olt_cdata ? 'C-Data CLI' : 'ZTE SNMP' }}).</p>
+                <h3 class="mb-4 text-lg font-semibold text-white">{{ $t('map.rename_title') }}</h3>
+                <InputLabel :value="$t('map.rename_label')" />
+                <TextInput v-model="renameForm.name" type="text" class="mt-1 w-full" :placeholder="$t('map.rename_placeholder')" @keyup.enter="submitRename" />
+                <p class="mt-1 text-xs text-slate-500">{{ $t('map.rename_hint', { target: pin.olt_cdata ? 'C-Data CLI' : 'ZTE SNMP' }) }}</p>
                 <div class="mt-6 flex justify-end gap-3">
-                    <SecondaryButton @click="renameOpen = false">Batal</SecondaryButton>
-                    <PrimaryButton :disabled="renameForm.processing" @click="submitRename">Simpan</PrimaryButton>
+                    <SecondaryButton @click="renameOpen = false">{{ $t('common.cancel') }}</SecondaryButton>
+                    <PrimaryButton :disabled="renameForm.processing" @click="submitRename">{{ $t('common.save') }}</PrimaryButton>
                 </div>
             </div>
         </Modal>

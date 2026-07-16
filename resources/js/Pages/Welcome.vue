@@ -36,6 +36,7 @@ import {
 } from '@lucide/vue';
 import NumberFlow from '@number-flow/vue';
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
@@ -140,6 +141,8 @@ const vSpotlight = {
     },
 };
 
+const { t } = useI18n({ useScope: 'global' });
+
 const mobileOpen = ref(false);
 const scrolled = ref(false);
 const activeShot = ref('dashboard');
@@ -153,156 +156,67 @@ const GALLERY_MS = 5000;
 // atau ketika drawer mobile dibuka — di puncak halaman ia transparan penuh.
 const navSolid = computed(() => scrolled.value || mobileOpen.value);
 
-const navLinks = [
-    { label: 'Beranda', href: '#beranda' },
-    { label: 'Fitur', href: '#fitur' },
-    { label: 'Cara Kerja', href: '#cara-kerja' },
-    { label: 'Tampilan', href: '#tampilan' },
-    { label: 'Tech Stack', href: '#tech' },
-    { label: 'Kontak', href: '#kontak' },
-];
+// Semua teks marketing di lang/{id,en}.json namespace `welcome.*` — array di bawah
+// dirakit sebagai computed agar reaktif terhadap switch bahasa.
+const navLinks = computed(() => [
+    { label: t('welcome.nav_home'), href: '#beranda' },
+    { label: t('welcome.nav_features'), href: '#fitur' },
+    { label: t('welcome.nav_how'), href: '#cara-kerja' },
+    { label: t('welcome.nav_screens'), href: '#tampilan' },
+    { label: t('welcome.nav_tech'), href: '#tech' },
+    { label: t('welcome.nav_contact'), href: '#kontak' },
+]);
 
-const heroPills = [
+const heroPills = computed(() => [
     { icon: Cable, label: 'ZTE C300/C320/C600' },
     { icon: Router, label: 'C-Data EPON/GPON' },
     { icon: RadioTower, label: 'HiOSO / V-Sol EPON' },
     { icon: Wifi, label: 'ONU Provisioning' },
-    { icon: MapPin, label: 'Peta ONU' },
+    { icon: MapPin, label: t('welcome.pill_map') },
     { icon: Terminal, label: 'Web Telnet' },
     { icon: BellRing, label: 'Alarm Engine' },
-    { icon: Smartphone, label: 'Aplikasi Android' },
-];
+    { icon: Smartphone, label: t('welcome.pill_android') },
+]);
 
+// Label & sub tiap stat dirender via $t('welcome.stat{i}_label/_sub') di template.
 const stats = [
-    { value: 3, suffix: '', label: 'Vendor OLT Didukung', sub: 'ZTE · C-Data · HiOSO', icon: Router, circle: 'kv-circle-sky' },
-    { value: 14, suffix: '+', label: 'Modul Operasional', sub: 'Monitoring → provisioning', icon: Boxes, circle: 'kv-circle-cyan' },
-    { value: 24, suffix: '/7', label: 'Monitoring Jaringan', sub: 'Alarm · Telegram · Push FCM', icon: Activity, circle: 'kv-circle-emerald' },
-    { value: 100, suffix: '%', label: 'Web + Aplikasi Android', sub: 'Dashboard web & app mobile', icon: MonitorPlay, circle: 'kv-circle-purple' },
+    { value: 3, suffix: '', icon: Router, circle: 'kv-circle-sky' },
+    { value: 14, suffix: '+', icon: Boxes, circle: 'kv-circle-cyan' },
+    { value: 24, suffix: '/7', icon: Activity, circle: 'kv-circle-emerald' },
+    { value: 100, suffix: '%', icon: MonitorPlay, circle: 'kv-circle-purple' },
 ];
 const displayStats = ref(stats.map((s) => ({ ...s, current: 0 })));
 
-const steps = [
-    {
-        n: '01',
-        icon: Server,
-        title: 'Hubungkan OLT',
-        body: 'Daftarkan OLT ZTE (IP, SNMP community, kredensial CLI) ke inventaris terpusat dengan deteksi kapabilitas otomatis.',
-    },
-    {
-        n: '02',
-        icon: Radar,
-        title: 'Discovery & Polling',
-        body: 'Engine Go mem-polling system info, status port GPON, dan tabel ONU secara terjadwal — tersimpan sebagai snapshot per OLT.',
-    },
-    {
-        n: '03',
-        icon: Workflow,
-        title: 'Provisioning ONU',
-        body: 'Generate skrip CLI ZTE (register, T-CONT, VLAN, PPPoE/DHCP/Static, TR-069) lalu eksekusi langsung via Telnet dari browser.',
-    },
-    {
-        n: '04',
-        icon: BellRing,
-        title: 'Monitor & Alarm',
-        body: 'Pantau RX power & status ONU, terima alarm penting via Telegram, lalu unduh laporan utilisasi & optik per rentang waktu.',
-    },
-];
+const steps = computed(() => [
+    { n: '01', icon: Server, title: t('welcome.step1_title'), body: t('welcome.step1_body') },
+    { n: '02', icon: Radar, title: t('welcome.step2_title'), body: t('welcome.step2_body') },
+    { n: '03', icon: Workflow, title: t('welcome.step3_title'), body: t('welcome.step3_body') },
+    { n: '04', icon: BellRing, title: t('welcome.step4_title'), body: t('welcome.step4_body') },
+]);
 
-const features = [
-    {
-        icon: Router,
-        accent: 'kv-circle-cyan',
-        badge: 'Baru',
-        title: 'Multi-Vendor OLT',
-        body: 'Kelola OLT ZTE, C-Data (EPON & GPON), dan HiOSO / V-Sol EPON berdampingan dalam satu dashboard — monitoring ONU lintas-OLT, plus rename, reboot & delete ONU langsung dari dashboard.',
-    },
-    {
-        icon: MapPin,
-        accent: 'kv-circle-emerald',
-        badge: 'Baru',
-        title: 'Peta ONU',
-        body: 'Petakan sebaran pelanggan/ONU lintas OLT di peta interaktif — tambah pin dari klik peta atau link Google Maps, lengkap dengan reboot & rename ONU langsung dari titik pelanggan.',
-    },
-    {
-        icon: Smartphone,
-        accent: 'kv-circle-purple',
-        badge: 'Baru',
-        title: 'Aplikasi Android',
-        body: 'Aplikasi mobile Android untuk pantau OLT & ONU, registrasi, reboot/rename, sampai push notification alarm real-time via Firebase — NOC tetap terhubung dari mana saja.',
-    },
-    {
-        icon: Database,
-        accent: 'kv-circle-sky',
-        title: 'OLT Inventory',
-        body: 'Kelola seluruh perangkat OLT, kartu, dan port GPON dalam satu inventaris terpusat dengan capability detection.',
-    },
-    {
-        icon: Wifi,
-        accent: 'kv-circle-emerald',
-        title: 'ONU Monitoring',
-        body: 'Pantau seluruh ONU lintas OLT & port dalam satu halaman — status online/LOS/dying-gasp, RX optical power, dengan filter cepat per OLT, port, dan status.',
-    },
-    {
-        icon: Workflow,
-        accent: 'kv-circle-purple',
-        title: 'Provisioning ONU',
-        body: 'Generate CLI script provisioning ZTE (register, T-CONT, VLAN, PPPoE/DHCP/Static/Bridge, TR-069) lalu eksekusi via Telnet — plus TR-069 massal per-port & salin konfigurasi ONU antar port.',
-    },
-    {
-        icon: Gauge,
-        accent: 'kv-circle-cyan',
-        title: 'SNMP Polling',
-        body: 'Polling terjadwal untuk system info, port status, dan ONU table — semua disimpan di snapshot per OLT.',
-    },
-    {
-        icon: BellRing,
-        accent: 'kv-circle-red',
-        title: 'Alarm Engine',
-        body: 'Korelasi alarm berdasarkan signature dengan severity Critical/Major/Minor/Warning dan tracking auto-clear.',
-    },
-    {
-        icon: Cog,
-        accent: 'kv-circle-amber',
-        title: 'Remote ONU Management',
-        body: 'Reboot, enable/disable, dan kontrol jarak jauh ONU langsung dari dashboard tanpa SSH ke OLT.',
-    },
-    {
-        icon: Terminal,
-        accent: 'kv-circle-purple',
-        title: 'Telnet via Browser',
-        body: 'Akses CLI OLT langsung dari browser lewat terminal xterm.js — jendela bisa digeser, minimize/maximize, auto-login, tanpa aplikasi telnet terpisah.',
-    },
-    {
-        icon: Search,
-        accent: 'kv-circle-sky',
-        title: 'Global Search',
-        body: 'Cari OLT atau ONU instan berdasarkan serial number, nama pelanggan, atau interface — langsung lompat ke port terkait.',
-    },
-    {
-        icon: FileBarChart,
-        accent: 'kv-circle-sky',
-        title: 'Reports & Analytics',
-        body: 'Laporan statistik jaringan — utilisasi port, RX optical power (warning/critical), dan status OLT — siap diunduh per OLT maupun rentang waktu.',
-    },
-    {
-        icon: Send,
-        accent: 'kv-circle-cyan',
-        title: 'Notifikasi Telegram & Push',
-        body: 'Alarm penting dikirim ke grup/chat Telegram & push notification ke aplikasi Android, plus bot interaktif (menu tombol): cek status OLT & ONU, cari pelanggan, sampai refresh OLT dari mana saja.',
-    },
-    {
-        icon: ScrollText,
-        accent: 'kv-circle-emerald',
-        title: 'Audit Logs',
-        body: 'Jejak audit tak terhapus untuk setiap perubahan konfigurasi, login, dan akses telnet — lengkap dengan aktor, waktu, dan diff lama→baru.',
-    },
-    {
-        icon: ShieldCheck,
-        accent: 'kv-circle-amber',
-        title: 'Role-based & Multi-Tenant',
-        body: 'Pemisahan hak akses admin, operator NOC, dan partner — partner hanya melihat & mengelola OLT privat miliknya; fitur sensitif seperti audit log & pengaturan sistem tetap khusus admin.',
-    },
+const FEATURE_DEFS = [
+    { icon: Router, accent: 'kv-circle-cyan', badge: true, key: 'multivendor' },
+    { icon: MapPin, accent: 'kv-circle-emerald', badge: true, key: 'map' },
+    { icon: Smartphone, accent: 'kv-circle-purple', badge: true, key: 'android' },
+    { icon: Database, accent: 'kv-circle-sky', key: 'inventory' },
+    { icon: Wifi, accent: 'kv-circle-emerald', key: 'monitoring' },
+    { icon: Workflow, accent: 'kv-circle-purple', key: 'provisioning' },
+    { icon: Gauge, accent: 'kv-circle-cyan', key: 'polling' },
+    { icon: BellRing, accent: 'kv-circle-red', key: 'alarm' },
+    { icon: Cog, accent: 'kv-circle-amber', key: 'remote' },
+    { icon: Terminal, accent: 'kv-circle-purple', key: 'telnet' },
+    { icon: Search, accent: 'kv-circle-sky', key: 'search' },
+    { icon: FileBarChart, accent: 'kv-circle-sky', key: 'reports' },
+    { icon: Send, accent: 'kv-circle-cyan', key: 'notif' },
+    { icon: ScrollText, accent: 'kv-circle-emerald', key: 'audit' },
+    { icon: ShieldCheck, accent: 'kv-circle-amber', key: 'rbac' },
 ];
+const features = computed(() => FEATURE_DEFS.map((def) => ({
+    ...def,
+    badge: def.badge ? t('welcome.badge_new') : null,
+    title: t(`welcome.f_${def.key}_title`),
+    body: t(`welcome.f_${def.key}_body`),
+})));
 
 const benefits = [
     { icon: MonitorPlay, label: 'Centralized Monitoring' },
@@ -313,19 +227,19 @@ const benefits = [
 ];
 
 // Kapabilitas untuk marquee berjalan (infinite scroll antar-section)
-const marqueeItems = [
+const marqueeItems = computed(() => [
     'Multi-Vendor OLT',
     'C-Data EPON/GPON',
     'HiOSO / V-Sol EPON',
     'GPON Monitoring',
     'SNMP Polling',
     'ONU Provisioning',
-    'TR-069 Massal',
+    t('welcome.marquee_tr069'),
     'Alarm Engine',
     'Web Telnet',
     'RX Optical Power',
-    'Peta ONU',
-    'Aplikasi Android',
+    t('welcome.marquee_map'),
+    t('welcome.marquee_android'),
     'Push Notification',
     'Remote ONU',
     'Telegram Alerts',
@@ -333,7 +247,7 @@ const marqueeItems = [
     'Role-based Access',
     'Reports & Analytics',
     'Global Search',
-];
+]);
 
 const techStack = [
     { name: 'Laravel 12', sub: 'PHP Framework', logo: '/img/tech/laravel.svg', glow: 'rgba(239, 68, 68, 0.25)' },
@@ -343,25 +257,26 @@ const techStack = [
     { name: 'PostgreSQL', sub: 'Database', logo: '/img/tech/postgresql.svg', glow: 'rgba(110, 168, 249, 0.25)' },
     { name: 'Redis', sub: 'Cache & Queue', logo: '/img/tech/redis.svg', glow: 'rgba(239, 68, 68, 0.25)' },
     { name: 'Golang', sub: 'Polling Engine', logo: '/img/tech/go.svg', glow: 'rgba(34, 211, 238, 0.25)' },
-    { name: 'Flutter', sub: 'Aplikasi Android', logo: '/img/tech/flutter.svg', glow: 'rgba(71, 197, 251, 0.25)' },
+    { name: 'Flutter', sub: null, logo: '/img/tech/flutter.svg', glow: 'rgba(71, 197, 251, 0.25)' }, // sub via $t('welcome.tech_flutter_sub')
 ];
 
-const modules = [
-    { icon: LayoutDashboard, title: 'Dashboard', sub: 'Tampilan ringkas seluruh jaringan FTTH' },
-    { icon: Server, title: 'OLT Inventory', sub: 'Detail perangkat & kartu line card' },
-    { icon: Router, title: 'OLT C-Data & HiOSO', sub: 'Monitoring EPON/GPON non-ZTE' },
-    { icon: BellRing, title: 'Alarm Center', sub: 'Pusat notifikasi & histori alarm' },
-    { icon: Workflow, title: 'Provisioning', sub: 'Wizard registrasi ONU otomatis' },
-    { icon: Radar, title: 'ONU Monitoring', sub: 'Pantau ONU lintas OLT & port' },
-    { icon: MapPin, title: 'Peta ONU', sub: 'Sebaran pelanggan di peta interaktif' },
-    { icon: Terminal, title: 'Telnet Console', sub: 'CLI OLT langsung dari browser' },
-    { icon: Database, title: 'Profiles', sub: 'Manajemen ONU type, T-CONT, VLAN' },
-    { icon: Smartphone, title: 'Aplikasi Android', sub: 'Pantau & kelola dari ponsel + push FCM' },
-    { icon: FileBarChart, title: 'Reports', sub: 'Laporan statistik dan utilisasi' },
-];
+const modules = computed(() => [
+    { icon: LayoutDashboard, title: 'Dashboard', sub: t('welcome.m_dashboard_sub') },
+    { icon: Server, title: 'OLT Inventory', sub: t('welcome.m_inventory_sub') },
+    { icon: Router, title: 'OLT C-Data & HiOSO', sub: t('welcome.m_nonzte_sub') },
+    { icon: BellRing, title: 'Alarm Center', sub: t('welcome.m_alarm_sub') },
+    { icon: Workflow, title: 'Provisioning', sub: t('welcome.m_prov_sub') },
+    { icon: Radar, title: 'ONU Monitoring', sub: t('welcome.m_monitoring_sub') },
+    { icon: MapPin, title: t('welcome.m_map_title'), sub: t('welcome.m_map_sub') },
+    { icon: Terminal, title: 'Telnet Console', sub: t('welcome.m_telnet_sub') },
+    { icon: Database, title: 'Profiles', sub: t('welcome.m_profiles_sub') },
+    { icon: Smartphone, title: t('welcome.m_android_title'), sub: t('welcome.m_android_sub') },
+    { icon: FileBarChart, title: 'Reports', sub: t('welcome.m_reports_sub') },
+]);
 
 // ?v= untuk cache-bust file yang ditimpa (nama sama, isi baru — Jul 2026).
 const SHOT_V = '?v=20260711';
+// label/desc/alt tiap screenshot dirender via $t('welcome.shot_{key}_label/_desc').
 const screenshots = [
     {
         key: 'dashboard',
@@ -396,42 +311,30 @@ const screenshots = [
     {
         key: 'portdetail',
         icon: Gauge,
-        label: 'Detail Port PON',
-        desc: 'Status, optik SFP & trafik port',
         src: '/img/portdetail.webp',
         ratio: '1920 / 1130',
         url: 'app.kusumavision.net/smartolt/1/port-detail',
-        alt: 'Detail port PON — status link, optik SFP, dan trafik',
     },
     {
         key: 'portonus',
         icon: Wifi,
-        label: 'ONU per Port',
-        desc: 'Daftar ONU satu port PON',
         src: '/img/portonus.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/1/ports/2/1/onus',
-        alt: 'Daftar ONU pada satu port PON beserta status dan aksinya',
     },
     {
         key: 'monitoring',
         icon: Radar,
-        label: 'ONU Monitoring',
-        desc: 'Pantau ONU lintas OLT',
         src: '/img/onumonitoring.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/onu-monitoring',
-        alt: 'ONU Monitoring — pantauan ONU lintas OLT dalam satu tabel',
     },
     {
         key: 'map',
         icon: MapPin,
-        label: 'Peta ONU',
-        desc: 'Sebaran pelanggan di peta',
         src: '/img/map.webp',
         ratio: '1920 / 913',
         url: 'app.kusumavision.net/map',
-        alt: 'Peta ONU — pin pelanggan tersebar di peta',
     },
     {
         key: 'unconfigured',
@@ -446,22 +349,16 @@ const screenshots = [
     {
         key: 'alarms',
         icon: BellRing,
-        label: 'Alarms',
-        desc: 'Riwayat & status alarm jaringan',
         src: '/img/alarms.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/alarms',
-        alt: 'Halaman alarm — riwayat alarm jaringan dan statusnya',
     },
     {
         key: 'reports',
         icon: FileBarChart,
-        label: 'Report',
-        desc: 'Laporan polling & kesehatan jaringan',
         src: '/img/reports.webp',
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/reports',
-        alt: 'Halaman report — laporan polling dan kesehatan jaringan',
     },
     {
         key: 'login',
@@ -504,17 +401,17 @@ const selectShot = (key) => {
     startGallery(); // reset timer ketika dipilih manual
 };
 
-const productLinks = [
+const productLinks = computed(() => [
     { label: 'Dashboard', href: '#beranda' },
-    { label: 'Fitur', href: '#fitur' },
-    { label: 'Tech Stack', href: '#tech' },
-    { label: 'Tampilan', href: '#tampilan' },
-];
-const companyLinks = [
-    { label: 'Tentang', href: '#' },
-    { label: 'Blog', href: '#' },
-    { label: 'Karier', href: '#' },
-];
+    { label: t('welcome.nav_features'), href: '#fitur' },
+    { label: t('welcome.nav_tech'), href: '#tech' },
+    { label: t('welcome.nav_screens'), href: '#tampilan' },
+]);
+const companyLinks = computed(() => [
+    { label: t('welcome.link_about'), href: '#' },
+    { label: t('welcome.link_blog'), href: '#' },
+    { label: t('welcome.link_careers'), href: '#' },
+]);
 
 /* ===== Animation engine: GSAP + ScrollTrigger + Lenis ===== */
 let lenis = null;
@@ -763,7 +660,7 @@ onBeforeUnmount(() => {
                             ZTE <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">OLT Management</span> &amp; Provisioning Platform
                         </h1>
                         <p class="reveal-hero mt-5 max-w-xl text-base leading-7 text-slate-400 sm:text-lg" style="animation-delay: 0.19s">
-                            Monitor, provisioning, dan manajemen OLT ZTE C300/C320/C600 — kini multi-vendor dengan C-Data & HiOSO — secara terpusat, lengkap dengan peta sebaran ONU dan aplikasi Android. Dibangun untuk operasional ISP Indonesia yang menuntut kecepatan dan akurasi.
+                            {{ $t('welcome.hero_desc') }}
                         </p>
 
                         <!-- Hero CTAs -->
@@ -775,7 +672,7 @@ onBeforeUnmount(() => {
                                 class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                             >
                                 <LayoutDashboard class="h-4 w-4" />
-                                Buka Dashboard
+                                {{ $t('welcome.open_dashboard') }}
                                 <ArrowRight class="h-4 w-4" />
                             </Link>
                             <template v-else>
@@ -795,7 +692,7 @@ onBeforeUnmount(() => {
                                 @click="scrollToHash($event, '#tampilan')"
                             >
                                 <Play class="h-4 w-4" />
-                                Lihat Tampilan
+                                {{ $t('welcome.see_screens') }}
                             </a>
                         </div>
 
@@ -880,7 +777,7 @@ onBeforeUnmount(() => {
                 <div ref="statsEl" class="mx-auto grid max-w-[1600px] grid-cols-2 gap-px overflow-hidden px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
                     <div
                         v-for="(s, i) in displayStats"
-                        :key="s.label"
+                        :key="i"
                         v-spotlight
                         class="kv-spotlight group relative px-4 py-10 text-center transition-colors duration-300 hover:bg-white/[0.025] sm:px-6"
                         data-reveal
@@ -893,8 +790,8 @@ onBeforeUnmount(() => {
                             <NumberFlow :value="s.current" />
                             <span class="bg-gradient-to-r from-cyan-400 to-sky-500 bg-clip-text text-transparent">{{ s.suffix }}</span>
                         </div>
-                        <div class="mt-2 text-sm font-semibold text-slate-200">{{ s.label }}</div>
-                        <div class="mt-0.5 text-xs text-slate-500">{{ s.sub }}</div>
+                        <div class="mt-2 text-sm font-semibold text-slate-200">{{ $t(`welcome.stat${i}_label`) }}</div>
+                        <div class="mt-0.5 text-xs text-slate-500">{{ $t(`welcome.stat${i}_sub`) }}</div>
                         <div v-if="i < displayStats.length - 1" class="absolute inset-y-6 right-0 hidden w-px bg-white/10 lg:block" />
                     </div>
                 </div>
@@ -915,7 +812,7 @@ onBeforeUnmount(() => {
                                 <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Multi-Vendor Hardware</p>
                                 <h2 class="mt-2 text-2xl font-bold text-white sm:text-3xl">ZTE C-series + C-Data + HiOSO</h2>
                                 <p class="mt-3 max-w-xl text-sm text-slate-400">
-                                    Driver SNMP & CLI matang untuk ZTE C300, C320, dan C600 — kini diperluas ke OLT C-Data EPON (17409) & GPON (34592) serta HiOSO / V-Sol EPON (25355). Battle-tested di OLT produksi ISP Indonesia.
+                                    {{ $t('welcome.hw_desc') }}
                                 </p>
                                 <div class="mt-5 flex flex-wrap gap-2">
                                     <span class="kv-pill-info">ZTE C300</span>
@@ -959,9 +856,9 @@ onBeforeUnmount(() => {
             <!-- ===== Feature grid ===== -->
             <section id="fitur" class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl text-center" data-reveal>
-                    <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Fitur Utama</p>
-                    <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Semua yang Anda Butuhkan dalam Satu Platform</h2>
-                    <p class="mt-4 text-base text-slate-400">Dirancang khusus untuk operasional FTTH/GPON ISP Indonesia — dari monitoring hingga remote management.</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.features_eyebrow') }}</p>
+                    <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">{{ $t('welcome.features_title') }}</h2>
+                    <p class="mt-4 text-base text-slate-400">{{ $t('welcome.features_sub') }}</p>
                 </div>
 
                 <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -1005,9 +902,9 @@ onBeforeUnmount(() => {
             <section id="cara-kerja" class="border-y border-white/10 bg-slate-950">
                 <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
-                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Cara Kerja</p>
-                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dari Perangkat ke Operasional dalam 4 Langkah</h2>
-                        <p class="mt-4 text-base text-slate-400">Alur kerja yang sama dipakai tim NOC setiap hari — terhubung, ter-monitor, dan ter-provisioning tanpa lompat antar tools.</p>
+                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.how_eyebrow') }}</p>
+                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">{{ $t('welcome.how_title') }}</h2>
+                        <p class="mt-4 text-base text-slate-400">{{ $t('welcome.how_sub') }}</p>
                     </div>
 
                     <div class="relative mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1040,9 +937,9 @@ onBeforeUnmount(() => {
             <section id="tampilan" class="bg-slate-950">
                 <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
-                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tampilan Aplikasi</p>
-                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Lihat Langsung Antarmukanya</h2>
-                        <p class="mt-4 text-base text-slate-400">Dari dashboard hingga provisioning ONU — antarmuka bersih yang dirancang untuk kecepatan operasional NOC.</p>
+                        <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.gallery_eyebrow') }}</p>
+                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">{{ $t('welcome.gallery_title') }}</h2>
+                        <p class="mt-4 text-base text-slate-400">{{ $t('welcome.gallery_sub') }}</p>
                     </div>
 
                     <div
@@ -1054,7 +951,7 @@ onBeforeUnmount(() => {
                         <!-- Tab list -->
                         <div
                             role="tablist"
-                            aria-label="Pilih tampilan aplikasi"
+                            :aria-label="$t('welcome.gallery_aria')"
                             class="flex gap-3 overflow-x-auto pb-2 lg:flex-col lg:gap-2.5 lg:overflow-visible lg:pb-0"
                         >
                             <button
@@ -1078,8 +975,8 @@ onBeforeUnmount(() => {
                                     <component :is="shot.icon" class="h-5 w-5" />
                                 </span>
                                 <span class="min-w-0">
-                                    <span class="block text-sm font-semibold" :class="activeShot === shot.key ? 'text-white' : 'text-slate-200'">{{ shot.label }}</span>
-                                    <span class="block truncate text-xs text-slate-400">{{ shot.desc }}</span>
+                                    <span class="block text-sm font-semibold" :class="activeShot === shot.key ? 'text-white' : 'text-slate-200'">{{ $t(`welcome.shot_${shot.key}_label`) }}</span>
+                                    <span class="block truncate text-xs text-slate-400">{{ $t(`welcome.shot_${shot.key}_desc`) }}</span>
                                 </span>
                             </button>
                         </div>
@@ -1113,7 +1010,7 @@ onBeforeUnmount(() => {
                                         <img
                                             :key="activeShot"
                                             :src="currentShot.src"
-                                            :alt="currentShot.alt"
+                                            :alt="$t(`welcome.shot_${currentShot.key}_label`)"
                                             loading="lazy"
                                             decoding="async"
                                             class="absolute inset-0 h-full w-full object-contain"
@@ -1131,7 +1028,7 @@ onBeforeUnmount(() => {
                 <div class="mx-auto max-w-[1600px] px-4 py-16 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tech Stack</p>
-                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Dibangun dengan Teknologi Modern & Andal</h2>
+                        <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">{{ $t('welcome.tech_title') }}</h2>
                     </div>
 
                     <div class="mt-10 grid gap-5 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
@@ -1158,7 +1055,7 @@ onBeforeUnmount(() => {
                                 />
                             </div>
                             <p class="relative text-sm font-semibold text-white">{{ t.name }}</p>
-                            <p class="relative mt-1 text-[11px] text-slate-500">{{ t.sub }}</p>
+                            <p class="relative mt-1 text-[11px] text-slate-500">{{ t.sub ?? $t('welcome.tech_flutter_sub') }}</p>
                         </div>
                     </div>
                 </div>
@@ -1167,9 +1064,9 @@ onBeforeUnmount(() => {
             <!-- ===== Modul lengkap ===== -->
             <section id="modul" class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl text-center" data-reveal>
-                    <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Modul</p>
-                    <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">Modul Lengkap untuk Operasional FTTH</h2>
-                    <p class="mt-4 text-base text-slate-400">Setiap modul dirancang ringkas, dengan alur kerja yang terasa natural buat tim NOC.</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.modules_eyebrow') }}</p>
+                    <h2 class="mt-3 text-3xl font-bold text-white sm:text-4xl">{{ $t('welcome.modules_title') }}</h2>
+                    <p class="mt-4 text-base text-slate-400">{{ $t('welcome.modules_sub') }}</p>
                 </div>
 
                 <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1202,8 +1099,8 @@ onBeforeUnmount(() => {
 
                     <div class="relative flex flex-col items-center justify-between gap-6 md:flex-row md:gap-10">
                         <div class="text-center md:text-left">
-                            <h2 class="text-2xl font-bold text-white sm:text-3xl">Siap Mengelola Jaringan FTTH Anda Lebih Efisien?</h2>
-                            <p class="mt-2 text-sm text-slate-300 sm:text-base">Mulai monitoring OLT &amp; ONU dengan dashboard yang terpusat &amp; konsisten.</p>
+                            <h2 class="text-2xl font-bold text-white sm:text-3xl">{{ $t('welcome.cta_title') }}</h2>
+                            <p class="mt-2 text-sm text-slate-300 sm:text-base">{{ $t('welcome.cta_sub') }}</p>
                         </div>
                         <div class="flex flex-wrap items-center justify-center gap-3">
                             <Link
@@ -1222,7 +1119,7 @@ onBeforeUnmount(() => {
                                 class="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-900/60 px-6 py-3.5 text-sm font-semibold text-slate-100 backdrop-blur transition hover:border-white/25 hover:bg-slate-800/80"
                             >
                                 <Send class="h-4 w-4" />
-                                Hubungi Kami
+                                {{ $t('welcome.contact_us') }}
                             </a>
                         </div>
                     </div>
@@ -1243,12 +1140,12 @@ onBeforeUnmount(() => {
                             </div>
                         </div>
                         <p class="mt-4 max-w-sm text-sm leading-6 text-slate-400">
-                            Platform manajemen jaringan FTTH untuk ISP Indonesia. Dikembangkan dengan fokus operasional NOC yang cepat &amp; konsisten.
+                            {{ $t('welcome.footer_desc') }}
                         </p>
                     </div>
 
                     <div>
-                        <h4 class="text-sm font-semibold text-white">Produk</h4>
+                        <h4 class="text-sm font-semibold text-white">{{ $t('welcome.footer_product') }}</h4>
                         <ul class="mt-4 space-y-2.5 text-sm">
                             <li v-for="l in productLinks" :key="l.label">
                                 <a :href="l.href" class="text-slate-400 transition-colors hover:text-cyan-400" @click="scrollToHash($event, l.href)">{{ l.label }}</a>
@@ -1257,7 +1154,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div>
-                        <h4 class="text-sm font-semibold text-white">Perusahaan</h4>
+                        <h4 class="text-sm font-semibold text-white">{{ $t('welcome.footer_company') }}</h4>
                         <ul class="mt-4 space-y-2.5 text-sm">
                             <li v-for="l in companyLinks" :key="l.label">
                                 <a :href="l.href" class="text-slate-400 transition-colors hover:text-cyan-400">{{ l.label }}</a>
@@ -1266,7 +1163,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div>
-                        <h4 class="text-sm font-semibold text-white">Kontak</h4>
+                        <h4 class="text-sm font-semibold text-white">{{ $t('welcome.footer_contact') }}</h4>
                         <ul class="mt-4 space-y-2.5 text-sm text-slate-400">
                             <li class="flex items-start gap-2">
                                 <MapPin class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-400" />
@@ -1308,7 +1205,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row">
-                    <p>&copy; 2026 KusumaVision NMS &middot; Dibuat oleh Masamune</p>
+                    <p>{{ $t('welcome.footer_made') }}</p>
                     <p>ZTE OLT Management &amp; Provisioning Platform</p>
                 </div>
             </div>

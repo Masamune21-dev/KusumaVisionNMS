@@ -101,7 +101,7 @@ class OnuMapController extends Controller
 
         return redirect()
             ->route('map.index')
-            ->with('success', 'Pin ONU tersimpan di peta.');
+            ->with('success', __('flash.pin_saved'));
     }
 
     public function update(Request $request, OnuMapPin $pin): RedirectResponse
@@ -124,7 +124,7 @@ class OnuMapController extends Controller
 
         return redirect()
             ->route('map.index')
-            ->with('success', 'Pin ONU diperbarui.');
+            ->with('success', __('flash.pin_updated'));
     }
 
     public function destroy(OnuMapPin $pin): RedirectResponse
@@ -133,7 +133,7 @@ class OnuMapController extends Controller
 
         return redirect()
             ->route('map.index')
-            ->with('success', 'Pin ONU dihapus dari peta.');
+            ->with('success', __('flash.pin_deleted'));
     }
 
     /**
@@ -163,10 +163,10 @@ class OnuMapController extends Controller
 
             return $back->with(
                 $ok ? 'success' : 'error',
-                $ok ? 'Perintah reboot ONU terkirim. ONU restart ~30–60 detik.' : 'Reboot ONU selesai dengan indikasi error: '.$error,
+                $ok ? __('flash.reboot_sent') : __('flash.reboot_warn').$error,
             );
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Reboot ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_reboot_failed').$exception->getMessage());
         }
     }
 
@@ -186,12 +186,12 @@ class OnuMapController extends Controller
             if ($this->isHioso($olt)) {
                 $result = $hioso->setName($olt, $pin->port, $pin->onu_id, $name);
                 if (! ($result['ok'] ?? false)) {
-                    return $back->with('error', 'Ubah nama ONU gagal: '.($result['error'] ?? ''));
+                    return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
                 }
             } elseif ($this->isCdata($olt)) {
                 $result = $cdata->setDescription($olt, $this->ifaceKeyword($olt), $pin->slot, $pin->port, $pin->onu_id, $name);
                 if (! ($result['ok'] ?? false)) {
-                    return $back->with('error', 'Ubah nama ONU gagal: '.($result['error'] ?? ''));
+                    return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
                 }
             } else {
                 $ifIndex = $this->resolveOnuIfIndex($olt, $pin->slot, $pin->port, $pin->onu_id);
@@ -200,9 +200,9 @@ class OnuMapController extends Controller
 
             $this->mutateCachedOnuName($olt, $pin->slot, $pin->port, $pin->onu_id, $name !== '' ? $name : null);
 
-            return $back->with('success', $name !== '' ? 'Nama ONU berhasil diperbarui.' : 'Nama ONU berhasil dihapus.');
+            return $back->with('success', $name !== '' ? __('flash.onu_renamed') : __('flash.onu_name_cleared'));
         } catch (\Throwable $exception) {
-            return $back->with('error', 'Ubah nama ONU gagal: '.$exception->getMessage());
+            return $back->with('error', __('flash.onu_rename_failed').$exception->getMessage());
         }
     }
 
@@ -232,7 +232,7 @@ class OnuMapController extends Controller
         if ($coords === null) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Koordinat tidak ditemukan di link. Pastikan ini link lokasi Google Maps.',
+                'error' => __('flash.gmaps_no_coords'),
             ], 422);
         }
 

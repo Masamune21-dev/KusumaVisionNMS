@@ -30,11 +30,11 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Masuk — KusumaVision NMS" />
+        <Head :title="$t('auth.login.head_title')" />
 
         <div class="mb-6 text-center">
-            <h1 class="text-xl font-bold text-white">Selamat Datang Kembali</h1>
-            <p class="mt-1 text-sm text-slate-400">Masuk untuk mengakses NMS Dashboard.</p>
+            <h1 class="text-xl font-bold text-white">{{ $t('auth.login.welcome_title') }}</h1>
+            <p class="mt-1 text-sm text-slate-400">{{ $t('auth.login.welcome_subtitle') }}</p>
         </div>
 
         <div
@@ -47,7 +47,7 @@ const submit = () => {
 
         <form @submit.prevent="submit" class="space-y-4">
             <div>
-                <InputLabel for="email" value="Email" />
+                <InputLabel for="email" :value="$t('auth.login.email')" />
                 <div class="relative mt-1">
                     <Mail class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                     <TextInput
@@ -58,7 +58,7 @@ const submit = () => {
                         required
                         autofocus
                         autocomplete="username"
-                        placeholder="nama@perusahaan.com"
+                        :placeholder="$t('auth.login.email_placeholder')"
                     />
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.email" />
@@ -66,13 +66,13 @@ const submit = () => {
 
             <div>
                 <div class="flex items-center justify-between">
-                    <InputLabel for="password" value="Password" />
+                    <InputLabel for="password" :value="$t('auth.login.password')" />
                     <Link
                         v-if="canResetPassword"
                         :href="route('password.request')"
                         class="text-xs font-medium text-cyan-400 transition-colors hover:text-cyan-300"
                     >
-                        Lupa password?
+                        {{ $t('auth.login.forgot_password') }}
                     </Link>
                 </div>
                 <div class="relative mt-1">
@@ -91,7 +91,7 @@ const submit = () => {
                         class="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-[11px] font-semibold text-slate-400 transition-colors hover:text-cyan-400"
                         @click="showPassword = !showPassword"
                     >
-                        {{ showPassword ? 'Sembunyikan' : 'Tampilkan' }}
+                        {{ showPassword ? $t('auth.login.hide') : $t('auth.login.show') }}
                     </button>
                 </div>
                 <InputError class="mt-1.5" :message="form.errors.password" />
@@ -99,7 +99,7 @@ const submit = () => {
 
             <label class="flex cursor-pointer items-center gap-2.5 pt-1">
                 <Checkbox name="remember" v-model:checked="form.remember" />
-                <span class="text-sm text-slate-300">Ingat saya di perangkat ini</span>
+                <span class="text-sm text-slate-300">{{ $t('auth.login.remember_me') }}</span>
             </label>
 
             <button
@@ -109,16 +109,16 @@ const submit = () => {
             >
                 <Loader2 v-if="form.processing" class="h-4 w-4 animate-spin" />
                 <template v-else>
-                    Masuk
+                    {{ $t('auth.login.sign_in') }}
                     <ArrowRight class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </template>
             </button>
         </form>
 
         <div class="mt-6 border-t border-white/5 pt-4 text-center text-xs text-slate-500">
-            Butuh akses?
+            {{ $t('auth.login.need_access') }}
             <a href="mailto:noc@kusumavision.id" class="font-medium text-cyan-400 hover:text-cyan-300">
-                Hubungi admin
+                {{ $t('auth.login.contact_admin') }}
             </a>
         </div>
     </GuestLayout>

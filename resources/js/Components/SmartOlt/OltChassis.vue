@@ -3,6 +3,9 @@ import { formatDateTime } from '@/lib/datetime';
 import { Link } from '@inertiajs/vue3';
 import { Cpu } from '@lucide/vue';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     oltId: { type: [Number, String], required: true },
@@ -159,7 +162,7 @@ const ledsFor = (card) => {
             const oper = slotPorts[num];
             state = oper === undefined ? 'empty' : oper === 'up' ? 'up' : 'down';
             live = true;
-            const label = state === 'up' ? 'Aktif' : state === 'down' ? 'Nonaktif' : 'Tidak ada data';
+            const label = state === 'up' ? t('configonu.chassis_active') : state === 'down' ? t('configonu.chassis_inactive') : t('configonu.chassis_no_data');
             title = `${iface} — ${label}`;
         } else if (iface) {
             // Port uplink: status link real-time dari interface tersimpan (perlu Refresh Hardware).
@@ -167,7 +170,7 @@ const ledsFor = (card) => {
             state = link === 'up' ? 'up' : link === 'down' ? 'down' : 'unknown';
             live = true;
             const label =
-                state === 'up' ? 'Aktif' : state === 'down' ? 'Nonaktif' : 'Belum dipoll — klik Refresh Hardware';
+                state === 'up' ? t('configonu.chassis_active') : state === 'down' ? t('configonu.chassis_inactive') : t('configonu.chassis_not_polled');
             title = `${iface} — ${label}`;
         } else {
             // Kartu kontrol/power tanpa interface: tampilkan status kartu.
@@ -296,7 +299,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
         </div>
 
         <div v-if="sortedCards.length === 0" class="px-5 py-12 text-center text-sm text-slate-500">
-            Belum ada data hardware. Klik <span class="text-slate-300">Refresh Hardware</span> untuk memuat kartu &amp; port.
+            {{ $t('configonu.chassis_empty_before') }} <span class="text-slate-300">Refresh Hardware</span> {{ $t('configonu.chassis_empty_after') }}
         </div>
 
         <!-- Chassis frame -->
@@ -479,21 +482,19 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
             <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-400">
                     <span class="flex items-center gap-1.5">
-                        <span class="h-3 w-3 rounded bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]"></span> Aktif
+                        <span class="h-3 w-3 rounded bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]"></span> {{ $t('configonu.chassis_active') }}
                     </span>
                     <span class="flex items-center gap-1.5">
-                        <span class="h-3 w-3 rounded bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]"></span> Nonaktif
+                        <span class="h-3 w-3 rounded bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.7)]"></span> {{ $t('configonu.chassis_inactive') }}
                     </span>
                     <span class="flex items-center gap-1.5">
                         <span class="h-3 w-3 rounded bg-amber-400/60"></span> Standby
                     </span>
                     <span class="flex items-center gap-1.5">
-                        <span class="h-3 w-3 rounded bg-slate-700"></span> Kosong / belum dipoll
+                        <span class="h-3 w-3 rounded bg-slate-700"></span> {{ $t('configonu.chassis_empty_legend') }}
                     </span>
                 </div>
-                <p class="text-[11px] text-slate-500">
-                    Port GPON live dari SNMP; port uplink &amp; bar <span class="text-cyan-300">CPU</span>/<span class="text-sky-300">Mem</span> per board terisi setelah <span class="text-slate-400">Refresh Hardware</span>. Arahkan kursor ke board untuk detail processor; klik port untuk detail (trafik &amp; SFP).
-                </p>
+                <p class="text-[11px] text-slate-500" v-html="$t('configonu.chassis_note')"></p>
             </div>
         </div>
     </div>

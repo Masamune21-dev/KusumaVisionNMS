@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
     BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard,
     LifeBuoy, ListChecks, MapPin, PlugZap, Radar, Rocket, ScrollText, Send,
@@ -31,216 +32,54 @@ const ACCENTS = {
 };
 
 /*
- * Panduan penggunaan — konten data-driven supaya TOC & section sinkron.
- * Tiap section: id, icon, title, accent (kunci ACCENTS), badges?, intro,
- * ordered? (daftar bernomor), list[{ strong?, text }], tip?.
+ * Panduan penggunaan — struktur section (ikon/aksen/urutan) di sini; seluruh
+ * teks di lang/{id,en}.json namespace `panduan.*` dengan key flat per-section:
+ * `{id}_title`, `{id}_intro`, `{id}_tip` (bila tip: true), butir `{id}_i{n}`
+ * (+ `{id}_i{n}s` untuk kata kunci tebal). `items` = daftar boolean: true bila
+ * butir ke-n punya kata kunci tebal (strong).
  */
-const sections = [
-    {
-        id: 'pengantar', icon: Rocket, accent: 'cyan', title: 'Sekilas Aplikasi',
-        intro: 'Sistem manajemen jaringan FTTH/GPON untuk memantau OLT dan memprovisioning ONU dari satu dashboard web — alternatif SmartOLT/NetNumen untuk ISP.',
-        ordered: false,
-        list: [
-            { strong: 'Multi-vendor OLT', text: 'ZTE (C300/C320), C-Data (EPON/GPON), dan HiOSO/V-Sol (EPON) dikelola berdampingan.' },
-            { strong: 'Pemantauan otomatis', text: 'polling SNMP terjadwal mengumpulkan status port PON, ONU online/offline, dan redaman RX; alarm otomatis dikirim ke Telegram & aplikasi mobile.' },
-            { strong: 'Provisioning', text: 'daftarkan ONU baru, atur WAN (PPPoE/DHCP/static), VLAN, TR069, sampai reboot/rename/hapus — langsung dari web.' },
-        ],
-        tip: 'Tekan Ctrl/⌘ + K di mana saja untuk pencarian global (cari OLT atau ONU by nama/serial/interface).',
-    },
-    {
-        id: 'peran', icon: ShieldCheck, accent: 'emerald', title: 'Masuk & Peran Pengguna',
-        intro: 'Login memakai email & kata sandi yang diberikan admin. Menu dan tombol yang muncul menyesuaikan peran akun Anda.',
-        ordered: false,
-        list: [
-            { strong: 'Admin', text: 'akses penuh: kelola OLT, pengguna, pengaturan sistem, audit log, dan semua aksi ONU.' },
-            { strong: 'Operator', text: 'operasional harian: lihat OLT/ONU, monitoring, registrasi & aksi ONU. Tidak bisa mengelola pengguna/pengaturan.' },
-            { strong: 'Partner', text: 'hanya melihat OLT yang di-assign untuk-nya (OLT privat tersembunyi dari admin/operator lain), plus bot Telegram sendiri.' },
-            { strong: 'Mode Demo', text: 'akun peraga: bisa menjelajah, tetapi aksi tulis (registrasi, reboot, hapus, dsb.) diblokir.' },
-        ],
-    },
-    {
-        id: 'navigasi', icon: Compass, accent: 'sky', title: 'Navigasi & Pencarian',
-        intro: 'Sidebar kiri adalah menu utama. Bilah atas berisi pencarian, lonceng notifikasi, dan menu akun.',
-        ordered: false,
-        list: [
-            { strong: 'Sidebar', text: 'klik ikon panah untuk melipat/melebarkan; di HP, ketuk ikon menu untuk membukanya.' },
-            { strong: 'Pencarian global (⌘/Ctrl + K)', text: 'ketik nama/IP OLT atau serial/nama/interface ONU untuk melompat langsung.' },
-            { strong: 'Lonceng notifikasi', text: 'menampilkan alarm terbaru; angka merah = jumlah alarm aktif.' },
-            { strong: 'Menu akun', text: 'ubah profil/kata sandi dan keluar (logout).' },
-        ],
-    },
-    {
-        id: 'dashboard', icon: LayoutDashboard, accent: 'violet', title: 'Dashboard',
-        intro: 'Halaman pertama setelah login: ringkasan kesehatan jaringan secara menyeluruh.',
-        ordered: false,
-        list: [
-            { text: 'Kartu statistik: jumlah OLT, ONU online/offline, port PON, dan alarm aktif.' },
-            { text: 'Sorotan alarm terbaru dan OLT bermasalah untuk tindak lanjut cepat.' },
-            { text: 'Angka bersumber dari hasil polling terakhir — jadi mencerminkan kondisi beberapa menit terakhir, bukan real-time detik-per-detik.' },
-        ],
-    },
-    {
-        id: 'olt', icon: Cable, accent: 'blue', title: 'Mengelola OLT',
-        intro: 'Menu SmartOLT memuat daftar OLT dalam tab per-vendor (ZTE, C-Data, HiOSO). Tambah OLT lewat tombol Tambah OLT.',
-        ordered: true,
-        list: [
-            { strong: 'Isi data koneksi', text: 'nama, IP, port & community SNMP (read/write), serta kredensial CLI/telnet bila akan provisioning.' },
-            { strong: 'Test SNMP', text: 'klik untuk memverifikasi OLT terjangkau — akan menampilkan info sistem, port PON, dan jumlah ONU.' },
-            { strong: 'Aktifkan polling', text: 'agar OLT ikut pemantauan terjadwal (status & RX ONU diperbarui berkala oleh mesin poller).' },
-            { strong: 'Saklar alarm per-OLT', text: 'tombol On/Off di daftar OLT mengatur apakah notifikasi alarm OLT ini dikirim (evaluasi tetap jalan & tercatat).' },
-        ],
-        tip: 'Kolom rahasia (community write, password CLI) bisa dikosongkan saat mengedit untuk mempertahankan nilai lama — tidak perlu mengetik ulang.',
-    },
-    {
-        id: 'port-onu', icon: Radar, accent: 'teal', title: 'Melihat Port PON & ONU',
-        intro: 'Dari detail OLT, buka sebuah port PON untuk melihat daftar ONU di bawahnya beserta status dan redaman.',
-        ordered: false,
-        list: [
-            { strong: 'Status ONU', text: 'online/offline, penyebab down terakhir (LOS, dying gasp), dan interface.' },
-            { strong: 'Redaman RX (dBm)', text: 'indikator kualitas sinyal; nilai di luar rentang sehat ditandai sebagai peringatan.' },
-            { strong: 'Refresh', text: 'tombol refresh melakukan pembacaan SNMP langsung untuk port/OLT tersebut (dibatasi rate agar tak membebani OLT).' },
-        ],
-    },
-    {
-        id: 'unconfigured', icon: WifiOff, accent: 'amber', title: 'ONU Belum Terdaftar (Unconfigured)',
-        intro: 'Menu Unconfigured mengumpulkan ONU yang terdeteksi OLT tetapi belum diregistrasi — kandidat pelanggan baru.',
-        ordered: true,
-        list: [
-            { text: 'Temukan ONU baru berdasarkan serial number pada port PON-nya.' },
-            { text: 'Klik Daftarkan untuk membuka form registrasi (provisioning) dengan serial sudah terisi.' },
-        ],
-    },
-    {
-        id: 'provisioning', icon: PlugZap, accent: 'fuchsia', title: 'Registrasi / Provisioning ONU (ZTE)',
-        intro: 'Mendaftarkan ONU baru ke OLT ZTE: pilih profil, tentukan layanan WAN, lalu jalankan skrip CLI yang dihasilkan.',
-        ordered: true,
-        list: [
-            { strong: 'Pilih profil', text: 'tipe ONU, T-CONT, dan profil VLAN/IP (disinkron per-OLT dari OLT).' },
-            { strong: 'Atur WAN', text: 'PPPoE (isi user/pass), DHCP, atau IP statis; tambahkan VLAN dan TR069 bila perlu.' },
-            { strong: 'Pratinjau skrip', text: 'sistem membuat skrip CLI registrasi — periksa sebelum eksekusi.' },
-            { strong: 'Eksekusi', text: 'skrip dijalankan ke OLT via telnet; hasilnya dicatat sebagai audit registrasi.' },
-        ],
-        tip: 'Setiap provisioning menulis baris audit (skrip dibuat dulu, dieksekusi kemudian) sehingga jejaknya bisa ditelusuri.',
-    },
-    {
-        id: 'aksi-onu', icon: Wrench, accent: 'orange', title: 'Aksi pada ONU',
-        intro: 'Dari halaman ONU per port tersedia aksi pemeliharaan. Ketersediaan tergantung kapabilitas vendor OLT.',
-        ordered: false,
-        list: [
-            { strong: 'Reboot', text: 'nyalakan ulang ONU dari jarak jauh.' },
-            { strong: 'Ganti nama (rename)', text: 'ubah deskripsi/nama ONU (mis. nama pelanggan).' },
-            { strong: 'Hapus ONU', text: 'cabut registrasi ONU dari port (tersedia bila vendor mendukung).' },
-            { strong: 'Salin config antar port', text: 'baca running-config ONU sumber lalu bangun ulang registrasi di port tujuan (batch, dengan modal progres).' },
-            { strong: 'TR069 Massal', text: 'aktifkan TR069/ACS untuk semua ONU dalam satu port PON sekaligus (OLT ZTE).' },
-        ],
-    },
-    {
-        id: 'monitoring', icon: ListChecks, accent: 'cyan', title: 'ONU Monitoring (Lintas OLT)',
-        intro: 'Menu ONU Monitoring menggabungkan ONU dari semua OLT dalam satu tampilan untuk pemantauan menyeluruh.',
-        ordered: false,
-        list: [
-            { text: 'Melihat sebaran ONU online/offline lintas OLT tanpa membuka satu-satu.' },
-            { text: 'Refresh menjalankan pembacaan SNMP penuh per OLT dan memperbarui cache per-port.' },
-        ],
-    },
-    {
-        id: 'peta', icon: MapPin, accent: 'rose', title: 'Peta ONU',
-        intro: 'Menu Peta ONU menampilkan pin lokasi pelanggan-ONU di peta (Leaflet) untuk semua OLT.',
-        ordered: true,
-        list: [
-            { strong: 'Tambah pin', text: 'klik pada peta lalu pilih OLT → port → ONU, atau gunakan tombol Add Map di halaman ONU per port.' },
-            { strong: 'Dari link Google Maps', text: 'tempel tautan lokasi dan koordinat akan otomatis diambil.' },
-            { strong: 'Aksi dari pin', text: 'kartu detail pin bisa ganti-nama atau reboot ONU langsung dari peta.' },
-        ],
-    },
-    {
-        id: 'alarm', icon: BellRing, accent: 'amber', title: 'Alarm & Notifikasi',
-        intro: 'Menu Alarms adalah pusat alarm. Sistem menaikkan alarm hanya pada transisi dari sehat ke gangguan (mis. ONU online → offline, port up → down, RX keluar rentang).',
-        ordered: false,
-        list: [
-            { strong: 'Jenis alarm', text: 'OLT tak terhubung, port PON down, LOS, dying gasp, ONU offline, dan redaman RX tinggi.' },
-            { strong: 'Realtime vs Konfirmasi 2 poll', text: 'di Pengaturan → tab Alarm, admin memilih apakah notifikasi dikirim langsung (realtime) atau menunggu gangguan terkonfirmasi di 2 pengecekan (anti-flap, default).' },
-            { strong: 'Saklar penerima', text: 'saklar alarm per-OLT (admin/operator) dan per-partner mengatur siapa yang menerima kiriman — evaluasi alarm tetap berjalan.' },
-            { strong: 'Kanal', text: 'notifikasi diteruskan ke Bot Telegram dan Push aplikasi mobile (FCM) sesuai pengaturan.' },
-        ],
-        tip: 'Mode default "Konfirmasi 2 poll" menahan alarm sampai gangguan terlihat di dua polling beruntun (~10 menit) supaya kedip sesaat tidak memicu notifikasi palsu. Butuh notif secepatnya? Ubah ke Realtime.',
-    },
-    {
-        id: 'telnet', icon: Terminal, accent: 'indigo', title: 'Terminal Telnet Browser',
-        intro: 'Buka sesi CLI ke OLT langsung dari browser (jendela terminal xterm.js) tanpa aplikasi telnet terpisah.',
-        ordered: false,
-        list: [
-            { text: 'Jendela bisa digeser, di-minimize, dan di-maximize.' },
-            { text: 'Berguna untuk perintah CLI manual/diagnostik pada OLT ZTE.' },
-        ],
-    },
-    {
-        id: 'report', icon: FileBarChart, accent: 'emerald', title: 'Report & Ekspor',
-        intro: 'Menu Report membuat laporan yang bisa difilter dan diekspor.',
-        ordered: false,
-        list: [
-            { strong: 'Jenis laporan', text: 'antara lain ONU, alarm, dan provisioning.' },
-            { strong: 'Filter', text: 'per OLT, per port PON, rentang waktu, status, dan status redaman RX.' },
-            { strong: 'Ekspor', text: 'unduh sebagai CSV atau PDF melalui tombol di kanan atas.' },
-        ],
-    },
-    {
-        id: 'pengaturan', icon: KeyRound, accent: 'sky', title: 'Pengaturan', badges: ['Admin'],
-        intro: 'Menu Pengaturan (khusus admin) berisi beberapa tab konfigurasi sistem.',
-        ordered: false,
-        list: [
-            { strong: 'Umum', text: 'nama aplikasi dan logo (white-label).' },
-            { strong: 'ACS / TR069', text: 'endpoint ACS default untuk fitur TR069 massal.' },
-            { strong: 'Alarm', text: 'pilih perilaku notifikasi: Realtime atau Konfirmasi 2 poll (anti-flap).' },
-            { strong: 'Bot Telegram', text: 'token bot, chat id, severity minimum, pemicu (raise/clear), filter jenis alarm, dan webhook perintah bot.' },
-            { strong: 'Notifikasi Mobile', text: 'pengaturan push FCM ke aplikasi Android + kirim notifikasi manual.' },
-            { strong: 'API & Token', text: 'terbitkan/cabut token API (untuk integrasi & aplikasi mobile).' },
-        ],
-    },
-    {
-        id: 'users', icon: Users, accent: 'violet', title: 'Pengguna & Audit Log', badges: ['Admin'],
-        intro: 'Admin mengelola akun dan menelusuri aktivitas sistem.',
-        ordered: false,
-        list: [
-            { strong: 'Users', text: 'tambah/ubah/hapus pengguna dan tetapkan peran (admin/operator/partner).' },
-            { strong: 'Audit Logs', text: 'jejak perubahan penting (siapa mengubah apa dan kapan).' },
-        ],
-    },
-    {
-        id: 'partner', icon: Send, accent: 'fuchsia', title: 'Partner Self-Service', badges: ['Partner'],
-        intro: 'Akun partner hanya melihat OLT yang di-assign untuknya dan mengelola bot Telegram sendiri.',
-        ordered: false,
-        list: [
-            { strong: 'OLT privat', text: 'OLT milik partner tersembunyi dari admin/operator lain.' },
-            { strong: 'Bot Telegram Saya', text: 'partner memasang bot & penerima notifikasi sendiri, independen dari bot global.' },
-        ],
-    },
-    {
-        id: 'mobile', icon: Smartphone, accent: 'teal', title: 'Aplikasi Android',
-        intro: 'Tersedia aplikasi Android untuk pemantauan di perangkat mobile.',
-        ordered: false,
-        list: [
-            { text: 'Unduh APK dari tautan di Pengaturan (bila tersedia di server).' },
-            { text: 'Login dengan akun yang sama; dukung dashboard, pencarian, OLT→port→ONU, unconfigured+registrasi dasar, reboot/rename, alarm, dan push notifikasi.' },
-        ],
-    },
-    {
-        id: 'troubleshooting', icon: LifeBuoy, accent: 'rose', title: 'Tips & Pemecahan Masalah',
-        intro: 'Beberapa hal yang sering ditanyakan.',
-        ordered: false,
-        list: [
-            { strong: 'Test SNMP jumlah ONU 0', text: 'periksa IP/port/community SNMP dan pastikan OLT mengizinkan akses SNMP dari server.' },
-            { strong: 'Alarm terasa telat', text: 'itu efek mode Konfirmasi 2 poll (default). Untuk lebih cepat, aktifkan Realtime di Pengaturan → Alarm.' },
-            { strong: 'Tidak menerima notifikasi', text: 'cek saklar alarm OLT On, dan pengaturan Telegram/Mobile aktif dengan severity/jenis yang sesuai.' },
-            { strong: 'Tombol aksi hilang/terkunci', text: 'kemungkinan peran Anda tidak berwenang, akun mode demo, atau vendor OLT tak mendukung aksi tersebut.' },
-        ],
-    },
+const SECTION_DEFS = [
+    { id: 'pengantar', icon: Rocket, accent: 'cyan', ordered: false, items: [true, true, true], tip: true },
+    { id: 'peran', icon: ShieldCheck, accent: 'emerald', ordered: false, items: [true, true, true, true] },
+    { id: 'navigasi', icon: Compass, accent: 'sky', ordered: false, items: [true, true, true, true] },
+    { id: 'dashboard', icon: LayoutDashboard, accent: 'violet', ordered: false, items: [false, false, false] },
+    { id: 'olt', icon: Cable, accent: 'blue', ordered: true, items: [true, true, true, true], tip: true },
+    { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true] },
+    { id: 'unconfigured', icon: WifiOff, accent: 'amber', ordered: true, items: [false, false] },
+    { id: 'provisioning', icon: PlugZap, accent: 'fuchsia', ordered: true, items: [true, true, true, true], tip: true },
+    { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true] },
+    { id: 'monitoring', icon: ListChecks, accent: 'cyan', ordered: false, items: [false, false] },
+    { id: 'peta', icon: MapPin, accent: 'rose', ordered: true, items: [true, true, true] },
+    { id: 'alarm', icon: BellRing, accent: 'amber', ordered: false, items: [true, true, true, true], tip: true },
+    { id: 'telnet', icon: Terminal, accent: 'indigo', ordered: false, items: [false, false] },
+    { id: 'report', icon: FileBarChart, accent: 'emerald', ordered: false, items: [true, true, true] },
+    { id: 'pengaturan', icon: KeyRound, accent: 'sky', badges: ['Admin'], ordered: false, items: [true, true, true, true, true, true] },
+    { id: 'users', icon: Users, accent: 'violet', badges: ['Admin'], ordered: false, items: [true, true] },
+    { id: 'partner', icon: Send, accent: 'fuchsia', badges: ['Partner'], ordered: false, items: [true, true] },
+    { id: 'mobile', icon: Smartphone, accent: 'teal', ordered: false, items: [false, false] },
+    { id: 'troubleshooting', icon: LifeBuoy, accent: 'rose', ordered: false, items: [true, true, true, true] },
 ];
+
+const { t } = useI18n({ useScope: 'global' });
+
+// Teks dirakit reaktif dari i18n agar ikut berganti saat switch bahasa.
+const sections = computed(() =>
+    SECTION_DEFS.map((def) => ({
+        ...def,
+        title: t(`panduan.${def.id}_title`),
+        intro: t(`panduan.${def.id}_intro`),
+        tip: def.tip ? t(`panduan.${def.id}_tip`) : null,
+        list: def.items.map((hasStrong, i) => ({
+            strong: hasStrong ? t(`panduan.${def.id}_i${i}s`) : null,
+            text: t(`panduan.${def.id}_i${i}`),
+        })),
+    })),
+);
 
 const accentOf = (sec) => ACCENTS[sec.accent] ?? ACCENTS.cyan;
 
-const activeId = ref(sections[0].id);
-const activeIndex = computed(() => Math.max(0, sections.findIndex((s) => s.id === activeId.value)));
+const activeId = ref(SECTION_DEFS[0].id);
+const activeIndex = computed(() => Math.max(0, SECTION_DEFS.findIndex((s) => s.id === activeId.value)));
 const scrollTo = (id) => {
     activeId.value = id;
     document.getElementById(`sec-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -257,7 +96,7 @@ onMounted(() => {
         },
         { rootMargin: '-25% 0px -65% 0px', threshold: 0 },
     );
-    sections.forEach((s) => {
+    SECTION_DEFS.forEach((s) => {
         const el = document.getElementById(`sec-${s.id}`);
         if (el) observer.observe(el);
     });
@@ -266,11 +105,11 @@ onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
-    <Head title="Panduan Penggunaan" />
+    <Head :title="$t('panduan.title')" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">Panduan Penggunaan</h2>
+            <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ $t('panduan.title') }}</h2>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -281,24 +120,23 @@ onBeforeUnmount(() => observer?.disconnect());
                     <div class="pointer-events-none absolute -bottom-24 left-10 h-56 w-56 rounded-full bg-violet-500/15 blur-3xl"></div>
                     <div class="relative p-6 sm:p-8">
                         <span class="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-200">
-                            <Sparkles class="h-3.5 w-3.5" /> Pusat Bantuan
+                            <Sparkles class="h-3.5 w-3.5" /> {{ $t('panduan.hero_badge') }}
                         </span>
                         <h1 class="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
-                            <span class="bg-gradient-to-r from-white via-cyan-100 to-sky-300 bg-clip-text text-transparent">Cara menggunakan {{ appName }}</span>
+                            <span class="bg-gradient-to-r from-white via-cyan-100 to-sky-300 bg-clip-text text-transparent">{{ $t('panduan.hero_title', { app: appName }) }}</span>
                         </h1>
                         <p class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300 sm:text-base">
-                            Panduan lengkap fitur aplikasi — dari login, mengelola OLT, registrasi ONU, pemantauan &amp; alarm, sampai pengaturan.
-                            Gunakan daftar isi untuk melompat ke bagian yang Anda butuhkan.
+                            {{ $t('panduan.hero_desc') }}
                         </p>
                         <div class="mt-5 flex flex-wrap items-center gap-2.5">
                             <span class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200">
-                                <BookOpen class="h-3.5 w-3.5 text-cyan-300" /> {{ sections.length }} topik
+                                <BookOpen class="h-3.5 w-3.5 text-cyan-300" /> {{ $t('panduan.hero_topics', { n: sections.length }) }}
                             </span>
                             <span class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200">
-                                <Users class="h-3.5 w-3.5 text-emerald-300" /> Untuk semua peran
+                                <Users class="h-3.5 w-3.5 text-emerald-300" /> {{ $t('panduan.hero_roles') }}
                             </span>
                             <span class="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 sm:inline-flex">
-                                <kbd class="rounded border border-white/15 bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">⌘K</kbd> Pencarian cepat
+                                <kbd class="rounded border border-white/15 bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">⌘K</kbd> {{ $t('panduan.hero_search') }}
                             </span>
                         </div>
                     </div>
@@ -309,7 +147,7 @@ onBeforeUnmount(() => observer?.disconnect());
                     <aside class="lg:sticky lg:top-[84px] lg:self-start">
                         <div class="rounded-2xl border border-white/10 bg-slate-900/40 p-3 shadow-lg shadow-black/30 backdrop-blur-xl">
                             <div class="flex items-center justify-between px-2 pb-2 pt-1">
-                                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Daftar Isi</p>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('panduan.toc') }}</p>
                                 <span class="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400">{{ activeIndex + 1 }}/{{ sections.length }}</span>
                             </div>
                             <nav class="flex flex-row flex-wrap gap-1 lg:max-h-[calc(100vh-7rem)] lg:flex-col lg:flex-nowrap lg:overflow-y-auto lg:pr-1">
@@ -355,7 +193,7 @@ onBeforeUnmount(() => observer?.disconnect());
                                             :key="badge"
                                             class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-300 ring-1 ring-amber-500/30"
                                         >
-                                            Khusus {{ badge }}
+                                            {{ $t('panduan.badge_only', { badge }) }}
                                         </span>
                                     </div>
                                 </div>
@@ -387,7 +225,7 @@ onBeforeUnmount(() => observer?.disconnect());
 
                                 <div v-if="sec.tip" class="mt-5 flex items-start gap-2.5 rounded-xl border border-cyan-500/25 bg-cyan-500/[0.07] px-4 py-3">
                                     <LifeBuoy class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
-                                    <p class="text-xs leading-relaxed text-cyan-100/90"><span class="font-semibold text-cyan-200">Tips —</span> {{ sec.tip }}</p>
+                                    <p class="text-xs leading-relaxed text-cyan-100/90"><span class="font-semibold text-cyan-200">{{ $t('panduan.tips_label') }}</span> {{ sec.tip }}</p>
                                 </div>
                             </div>
                         </section>
@@ -395,7 +233,7 @@ onBeforeUnmount(() => observer?.disconnect());
                         <!-- Penutup -->
                         <div class="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/40 px-5 py-4 text-sm text-slate-400 shadow-lg shadow-black/30 backdrop-blur-xl">
                             <div class="kv-icon-tile-sm"><ScrollText class="h-4 w-4" /></div>
-                            <p>Butuh detail teknis lebih lanjut? Dokumentasi pengembang tersedia di <span class="font-mono text-xs text-slate-300">docs/handbook/</span>. Untuk bantuan langsung, hubungi admin sistem Anda.</p>
+                            <p>{{ $t('panduan.footer_before') }} <span class="font-mono text-xs text-slate-300">docs/handbook/</span>{{ $t('panduan.footer_after') }}</p>
                         </div>
                     </div>
                 </div>

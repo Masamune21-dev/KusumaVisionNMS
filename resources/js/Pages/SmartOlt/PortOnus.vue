@@ -16,8 +16,11 @@ import { usePagination } from '@/Composables/usePagination';
 import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: {
@@ -232,7 +235,7 @@ const submitCopy = async () => {
         pollTimer = setInterval(pollStatus, 1500);
     } catch (e) {
         const errors = e.response?.data?.errors;
-        copyError.value = errors ? Object.values(errors).flat()[0] : (e.response?.data?.message ?? e.message ?? 'Request gagal.');
+        copyError.value = errors ? Object.values(errors).flat()[0] : (e.response?.data?.message ?? e.message ?? t('portonus.request_failed'));
     } finally {
         copySubmitting.value = false;
     }
@@ -278,8 +281,8 @@ const actionKey = (onu) => `${onu.if_index}-${onu.onu_id}`;
 
 const rebootOnu = async (onu) => {
     const ok = await confirm({
-        title: 'Reboot ONU',
-        message: `Reboot ${onu.interface}? ONU akan restart 30-60 detik.`,
+        title: t('portonus.act_reboot'),
+        message: t('portonus.reboot_msg', { interface: onu.interface }),
         confirmLabel: 'Reboot',
     });
 
@@ -299,10 +302,11 @@ const rebootOnu = async (onu) => {
 
 const toggleOnu = async (onu) => {
     const active = onu.admin_state !== 'active';
-    const verb = active ? 'enable' : 'disable';
     const ok = await confirm({
-        title: active ? 'Enable ONU' : 'Disable ONU',
-        message: `Yakin ${verb} ${onu.interface}?`,
+        title: active ? t('portonus.act_enable') : t('portonus.act_disable'),
+        message: active
+            ? t('portonus.toggle_enable_msg', { interface: onu.interface })
+            : t('portonus.toggle_disable_msg', { interface: onu.interface }),
         confirmLabel: active ? 'Enable' : 'Disable',
         variant: active ? 'primary' : 'danger',
     });
@@ -324,9 +328,9 @@ const toggleOnu = async (onu) => {
 
 const deleteOnu = async (onu) => {
     const ok = await confirm({
-        title: 'Hapus ONU',
-        message: `Hapus ${onu.interface} dari OLT? Registrasi ONU akan dihapus permanen (no onu ${onu.onu_id}).`,
-        confirmLabel: 'Hapus',
+        title: t('portonus.act_delete'),
+        message: t('portonus.delete_msg', { interface: onu.interface, onuId: onu.onu_id }),
+        confirmLabel: t('common.delete'),
         variant: 'danger',
     });
 
@@ -386,7 +390,7 @@ const pinFromLink = async () => {
     try {
         const { data } = await window.axios.post(route('map.resolve-link'), { url: addMap.url.trim() });
         if (!data.ok) {
-            addMap.error = data.error ?? 'Koordinat tidak ditemukan di link.';
+            addMap.error = data.error ?? t('portonus.coord_not_found');
             addMap.loading = false;
             return;
         }
@@ -408,7 +412,7 @@ const pinFromLink = async () => {
             },
         );
     } catch (e) {
-        addMap.error = e?.response?.data?.error ?? 'Gagal memproses link Google Maps.';
+        addMap.error = e?.response?.data?.error ?? t('portonus.gmaps_failed');
         addMap.loading = false;
     }
 };
@@ -486,7 +490,7 @@ const rxBadgeClass = (value) => {
                             type="button"
                             class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors enabled:hover:bg-white/5 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                             :disabled="!prevPort"
-                            :title="prevPort ? `Slot ${prevPort.slot} / Port ${prevPort.port}` : 'Port pertama'"
+                            :title="prevPort ? `Slot ${prevPort.slot} / Port ${prevPort.port}` : $t('portonus.port_first')"
                             @click="goToPort(prevPort)"
                         >
                             <ChevronLeft class="h-4 w-4" />
@@ -494,7 +498,7 @@ const rxBadgeClass = (value) => {
                         <select
                             :value="currentPortKey"
                             class="min-h-9 min-w-0 flex-1 rounded-md border-0 bg-transparent py-1.5 pl-2 pr-7 text-sm font-medium text-slate-100 focus:ring-1 focus:ring-cyan-500 sm:flex-none sm:max-w-[12rem]"
-                            title="Pindah ke port lain"
+                            :title="$t('portonus.switch_port')"
                             @change="onPortSelect"
                         >
                             <option v-for="p in navPorts" :key="`${p.slot}_${p.port}`" :value="`${p.slot}_${p.port}`" class="bg-slate-900">
@@ -505,7 +509,7 @@ const rxBadgeClass = (value) => {
                             type="button"
                             class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors enabled:hover:bg-white/5 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                             :disabled="!nextPort"
-                            :title="nextPort ? `Slot ${nextPort.slot} / Port ${nextPort.port}` : 'Port terakhir'"
+                            :title="nextPort ? `Slot ${nextPort.slot} / Port ${nextPort.port}` : $t('portonus.port_last')"
                             @click="goToPort(nextPort)"
                         >
                             <ChevronRight class="h-4 w-4" />
@@ -519,11 +523,11 @@ const rxBadgeClass = (value) => {
                     </Link>
                     <SecondaryButton v-if="canTr069" type="button" @click="tr069ModalOpen = true">
                         <Cloud class="mr-2 h-4 w-4" />
-                        TR069 Massal
+                        {{ $t('portonus.tr069_bulk') }}
                     </SecondaryButton>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
-                        Refresh ONU
+                        {{ $t('portonus.refresh_onu') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -537,7 +541,7 @@ const rxBadgeClass = (value) => {
                     <!-- Data status -->
                     <div class="kv-stat">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_status') }}</p>
                             <span
                                 class="h-2 w-2 rounded-full"
                                 :class="snapshot.ok ? 'bg-emerald-500' : 'bg-slate-300'"
@@ -547,17 +551,17 @@ const rxBadgeClass = (value) => {
                             class="mt-3 text-2xl font-bold"
                             :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'"
                         >
-                            {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
+                            {{ snapshot.ok ? $t('portonus.stat_available') : $t('portonus.stat_empty') }}
                         </p>
                     </div>
                     <!-- Total ONU -->
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Total ONU</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.count }}</p>
                     </div>
                     <!-- Online -->
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Online</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_online') }}</p>
                         <div class="mt-3 flex items-end gap-2">
                             <p class="text-2xl font-bold text-emerald-400">
                                 {{ snapshot.onus.filter((o) => o.online).length }}
@@ -567,7 +571,7 @@ const rxBadgeClass = (value) => {
                     </div>
                     <!-- Refresh terakhir -->
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_last_refresh') }}</p>
                         <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.refreshed_at) }}</p>
                     </div>
                 </div>
@@ -581,11 +585,11 @@ const rxBadgeClass = (value) => {
                             </div>
                             <div>
                                 <h3 class="text-base font-semibold text-white">
-                                    Registered ONU
+                                    {{ $t('portonus.registered_onu') }}
                                     <span v-if="snapshot.onus.length" class="ml-1 text-sm font-normal text-slate-500">({{ filteredOnus.length }}/{{ snapshot.onus.length }})</span>
                                 </h3>
                                 <p v-if="snapshot.rx_power?.error" class="mt-0.5 text-xs text-red-400">
-                                    RX gagal dibaca: {{ snapshot.rx_power.error }}
+                                    {{ $t('portonus.rx_read_failed', { error: snapshot.rx_power.error }) }}
                                 </p>
                             </div>
                         </div>
@@ -598,25 +602,25 @@ const rxBadgeClass = (value) => {
                             <input
                                 v-model="search"
                                 type="text"
-                                placeholder="Cari interface, serial, nama, atau type..."
+                                :placeholder="$t('portonus.search_placeholder')"
                                 class="kv-filter-control !pl-9 !pr-9"
                             />
-                            <button v-if="search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" title="Hapus" @click="search = ''">
+                            <button v-if="search" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" :title="$t('common.clear')" @click="search = ''">
                                 <X class="h-4 w-4" />
                             </button>
                         </div>
                         <div class="flex items-center gap-2">
                             <select v-model="phaseFilter" class="min-h-11 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua Phase</option>
-                                <option value="online">Online</option>
-                                <option value="offline">Offline</option>
+                                <option value="all">{{ $t('portonus.filter_all_phase') }}</option>
+                                <option value="online">{{ $t('portonus.filter_online') }}</option>
+                                <option value="offline">{{ $t('portonus.filter_offline') }}</option>
                             </select>
                             <select v-model="adminFilter" class="min-h-11 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
-                                <option value="all">Semua Admin</option>
-                                <option value="active">Active</option>
-                                <option value="disabled">Disabled</option>
+                                <option value="all">{{ $t('portonus.filter_all_admin') }}</option>
+                                <option value="active">{{ $t('portonus.filter_active') }}</option>
+                                <option value="disabled">{{ $t('portonus.filter_disabled') }}</option>
                             </select>
-                            <button v-if="hasFilter" type="button" class="kv-filter-reset" @click="clearFilters">Reset</button>
+                            <button v-if="hasFilter" type="button" class="kv-filter-reset" @click="clearFilters">{{ $t('common.reset') }}</button>
                         </div>
                     </div>
 
@@ -629,14 +633,14 @@ const rxBadgeClass = (value) => {
                                 class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
                                 @change="toggleSelectAll"
                             />
-                            Pilih semua ({{ filteredOnus.length }})
+                            {{ $t('portonus.select_all', { count: filteredOnus.length }) }}
                         </label>
                         <div class="flex items-center gap-2">
-                            <span v-if="selectedCount" class="text-sm text-slate-400">{{ selectedCount }} dipilih</span>
-                            <button v-if="selectedCount" type="button" class="kv-filter-reset" @click="clearSelection">Batal pilih</button>
+                            <span v-if="selectedCount" class="text-sm text-slate-400">{{ $t('portonus.n_selected', { count: selectedCount }) }}</span>
+                            <button v-if="selectedCount" type="button" class="kv-filter-reset" @click="clearSelection">{{ $t('portonus.clear_selection') }}</button>
                             <PrimaryButton type="button" :disabled="selectedCount === 0" @click="openCopy">
                                 <Copy class="mr-2 h-4 w-4" />
-                                Copy ke port lain
+                                {{ $t('portonus.copy_to_port') }}
                             </PrimaryButton>
                         </div>
                     </div>
@@ -649,9 +653,9 @@ const rxBadgeClass = (value) => {
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <Wifi class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-slate-200">Belum ada data ONU</h3>
+                        <h3 class="text-sm font-semibold text-slate-200">{{ $t('portonus.empty_title') }}</h3>
                         <p class="mt-1 text-sm text-slate-500">
-                            Jalankan Refresh ONU untuk membaca ONU terdaftar di port ini.
+                            {{ $t('portonus.empty_sub') }}
                         </p>
                     </div>
 
@@ -662,9 +666,9 @@ const rxBadgeClass = (value) => {
                             <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                                 <Search class="h-7 w-7 text-slate-400" />
                             </div>
-                            <h3 class="text-sm font-semibold text-slate-200">Tidak ada ONU yang cocok</h3>
-                            <p class="mt-1 text-sm text-slate-500">Coba ubah kata kunci atau reset filter.</p>
-                            <button type="button" class="mt-4 rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">Reset filter</button>
+                            <h3 class="text-sm font-semibold text-slate-200">{{ $t('portonus.nomatch_title') }}</h3>
+                            <p class="mt-1 text-sm text-slate-500">{{ $t('portonus.nomatch_sub') }}</p>
+                            <button type="button" class="mt-4 rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5" @click="clearFilters">{{ $t('portonus.reset_filter') }}</button>
                         </div>
 
                         <template v-else>
@@ -700,21 +704,21 @@ const rxBadgeClass = (value) => {
 
                                 <div class="kv-mobile-fields">
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Serial</span>
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_serial') }}</span>
                                         <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || '—' }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Type</span>
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_type') }}</span>
                                         <span class="kv-mobile-value">{{ onu.type_name || '—' }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Phase</span>
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_phase') }}</span>
                                         <span class="kv-mobile-value" :class="onu.online ? 'text-emerald-400' : 'text-slate-500'">
                                             {{ onu.phase_state }}
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Admin</span>
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_admin') }}</span>
                                         <span
                                             class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
                                             :class="onu.admin_state === 'active'
@@ -725,7 +729,7 @@ const rxBadgeClass = (value) => {
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Last Down</span>
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_last_down') }}</span>
                                         <span class="kv-mobile-value" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </div>
                                 </div>
@@ -733,7 +737,7 @@ const rxBadgeClass = (value) => {
                                 <div class="mt-4 flex flex-wrap gap-2">
                                     <IconButton
                                         v-if="caps.supports_onu_info_write"
-                                        title="Edit info ONU"
+                                        :title="$t('portonus.act_edit_info')"
                                         @click="openEdit(onu)"
                                     >
                                         <Pencil class="h-4 w-4" />
@@ -741,7 +745,7 @@ const rxBadgeClass = (value) => {
                                     <IconButton
                                         v-if="caps.supports_cli_onu_detail"
                                         :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
-                                        title="Detail ONU (CLI)"
+                                        :title="$t('portonus.act_detail')"
                                     >
                                         <Info class="h-4 w-4" />
                                     </IconButton>
@@ -749,13 +753,13 @@ const rxBadgeClass = (value) => {
                                         v-if="caps.supports_cli_onu_configure"
                                         variant="primary"
                                         :href="route('smartolt.onu.configure', [olt.id, slot, port, onu.onu_id])"
-                                        title="Configure ONU (CLI)"
+                                        :title="$t('portonus.act_configure')"
                                     >
                                         <Settings class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
                                         :variant="isPinned(onu) ? 'success' : 'primary'"
-                                        :title="isPinned(onu) ? 'Lihat di Peta' : 'Tambah ke Peta'"
+                                        :title="isPinned(onu) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')"
                                         @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
                                     >
                                         <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
@@ -765,7 +769,7 @@ const rxBadgeClass = (value) => {
                                         v-if="caps.supports_onu_toggle"
                                         :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
                                         :disabled="busy[actionKey(onu)]"
-                                        :title="onu.admin_state === 'active' ? 'Disable ONU' : 'Enable ONU'"
+                                        :title="onu.admin_state === 'active' ? $t('portonus.act_disable') : $t('portonus.act_enable')"
                                         @click="toggleOnu(onu)"
                                     >
                                         <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
@@ -775,7 +779,7 @@ const rxBadgeClass = (value) => {
                                         v-if="caps.supports_reboot"
                                         variant="danger"
                                         :disabled="busy[actionKey(onu)]"
-                                        title="Reboot ONU"
+                                        :title="$t('portonus.act_reboot')"
                                         @click="rebootOnu(onu)"
                                     >
                                         <Power class="h-4 w-4" />
@@ -784,7 +788,7 @@ const rxBadgeClass = (value) => {
                                         v-if="caps.supports_onu_delete"
                                         variant="danger"
                                         :disabled="busy[actionKey(onu)]"
-                                        title="Hapus ONU"
+                                        :title="$t('portonus.act_delete')"
                                         @click="deleteOnu(onu)"
                                     >
                                         <Trash2 class="h-4 w-4" />
@@ -805,14 +809,14 @@ const rxBadgeClass = (value) => {
                                             @change="toggleSelectAll"
                                         />
                                     </th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ONU</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Serial</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Type</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">ONU RX</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Phase</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Admin</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Last Down</th>
-                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
+                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -880,7 +884,7 @@ const rxBadgeClass = (value) => {
                                         <div class="flex items-center justify-center gap-1.5">
                                             <IconButton
                                                 v-if="caps.supports_onu_info_write"
-                                                title="Edit info ONU"
+                                                :title="$t('portonus.act_edit_info')"
                                                 @click="openEdit(onu)"
                                             >
                                                 <Pencil class="h-4 w-4" />
@@ -888,7 +892,7 @@ const rxBadgeClass = (value) => {
                                             <IconButton
                                                 v-if="caps.supports_cli_onu_detail"
                                                 :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
-                                                title="Detail ONU (CLI)"
+                                                :title="$t('portonus.act_detail')"
                                             >
                                                 <Info class="h-4 w-4" />
                                             </IconButton>
@@ -896,13 +900,13 @@ const rxBadgeClass = (value) => {
                                                 v-if="caps.supports_cli_onu_configure"
                                                 variant="primary"
                                                 :href="route('smartolt.onu.configure', [olt.id, slot, port, onu.onu_id])"
-                                                title="Configure ONU (CLI)"
+                                                :title="$t('portonus.act_configure')"
                                             >
                                                 <Settings class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 :variant="isPinned(onu) ? 'success' : 'primary'"
-                                                :title="isPinned(onu) ? 'Lihat di Peta' : 'Tambah ke Peta'"
+                                                :title="isPinned(onu) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')"
                                                 @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
                                             >
                                                 <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
@@ -912,7 +916,7 @@ const rxBadgeClass = (value) => {
                                                 v-if="caps.supports_onu_toggle"
                                                 :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
                                                 :disabled="busy[actionKey(onu)]"
-                                                :title="onu.admin_state === 'active' ? 'Disable ONU' : 'Enable ONU'"
+                                                :title="onu.admin_state === 'active' ? $t('portonus.act_disable') : $t('portonus.act_enable')"
                                                 @click="toggleOnu(onu)"
                                             >
                                                 <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
@@ -922,7 +926,7 @@ const rxBadgeClass = (value) => {
                                                 v-if="caps.supports_reboot"
                                                 variant="danger"
                                                 :disabled="busy[actionKey(onu)]"
-                                                title="Reboot ONU"
+                                                :title="$t('portonus.act_reboot')"
                                                 @click="rebootOnu(onu)"
                                             >
                                                 <Power class="h-4 w-4" />
@@ -931,7 +935,7 @@ const rxBadgeClass = (value) => {
                                                 v-if="caps.supports_onu_delete"
                                                 variant="danger"
                                                 :disabled="busy[actionKey(onu)]"
-                                                title="Hapus ONU"
+                                                :title="$t('portonus.act_delete')"
                                                 @click="deleteOnu(onu)"
                                             >
                                                 <Trash2 class="h-4 w-4" />
@@ -961,23 +965,23 @@ const rxBadgeClass = (value) => {
 
         <Modal :show="editing.open" @close="editing.open = false">
             <form class="p-6" @submit.prevent="submitEdit">
-                <h3 class="text-base font-semibold text-white">Edit Info ONU</h3>
-                <p class="mt-1 text-sm text-slate-500">{{ editing.interface }} · ditulis via SNMP SET.</p>
+                <h3 class="text-base font-semibold text-white">{{ $t('portonus.edit_modal_title') }}</h3>
+                <p class="mt-1 text-sm text-slate-500">{{ $t('portonus.edit_modal_sub', { interface: editing.interface }) }}</p>
                 <div class="mt-4 space-y-4">
                     <div>
-                        <InputLabel for="onu_name" value="Nama ONU" />
+                        <InputLabel for="onu_name" :value="$t('portonus.onu_name')" />
                         <TextInput id="onu_name" v-model="editForm.name" type="text" class="mt-1 block w-full" maxlength="191" />
                         <InputError :message="editForm.errors.name" class="mt-1" />
                     </div>
                     <div>
-                        <InputLabel for="onu_description" value="Deskripsi" />
+                        <InputLabel for="onu_description" :value="$t('portonus.description')" />
                         <TextInput id="onu_description" v-model="editForm.description" type="text" class="mt-1 block w-full" maxlength="191" />
                         <InputError :message="editForm.errors.description" class="mt-1" />
                     </div>
                 </div>
                 <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
-                    <SecondaryButton type="button" @click="editing.open = false">Batal</SecondaryButton>
-                    <PrimaryButton type="submit" :disabled="editForm.processing">Simpan</PrimaryButton>
+                    <SecondaryButton type="button" @click="editing.open = false">{{ $t('common.cancel') }}</SecondaryButton>
+                    <PrimaryButton type="submit" :disabled="editForm.processing">{{ $t('common.save') }}</PrimaryButton>
                 </div>
             </form>
         </Modal>
@@ -987,16 +991,16 @@ const rxBadgeClass = (value) => {
             <div class="p-6">
                 <div class="flex items-center gap-2">
                     <MapPin class="h-5 w-5 text-cyan-400" />
-                    <h3 class="text-base font-semibold text-white">Tambah ke Peta</h3>
+                    <h3 class="text-base font-semibold text-white">{{ $t('portonus.addmap_title') }}</h3>
                 </div>
                 <p v-if="addMap.onu" class="mt-1 text-sm text-slate-500">{{ addMap.onu.interface }} · {{ addMap.onu.name || addMap.onu.serial_number || 'ONU' }}</p>
 
                 <!-- Opsi 1: paste link Google Maps -->
                 <div class="mt-5 rounded-lg border border-white/10 bg-white/5 p-4">
                     <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
-                        <Link2 class="h-4 w-4 text-cyan-400" /> Paste link Google Maps
+                        <Link2 class="h-4 w-4 text-cyan-400" /> {{ $t('portonus.addmap_paste_gmaps') }}
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">Pin otomatis terpasang di koordinat link tersebut.</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('portonus.addmap_paste_hint') }}</p>
                     <div class="mt-3 flex gap-2">
                         <TextInput
                             v-model="addMap.url"
@@ -1006,7 +1010,7 @@ const rxBadgeClass = (value) => {
                             @keyup.enter="pinFromLink"
                         />
                         <PrimaryButton type="button" :disabled="!addMap.url.trim() || addMap.loading" @click="pinFromLink">
-                            {{ addMap.loading ? '...' : 'Pasang' }}
+                            {{ addMap.loading ? '...' : $t('portonus.addmap_place') }}
                         </PrimaryButton>
                     </div>
                     <p v-if="addMap.error" class="mt-2 text-xs text-red-300">{{ addMap.error }}</p>
@@ -1015,14 +1019,14 @@ const rxBadgeClass = (value) => {
                 <!-- Opsi 2: klik langsung di peta -->
                 <div class="mt-3 rounded-lg border border-white/10 bg-white/5 p-4">
                     <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
-                        <MapPin class="h-4 w-4 text-cyan-400" /> Klik langsung di peta
+                        <MapPin class="h-4 w-4 text-cyan-400" /> {{ $t('portonus.addmap_click_map') }}
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">Buka Peta ONU, lalu klik lokasi untuk menempatkan pin.</p>
-                    <SecondaryButton type="button" class="mt-3" @click="placeOnMap">Buka Peta &amp; tempel pin</SecondaryButton>
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('portonus.addmap_click_hint') }}</p>
+                    <SecondaryButton type="button" class="mt-3" @click="placeOnMap">{{ $t('portonus.addmap_open_map') }}</SecondaryButton>
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <SecondaryButton type="button" @click="addMap.open = false">Tutup</SecondaryButton>
+                    <SecondaryButton type="button" @click="addMap.open = false">{{ $t('common.close') }}</SecondaryButton>
                 </div>
             </div>
         </Modal>
@@ -1030,14 +1034,14 @@ const rxBadgeClass = (value) => {
         <Modal :show="copyModal.open" max-width="lg" @close="closeCopy">
             <!-- Fase 1: form -->
             <div v-if="copyPhase === 'form'" class="p-6">
-                <h3 class="text-base font-semibold text-white">Copy konfigurasi ONU ke port lain</h3>
+                <h3 class="text-base font-semibold text-white">{{ $t('portonus.copy_modal_title') }}</h3>
                 <p class="mt-1 text-sm text-slate-500">
-                    {{ selectedCount }} ONU dari Slot {{ slot }} Port {{ port }} akan dibuatkan script registrasi di port tujuan (OLT sama).
+                    {{ $t('portonus.copy_modal_sub', { count: selectedCount, slot, port }) }}
                 </p>
 
                 <div class="mt-4 space-y-4">
                     <div>
-                        <InputLabel value="Port tujuan" />
+                        <InputLabel :value="$t('portonus.dst_port')" />
                         <select
                             v-if="availablePorts.length"
                             v-model="targetKey"
@@ -1049,43 +1053,43 @@ const rxBadgeClass = (value) => {
                         </select>
                         <div v-else class="mt-1 grid grid-cols-2 gap-3">
                             <div>
-                                <InputLabel for="dst_slot" value="Slot" />
+                                <InputLabel for="dst_slot" :value="$t('portonus.slot')" />
                                 <TextInput id="dst_slot" v-model="manualSlot" type="number" min="1" class="mt-1 block w-full" />
                             </div>
                             <div>
-                                <InputLabel for="dst_port" value="Port" />
+                                <InputLabel for="dst_port" :value="$t('portonus.port')" />
                                 <TextInput id="dst_port" v-model="manualPort" type="number" min="1" class="mt-1 block w-full" />
                             </div>
                         </div>
                         <p v-if="!availablePorts.length" class="mt-1 text-xs text-amber-300">
-                            Daftar port belum ter-refresh — isi slot/port tujuan manual.
+                            {{ $t('portonus.ports_not_refreshed') }}
                         </p>
                     </div>
 
                     <label class="flex items-start gap-2.5 text-sm text-slate-300">
                         <input v-model="copyExecute" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500" />
                         <span>
-                            Langsung eksekusi ke OLT setelah generate
-                            <span class="text-slate-500">(tanpa ini, script disimpan berstatus <em>generated</em> untuk direview dulu).</span>
+                            {{ $t('portonus.execute_after') }}
+                            <span class="text-slate-500">{{ $t('portonus.execute_hint') }}</span>
                         </span>
                     </label>
 
                     <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
-                        onu-id di port tujuan dialokasikan otomatis (slot kosong terendah) — refresh port tujuan dulu agar akurat. SN GPON unik: pada eksekusi nyata pastikan ONU sudah dipindah fisik / dihapus dari port asal agar tidak ditolak OLT.
+                        {{ $t('portonus.copy_warning') }}
                     </div>
 
                     <p v-if="copyError" class="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ copyError }}</p>
                 </div>
 
                 <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
-                    <SecondaryButton type="button" @click="closeCopy">Batal</SecondaryButton>
+                    <SecondaryButton type="button" @click="closeCopy">{{ $t('common.cancel') }}</SecondaryButton>
                     <PrimaryButton
                         type="button"
                         :disabled="copySubmitting || (!availablePorts.length && (!manualSlot || !manualPort))"
                         @click="submitCopy"
                     >
                         <Copy class="mr-2 h-4 w-4" />
-                        {{ copySubmitting ? 'Memproses…' : (copyExecute ? 'Copy & eksekusi' : 'Generate script') }}
+                        {{ copySubmitting ? $t('portonus.processing') : (copyExecute ? $t('portonus.copy_and_execute') : $t('portonus.generate_script')) }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -1095,30 +1099,30 @@ const rxBadgeClass = (value) => {
                 <div class="flex items-center gap-3">
                     <RefreshCw class="h-5 w-5 animate-spin text-cyan-400" />
                     <h3 class="text-base font-semibold text-white">
-                        {{ copyProgress.execute ? 'Copy & eksekusi berjalan…' : 'Generate script berjalan…' }}
+                        {{ copyProgress.execute ? $t('portonus.running_execute') : $t('portonus.running_generate') }}
                     </h3>
                 </div>
                 <p class="mt-1 text-sm text-slate-500">
-                    Membaca config & menyiapkan {{ copyProgress.total }} ONU ke port tujuan. Proses jalan di latar — boleh ditutup, hasil tetap tersimpan di Registrations.
+                    {{ $t('portonus.running_sub', { count: copyProgress.total }) }}
                 </p>
 
                 <div class="mt-4">
                     <div class="mb-1.5 flex items-center justify-between text-xs text-slate-400">
-                        <span>{{ copyProgress.processed }} / {{ copyProgress.total }} diproses</span>
+                        <span>{{ $t('portonus.n_processed', { processed: copyProgress.processed, total: copyProgress.total }) }}</span>
                         <span>{{ copyPercent }}%</span>
                     </div>
                     <div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
                         <div class="h-full rounded-full bg-cyan-500 transition-all duration-300" :style="{ width: `${copyPercent}%` }"></div>
                     </div>
                     <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-white">{{ copyProgress.created }}</div>dibuat</div>
-                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-emerald-400">{{ copyProgress.executed }}</div>dieksekusi</div>
-                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-red-300">{{ copyProgress.failed }}</div>gagal</div>
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-white">{{ copyProgress.created }}</div>{{ $t('portonus.stat_created') }}</div>
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-emerald-400">{{ copyProgress.executed }}</div>{{ $t('portonus.stat_executed') }}</div>
+                        <div class="rounded-lg bg-slate-800/60 py-2"><div class="text-base font-semibold text-red-300">{{ copyProgress.failed }}</div>{{ $t('portonus.stat_failed') }}</div>
                     </div>
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <SecondaryButton type="button" @click="closeCopy">Tutup (tetap jalan)</SecondaryButton>
+                    <SecondaryButton type="button" @click="closeCopy">{{ $t('portonus.close_keep_running') }}</SecondaryButton>
                 </div>
             </div>
 
@@ -1129,26 +1133,26 @@ const rxBadgeClass = (value) => {
                         <Copy class="h-5 w-5" :class="copyProgress.status === 'failed' || copyProgress.failed > 0 ? 'text-amber-300' : 'text-emerald-400'" />
                     </span>
                     <h3 class="text-base font-semibold text-white">
-                        {{ copyProgress.status === 'failed' ? 'Batch gagal' : 'Selesai' }}
+                        {{ copyProgress.status === 'failed' ? $t('portonus.batch_failed') : $t('portonus.done') }}
                     </h3>
                 </div>
                 <p class="mt-2 text-sm text-slate-300">
-                    {{ copyProgress.created }} script dibuat<span v-if="copyProgress.execute"> · {{ copyProgress.executed }} dieksekusi</span> · {{ copyProgress.failed }} gagal
-                    <span class="text-slate-500">(dari {{ copyProgress.total }} ONU).</span>
+                    {{ $t('portonus.done_created', { count: copyProgress.created }) }}<span v-if="copyProgress.execute"> · {{ $t('portonus.done_executed', { count: copyProgress.executed }) }}</span> · {{ $t('portonus.done_failed', { count: copyProgress.failed }) }}
+                    <span class="text-slate-500">{{ $t('portonus.done_from_total', { total: copyProgress.total }) }}</span>
                 </p>
                 <p v-if="copyProgress.error" class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ copyProgress.error }}</p>
 
                 <div v-if="copyFailedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gagal</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.failed_header') }}</p>
                     <div v-for="(item, idx) in copyFailedItems" :key="idx" class="text-xs text-slate-400">
                         <span class="font-mono text-slate-300">ONU {{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}
                     </div>
                 </div>
 
                 <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
-                    <SecondaryButton type="button" @click="closeCopy">Tutup</SecondaryButton>
+                    <SecondaryButton type="button" @click="closeCopy">{{ $t('common.close') }}</SecondaryButton>
                     <Link :href="copyRegistrationsUrl">
-                        <PrimaryButton type="button" class="w-full sm:w-auto">Lihat Registrations</PrimaryButton>
+                        <PrimaryButton type="button" class="w-full sm:w-auto">{{ $t('portonus.view_registrations') }}</PrimaryButton>
                     </Link>
                 </div>
             </div>

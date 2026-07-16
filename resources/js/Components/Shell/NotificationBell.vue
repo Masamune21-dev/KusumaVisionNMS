@@ -105,7 +105,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                         </li>
                     </ul>
                     <div v-else class="px-4 py-10 text-center text-sm text-slate-500">
-                        Tidak ada notifikasi.
+                        {{ $t('shell.no_notifications') }}
                     </div>
                 </div>
                 <div class="border-t border-white/10 px-4 py-2.5">
@@ -114,7 +114,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                         class="block text-center text-xs font-medium text-cyan-400 hover:text-cyan-300"
                         @click="open = false"
                     >
-                        Lihat semua alarm &rarr;
+                        {{ $t('shell.view_all_alarms') }} &rarr;
                     </Link>
                 </div>
             </div>

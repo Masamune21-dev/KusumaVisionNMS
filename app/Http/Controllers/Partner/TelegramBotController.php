@@ -98,7 +98,7 @@ class TelegramBotController extends Controller
 
         $bot->save();
 
-        return back()->with('success', 'Pengaturan bot Telegram tersimpan.');
+        return back()->with('success', __('flash.bot_saved'));
     }
 
     public function test(Request $request, TelegramNotifier $notifier): RedirectResponse
@@ -106,10 +106,10 @@ class TelegramBotController extends Controller
         $result = $notifier->sendTest(PartnerTelegramBot::forUser($request->user()));
 
         if ($result['ok']) {
-            return back()->with('success', 'Pesan tes Telegram terkirim.');
+            return back()->with('success', __('flash.telegram_test_sent'));
         }
 
-        return back()->with('error', 'Gagal mengirim tes Telegram: '.($result['error'] ?? 'unknown error'));
+        return back()->with('error', __('flash.telegram_test_failed').($result['error'] ?? 'unknown error'));
     }
 
     public function registerWebhook(Request $request, TelegramWebhookManager $manager): RedirectResponse
@@ -117,10 +117,10 @@ class TelegramBotController extends Controller
         $result = $manager->register(PartnerTelegramBot::forUser($request->user()));
 
         if ($result['ok']) {
-            return back()->with('success', 'Webhook Telegram terdaftar. Bot siap menerima perintah.');
+            return back()->with('success', __('flash.webhook_registered'));
         }
 
-        return back()->with('error', 'Gagal mendaftarkan webhook: '.$result['message']);
+        return back()->with('error', __('flash.webhook_register_failed').$result['message']);
     }
 
     public function deleteWebhook(Request $request, TelegramWebhookManager $manager): RedirectResponse
@@ -128,9 +128,9 @@ class TelegramBotController extends Controller
         $result = $manager->delete(PartnerTelegramBot::forUser($request->user()));
 
         if ($result['ok']) {
-            return back()->with('success', 'Webhook Telegram dihapus. Bot tidak lagi menerima perintah.');
+            return back()->with('success', __('flash.webhook_deleted'));
         }
 
-        return back()->with('error', 'Gagal menghapus webhook: '.$result['message']);
+        return back()->with('error', __('flash.webhook_delete_failed').$result['message']);
     }
 }

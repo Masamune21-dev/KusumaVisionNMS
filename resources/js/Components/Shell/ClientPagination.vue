@@ -32,7 +32,7 @@ const emit = defineEmits(['update:page', 'update:pageSize']);
                 <select
                     :value="pageSize"
                     class="min-h-9 rounded-lg border border-white/10 bg-slate-900/60 py-0 pl-2 pr-7 text-xs text-slate-200 focus:border-cyan-500 focus:ring-cyan-500"
-                    title="Item per halaman"
+                    :title="$t('shell.items_per_page')"
                     @change="emit('update:pageSize', Number($event.target.value))"
                 >
                     <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} / hal</option>

@@ -163,7 +163,7 @@ const submit = () => {
         <div class="p-6">
             <div class="mb-4 flex items-center gap-2">
                 <MapPin class="h-5 w-5 text-cyan-400" />
-                <h3 class="text-lg font-semibold text-white">Tambah Pin ONU</h3>
+                <h3 class="text-lg font-semibold text-white">{{ $t('map.modal_title') }}</h3>
             </div>
 
             <!-- Search global lintas OLT -->
@@ -172,7 +172,7 @@ const submit = () => {
                 <input
                     v-model="search"
                     type="text"
-                    placeholder="Cari ONU: interface, serial, nama pelanggan, atau OLT..."
+                    :placeholder="$t('map.search_placeholder')"
                     class="kv-input w-full pl-9"
                 />
                 <div
@@ -200,7 +200,7 @@ const submit = () => {
                 <div>
                     <InputLabel value="OLT" />
                     <select v-model="form.snmp_olt_id" class="kv-input mt-1 w-full" @change="onOltChange">
-                        <option value="">— Pilih OLT —</option>
+                        <option value="">{{ $t('map.pick_olt') }}</option>
                         <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
                     </select>
                     <InputError :message="form.errors.snmp_olt_id" class="mt-1" />
@@ -208,14 +208,14 @@ const submit = () => {
                 <div>
                     <InputLabel value="Port" />
                     <select v-model="form.port" class="kv-input mt-1 w-full" :disabled="!form.snmp_olt_id" @change="onPortChange">
-                        <option value="">— Pilih Port —</option>
+                        <option value="">{{ $t('map.pick_port') }}</option>
                         <option v-for="p in portOptions" :key="`${p.slot}/${p.port}`" :value="`${p.slot}/${p.port}`">{{ p.slot }}/{{ p.port }}</option>
                     </select>
                 </div>
                 <div>
                     <InputLabel value="ONU" />
                     <select v-model="form.onu_id" class="kv-input mt-1 w-full" :disabled="!form.snmp_olt_id">
-                        <option value="">— Pilih ONU —</option>
+                        <option value="">{{ $t('map.pick_onu') }}</option>
                         <option v-for="onu in onuOptions" :key="onu.onu_id" :value="onu.onu_id">
                             #{{ onu.onu_id }} · {{ onu.customer_name || onu.name || onu.serial_number || onu.interface }}
                         </option>
@@ -251,26 +251,26 @@ const submit = () => {
             <!-- Data pelanggan tambahan -->
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <InputLabel value="Nama pelanggan (opsional override)" />
-                    <TextInput v-model="form.customer_name" type="text" class="mt-1 w-full" :placeholder="selectedOnu?.customer_name || 'Pakai nama ONU bila kosong'" />
+                    <InputLabel :value="$t('map.customer_name_label')" />
+                    <TextInput v-model="form.customer_name" type="text" class="mt-1 w-full" :placeholder="selectedOnu?.customer_name || $t('map.customer_name_placeholder')" />
                 </div>
                 <div>
-                    <InputLabel value="No. HP (opsional)" />
+                    <InputLabel :value="$t('map.phone_label')" />
                     <TextInput v-model="form.phone" type="text" class="mt-1 w-full" />
                 </div>
                 <div class="sm:col-span-2">
-                    <InputLabel value="Alamat (opsional)" />
+                    <InputLabel :value="$t('map.address_label')" />
                     <TextInput v-model="form.address" type="text" class="mt-1 w-full" />
                 </div>
                 <div class="sm:col-span-2">
-                    <InputLabel value="Catatan (opsional)" />
+                    <InputLabel :value="$t('map.notes_label')" />
                     <textarea v-model="form.notes" rows="2" class="kv-input mt-1 w-full"></textarea>
                 </div>
             </div>
 
             <div class="mt-6 flex justify-end gap-3">
-                <SecondaryButton @click="emit('close')">Batal</SecondaryButton>
-                <PrimaryButton :disabled="!canSubmit || form.processing" @click="submit">Simpan Pin</PrimaryButton>
+                <SecondaryButton @click="emit('close')">{{ $t('common.cancel') }}</SecondaryButton>
+                <PrimaryButton :disabled="!canSubmit || form.processing" @click="submit">{{ $t('map.save_pin') }}</PrimaryButton>
             </div>
         </div>
     </Modal>

@@ -2,7 +2,10 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { rxMarkerColor } from '@/Composables/useRxLevel';
+
+const { t, locale } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     pins: { type: Array, default: () => [] },
@@ -120,33 +123,46 @@ onMounted(() => {
         attributionControl: true,
     });
 
-    L.control
-        .layers(
-            {
-                'Google Streets': streets,
-                'Google Satelit': satellite,
-                'Google Hybrid': hybrid,
-                'Google Terrain': terrain,
-                OpenStreetMap: osm,
-            },
-            {},
-            { position: 'topright' },
-        )
-        .addTo(map);
+    // Kontrol layer & legenda dibuat ulang saat ganti bahasa (label Leaflet bukan reactive Vue).
+    let layersControl = null;
+    const addLayersControl = () => {
+        if (layersControl) map.removeControl(layersControl);
+        layersControl = L.control
+            .layers(
+                {
+                    'Google Streets': streets,
+                    [t('map.layer_satellite')]: satellite,
+                    'Google Hybrid': hybrid,
+                    'Google Terrain': terrain,
+                    OpenStreetMap: osm,
+                },
+                {},
+                { position: 'topright' },
+            )
+            .addTo(map);
+    };
+    addLayersControl();
 
     // Legenda level redaman RX.
+    const legendHtml = () => `
+            <div class="kv-map-legend__title">${t('map.legend_title')}</div>
+            <div><span style="background:#10b981"></span> ${t('map.legend_good')}</div>
+            <div><span style="background:#f59e0b"></span> ${t('map.legend_warn')}</div>
+            <div><span style="background:#ef4444"></span> ${t('map.legend_critical')}</div>
+            <div><span style="background:#64748b"></span> ${t('map.legend_offline')}</div>`;
+    let legendDiv = null;
     const legend = L.control({ position: 'bottomright' });
     legend.onAdd = () => {
-        const div = L.DomUtil.create('div', 'kv-map-legend');
-        div.innerHTML = `
-            <div class="kv-map-legend__title">Redaman RX</div>
-            <div><span style="background:#10b981"></span> Baik</div>
-            <div><span style="background:#f59e0b"></span> Waspada</div>
-            <div><span style="background:#ef4444"></span> Kritis</div>
-            <div><span style="background:#64748b"></span> Offline / N/A</div>`;
-        return div;
+        legendDiv = L.DomUtil.create('div', 'kv-map-legend');
+        legendDiv.innerHTML = legendHtml();
+        return legendDiv;
     };
     legend.addTo(map);
+
+    watch(locale, () => {
+        if (legendDiv) legendDiv.innerHTML = legendHtml();
+        addLayersControl();
+    });
 
     markerLayer = L.layerGroup().addTo(map);
 

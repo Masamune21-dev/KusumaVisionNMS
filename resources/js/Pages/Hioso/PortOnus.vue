@@ -9,9 +9,13 @@ import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
 import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
+
+const { t } = useI18n({ useScope: 'global' });
+const onuLabel = (onu) => `${onu.interface}${onu.name ? ` (${onu.name})` : ''}`;
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -74,8 +78,8 @@ const submitRename = () => {
 
 const rebootOnu = async (onu) => {
     const ok = await confirm({
-        title: 'Reboot ONU',
-        message: `Reboot ONU ${onu.interface}${onu.name ? ` (${onu.name})` : ''}? Layanan pelanggan terputus ~30–60 detik.`,
+        title: t('portonus.act_reboot'),
+        message: t('cdataportonus.reboot_msg', { onu: onuLabel(onu) }),
         confirmLabel: 'Reboot',
     });
     if (!ok) return;
@@ -85,8 +89,10 @@ const rebootOnu = async (onu) => {
 const toggleOnu = async (onu) => {
     const active = !isEnabled(onu);
     const ok = await confirm({
-        title: active ? 'Enable ONU' : 'Disable ONU',
-        message: `${active ? 'Enable' : 'Disable'} ONU ${onu.interface}${onu.name ? ` (${onu.name})` : ''}?${active ? '' : ' Layanan pelanggan akan terputus sampai di-enable kembali.'}`,
+        title: active ? t('portonus.act_enable') : t('portonus.act_disable'),
+        message: active
+            ? t('cdataportonus.toggle_enable_msg', { onu: onuLabel(onu) })
+            : t('cdataportonus.toggle_disable_msg', { onu: onuLabel(onu) }),
         confirmLabel: active ? 'Enable' : 'Disable',
         variant: active ? 'primary' : 'danger',
     });
@@ -96,9 +102,9 @@ const toggleOnu = async (onu) => {
 
 const deleteOnu = async (onu) => {
     const ok = await confirm({
-        title: 'Hapus ONU',
-        message: `Hapus permanen ONU ${onu.interface}${onu.name ? ` (${onu.name})` : ''} dari OLT? Registrasi ONU akan dihapus (no onu ${onu.onu_id}) dan perlu didaftarkan ulang untuk mengaktifkan kembali.`,
-        confirmLabel: 'Hapus',
+        title: t('portonus.act_delete'),
+        message: t('cdataportonus.delete_msg_hioso', { onu: onuLabel(onu), onuId: onu.onu_id }),
+        confirmLabel: t('common.delete'),
     });
     if (!ok) return;
     router.delete(route('hioso-olt.onu.delete', [props.olt.id, props.slot, props.port, onu.onu_id]), { preserveScroll: true });
@@ -122,7 +128,7 @@ const pinFromLink = async () => {
     try {
         const { data } = await window.axios.post(route('map.resolve-link'), { url: addMap.url.trim() });
         if (!data.ok) {
-            addMap.error = data.error ?? 'Koordinat tidak ditemukan di link.';
+            addMap.error = data.error ?? t('portonus.coord_not_found');
             addMap.loading = false;
             return;
         }
@@ -144,7 +150,7 @@ const pinFromLink = async () => {
             },
         );
     } catch (e) {
-        addMap.error = e?.response?.data?.error ?? 'Gagal memproses link Google Maps.';
+        addMap.error = e?.response?.data?.error ?? t('portonus.gmaps_failed');
         addMap.loading = false;
     }
 };
@@ -191,7 +197,7 @@ const viewOnMap = (onu) => {
                     </h2>
                 </div>
                 <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
-                    <RefreshCw class="mr-2 h-4 w-4" /> Refresh
+                    <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}
                 </SecondaryButton>
             </div>
         </template>
@@ -202,10 +208,10 @@ const viewOnMap = (onu) => {
                 <div class="kv-glass-panel">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
-                            <h3 class="text-base font-semibold text-white">ONU pada port {{ slot }}/{{ port }}</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.onu_on_port', { slot, port }) }}</h3>
                             <p class="text-xs text-slate-400">
-                                {{ onus.length }} ONU
-                                <span v-if="snapshot?.refreshed_at"> · diperbarui {{ fmt(snapshot.refreshed_at) }}</span>
+                                {{ $t('cdataportonus.onu_count', { count: onus.length }) }}
+                                <span v-if="snapshot?.refreshed_at">{{ $t('cdataportonus.updated_suffix', { date: fmt(snapshot.refreshed_at) }) }}</span>
                             </p>
                         </div>
                         <div class="relative sm:w-64">
@@ -213,15 +219,15 @@ const viewOnMap = (onu) => {
                             <input
                                 v-model="search"
                                 type="text"
-                                placeholder="Cari SN / nama / interface"
+                                :placeholder="$t('cdataportonus.search_placeholder')"
                                 class="w-full rounded-lg border-white/10 bg-slate-950/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
                             />
                         </div>
                     </div>
 
                     <div v-if="onus.length === 0" class="px-6 py-16 text-center">
-                        <p class="text-sm font-semibold text-slate-200">Belum ada data ONU</p>
-                        <p class="mt-1 text-sm text-slate-500">Klik Refresh untuk memindai port ini.</p>
+                        <p class="text-sm font-semibold text-slate-200">{{ $t('cdataportonus.empty_title') }}</p>
+                        <p class="mt-1 text-sm text-slate-500">{{ $t('cdataportonus.empty_hint') }}</p>
                     </div>
 
                     <template v-else>
@@ -230,11 +236,11 @@ const viewOnMap = (onu) => {
                                 <thead>
                                     <tr class="border-b border-white/10 bg-slate-950/40">
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Serial / MAC</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Nama</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Rx</th>
-                                        <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
+                                        <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
@@ -251,7 +257,7 @@ const viewOnMap = (onu) => {
                                         <td class="px-4 py-4">
                                             <span class="inline-flex items-center gap-1.5 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
                                                 <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
-                                                {{ o.phase_state || (o.online ? 'Online' : 'Offline') }}
+                                                {{ o.phase_state || (o.online ? $t('common.online') : $t('common.offline')) }}
                                             </span>
                                             <div v-if="o.last_down_cause" class="mt-0.5 text-xs text-slate-500">{{ o.last_down_cause }}</div>
                                         </td>
@@ -260,20 +266,20 @@ const viewOnMap = (onu) => {
                                         </td>
                                         <td v-if="hasActions" class="px-4 py-4">
                                             <div class="flex justify-center gap-1.5">
-                                                <IconButton v-if="canRename" title="Ubah nama" @click="openRename(o)">
+                                                <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? 'Disable ONU' : 'Enable ONU'" @click="toggleOnu(o)">
+                                                <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? $t('portonus.act_disable') : $t('portonus.act_enable')" @click="toggleOnu(o)">
                                                     <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
                                                     <ToggleLeft v-else class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
+                                                <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
                                                     <Power class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="canDelete" variant="danger" title="Hapus ONU" @click="deleteOnu(o)">
+                                                <IconButton v-if="canDelete" variant="danger" :title="$t('portonus.act_delete')" @click="deleteOnu(o)">
                                                     <Trash2 class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? 'Lihat di Peta' : 'Tambah ke Peta'" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                                <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                                     <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                                     <MapPin v-else class="h-4 w-4" />
                                                 </IconButton>
@@ -290,7 +296,7 @@ const viewOnMap = (onu) => {
                                     <span class="font-mono text-xs text-white">{{ o.interface }}</span>
                                     <span class="inline-flex items-center gap-1 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
                                         <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
-                                        {{ o.online ? 'Online' : 'Offline' }}
+                                        {{ o.online ? $t('common.online') : $t('common.offline') }}
                                     </span>
                                 </div>
                                 <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
@@ -299,20 +305,20 @@ const viewOnMap = (onu) => {
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
                                 </div>
                                 <div v-if="hasActions" class="mt-3 flex gap-2">
-                                    <IconButton v-if="canRename" title="Ubah nama" @click="openRename(o)">
+                                    <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? 'Disable ONU' : 'Enable ONU'" @click="toggleOnu(o)">
+                                    <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? $t('portonus.act_disable') : $t('portonus.act_enable')" @click="toggleOnu(o)">
                                         <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
                                         <ToggleLeft v-else class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canReboot" variant="danger" title="Reboot ONU" @click="rebootOnu(o)">
+                                    <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
                                         <Power class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canDelete" variant="danger" title="Hapus ONU" @click="deleteOnu(o)">
+                                    <IconButton v-if="canDelete" variant="danger" :title="$t('portonus.act_delete')" @click="deleteOnu(o)">
                                         <Trash2 class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? 'Lihat di Peta' : 'Tambah ke Peta'" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                    <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                         <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                         <MapPin v-else class="h-4 w-4" />
                                     </IconButton>
@@ -331,15 +337,15 @@ const viewOnMap = (onu) => {
             <div class="p-6">
                 <div class="flex items-center gap-2">
                     <MapPin class="h-5 w-5 text-cyan-400" />
-                    <h3 class="text-base font-semibold text-white">Tambah ke Peta</h3>
+                    <h3 class="text-base font-semibold text-white">{{ $t('portonus.addmap_title') }}</h3>
                 </div>
                 <p v-if="addMap.onu" class="mt-1 text-sm text-slate-500">{{ addMap.onu.interface }} · {{ addMap.onu.name || addMap.onu.serial_number || 'ONU' }}</p>
 
                 <div class="mt-5 rounded-lg border border-white/10 bg-white/5 p-4">
                     <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
-                        <Link2 class="h-4 w-4 text-cyan-400" /> Paste link Google Maps
+                        <Link2 class="h-4 w-4 text-cyan-400" /> {{ $t('portonus.addmap_paste_gmaps') }}
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">Pin otomatis terpasang di koordinat link tersebut.</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('portonus.addmap_paste_hint') }}</p>
                     <div class="mt-3 flex gap-2">
                         <TextInput
                             v-model="addMap.url"
@@ -349,7 +355,7 @@ const viewOnMap = (onu) => {
                             @keyup.enter="pinFromLink"
                         />
                         <PrimaryButton type="button" :disabled="!addMap.url.trim() || addMap.loading" @click="pinFromLink">
-                            {{ addMap.loading ? '...' : 'Pasang' }}
+                            {{ addMap.loading ? '...' : $t('portonus.addmap_place') }}
                         </PrimaryButton>
                     </div>
                     <p v-if="addMap.error" class="mt-2 text-xs text-red-300">{{ addMap.error }}</p>
@@ -357,14 +363,14 @@ const viewOnMap = (onu) => {
 
                 <div class="mt-3 rounded-lg border border-white/10 bg-white/5 p-4">
                     <div class="flex items-center gap-2 text-sm font-medium text-slate-200">
-                        <MapPin class="h-4 w-4 text-cyan-400" /> Klik langsung di peta
+                        <MapPin class="h-4 w-4 text-cyan-400" /> {{ $t('portonus.addmap_click_map') }}
                     </div>
-                    <p class="mt-1 text-xs text-slate-500">Buka Peta ONU, lalu klik lokasi untuk menempatkan pin.</p>
-                    <SecondaryButton type="button" class="mt-3" @click="placeOnMap">Buka Peta &amp; tempel pin</SecondaryButton>
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('portonus.addmap_click_hint') }}</p>
+                    <SecondaryButton type="button" class="mt-3" @click="placeOnMap">{{ $t('portonus.addmap_open_map') }}</SecondaryButton>
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <SecondaryButton type="button" @click="addMap.open = false">Tutup</SecondaryButton>
+                    <SecondaryButton type="button" @click="addMap.open = false">{{ $t('common.close') }}</SecondaryButton>
                 </div>
             </div>
         </Modal>
@@ -373,14 +379,14 @@ const viewOnMap = (onu) => {
         <div v-if="renameOnu" class="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="renameOnu = null"></div>
             <div class="relative w-full max-w-md rounded-xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl backdrop-blur-xl">
-                <h3 class="text-base font-semibold text-white">Ubah nama ONU</h3>
+                <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.rename_modal_title') }}</h3>
                 <p class="mt-1 font-mono text-xs text-slate-400">{{ renameOnu.interface }}</p>
                 <form class="mt-4" @submit.prevent="submitRename">
-                    <InputLabel for="rename" value="Nama / deskripsi (maks 128, kosongkan untuk hapus)" />
+                    <InputLabel for="rename" :value="$t('cdataportonus.rename_label')" />
                     <TextInput id="rename" v-model="renameValue" class="mt-1 block w-full" maxlength="128" autocomplete="off" />
                     <div class="mt-5 flex justify-end gap-3">
-                        <SecondaryButton type="button" @click="renameOnu = null">Batal</SecondaryButton>
-                        <PrimaryButton type="submit">Simpan</PrimaryButton>
+                        <SecondaryButton type="button" @click="renameOnu = null">{{ $t('common.cancel') }}</SecondaryButton>
+                        <PrimaryButton type="submit">{{ $t('common.save') }}</PrimaryButton>
                     </div>
                 </form>
             </div>

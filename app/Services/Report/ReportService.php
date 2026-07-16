@@ -82,10 +82,10 @@ class ReportService
     public function title(string $type): string
     {
         return match ($type) {
-            'olt' => 'Laporan Status OLT',
-            'alarm' => 'Laporan Riwayat Alarm',
-            'provisioning' => 'Laporan Provisioning ONU',
-            default => 'Laporan Inventaris & RX Power ONU',
+            'olt' => __('reports.title_olt'),
+            'alarm' => __('reports.title_alarm'),
+            'provisioning' => __('reports.title_provisioning'),
+            default => __('reports.title_onu'),
         };
     }
 
@@ -95,10 +95,10 @@ class ReportService
     public static function typeOptions(): array
     {
         return [
-            ['value' => 'onu', 'label' => 'Inventaris & RX Power ONU'],
-            ['value' => 'olt', 'label' => 'Status OLT'],
-            ['value' => 'alarm', 'label' => 'Riwayat Alarm'],
-            ['value' => 'provisioning', 'label' => 'Provisioning ONU'],
+            ['value' => 'onu', 'label' => __('reports.type_onu')],
+            ['value' => 'olt', 'label' => __('reports.type_olt')],
+            ['value' => 'alarm', 'label' => __('reports.type_alarm')],
+            ['value' => 'provisioning', 'label' => __('reports.type_provisioning')],
         ];
     }
 
@@ -108,10 +108,10 @@ class ReportService
     public static function rangeOptions(): array
     {
         return [
-            ['value' => '24h', 'label' => '24 Jam Terakhir'],
-            ['value' => '7d', 'label' => '7 Hari Terakhir'],
-            ['value' => '30d', 'label' => '30 Hari Terakhir'],
-            ['value' => 'all', 'label' => 'Semua Waktu'],
+            ['value' => '24h', 'label' => __('reports.range_24h')],
+            ['value' => '7d', 'label' => __('reports.range_7d')],
+            ['value' => '30d', 'label' => __('reports.range_30d')],
+            ['value' => 'all', 'label' => __('reports.range_all')],
         ];
     }
 
@@ -219,21 +219,21 @@ class ReportService
             'type' => 'onu',
             'title' => $this->title('onu'),
             'columns' => [
-                ['key' => 'olt', 'label' => 'OLT'],
-                ['key' => 'interface', 'label' => 'Interface'],
-                ['key' => 'onu_id', 'label' => 'ONU ID'],
-                ['key' => 'serial_number', 'label' => 'Serial Number / MAC'],
-                ['key' => 'name', 'label' => 'Nama / Pelanggan'],
-                ['key' => 'rx_power', 'label' => 'RX Power'],
-                ['key' => 'status', 'label' => 'Status'],
+                ['key' => 'olt', 'label' => __('reports.col_olt')],
+                ['key' => 'interface', 'label' => __('reports.col_interface')],
+                ['key' => 'onu_id', 'label' => __('reports.col_onu_id')],
+                ['key' => 'serial_number', 'label' => __('reports.col_serial_mac')],
+                ['key' => 'name', 'label' => __('reports.col_name')],
+                ['key' => 'rx_power', 'label' => __('reports.col_rx_power')],
+                ['key' => 'status', 'label' => __('reports.col_status')],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total ONU', 'value' => $total],
-                ['label' => 'Online', 'value' => $online],
-                ['label' => 'Offline', 'value' => $total - $online],
-                ['label' => 'RX Warning (< -25 dBm)', 'value' => $warning],
-                ['label' => 'RX Critical (< -28 dBm)', 'value' => $critical],
+                ['label' => __('reports.sum_total_onu'), 'value' => $total],
+                ['label' => __('reports.sum_online'), 'value' => $online],
+                ['label' => __('reports.sum_offline'), 'value' => $total - $online],
+                ['label' => __('reports.sum_rx_warning'), 'value' => $warning],
+                ['label' => __('reports.sum_rx_critical'), 'value' => $critical],
             ],
         ];
     }
@@ -270,19 +270,19 @@ class ReportService
             'type' => 'olt',
             'title' => $this->title('olt'),
             'columns' => [
-                ['key' => 'name', 'label' => 'OLT'],
-                ['key' => 'ip', 'label' => 'IP'],
-                ['key' => 'reachable', 'label' => 'Status'],
-                ['key' => 'onu_total', 'label' => 'Total ONU'],
-                ['key' => 'onu_online', 'label' => 'Online'],
-                ['key' => 'onu_offline', 'label' => 'Offline'],
-                ['key' => 'last_polled_at', 'label' => 'Polling Terakhir'],
+                ['key' => 'name', 'label' => __('reports.col_olt')],
+                ['key' => 'ip', 'label' => __('reports.col_ip')],
+                ['key' => 'reachable', 'label' => __('reports.col_status')],
+                ['key' => 'onu_total', 'label' => __('reports.col_onu_total')],
+                ['key' => 'onu_online', 'label' => __('reports.col_online')],
+                ['key' => 'onu_offline', 'label' => __('reports.col_offline')],
+                ['key' => 'last_polled_at', 'label' => __('reports.col_last_polled')],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total OLT', 'value' => count($rows)],
-                ['label' => 'Online', 'value' => $reachable],
-                ['label' => 'Offline', 'value' => count($rows) - $reachable],
+                ['label' => __('reports.sum_total_olt'), 'value' => count($rows)],
+                ['label' => __('reports.sum_online'), 'value' => $reachable],
+                ['label' => __('reports.sum_offline'), 'value' => count($rows) - $reachable],
             ],
         ];
     }
@@ -319,7 +319,7 @@ class ReportService
                 'severity' => ucfirst((string) $a->severity),
                 'type' => $a->type,
                 'message' => $a->message,
-                'status' => $a->status === AlarmEvent::STATUS_ACTIVE ? 'Aktif' : 'Selesai',
+                'status' => $a->status === AlarmEvent::STATUS_ACTIVE ? __('reports.status_active') : __('reports.status_cleared'),
                 'last_seen_at' => $a->last_seen_at?->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i') ?? '-',
             ];
         })->all();
@@ -328,19 +328,19 @@ class ReportService
             'type' => 'alarm',
             'title' => $this->title('alarm'),
             'columns' => [
-                ['key' => 'olt', 'label' => 'OLT'],
-                ['key' => 'severity', 'label' => 'Severity'],
-                ['key' => 'type', 'label' => 'Tipe'],
-                ['key' => 'message', 'label' => 'Pesan'],
-                ['key' => 'status', 'label' => 'Status'],
-                ['key' => 'last_seen_at', 'label' => 'Terakhir Terlihat'],
+                ['key' => 'olt', 'label' => __('reports.col_olt')],
+                ['key' => 'severity', 'label' => __('reports.col_severity')],
+                ['key' => 'type', 'label' => __('reports.col_type')],
+                ['key' => 'message', 'label' => __('reports.col_message')],
+                ['key' => 'status', 'label' => __('reports.col_status')],
+                ['key' => 'last_seen_at', 'label' => __('reports.col_last_seen')],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total Alarm', 'value' => count($rows)],
-                ['label' => 'Critical', 'value' => $bySeverity['critical']],
-                ['label' => 'Major', 'value' => $bySeverity['major']],
-                ['label' => 'Minor + Warning', 'value' => $bySeverity['minor'] + $bySeverity['warning']],
+                ['label' => __('reports.sum_total_alarm'), 'value' => count($rows)],
+                ['label' => __('reports.sum_critical'), 'value' => $bySeverity['critical']],
+                ['label' => __('reports.sum_major'), 'value' => $bySeverity['major']],
+                ['label' => __('reports.sum_minor_warning'), 'value' => $bySeverity['minor'] + $bySeverity['warning']],
             ],
         ];
     }
@@ -390,19 +390,19 @@ class ReportService
             'type' => 'provisioning',
             'title' => $this->title('provisioning'),
             'columns' => [
-                ['key' => 'created_at', 'label' => 'Tanggal'],
-                ['key' => 'olt', 'label' => 'OLT'],
-                ['key' => 'serial_number', 'label' => 'Serial Number'],
-                ['key' => 'customer_name', 'label' => 'Pelanggan'],
-                ['key' => 'wan_mode', 'label' => 'Mode WAN'],
-                ['key' => 'status', 'label' => 'Status'],
-                ['key' => 'created_by', 'label' => 'Dibuat Oleh'],
+                ['key' => 'created_at', 'label' => __('reports.col_date')],
+                ['key' => 'olt', 'label' => __('reports.col_olt')],
+                ['key' => 'serial_number', 'label' => __('reports.col_serial')],
+                ['key' => 'customer_name', 'label' => __('reports.col_customer')],
+                ['key' => 'wan_mode', 'label' => __('reports.col_wan_mode')],
+                ['key' => 'status', 'label' => __('reports.col_status')],
+                ['key' => 'created_by', 'label' => __('reports.col_created_by')],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total Registrasi', 'value' => count($rows)],
-                ['label' => 'Berhasil', 'value' => $success],
-                ['label' => 'Gagal', 'value' => $failed],
+                ['label' => __('reports.sum_total_reg'), 'value' => count($rows)],
+                ['label' => __('reports.sum_success'), 'value' => $success],
+                ['label' => __('reports.sum_failed'), 'value' => $failed],
             ],
         ];
     }

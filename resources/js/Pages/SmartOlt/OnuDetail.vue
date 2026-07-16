@@ -9,7 +9,10 @@ import {
     RefreshCw, Settings, Signal, Terminal, Zap,
 } from '@lucide/vue';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import VueApexCharts from 'vue3-apexcharts';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     olt: { type: Object, required: true },
@@ -69,9 +72,9 @@ const rxHex = (v) => {
 };
 const rxZoneLabel = computed(() => {
     if (rxVal.value === null) return '—';
-    if (rxVal.value <= -28 || rxVal.value >= -8) return 'Kritis';
-    if (rxVal.value <= -25 || rxVal.value >= -10) return 'Warning';
-    return 'Sehat';
+    if (rxVal.value <= -28 || rxVal.value >= -8) return t('onudetail.zone_critical');
+    if (rxVal.value <= -25 || rxVal.value >= -10) return t('onudetail.zone_warning');
+    return t('onudetail.zone_healthy');
 });
 // Petakan RX (-30…-5 dBm) ke 0…100% busur gauge.
 const rxGaugePct = computed(() => (rxVal.value === null ? 0 : clampPct(rxVal.value, -30, -5)));
@@ -118,9 +121,9 @@ const formatDuration = (secs) => {
     const h = Math.floor(s / 3600); s %= 3600;
     const m = Math.floor(s / 60);
     const parts = [];
-    if (d) parts.push(`${d}h`);
-    if (h || d) parts.push(`${h}j`);
-    parts.push(`${m}m`);
+    if (d) parts.push(`${d}${t('onudetail.dur_d')}`);
+    if (h || d) parts.push(`${h}${t('onudetail.dur_h')}`);
+    parts.push(`${m}${t('onudetail.dur_m')}`);
     return parts.join(' ');
 };
 const distanceLabel = computed(() => {
@@ -142,11 +145,11 @@ const labels = {
         last_down_cause: 'Last Down Cause', last_down_time: 'Last Down Time', last_up_time: 'Last Up Time',
     },
 };
-const detailSections = [
-    { key: 'identity', title: 'Identitas', icon: Fingerprint },
-    { key: 'state', title: 'Status', icon: Activity },
-    { key: 'last_event', title: 'Last Event', icon: Clock },
-];
+const detailSections = computed(() => [
+    { key: 'identity', title: t('onudetail.section_identity'), icon: Fingerprint },
+    { key: 'state', title: t('common.status'), icon: Activity },
+    { key: 'last_event', title: t('onudetail.section_last_event'), icon: Clock },
+]);
 const rowsFor = (key) => {
     const group = props.groups[key] ?? {};
     const labelMap = labels[key] ?? {};
@@ -168,7 +171,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                 <div>
                     <h2 class="flex items-center gap-2 text-lg font-semibold leading-tight sm:text-xl text-white">
                         <Settings class="h-5 w-5 text-cyan-400" />
-                        Detail ONU: {{ ifaceLabel }}
+                        {{ $t('onudetail.title') }}: {{ ifaceLabel }}
                     </h2>
                     <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                         <span>{{ olt.name }}</span>
@@ -183,12 +186,12 @@ const refresh = () => router.reload({ preserveScroll: true });
                     <Link :href="route('smartolt.port-onus', [olt.id, slot, port])">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Kembali ke Port
+                            {{ $t('configonu.back_to_port') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
-                        Refresh
+                        {{ $t('common.refresh') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -197,7 +200,7 @@ const refresh = () => router.reload({ preserveScroll: true });
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
                 <div v-if="fetch_error" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
-                    Gagal baca detail-info live: {{ fetch_error }}
+                    {{ $t('onudetail.fetch_error', { error: fetch_error }) }}
                 </div>
 
                 <!-- Hero stat cards -->
@@ -205,11 +208,11 @@ const refresh = () => router.reload({ preserveScroll: true });
                     <!-- Status -->
                     <div class="rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Status</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</p>
                             <span class="h-2.5 w-2.5 rounded-full" :class="online ? 'bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60' : 'bg-slate-500'"></span>
                         </div>
                         <p class="mt-3 text-2xl font-bold" :class="online ? 'text-emerald-400' : 'text-slate-400'">
-                            {{ online ? 'Online' : 'Offline' }}
+                            {{ online ? $t('common.online') : $t('common.offline') }}
                         </p>
                         <p class="mt-1 text-xs text-slate-500">{{ state.phase_state || state.state || '—' }}</p>
                     </div>
@@ -222,16 +225,16 @@ const refresh = () => router.reload({ preserveScroll: true });
                         <p class="mt-3 text-2xl font-bold" :class="rxToneCur.text">
                             {{ rxVal !== null ? rxVal.toFixed(2) : '—' }}<span v-if="rxVal !== null" class="ml-1 text-sm font-medium text-slate-500">dBm</span>
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">Sinyal terima ONU</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('onudetail.rx_hint') }}</p>
                     </div>
                     <!-- Distance -->
                     <div class="rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Jarak</p>
+                            <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('onudetail.distance') }}</p>
                             <Gauge class="h-4 w-4 text-slate-500" />
                         </div>
                         <p class="mt-3 text-2xl font-bold text-white">{{ distanceLabel }}</p>
-                        <p class="mt-1 text-xs text-slate-500">Jarak fiber ke OLT</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('onudetail.distance_hint') }}</p>
                     </div>
                     <!-- Online duration -->
                     <div class="rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl">
@@ -258,7 +261,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                                 <VueApexCharts type="radialBar" height="220" width="100%" :options="rxGaugeOptions" :series="rxGaugeSeries" />
                                 <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
                                     <span class="rounded-full px-2 py-0.5 font-medium ring-1" :class="[rxToneCur.bg, rxToneCur.text, rxToneCur.ring]">RX Power</span>
-                                    <span class="text-slate-500">Zona aman <span class="text-emerald-400">-25…-10 dBm</span></span>
+                                    <span class="text-slate-500">{{ $t('onudetail.safe_zone') }} <span class="text-emerald-400">-25…-10 dBm</span></span>
                                 </div>
                             </div>
 
@@ -270,7 +273,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                                 </div>
                                 <div>
                                     <div class="mb-1 flex items-center justify-between text-xs">
-                                        <span class="text-slate-500">Atenuasi Up</span>
+                                        <span class="text-slate-500">{{ $t('onudetail.att_up') }}</span>
                                         <span class="font-medium text-slate-300">{{ attUpMeta.label }}</span>
                                     </div>
                                     <div class="h-2 overflow-hidden rounded-full bg-slate-800">
@@ -279,7 +282,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                                 </div>
                                 <div>
                                     <div class="mb-1 flex items-center justify-between text-xs">
-                                        <span class="text-slate-500">Atenuasi Down</span>
+                                        <span class="text-slate-500">{{ $t('onudetail.att_down') }}</span>
                                         <span class="font-medium text-slate-300">{{ attDownMeta.label }}</span>
                                     </div>
                                     <div class="h-2 overflow-hidden rounded-full bg-slate-800">
@@ -310,7 +313,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                                 <dt class="text-slate-500">{{ label }}</dt>
                                 <dd class="break-all text-right font-medium text-slate-200">{{ value }}</dd>
                             </div>
-                            <p v-if="!rowsFor(s.key).length" class="py-3 text-xs text-slate-500">Tidak ada data.</p>
+                            <p v-if="!rowsFor(s.key).length" class="py-3 text-xs text-slate-500">{{ $t('onudetail.no_data') }}</p>
                         </dl>
                     </section>
                 </div>
@@ -319,7 +322,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                 <details class="group overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <summary class="flex cursor-pointer items-center justify-between px-4 py-3 sm:px-6">
                         <span class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200">
-                            <ListChecks class="h-4 w-4 text-cyan-400" /> Semua Field ({{ allRows.length }})
+                            <ListChecks class="h-4 w-4 text-cyan-400" /> {{ $t('onudetail.all_fields', { count: allRows.length }) }}
                         </span>
                         <ChevronDown class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
                     </summary>
@@ -328,7 +331,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                             <dt class="font-mono text-xs text-slate-500">{{ key }}</dt>
                             <dd class="break-all text-right text-slate-300">{{ value }}</dd>
                         </div>
-                        <p v-if="!allRows.length" class="text-xs text-slate-500">Tidak ada data.</p>
+                        <p v-if="!allRows.length" class="text-xs text-slate-500">{{ $t('onudetail.no_data') }}</p>
                     </dl>
                 </details>
 
@@ -340,7 +343,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                         </span>
                         <ChevronDown class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
                     </summary>
-                    <pre class="max-h-[480px] overflow-auto border-t border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || '(kosong)' }}</pre>
+                    <pre class="max-h-[480px] overflow-auto border-t border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || $t('configonu.empty_paren') }}</pre>
                 </details>
             </div>
         </div>

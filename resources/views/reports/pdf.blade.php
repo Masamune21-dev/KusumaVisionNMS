@@ -32,7 +32,7 @@
     </div>
 
     <h1>{{ $report['title'] }}</h1>
-    <div class="meta">Dibuat: {{ $generatedAt }}</div>
+    <div class="meta">{{ __('reports.pdf_generated') }}: {{ $generatedAt }}</div>
 
     <div class="summary">
         @foreach ($report['summary'] as $item)
@@ -58,7 +58,7 @@
             @empty
                 <tr>
                     <td colspan="{{ count($report['columns']) }}" style="text-align:center; color:#94a3b8;">
-                        Tidak ada data untuk filter ini.
+                        {{ __('reports.pdf_no_data') }}
                     </td>
                 </tr>
             @endforelse
@@ -66,7 +66,7 @@
     </table>
 
     <div class="footer">
-        &copy; {{ date('Y') }} KusumaVision NMS &middot; Laporan dibuat otomatis
+        &copy; {{ date('Y') }} KusumaVision NMS &middot; {{ __('reports.pdf_footer') }}
     </div>
 </body>
 </html>

@@ -10,6 +10,8 @@ import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, Download, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { alarmTypeLabel } from '@/lib/alarm';
 
 const props = defineProps({
     general: { type: Object, required: true },
@@ -27,14 +29,17 @@ const props = defineProps({
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 
-const tabs = [
-    { key: 'general', label: 'Umum', icon: SlidersHorizontal },
-    { key: 'acs', label: 'ACS / TR069', icon: Cloud },
-    { key: 'alarm', label: 'Alarm', icon: AlertTriangle },
-    { key: 'telegram', label: 'Bot Telegram', icon: Send },
-    { key: 'fcm', label: 'Notifikasi Mobile', icon: Smartphone },
-    { key: 'api', label: 'API & Token', icon: KeyRound },
-];
+const { t } = useI18n({ useScope: 'global' });
+
+// Label tab dirakit reaktif dari i18n agar ikut berganti saat switch bahasa.
+const tabs = computed(() => [
+    { key: 'general', label: t('settings.tab_general'), icon: SlidersHorizontal },
+    { key: 'acs', label: t('settings.tab_acs'), icon: Cloud },
+    { key: 'alarm', label: t('settings.tab_alarm'), icon: AlertTriangle },
+    { key: 'telegram', label: t('settings.tab_telegram'), icon: Send },
+    { key: 'fcm', label: t('settings.tab_fcm'), icon: Smartphone },
+    { key: 'api', label: t('settings.tab_api'), icon: KeyRound },
+]);
 const activeTab = ref('general');
 
 /* ------------------------------------------------------------------ */
@@ -249,7 +254,7 @@ const createToken = () => {
 };
 
 const revokeToken = (id) => {
-    if (!confirm('Cabut token ini? Aplikasi yang memakainya akan langsung kehilangan akses.')) return;
+    if (!confirm(t('settings.revoke_confirm'))) return;
     router.delete(route('settings.api-tokens.destroy', id), { preserveScroll: true });
 };
 
@@ -269,11 +274,11 @@ const copyText = async (text, key) => {
 </script>
 
 <template>
-    <Head title="Pengaturan" />
+    <Head :title="$t('settings.title')" />
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Pengaturan</h2>
+            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ $t('settings.title') }}</h2>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -305,15 +310,15 @@ const copyText = async (text, key) => {
                                 <SlidersHorizontal class="h-5 w-5 text-cyan-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Identitas Aplikasi</h3>
-                                <p class="text-sm text-slate-400">Nama, versi, dan logo yang tampil di seluruh aplikasi.</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.identity_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.identity_sub') }}</p>
                             </div>
                         </div>
 
                         <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
                             <!-- Logo -->
                             <div class="lg:col-span-2">
-                                <InputLabel value="Logo Aplikasi" />
+                                <InputLabel :value="$t('settings.logo_label')" />
                                 <div class="mt-1 flex flex-wrap items-center gap-4 rounded-lg border border-white/10 bg-slate-950/40 p-4">
                                     <div class="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-900/60">
                                         <img v-if="currentLogo" :src="currentLogo" alt="Logo" class="h-full w-full object-contain p-1.5" />
@@ -323,11 +328,11 @@ const copyText = async (text, key) => {
                                         <div class="flex flex-wrap gap-2">
                                             <SecondaryButton type="button" @click="pickLogo">
                                                 <Upload class="mr-2 h-4 w-4" />
-                                                {{ currentLogo ? 'Ganti Logo' : 'Unggah Logo' }}
+                                                {{ currentLogo ? $t('settings.change_logo') : $t('settings.upload_logo') }}
                                             </SecondaryButton>
                                             <SecondaryButton v-if="currentLogo" type="button" @click="removeLogo">
                                                 <Trash2 class="mr-2 h-4 w-4" />
-                                                Hapus
+                                                {{ $t('common.delete') }}
                                             </SecondaryButton>
                                         </div>
                                         <input
@@ -337,42 +342,42 @@ const copyText = async (text, key) => {
                                             class="hidden"
                                             @change="onLogoChange"
                                         />
-                                        <p class="mt-2 text-xs text-slate-400">PNG, JPG, WEBP, atau SVG. Maksimal 1 MB. Kosongkan untuk memakai logo bawaan.</p>
+                                        <p class="mt-2 text-xs text-slate-400">{{ $t('settings.logo_hint') }}</p>
                                     </div>
                                 </div>
                                 <InputError :message="generalForm.errors.logo" class="mt-2" />
                             </div>
 
                             <div>
-                                <InputLabel for="app_name" value="Nama Aplikasi" />
+                                <InputLabel for="app_name" :value="$t('settings.app_name')" />
                                 <TextInput
                                     id="app_name"
                                     v-model="generalForm.app_name"
                                     type="text"
                                     class="mt-1 block w-full"
                                     maxlength="60"
-                                    placeholder="mis. KusumaVision"
+                                    :placeholder="$t('settings.app_name_placeholder')"
                                 />
                                 <InputError :message="generalForm.errors.app_name" class="mt-2" />
                             </div>
 
                             <div>
-                                <InputLabel for="app_version" value="Versi Aplikasi" />
+                                <InputLabel for="app_version" :value="$t('settings.app_version')" />
                                 <TextInput
                                     id="app_version"
                                     v-model="generalForm.app_version"
                                     type="text"
                                     class="mt-1 block w-full"
                                     maxlength="30"
-                                    placeholder="mis. 2.0.0"
+                                    :placeholder="$t('settings.app_version_placeholder')"
                                 />
                                 <InputError :message="generalForm.errors.app_version" class="mt-2" />
-                                <p class="mt-1 text-xs text-slate-400">Ditampilkan pada panel sistem di sidebar.</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ $t('settings.app_version_hint') }}</p>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
-                                <PrimaryButton :disabled="generalForm.processing">Simpan</PrimaryButton>
-                                <span v-if="generalForm.recentlySuccessful" class="text-xs text-emerald-400">Tersimpan.</span>
+                                <PrimaryButton :disabled="generalForm.processing">{{ $t('common.save') }}</PrimaryButton>
+                                <span v-if="generalForm.recentlySuccessful" class="text-xs text-emerald-400">{{ $t('settings.saved') }}</span>
                             </div>
                         </div>
                     </form>
@@ -384,8 +389,8 @@ const copyText = async (text, key) => {
                                 <Info class="h-5 w-5 text-violet-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Informasi Sistem</h3>
-                                <p class="text-sm text-slate-400">Detail platform dan tumpukan teknologi.</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.sysinfo_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.sysinfo_sub') }}</p>
                             </div>
                         </div>
 
@@ -394,14 +399,14 @@ const copyText = async (text, key) => {
                                 <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                                     <Building2 class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
                                     <div class="min-w-0">
-                                        <p class="text-xs uppercase tracking-wide text-slate-500">Pemilik</p>
+                                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('settings.owner') }}</p>
                                         <p class="text-sm font-medium text-white">{{ appInfo.owner }}</p>
                                     </div>
                                 </div>
                                 <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                                     <SlidersHorizontal class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
                                     <div class="min-w-0">
-                                        <p class="text-xs uppercase tracking-wide text-slate-500">Deskripsi</p>
+                                        <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('settings.description') }}</p>
                                         <p class="text-sm font-medium text-white">{{ appInfo.description }}</p>
                                     </div>
                                 </div>
@@ -410,7 +415,7 @@ const copyText = async (text, key) => {
                             <div>
                                 <div class="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                     <Cpu class="h-4 w-4" />
-                                    Tumpukan Teknologi
+                                    {{ $t('settings.stack') }}
                                 </div>
                                 <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                                     <div
@@ -433,8 +438,8 @@ const copyText = async (text, key) => {
                                 <Smartphone class="h-5 w-5 text-cyan-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Aplikasi Android</h3>
-                                <p class="text-sm text-slate-400">Unduh & pasang aplikasi mobile KusumaVision NMS.</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.android_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.android_sub') }}</p>
                             </div>
                         </div>
 
@@ -449,7 +454,7 @@ const copyText = async (text, key) => {
                                         </p>
                                         <p class="text-xs text-slate-500">
                                             <span v-if="mobileApk.size">{{ mobileApk.size }}</span>
-                                            <span v-if="mobileApk.updated_at"> · diperbarui {{ formatDateTime(mobileApk.updated_at) }}</span>
+                                            <span v-if="mobileApk.updated_at"> · {{ $t('settings.apk_updated', { date: formatDateTime(mobileApk.updated_at) }) }}</span>
                                         </p>
                                     </div>
                                 </div>
@@ -459,14 +464,14 @@ const copyText = async (text, key) => {
                                     class="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-500/90 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400"
                                 >
                                     <Download class="h-4 w-4" />
-                                    Unduh APK
+                                    {{ $t('settings.download_apk') }}
                                 </a>
                             </div>
                             <div v-else class="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
                                 <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
                                 <div class="min-w-0">
-                                    <p class="text-sm font-medium text-amber-200">APK belum tersedia</p>
-                                    <p class="text-xs text-slate-400">Build dulu di server dengan <span class="font-mono">bash bin/build-apk.sh</span>; hasilnya otomatis tersalin ke <span class="font-mono">public/downloads/</span>.</p>
+                                    <p class="text-sm font-medium text-amber-200">{{ $t('settings.apk_missing') }}</p>
+                                    <p class="text-xs text-slate-400" v-html="$t('settings.apk_missing_hint')"></p>
                                 </div>
                             </div>
                         </div>
@@ -481,8 +486,8 @@ const copyText = async (text, key) => {
                             <Cloud class="h-5 w-5 text-cyan-300" />
                         </div>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Endpoint ACS / TR069</h3>
-                            <p class="text-sm text-slate-400">Dipakai fitur "Aktifkan TR069 Massal" di halaman ONU per port (OLT ZTE).</p>
+                            <h3 class="text-base font-semibold text-white">{{ $t('settings.acs_title') }}</h3>
+                            <p class="text-sm text-slate-400">{{ $t('settings.acs_sub') }}</p>
                         </div>
                     </div>
 
@@ -498,11 +503,11 @@ const copyText = async (text, key) => {
                                 :placeholder="acs.default_url || 'http://acs.contoh.net:7547'"
                             />
                             <InputError :message="acsForm.errors.url" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">Alamat lengkap server ACS beserta port, mis. <span class="font-mono text-cyan-300">http://acs.example.net:7547</span>.</p>
+                            <p class="mt-1 text-xs text-slate-400" v-html="$t('settings.acs_url_hint')"></p>
                         </div>
 
                         <div>
-                            <InputLabel for="acs_username" value="Username ACS" />
+                            <InputLabel for="acs_username" :value="$t('settings.acs_username')" />
                             <TextInput
                                 id="acs_username"
                                 v-model="acsForm.username"
@@ -515,28 +520,26 @@ const copyText = async (text, key) => {
                         </div>
 
                         <div>
-                            <InputLabel for="acs_password" value="Password ACS" />
+                            <InputLabel for="acs_password" :value="$t('settings.acs_password')" />
                             <TextInput
                                 id="acs_password"
                                 v-model="acsForm.password"
                                 type="password"
                                 class="mt-1 block w-full"
                                 autocomplete="new-password"
-                                :placeholder="acs.password_set ? '•••••••• (tersimpan — kosongkan untuk mempertahankan)' : 'Masukkan password ACS'"
+                                :placeholder="acs.password_set ? $t('settings.acs_pw_saved') : $t('settings.acs_pw_placeholder')"
                             />
                             <InputError :message="acsForm.errors.password" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">Kosongkan untuk mempertahankan password lama.</p>
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('settings.acs_pw_hint') }}</p>
                         </div>
 
                         <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400 lg:col-span-2">
                             <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
-                            <span>
-                                Scan TR069 massal menandai ONU sebagai <span class="text-slate-200">sudah aktif</span> hanya bila TR069-nya aktif <span class="text-slate-200">dan</span> URL + username-nya sama persis dengan nilai di atas. ONU yang belum aktif atau mengarah ke ACS berbeda akan ditulis ulang dengan URL, username, dan password ini.
-                            </span>
+                            <span v-html="$t('settings.acs_note')"></span>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
-                            <PrimaryButton :disabled="acsForm.processing">Simpan</PrimaryButton>
+                            <PrimaryButton :disabled="acsForm.processing">{{ $t('common.save') }}</PrimaryButton>
                         </div>
                     </div>
                 </form>
@@ -548,40 +551,33 @@ const copyText = async (text, key) => {
                             <AlertTriangle class="h-5 w-5 text-amber-300" />
                         </div>
                         <div class="flex-1">
-                            <h3 class="text-base font-semibold text-white">Perilaku Alarm</h3>
-                            <p class="text-sm text-slate-400">Kapan notifikasi alarm (Telegram &amp; mobile) dikirim setelah gangguan terdeteksi.</p>
+                            <h3 class="text-base font-semibold text-white">{{ $t('settings.alarm_title') }}</h3>
+                            <p class="text-sm text-slate-400">{{ $t('settings.alarm_sub') }}</p>
                         </div>
                         <span
                             class="hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline"
                             :class="alarmForm.confirm_before_notify ? 'bg-cyan-500/15 text-cyan-300' : 'bg-amber-500/15 text-amber-300'"
                         >
-                            {{ alarmForm.confirm_before_notify ? 'Konfirmasi 2 poll' : 'Realtime' }}
+                            {{ alarmForm.confirm_before_notify ? $t('settings.alarm_badge_confirm') : $t('settings.alarm_badge_realtime') }}
                         </span>
                     </div>
 
                     <div class="space-y-6 p-5 sm:p-6">
                         <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                             <span>
-                                <span class="block text-sm font-medium text-white">Konfirmasi 2 poll sebelum kirim (anti-flap)</span>
-                                <span class="block text-xs text-slate-400">
-                                    Aktif: gangguan harus <span class="text-slate-200">masih ada di pengecekan berikutnya</span> (2× poll, ~10 menit) baru notifikasi dikirim — meredam alarm palsu akibat kedip sesaat.
-                                    Nonaktif: <span class="text-amber-300">realtime</span>, notifikasi dikirim langsung saat gangguan pertama terdeteksi.
-                                </span>
+                                <span class="block text-sm font-medium text-white">{{ $t('settings.alarm_toggle') }}</span>
+                                <span class="block text-xs text-slate-400" v-html="$t('settings.alarm_toggle_hint')"></span>
                             </span>
                             <Checkbox v-model:checked="alarmForm.confirm_before_notify" class="h-5 w-5" />
                         </label>
 
                         <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
                             <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
-                            <span>
-                                Pengaturan ini berlaku <span class="text-slate-200">global</span> untuk semua OLT dan semua kanal (Telegram + mobile), serta langsung berlaku pada poll berikutnya tanpa restart.
-                                Alarm tetap selalu tercatat di riwayat; yang diatur di sini hanya <span class="text-slate-200">waktu pengiriman notifikasi</span>.
-                                Mode realtime lebih cepat tetapi berpotensi mengirim notifikasi untuk gangguan sesaat yang langsung pulih.
-                            </span>
+                            <span v-html="$t('settings.alarm_note')"></span>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
-                            <PrimaryButton :disabled="alarmForm.processing">Simpan</PrimaryButton>
+                            <PrimaryButton :disabled="alarmForm.processing">{{ $t('common.save') }}</PrimaryButton>
                         </div>
                     </div>
                 </form>
@@ -592,79 +588,75 @@ const copyText = async (text, key) => {
                             <Send class="h-5 w-5 text-cyan-300" />
                         </div>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Notifikasi Telegram</h3>
-                            <p class="text-sm text-slate-400">Kirim alarm OLT/ONU terbaru ke bot atau grup Telegram.</p>
+                            <h3 class="text-base font-semibold text-white">{{ $t('telegrambot.section_title') }}</h3>
+                            <p class="text-sm text-slate-400">{{ $t('telegrambot.section_sub_admin') }}</p>
                         </div>
                     </div>
 
                     <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
                         <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
                             <span>
-                                <span class="block text-sm font-medium text-white">Aktifkan notifikasi</span>
-                                <span class="block text-xs text-slate-400">Bila nonaktif, alarm tetap tersimpan tetapi tidak dikirim ke Telegram.</span>
+                                <span class="block text-sm font-medium text-white">{{ $t('telegrambot.enable') }}</span>
+                                <span class="block text-xs text-slate-400">{{ $t('telegrambot.enable_hint') }}</span>
                             </span>
                             <Checkbox v-model:checked="form.enabled" class="h-5 w-5" />
                         </label>
 
                         <div>
-                            <InputLabel for="bot_token" value="Bot Token" />
+                            <InputLabel for="bot_token" :value="$t('telegrambot.bot_token')" />
                             <TextInput
                                 id="bot_token"
                                 v-model="form.bot_token"
                                 type="password"
                                 class="mt-1 block w-full"
                                 autocomplete="off"
-                                :placeholder="telegram.bot_token_set ? '•••••••• (token tersimpan — kosongkan untuk mempertahankan)' : 'Contoh: 123456789:ABCdefGhIj…'"
+                                :placeholder="telegram.bot_token_set ? $t('telegrambot.token_saved_placeholder') : $t('telegrambot.token_example_placeholder')"
                             />
                             <InputError :message="form.errors.bot_token" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">
-                                Dapatkan token dari <span class="text-cyan-300">@BotFather</span> di Telegram via perintah <span class="text-cyan-300">/newbot</span>.
-                            </p>
+                            <p class="mt-1 text-xs text-slate-400" v-html="$t('telegrambot.token_hint')"></p>
                         </div>
 
                         <div>
-                            <InputLabel for="chat_id" value="Chat ID" />
+                            <InputLabel for="chat_id" :value="$t('telegrambot.chat_id')" />
                             <textarea
                                 id="chat_id"
                                 v-model="form.chat_id"
                                 rows="2"
                                 class="mt-1 block w-full rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
-                                placeholder="mis. 123456789 atau -1001234567890. Pisahkan beberapa ID dengan koma."
+                                :placeholder="$t('telegrambot.chat_id_placeholder')"
                             ></textarea>
                             <InputError :message="form.errors.chat_id" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">
-                                Untuk personal: chat bot lalu cek <span class="text-cyan-300">@userinfobot</span>. Untuk grup: tambahkan bot ke grup, ID grup diawali tanda minus.
-                            </p>
+                            <p class="mt-1 text-xs text-slate-400" v-html="$t('telegrambot.chat_id_hint')"></p>
                         </div>
 
                         <div>
-                            <InputLabel for="min_severity" value="Severity minimum" />
+                            <InputLabel for="min_severity" :value="$t('telegrambot.min_severity')" />
                             <select
                                 id="min_severity"
                                 v-model="form.min_severity"
                                 class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                             >
-                                <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ $t(`alarms.sev_opt_${opt.value}`) }}</option>
                             </select>
                             <InputError :message="form.errors.min_severity" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">Hanya alarm dengan severity ini atau lebih tinggi yang dikirim.</p>
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('telegrambot.min_severity_hint') }}</p>
                         </div>
 
                         <div>
-                            <InputLabel value="Pemicu notifikasi" />
+                            <InputLabel :value="$t('telegrambot.triggers')" />
                             <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                                 <label class="flex items-start gap-3">
                                     <Checkbox v-model:checked="form.notify_on_raise" class="mt-0.5" />
                                     <span>
-                                        <span class="block text-sm font-medium text-white">Kirim saat alarm baru muncul</span>
-                                        <span class="block text-xs text-slate-400">Notifikasi ketika alarm baru ter-trigger pada siklus polling.</span>
+                                        <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_raise') }}</span>
+                                        <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_raise_hint') }}</span>
                                     </span>
                                 </label>
                                 <label class="flex items-start gap-3">
                                     <Checkbox v-model:checked="form.notify_on_clear" class="mt-0.5" />
                                     <span>
-                                        <span class="block text-sm font-medium text-white">Kirim saat alarm pulih (cleared)</span>
-                                        <span class="block text-xs text-slate-400">Notifikasi ketika alarm yang aktif kembali normal.</span>
+                                        <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_clear') }}</span>
+                                        <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_clear_hint') }}</span>
                                     </span>
                                 </label>
                             </div>
@@ -672,13 +664,13 @@ const copyText = async (text, key) => {
 
                         <div class="lg:col-span-2">
                             <div class="flex items-center justify-between gap-3">
-                                <InputLabel value="Jenis alarm yang dikirim" />
+                                <InputLabel :value="$t('telegrambot.types_label')" />
                                 <button
                                     type="button"
                                     class="text-xs font-medium text-cyan-300 hover:text-cyan-200"
                                     @click="toggleAllTypes"
                                 >
-                                    {{ allTypesSelected ? 'Kosongkan semua' : 'Pilih semua' }}
+                                    {{ allTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
                                 </button>
                             </div>
                             <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
@@ -692,12 +684,12 @@ const copyText = async (text, key) => {
                                         class="h-4 w-4"
                                         @update:checked="toggleType(opt.value)"
                                     />
-                                    <span class="text-sm text-slate-200">{{ opt.label }}</span>
+                                    <span class="text-sm text-slate-200">{{ alarmTypeLabel(t, opt.value) }}</span>
                                 </label>
                             </div>
                             <p class="mt-1 text-xs text-slate-400">
-                                Hanya jenis alarm yang dicentang yang dikirim ke Telegram. Mis. centang LOS, Dying Gasp, Redaman RX tinggi, dan Port GPON down saja.
-                                <span v-if="form.notify_types.length === 0" class="text-amber-400">Tidak ada yang dicentang — semua notifikasi alarm dimatikan.</span>
+                                {{ $t('telegrambot.types_hint_admin') }}
+                                <span v-if="form.notify_types.length === 0" class="text-amber-400">{{ $t('telegrambot.types_none') }}</span>
                             </p>
                             <InputError :message="form.errors.notify_types" class="mt-2" />
                         </div>
@@ -705,53 +697,53 @@ const copyText = async (text, key) => {
                         <div class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-4 lg:col-span-2">
                             <div class="flex items-center justify-between gap-3">
                                 <div>
-                                    <h4 class="text-sm font-semibold text-white">Perintah Bot (Webhook)</h4>
-                                    <p class="mt-0.5 text-xs text-slate-400">Bot membalas perintah dari chat ID terdaftar (baca-saja).</p>
+                                    <h4 class="text-sm font-semibold text-white">{{ $t('telegrambot.webhook_title') }}</h4>
+                                    <p class="mt-0.5 text-xs text-slate-400">{{ $t('telegrambot.webhook_sub_admin') }}</p>
                                 </div>
                                 <span
                                     class="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium"
                                     :class="telegram.webhook_set ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-500/15 text-slate-400'"
                                 >
-                                    {{ telegram.webhook_set ? 'Webhook terdaftar' : 'Belum terdaftar' }}
+                                    {{ telegram.webhook_set ? $t('telegrambot.webhook_set') : $t('telegrambot.webhook_unset') }}
                                 </span>
                             </div>
 
                             <label class="mt-4 flex items-start gap-3">
                                 <Checkbox v-model:checked="form.commands_enabled" class="mt-0.5" />
                                 <span>
-                                    <span class="block text-sm font-medium text-white">Aktifkan perintah bot</span>
-                                    <span class="block text-xs text-slate-400">Saat aktif &amp; webhook terdaftar, bot menjawab /status, /olt, /alarm, /onu, /prov.</span>
+                                    <span class="block text-sm font-medium text-white">{{ $t('telegrambot.commands_enable') }}</span>
+                                    <span class="block text-xs text-slate-400">{{ $t('telegrambot.commands_hint_admin') }}</span>
                                 </span>
                             </label>
 
                             <div class="mt-4 flex flex-wrap items-center gap-3">
                                 <SecondaryButton type="button" :disabled="!telegram.bot_token_set || webhookBusy" @click="registerWebhook">
-                                    {{ webhookBusy ? 'Memproses…' : (telegram.webhook_set ? 'Daftar Ulang Webhook' : 'Daftarkan Webhook') }}
+                                    {{ webhookBusy ? $t('common.processing') : (telegram.webhook_set ? $t('telegrambot.webhook_reregister') : $t('telegrambot.webhook_register')) }}
                                 </SecondaryButton>
                                 <SecondaryButton v-if="telegram.webhook_set" type="button" :disabled="webhookBusy" @click="deleteWebhook">
-                                    Hapus Webhook
+                                    {{ $t('telegrambot.webhook_delete') }}
                                 </SecondaryButton>
-                                <span v-if="!telegram.bot_token_set" class="text-xs text-slate-500">Simpan bot token dulu sebelum mendaftarkan webhook.</span>
+                                <span v-if="!telegram.bot_token_set" class="text-xs text-slate-500">{{ $t('telegrambot.webhook_need_token') }}</span>
                             </div>
 
                             <div class="mt-4 rounded-md border border-white/5 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
-                                <p class="font-medium text-slate-300">Perintah tersedia:</p>
+                                <p class="font-medium text-slate-300">{{ $t('telegrambot.commands_available') }}</p>
                                 <p class="mt-1 font-mono leading-relaxed">/status · /olt [nama|id] · /alarm · /onu &lt;serial&gt; · /prov · /id · /ping</p>
                             </div>
                         </div>
 
                         <div v-if="lastSent || telegram.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
-                            <p v-if="lastSent" class="text-slate-400">Terakhir terkirim: <span class="text-slate-200">{{ lastSent }}</span></p>
-                            <p v-if="telegram.last_error" class="mt-1 text-red-400">Galat terakhir: {{ telegram.last_error }}</p>
+                            <p v-if="lastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ lastSent }}</span></p>
+                            <p v-if="telegram.last_error" class="mt-1 text-red-400">{{ $t('telegrambot.last_error') }} {{ telegram.last_error }}</p>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
-                            <PrimaryButton :disabled="form.processing">Simpan</PrimaryButton>
+                            <PrimaryButton :disabled="form.processing">{{ $t('common.save') }}</PrimaryButton>
                             <SecondaryButton type="button" :disabled="!canTest || testing" @click="sendTest">
                                 <Send class="mr-2 h-4 w-4" />
-                                {{ testing ? 'Mengirim…' : 'Kirim Tes' }}
+                                {{ testing ? $t('telegrambot.sending') : $t('telegrambot.send_test') }}
                             </SecondaryButton>
-                            <span v-if="!canTest" class="text-xs text-slate-500">Simpan token &amp; chat ID dulu untuk mengirim tes.</span>
+                            <span v-if="!canTest" class="text-xs text-slate-500">{{ $t('telegrambot.need_token_chat') }}</span>
                         </div>
                     </div>
                 </form>
@@ -764,61 +756,59 @@ const copyText = async (text, key) => {
                                 <Smartphone class="h-5 w-5 text-cyan-300" />
                             </div>
                             <div class="flex-1">
-                                <h3 class="text-base font-semibold text-white">Notifikasi Aplikasi Mobile (Android)</h3>
-                                <p class="text-sm text-slate-400">Pilih alarm mana yang dikirim sebagai push ke aplikasi Android via Firebase (FCM).</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.fcm_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.fcm_sub') }}</p>
                             </div>
                             <span
                                 class="hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline"
                                 :class="fcm.device_count > 0 ? 'bg-cyan-500/15 text-cyan-300' : 'bg-slate-500/15 text-slate-400'"
                             >
-                                {{ fcm.device_count }} perangkat
+                                {{ $t('settings.fcm_devices', { n: fcm.device_count }) }}
                             </span>
                         </div>
 
                         <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
                             <div v-if="!fcm.credentials_ready" class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 lg:col-span-2">
                                 <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
-                                <p class="text-sm text-amber-200">
-                                    Kredensial Firebase belum dipasang di server (service-account JSON + <span class="font-mono text-xs">FIREBASE_CREDENTIALS</span>). Push tidak akan terkirim sampai itu diatur.
-                                </p>
+                                <p class="text-sm text-amber-200" v-html="$t('settings.fcm_creds')"></p>
                             </div>
 
                             <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
                                 <span>
-                                    <span class="block text-sm font-medium text-white">Aktifkan push alarm ke mobile</span>
-                                    <span class="block text-xs text-slate-400">Bila nonaktif, alarm tetap tersimpan tetapi tidak dikirim ke aplikasi mobile.</span>
+                                    <span class="block text-sm font-medium text-white">{{ $t('settings.fcm_enable') }}</span>
+                                    <span class="block text-xs text-slate-400">{{ $t('settings.fcm_enable_hint') }}</span>
                                 </span>
                                 <Checkbox v-model:checked="fcmForm.enabled" class="h-5 w-5" />
                             </label>
 
                             <div>
-                                <InputLabel for="fcm_min_severity" value="Severity minimum" />
+                                <InputLabel for="fcm_min_severity" :value="$t('telegrambot.min_severity')" />
                                 <select
                                     id="fcm_min_severity"
                                     v-model="fcmForm.min_severity"
                                     class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                                 >
-                                    <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                    <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ $t(`alarms.sev_opt_${opt.value}`) }}</option>
                                 </select>
                                 <InputError :message="fcmForm.errors.min_severity" class="mt-2" />
-                                <p class="mt-1 text-xs text-slate-400">Hanya alarm dengan severity ini atau lebih tinggi yang dikirim.</p>
+                                <p class="mt-1 text-xs text-slate-400">{{ $t('telegrambot.min_severity_hint') }}</p>
                             </div>
 
                             <div>
-                                <InputLabel value="Pemicu notifikasi" />
+                                <InputLabel :value="$t('telegrambot.triggers')" />
                                 <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                                     <label class="flex items-start gap-3">
                                         <Checkbox v-model:checked="fcmForm.notify_on_raise" class="mt-0.5" />
                                         <span>
-                                            <span class="block text-sm font-medium text-white">Kirim saat alarm baru muncul</span>
-                                            <span class="block text-xs text-slate-400">Push ketika alarm baru ter-trigger.</span>
+                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_raise') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $t('settings.fcm_on_raise_hint') }}</span>
                                         </span>
                                     </label>
                                     <label class="flex items-start gap-3">
                                         <Checkbox v-model:checked="fcmForm.notify_on_clear" class="mt-0.5" />
                                         <span>
-                                            <span class="block text-sm font-medium text-white">Kirim saat alarm pulih (cleared)</span>
-                                            <span class="block text-xs text-slate-400">Push ketika alarm kembali normal.</span>
+                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_clear') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $t('settings.fcm_on_clear_hint') }}</span>
                                         </span>
                                     </label>
                                 </div>
@@ -826,9 +816,9 @@ const copyText = async (text, key) => {
 
                             <div class="lg:col-span-2">
                                 <div class="flex items-center justify-between gap-3">
-                                    <InputLabel value="Jenis alarm yang dikirim" />
+                                    <InputLabel :value="$t('telegrambot.types_label')" />
                                     <button type="button" class="text-xs font-medium text-cyan-300 hover:text-cyan-200" @click="toggleAllFcmTypes">
-                                        {{ allFcmTypesSelected ? 'Kosongkan semua' : 'Pilih semua' }}
+                                        {{ allFcmTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
                                     </button>
                                 </div>
                                 <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
@@ -838,23 +828,23 @@ const copyText = async (text, key) => {
                                         class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
                                     >
                                         <Checkbox :checked="isFcmTypeSelected(opt.value)" class="h-4 w-4" @update:checked="toggleFcmType(opt.value)" />
-                                        <span class="text-sm text-slate-200">{{ opt.label }}</span>
+                                        <span class="text-sm text-slate-200">{{ alarmTypeLabel(t, opt.value) }}</span>
                                     </label>
                                 </div>
                                 <p class="mt-1 text-xs text-slate-400">
-                                    Hanya jenis alarm yang dicentang yang dikirim.
-                                    <span v-if="fcmForm.notify_types.length === 0" class="text-amber-400">Tidak ada yang dicentang — semua push alarm dimatikan.</span>
+                                    {{ $t('settings.fcm_types_hint') }}
+                                    <span v-if="fcmForm.notify_types.length === 0" class="text-amber-400">{{ $t('settings.fcm_types_none') }}</span>
                                 </p>
                                 <InputError :message="fcmForm.errors.notify_types" class="mt-2" />
                             </div>
 
                             <div v-if="fcmLastSent || fcm.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
-                                <p v-if="fcmLastSent" class="text-slate-400">Terakhir terkirim: <span class="text-slate-200">{{ fcmLastSent }}</span></p>
-                                <p v-if="fcm.last_error" class="mt-1 text-red-400">Galat terakhir: {{ fcm.last_error }}</p>
+                                <p v-if="fcmLastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ fcmLastSent }}</span></p>
+                                <p v-if="fcm.last_error" class="mt-1 text-red-400">{{ $t('telegrambot.last_error') }} {{ fcm.last_error }}</p>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
-                                <PrimaryButton :disabled="fcmForm.processing">Simpan</PrimaryButton>
+                                <PrimaryButton :disabled="fcmForm.processing">{{ $t('common.save') }}</PrimaryButton>
                             </div>
                         </div>
                     </form>
@@ -866,35 +856,35 @@ const copyText = async (text, key) => {
                                 <Bell class="h-5 w-5 text-sky-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Kirim Notifikasi Manual</h3>
-                                <p class="text-sm text-slate-400">Broadcast pesan ke semua aplikasi mobile terdaftar ({{ fcm.device_count }} perangkat).</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.fcm_manual_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.fcm_manual_sub', { n: fcm.device_count }) }}</p>
                             </div>
                         </div>
 
                         <div class="grid gap-x-6 gap-y-5 p-5 sm:p-6">
                             <div>
-                                <InputLabel for="fcm_title" value="Judul" />
-                                <TextInput id="fcm_title" v-model="fcmSendForm.title" type="text" class="mt-1 block w-full" maxlength="120" placeholder="mis. Pemeliharaan jaringan" />
+                                <InputLabel for="fcm_title" :value="$t('settings.fcm_field_title')" />
+                                <TextInput id="fcm_title" v-model="fcmSendForm.title" type="text" class="mt-1 block w-full" maxlength="120" :placeholder="$t('settings.fcm_title_placeholder')" />
                                 <InputError :message="fcmSendForm.errors.title" class="mt-2" />
                             </div>
                             <div>
-                                <InputLabel for="fcm_body" value="Isi pesan" />
+                                <InputLabel for="fcm_body" :value="$t('settings.fcm_body')" />
                                 <textarea
                                     id="fcm_body"
                                     v-model="fcmSendForm.body"
                                     rows="3"
                                     maxlength="500"
                                     class="mt-1 block w-full rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500"
-                                    placeholder="Tulis pesan yang akan muncul di notifikasi HP…"
+                                    :placeholder="$t('settings.fcm_body_placeholder')"
                                 ></textarea>
                                 <InputError :message="fcmSendForm.errors.body" class="mt-2" />
                             </div>
                             <div class="flex flex-wrap items-center gap-3">
                                 <PrimaryButton :disabled="fcmSendForm.processing || !fcm.credentials_ready || fcm.device_count === 0">
                                     <Bell class="mr-2 h-4 w-4" />
-                                    {{ fcmSendForm.processing ? 'Mengirim…' : 'Kirim ke Semua Perangkat' }}
+                                    {{ fcmSendForm.processing ? $t('telegrambot.sending') : $t('settings.fcm_send_all') }}
                                 </PrimaryButton>
-                                <span v-if="fcm.device_count === 0" class="text-xs text-slate-500">Belum ada perangkat terdaftar (user login di app dulu).</span>
+                                <span v-if="fcm.device_count === 0" class="text-xs text-slate-500">{{ $t('settings.fcm_no_devices') }}</span>
                             </div>
                         </div>
                     </form>
@@ -906,11 +896,8 @@ const copyText = async (text, key) => {
                     <div v-if="!api.enabled" class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-5 py-4 shadow-lg shadow-black/30">
                         <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
                         <div class="min-w-0">
-                            <h4 class="text-sm font-semibold text-white">API sedang dinonaktifkan</h4>
-                            <p class="mt-0.5 text-xs text-amber-200/90">
-                                Seluruh endpoint <span class="font-mono">/api</span> dimatikan demi keamanan (nol permukaan serangan) karena belum dipakai aplikasi mana pun.
-                                Token tetap bisa disiapkan, tapi baru berfungsi setelah API diaktifkan di server: ubah <span class="font-mono">$apiEnabled = true</span> di <span class="font-mono">routes/api.php</span> lalu reload PHP-FPM.
-                            </p>
+                            <h4 class="text-sm font-semibold text-white">{{ $t('settings.api_disabled_title') }}</h4>
+                            <p class="mt-0.5 text-xs text-amber-200/90" v-html="$t('settings.api_disabled_note')"></p>
                         </div>
                     </div>
 
@@ -921,32 +908,32 @@ const copyText = async (text, key) => {
                                 <KeyRound class="h-5 w-5 text-cyan-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Akses API</h3>
-                                <p class="text-sm text-slate-400">Token untuk memanggil data NMS dari web aplikasi lain atau Android.</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.api_access_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.api_access_sub') }}</p>
                             </div>
                         </div>
 
                         <div class="space-y-4 p-5 sm:p-6">
                             <div>
-                                <InputLabel value="Base URL API" />
+                                <InputLabel :value="$t('settings.api_base')" />
                                 <div class="mt-1 flex items-stretch gap-2">
                                     <input :value="api.base_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
                                     <SecondaryButton type="button" @click="copyText(api.base_url, 'base')">
                                         <component :is="copied === 'base' ? Check : Copy" class="h-4 w-4" :class="copied === 'base' ? 'text-emerald-400' : ''" />
                                     </SecondaryButton>
                                 </div>
-                                <p class="mt-1 text-xs text-slate-400">Endpoint ber-token, mis. <span class="font-mono text-slate-300">{{ api.base_url }}/onus</span>. Kirim header <span class="font-mono text-cyan-300">Authorization: Bearer &lt;token&gt;</span>.</p>
+                                <p class="mt-1 text-xs text-slate-400" v-html="$t('settings.api_base_hint', { url: api.base_url })"></p>
                             </div>
 
                             <div>
-                                <InputLabel value="Status publik (tanpa token)" />
+                                <InputLabel :value="$t('settings.api_public')" />
                                 <div class="mt-1 flex items-stretch gap-2">
                                     <input :value="api.public_status_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
                                     <SecondaryButton type="button" @click="copyText(api.public_status_url, 'pub')">
                                         <component :is="copied === 'pub' ? Check : Copy" class="h-4 w-4" :class="copied === 'pub' ? 'text-emerald-400' : ''" />
                                     </SecondaryButton>
                                 </div>
-                                <p class="mt-1 text-xs text-slate-400">Angka agregat tanpa data pelanggan — aman untuk widget di web lain. Dokumentasi lengkap: <span class="font-mono text-slate-300">docs/API.md</span>.</p>
+                                <p class="mt-1 text-xs text-slate-400" v-html="$t('settings.api_public_hint')"></p>
                             </div>
                         </div>
                     </div>
@@ -956,13 +943,13 @@ const copyText = async (text, key) => {
                         <div class="flex items-start gap-3 px-5 py-4 sm:px-6">
                             <CheckCircle2 class="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-300" />
                             <div class="min-w-0 flex-1">
-                                <h4 class="text-sm font-semibold text-white">Token baru dibuat — salin sekarang</h4>
-                                <p class="mt-0.5 text-xs text-emerald-200/80">Demi keamanan, token <strong>hanya ditampilkan satu kali</strong>. Simpan di tempat aman (mis. <span class="font-mono">.env</span> server aplikasi lain).</p>
+                                <h4 class="text-sm font-semibold text-white">{{ $t('settings.api_new_token_title') }}</h4>
+                                <p class="mt-0.5 text-xs text-emerald-200/80" v-html="$t('settings.api_new_token_note')"></p>
                                 <div class="mt-3 flex items-stretch gap-2">
                                     <input :value="newToken" readonly class="block w-full rounded-lg border-emerald-500/30 bg-slate-950/70 font-mono text-xs text-emerald-200 focus:border-emerald-500 focus:ring-emerald-500" @focus="$event.target.select()" />
                                     <SecondaryButton type="button" @click="copyText(newToken, 'new')">
                                         <component :is="copied === 'new' ? Check : Copy" class="mr-2 h-4 w-4" :class="copied === 'new' ? 'text-emerald-400' : ''" />
-                                        {{ copied === 'new' ? 'Tersalin' : 'Salin' }}
+                                        {{ copied === 'new' ? $t('settings.copied') : $t('settings.copy') }}
                                     </SecondaryButton>
                                 </div>
                             </div>
@@ -976,37 +963,37 @@ const copyText = async (text, key) => {
                                 <KeyRound class="h-5 w-5 text-violet-300" />
                             </div>
                             <div>
-                                <h3 class="text-base font-semibold text-white">Token Akses Personal</h3>
-                                <p class="text-sm text-slate-400">Setiap token mewakili akses sebagai akun Anda. Cabut kapan saja.</p>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.api_personal_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.api_personal_sub') }}</p>
                             </div>
                         </div>
 
                         <div class="p-5 sm:p-6">
                             <form class="flex flex-col gap-3 sm:flex-row sm:items-end" @submit.prevent="createToken">
                                 <div class="flex-1">
-                                    <InputLabel for="token_name" value="Nama token" />
+                                    <InputLabel for="token_name" :value="$t('settings.token_name')" />
                                     <TextInput
                                         id="token_name"
                                         v-model="tokenForm.name"
                                         type="text"
                                         class="mt-1 block w-full"
                                         maxlength="60"
-                                        placeholder="mis. Web Billing, App Android Teknisi"
+                                        :placeholder="$t('settings.token_name_placeholder')"
                                     />
                                     <InputError :message="tokenForm.errors.name" class="mt-2" />
                                 </div>
                                 <PrimaryButton :disabled="tokenForm.processing || !tokenForm.name.trim() || !api.enabled" class="shrink-0">
                                     <Plus class="mr-2 h-4 w-4" />
-                                    Buat Token
+                                    {{ $t('settings.create_token') }}
                                 </PrimaryButton>
                             </form>
-                            <p v-if="!api.enabled" class="mt-2 text-xs text-amber-300/90">Aktifkan API di server dulu sebelum membuat token.</p>
+                            <p v-if="!api.enabled" class="mt-2 text-xs text-amber-300/90">{{ $t('settings.api_enable_first') }}</p>
 
                             <!-- Daftar token -->
                             <div class="mt-6">
                                 <div v-if="api.tokens.length === 0" class="rounded-lg border border-dashed border-white/10 bg-slate-950/40 px-4 py-8 text-center">
                                     <KeyRound class="mx-auto h-7 w-7 text-slate-600" />
-                                    <p class="mt-2 text-sm text-slate-400">Belum ada token. Buat satu di atas untuk mulai memakai API dari aplikasi lain.</p>
+                                    <p class="mt-2 text-sm text-slate-400">{{ $t('settings.tokens_empty') }}</p>
                                 </div>
 
                                 <!-- Desktop: tabel -->
@@ -1014,21 +1001,21 @@ const copyText = async (text, key) => {
                                     <table class="min-w-full divide-y divide-white/10 text-sm">
                                         <thead class="bg-slate-950/40 text-xs uppercase tracking-wide text-slate-500">
                                             <tr>
-                                                <th class="px-4 py-2.5 text-left font-medium">Nama</th>
-                                                <th class="px-4 py-2.5 text-left font-medium">Dibuat</th>
-                                                <th class="px-4 py-2.5 text-left font-medium">Terakhir dipakai</th>
-                                                <th class="px-4 py-2.5 text-right font-medium">Aksi</th>
+                                                <th class="px-4 py-2.5 text-left font-medium">{{ $t('settings.col_name') }}</th>
+                                                <th class="px-4 py-2.5 text-left font-medium">{{ $t('settings.col_created') }}</th>
+                                                <th class="px-4 py-2.5 text-left font-medium">{{ $t('settings.col_last_used') }}</th>
+                                                <th class="px-4 py-2.5 text-right font-medium">{{ $t('common.actions') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-white/5">
                                             <tr v-for="t in api.tokens" :key="t.id" class="hover:bg-white/5">
                                                 <td class="px-4 py-3 font-medium text-white">{{ t.name }}</td>
                                                 <td class="px-4 py-3 text-slate-400">{{ formatDateTime(t.created_at) }}</td>
-                                                <td class="px-4 py-3 text-slate-400">{{ t.last_used_at ? formatDateTime(t.last_used_at) : 'Belum pernah' }}</td>
+                                                <td class="px-4 py-3 text-slate-400">{{ t.last_used_at ? formatDateTime(t.last_used_at) : $t('settings.never') }}</td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10" @click="revokeToken(t.id)">
                                                         <Trash2 class="h-3.5 w-3.5" />
-                                                        Cabut
+                                                        {{ $t('settings.revoke') }}
                                                     </button>
                                                 </td>
                                             </tr>
@@ -1043,12 +1030,12 @@ const copyText = async (text, key) => {
                                             <p class="min-w-0 break-words font-medium text-white">{{ t.name }}</p>
                                             <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10" @click="revokeToken(t.id)">
                                                 <Trash2 class="h-3.5 w-3.5" />
-                                                Cabut
+                                                {{ $t('settings.revoke') }}
                                             </button>
                                         </div>
                                         <dl class="mt-2 space-y-1 text-xs text-slate-400">
-                                            <div class="flex justify-between gap-3"><dt>Dibuat</dt><dd class="text-slate-300">{{ formatDateTime(t.created_at) }}</dd></div>
-                                            <div class="flex justify-between gap-3"><dt>Terakhir dipakai</dt><dd class="text-slate-300">{{ t.last_used_at ? formatDateTime(t.last_used_at) : 'Belum pernah' }}</dd></div>
+                                            <div class="flex justify-between gap-3"><dt>{{ $t('settings.col_created') }}</dt><dd class="text-slate-300">{{ formatDateTime(t.created_at) }}</dd></div>
+                                            <div class="flex justify-between gap-3"><dt>Terakhir dipakai</dt><dd class="text-slate-300">{{ t.last_used_at ? formatDateTime(t.last_used_at) : $t('settings.never') }}</dd></div>
                                         </dl>
                                     </div>
                                 </div>
@@ -1056,7 +1043,7 @@ const copyText = async (text, key) => {
 
                             <div class="mt-5 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
                                 <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
-                                <p class="text-xs text-amber-200/90">Token bersifat rahasia seperti kata sandi. Jangan taruh di kode yang bisa dilihat publik/browser. Untuk web lain, simpan di server (mis. <span class="font-mono">.env</span>) dan panggil API dari sisi server.</p>
+                                <p class="text-xs text-amber-200/90" v-html="$t('settings.token_warning')"></p>
                             </div>
                         </div>
                     </div>

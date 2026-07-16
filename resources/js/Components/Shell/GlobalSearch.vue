@@ -103,7 +103,7 @@ const iconFor = (type) => ({
                             ref="inputRef"
                             v-model="query"
                             type="text"
-                            placeholder="Cari OLT, ONU serial, lokasi..."
+                            :placeholder="$t('shell.search_placeholder_global')"
                             class="h-14 w-full border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-0"
                         />
                         <Loader2 v-if="loading" class="h-4 w-4 flex-shrink-0 animate-spin text-cyan-400" />
@@ -129,10 +129,10 @@ const iconFor = (type) => ({
                             </li>
                         </ul>
                         <div v-else-if="query.length >= 2 && !loading" class="px-4 py-10 text-center text-sm text-slate-500">
-                            Tidak ada hasil untuk &ldquo;{{ query }}&rdquo;.
+                            {{ $t('shell.no_results_for') }} &ldquo;{{ query }}&rdquo;.
                         </div>
                         <div v-else class="px-4 py-10 text-center text-sm text-slate-500">
-                            Ketik minimal 2 karakter untuk mulai mencari.
+                            {{ $t('shell.search_min_chars') }}
                         </div>
                     </div>
 
@@ -140,11 +140,11 @@ const iconFor = (type) => ({
                         <span class="flex items-center gap-3">
                             <span class="flex items-center gap-1">
                                 <kbd class="rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5">&uarr;&darr;</kbd>
-                                navigasi
+                                {{ $t('shell.search_nav') }}
                             </span>
                             <span class="flex items-center gap-1">
                                 <kbd class="rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5">&crarr;</kbd>
-                                pilih
+                                {{ $t('shell.search_pick') }}
                             </span>
                         </span>
                         <span>KusumaVision NMS</span>

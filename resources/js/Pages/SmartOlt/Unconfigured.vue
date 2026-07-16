@@ -39,7 +39,7 @@ const formatDate = (value) => formatDateTime(value);
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                     <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                        Unconfigured ONU
+                        {{ $t('unconfigured.title') }}
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
                         {{ olt.name }} · {{ olt.ip }}
@@ -50,12 +50,12 @@ const formatDate = (value) => formatDateTime(value);
                     <Link :href="route('smartolt.detail', olt.id)">
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
-                            Detail OLT
+                            {{ $t('common.detail_olt') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
-                        Refresh Discovery
+                        {{ $t('common.refresh_discovery') }}
                     </PrimaryButton>
                 </div>
             </div>
@@ -66,17 +66,17 @@ const formatDate = (value) => formatDateTime(value);
 
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Data</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('unconfigured.stat_data') }}</p>
                         <p class="mt-3 text-2xl font-bold" :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
-                            {{ snapshot.ok ? 'Tersedia' : 'Kosong' }}
+                            {{ snapshot.ok ? $t('common.available') : $t('common.empty') }}
                         </p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">ONU Baru</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('unconfigured.new_onu') }}</p>
                         <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.count }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Refresh Terakhir</p>
+                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.last_refresh') }}</p>
                         <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.refreshed_at) }}</p>
                     </div>
                 </div>
@@ -86,11 +86,11 @@ const formatDate = (value) => formatDateTime(value);
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <Wifi class="h-5 w-5 text-cyan-400" />
                         </div>
-                        <h3 class="text-base font-semibold text-white">ONU Terdeteksi</h3>
+                        <h3 class="text-base font-semibold text-white">{{ $t('unconfigured.detected_onu') }}</h3>
                     </div>
 
                     <div v-if="snapshot.onus.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
-                        Belum ada data. Jalankan Refresh Discovery.
+                        {{ $t('unconfigured.empty_discovery') }}
                     </div>
 
                     <template v-else>
@@ -106,7 +106,7 @@ const formatDate = (value) => formatDateTime(value);
                                     </div>
                                     <IconButton
                                         variant="primary"
-                                        title="Register ONU"
+                                        :title="$t('common.register_onu')"
                                         :href="route('smartolt.register', {
                                             olt: olt.id,
                                             sn: onu.serial_number,
@@ -126,9 +126,9 @@ const formatDate = (value) => formatDateTime(value);
                         <table class="min-w-[720px] w-full">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Serial</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Port</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">Aksi</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
+                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -143,7 +143,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <div class="flex justify-center">
                                             <IconButton
                                                 variant="primary"
-                                                title="Register ONU"
+                                                :title="$t('common.register_onu')"
                                                 :href="route('smartolt.register', {
                                                     olt: olt.id,
                                                     sn: onu.serial_number,

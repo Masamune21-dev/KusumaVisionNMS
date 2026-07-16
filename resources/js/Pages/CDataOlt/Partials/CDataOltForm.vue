@@ -67,13 +67,13 @@ const submit = () => {
                     <Cpu class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-white">Identitas OLT</h3>
-                    <p class="text-xs text-slate-500">Nama, family C-Data, dan alamat IP perangkat</p>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_identity_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('cdataform.identity_sub') }}</p>
                 </div>
             </div>
             <div class="grid gap-5 p-6 md:grid-cols-2">
                 <div>
-                    <InputLabel for="name" value="Nama OLT" />
+                    <InputLabel for="name" :value="$t('oltform.name')" />
                     <TextInput
                         id="name"
                         v-model="form.name"
@@ -85,7 +85,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="vendor" value="Family OLT" />
+                    <InputLabel for="vendor" :value="$t('cdataform.family')" />
                     <select
                         id="vendor"
                         v-model="form.vendor"
@@ -97,13 +97,13 @@ const submit = () => {
                         <option value="HiOSO EPON 25355">HiOSO / V-Sol EPON (25355)</option>
                     </select>
                     <p class="mt-1 text-xs text-slate-500">
-                        Family menentukan driver. Tombol Test memverifikasi via sysObjectID (C-Data 17409/34592, HiOSO 25355).
+                        {{ $t('cdataform.family_hint') }}
                     </p>
                     <InputError class="mt-2" :message="form.errors.vendor" />
                 </div>
 
                 <div>
-                    <InputLabel for="ip" value="IP Address" />
+                    <InputLabel for="ip" :value="$t('oltform.ip')" />
                     <TextInput
                         id="ip"
                         v-model="form.ip"
@@ -123,13 +123,13 @@ const submit = () => {
                     <Network class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-white">Konfigurasi SNMP</h3>
-                    <p class="text-xs text-slate-500">C-Data hanya mendukung SNMP v1/v2c (port 161 default)</p>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_snmp_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('cdataform.snmp_sub') }}</p>
                 </div>
             </div>
             <div class="grid gap-5 p-6 md:grid-cols-2">
                 <div>
-                    <InputLabel for="snmp_port" value="SNMP Port" />
+                    <InputLabel for="snmp_port" :value="$t('oltform.snmp_port')" />
                     <TextInput
                         id="snmp_port"
                         v-model="form.snmp_port"
@@ -143,7 +143,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="snmp_version" value="SNMP Version" />
+                    <InputLabel for="snmp_version" :value="$t('oltform.snmp_version')" />
                     <select
                         id="snmp_version"
                         v-model="form.snmp_version"
@@ -157,7 +157,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="snmp_read_community" value="SNMP Read Community" />
+                    <InputLabel for="snmp_read_community" :value="$t('oltform.snmp_read')" />
                     <TextInput
                         id="snmp_read_community"
                         v-model="form.snmp_read_community"
@@ -167,13 +167,13 @@ const submit = () => {
                         type="password"
                     />
                     <p v-if="olt" class="mt-1 text-xs text-slate-500">
-                        Kosongkan untuk mempertahankan community lama.
+                        {{ $t('oltform.keep_community') }}
                     </p>
                     <InputError class="mt-2" :message="form.errors.snmp_read_community" />
                 </div>
 
                 <div>
-                    <InputLabel for="snmp_write_community" value="SNMP Write Community" />
+                    <InputLabel for="snmp_write_community" :value="$t('oltform.snmp_write')" />
                     <TextInput
                         id="snmp_write_community"
                         v-model="form.snmp_write_community"
@@ -181,7 +181,7 @@ const submit = () => {
                         autocomplete="new-password"
                         type="password"
                     />
-                    <p class="mt-1 text-xs text-slate-500">Opsional — write ONU C-Data sering ditolak; aksi nanti lewat CLI.</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('cdataform.write_hint') }}</p>
                     <InputError class="mt-2" :message="form.errors.snmp_write_community" />
                 </div>
             </div>
@@ -194,19 +194,19 @@ const submit = () => {
                     <KeyRound class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-white">Konfigurasi CLI</h3>
-                    <p class="text-xs text-slate-500">Diperlukan untuk inventory GPON FlashV3.x (show ont info all)</p>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_cli_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('cdataform.cli_sub') }}</p>
                 </div>
             </div>
             <div class="grid gap-5 p-6 md:grid-cols-2">
                 <div>
-                    <InputLabel for="cli_transport" value="CLI Transport" />
+                    <InputLabel for="cli_transport" :value="$t('oltform.cli_transport')" />
                     <select
                         id="cli_transport"
                         v-model="form.cli_transport"
                         class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                     >
-                        <option value="">Belum dipakai</option>
+                        <option value="">{{ $t('oltform.cli_transport_none') }}</option>
                         <option value="telnet">Telnet</option>
                         <option value="ssh">SSH</option>
                     </select>
@@ -214,7 +214,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="cli_port" value="CLI Port" />
+                    <InputLabel for="cli_port" :value="$t('oltform.cli_port')" />
                     <TextInput
                         id="cli_port"
                         v-model="form.cli_port"
@@ -228,7 +228,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="cli_username" value="CLI Username" />
+                    <InputLabel for="cli_username" :value="$t('oltform.cli_username')" />
                     <TextInput
                         id="cli_username"
                         v-model="form.cli_username"
@@ -239,7 +239,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="cli_password" value="CLI Password" />
+                    <InputLabel for="cli_password" :value="$t('oltform.cli_password')" />
                     <TextInput
                         id="cli_password"
                         v-model="form.cli_password"
@@ -248,7 +248,7 @@ const submit = () => {
                         type="password"
                     />
                     <p v-if="olt" class="mt-1 text-xs text-slate-500">
-                        Kosongkan untuk mempertahankan password lama.
+                        {{ $t('oltform.keep_password') }}
                     </p>
                     <InputError class="mt-2" :message="form.errors.cli_password" />
                 </div>
@@ -262,8 +262,8 @@ const submit = () => {
                     <Activity class="h-4 w-4 text-cyan-400" />
                 </div>
                 <div>
-                    <h3 class="text-sm font-semibold text-white">Auto-Poll SNMP</h3>
-                    <p class="text-xs text-slate-500">Scan terjadwal otomatis (EPON via SNMP, GPON V3 via SNMP+CLI) — perbarui inventory &amp; RX ONU</p>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_poll_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('cdataform.poll_sub') }}</p>
                 </div>
             </div>
             <div class="p-6">
@@ -273,11 +273,11 @@ const submit = () => {
                         type="checkbox"
                         class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500"
                     />
-                    Aktifkan auto-poll SNMP
+                    {{ $t('oltform.enable_autopoll') }}
                 </label>
                 <div class="mt-4 grid gap-5 md:grid-cols-2">
                     <div>
-                        <InputLabel for="poll_interval_minutes" value="Interval Polling (menit)" />
+                        <InputLabel for="poll_interval_minutes" :value="$t('oltform.poll_interval')" />
                         <TextInput
                             id="poll_interval_minutes"
                             v-model="form.poll_interval_minutes"
@@ -290,7 +290,7 @@ const submit = () => {
                         <InputError class="mt-2" :message="form.errors.poll_interval_minutes" />
                     </div>
                     <div>
-                        <InputLabel for="rx_poll_interval_minutes" value="Interval RX ONU (menit)" />
+                        <InputLabel for="rx_poll_interval_minutes" :value="$t('oltform.rx_interval')" />
                         <TextInput
                             id="rx_poll_interval_minutes"
                             v-model="form.rx_poll_interval_minutes"
@@ -304,7 +304,7 @@ const submit = () => {
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-slate-500">
-                    Catatan: GPON V3 memakai telnet saat scan; interval terlalu pendek bisa membebani OLT.
+                    {{ $t('cdataform.poll_note') }}
                 </p>
             </div>
         </div>
@@ -312,7 +312,7 @@ const submit = () => {
         <!-- Submit bar -->
         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
             <Link :href="route('smartolt.index', { tab: backTab })">
-                <SecondaryButton type="button">Batal</SecondaryButton>
+                <SecondaryButton type="button">{{ $t('common.cancel') }}</SecondaryButton>
             </Link>
             <PrimaryButton :disabled="form.processing">
                 {{ submitLabel }}

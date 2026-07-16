@@ -58,7 +58,7 @@ const fmt = (v) => formatDateTime(v);
                 </div>
                 <PrimaryButton class="w-full sm:w-auto" @click="scan">
                     <RefreshCw class="mr-2 h-4 w-4" />
-                    Scan ONU
+                    {{ $t('cdatadetail.scan_onu') }}
                 </PrimaryButton>
             </div>
         </template>
@@ -69,19 +69,19 @@ const fmt = (v) => formatDateTime(v);
                 <!-- Ringkasan -->
                 <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
                     <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">Total ONU</p>
+                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
                         <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ onuTotals.total.toLocaleString('id-ID') }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">Online</p>
+                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.online') }}</p>
                         <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-300">{{ onuTotals.online.toLocaleString('id-ID') }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">Offline</p>
+                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.offline') }}</p>
                         <p class="mt-1 text-2xl font-bold tabular-nums" :class="onuTotals.offline > 0 ? 'text-red-300' : 'text-slate-300'">{{ onuTotals.offline.toLocaleString('id-ID') }}</p>
                     </div>
                     <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">Port {{ olt.capabilities.pon_label }} Up</p>
+                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.port_pon_up', { label: olt.capabilities.pon_label }) }}</p>
                         <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ portsUp }}<span class="text-base text-slate-500"> / {{ ports.length }}</span></p>
                     </div>
                 </div>
@@ -91,8 +91,8 @@ const fmt = (v) => formatDateTime(v);
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <span class="kv-circle-cyan !h-10 !w-10"><LayoutPanelTop class="h-5 w-5" /></span>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Panel Depan</h3>
-                            <p class="text-xs text-slate-400">Status port fisik real-time · {{ olt.capabilities.vendor_family }}</p>
+                            <h3 class="text-base font-semibold text-white">{{ $t('cdatadetail.panel_front') }}</h3>
+                            <p class="text-xs text-slate-400">{{ $t('cdatadetail.panel_sub', { family: olt.capabilities.vendor_family }) }}</p>
                         </div>
                     </div>
                     <div class="p-4 sm:p-6">
@@ -105,17 +105,17 @@ const fmt = (v) => formatDateTime(v);
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <span class="kv-circle-sky !h-10 !w-10"><Server class="h-5 w-5" /></span>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Informasi Sistem</h3>
+                            <h3 class="text-base font-semibold text-white">{{ $t('cdatadetail.system_info') }}</h3>
                             <p class="text-xs text-slate-400">{{ olt.ip }}:{{ olt.snmp_port }} · {{ olt.snmp_version }}</p>
                         </div>
                     </div>
                     <div class="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Deskripsi</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('portonus.description') }}</p>
                             <p class="mt-1 break-words text-sm text-slate-200">{{ system.sys_descr || '—' }}</p>
                         </div>
                         <div>
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Nama Sistem</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.system_name') }}</p>
                             <p class="mt-1 text-sm text-slate-200">{{ system.sys_name || '—' }}</p>
                         </div>
                         <div>
@@ -123,35 +123,35 @@ const fmt = (v) => formatDateTime(v);
                             <p class="mt-1 text-sm text-slate-200">{{ system.sys_uptime || '—' }}</p>
                         </div>
                         <div>
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Firmware</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.firmware') }}</p>
                             <p class="mt-1 text-sm">
-                                <span v-if="snapshot.firmware_v3" class="kv-pill-muted">FlashV3.x (inventory via CLI)</span>
-                                <span v-else class="text-slate-200">Legacy / SNMP</span>
+                                <span v-if="snapshot.firmware_v3" class="kv-pill-muted">{{ $t('cdatadetail.firmware_v3') }}</span>
+                                <span v-else class="text-slate-200">{{ $t('cdatadetail.firmware_legacy') }}</span>
                             </p>
                         </div>
                         <div v-if="device.model">
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Model</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.model') }}</p>
                             <p class="mt-1 font-mono text-sm text-slate-200">{{ device.model }}</p>
                         </div>
                         <div v-else-if="device.device_type">
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Tipe</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.type') }}</p>
                             <p class="mt-1 text-sm text-slate-200">{{ device.device_type }}</p>
                         </div>
                         <div v-if="device.serial">
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Serial</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</p>
                             <p class="mt-1 font-mono text-sm text-slate-200">{{ device.serial }}</p>
                         </div>
                         <div v-if="device.hw_version">
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Versi HW</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.hw_version') }}</p>
                             <p class="mt-1 font-mono text-sm text-slate-200">{{ device.hw_version }}</p>
                         </div>
                         <div v-if="device.sw_version">
-                            <p class="text-xs uppercase tracking-wider text-slate-500">Versi SW</p>
+                            <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.sw_version') }}</p>
                             <p class="mt-1 font-mono text-sm text-slate-200">{{ device.sw_version }}</p>
                         </div>
                     </div>
                     <p v-if="snapshot.scanned_at" class="border-t border-white/10 px-6 py-3 text-xs text-slate-500">
-                        Scan ONU terakhir: {{ fmt(snapshot.scanned_at) }}
+                        {{ $t('cdatadetail.last_scan', { date: fmt(snapshot.scanned_at) }) }}
                     </p>
                 </div>
 
@@ -160,23 +160,21 @@ const fmt = (v) => formatDateTime(v);
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <span class="kv-circle-sky !h-10 !w-10"><RadioTower class="h-5 w-5" /></span>
                         <div>
-                            <h3 class="text-base font-semibold text-white">Port PON</h3>
-                            <p class="text-xs text-slate-400">{{ ports.length }} port · {{ olt.capabilities.pon_label }}</p>
+                            <h3 class="text-base font-semibold text-white">{{ $t('cdatadetail.pon_ports') }}</h3>
+                            <p class="text-xs text-slate-400">{{ $t('cdatadetail.pon_ports_sub', { count: ports.length, label: olt.capabilities.pon_label }) }}</p>
                         </div>
                     </div>
 
-                    <div v-if="ports.length === 0" class="px-6 py-12 text-center text-sm text-slate-500">
-                        Belum ada data port. Klik <span class="text-slate-300">Scan ONU</span> untuk memuat.
-                    </div>
+                    <div v-if="ports.length === 0" class="px-6 py-12 text-center text-sm text-slate-500" v-html="$t('cdatadetail.empty_ports')"></div>
 
                     <div v-else class="kv-table-desktop">
                         <table class="w-full min-w-[640px]">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Port</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.port') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">Aksi</th>
+                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -190,11 +188,11 @@ const fmt = (v) => formatDateTime(v);
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-300">
                                         <span class="text-white">{{ portCount(p).count }}</span>
-                                        <span class="text-slate-500"> ({{ portCount(p).online }} online)</span>
+                                        <span class="text-slate-500"> {{ $t('cdatadetail.online_count', { count: portCount(p).online }) }}</span>
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex justify-center">
-                                            <IconButton :href="route('cdata-olt.port-onus', [olt.id, p.slot, p.port])" title="Lihat ONU">
+                                            <IconButton :href="route('cdata-olt.port-onus', [olt.id, p.slot, p.port])" :title="$t('cdatadetail.view_onu')">
                                                 <ChevronRight class="h-4 w-4" />
                                             </IconButton>
                                         </div>
@@ -216,7 +214,7 @@ const fmt = (v) => formatDateTime(v);
                                 <span class="font-mono text-sm text-white">{{ p.name }}</span>
                                 <span class="text-xs" :class="p.oper_status === 'up' ? 'text-emerald-400' : 'text-slate-500'">{{ p.oper_status }}</span>
                             </div>
-                            <p class="mt-1 text-xs text-slate-400">{{ portCount(p).count }} ONU · {{ portCount(p).online }} online</p>
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('cdatadetail.onu_count_mobile', { count: portCount(p).count, online: portCount(p).online }) }}</p>
                         </Link>
                     </div>
                 </div>

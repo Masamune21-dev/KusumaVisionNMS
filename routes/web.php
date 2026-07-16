@@ -6,6 +6,7 @@ use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OltConfigBackupController;
 use App\Http\Controllers\OnuMapController;
@@ -32,6 +33,9 @@ Route::get('/', function () {
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
+
+// Ganti bahasa UI (ID/EN). Terbuka untuk tamu (halaman Welcome/Login) & user login.
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
 // Inbound Telegram bot commands. Public (no auth) — guarded by the secret token header;
 // CSRF-exempt (see bootstrap/app.php). {bot} kosong = bot global admin; {bot}=id =

@@ -4,11 +4,13 @@ import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import FlashMessages from '@/Components/Shell/FlashMessages.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
+import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, WifiOff } from '@lucide/vue';
 
 // Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
@@ -16,6 +18,8 @@ import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashbo
 const ParticleNetwork = defineAsyncComponent(
     () => import('@/Components/Shell/ParticleNetwork.vue'),
 );
+
+const { t } = useI18n({ useScope: 'global' });
 
 const SIDEBAR_COLLAPSED_KEY = 'kv-sidebar-collapsed';
 const sidebarOpen = ref(false);
@@ -45,24 +49,24 @@ const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCas
 
 const navLinks = computed(() => {
     const links = [
-        { name: 'Dashboard', icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
-        { name: 'SmartOLT', icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*'], except: 'smartolt.unconfigured-all' },
-        { name: 'ONU Monitoring', icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
-        { name: 'Peta ONU', icon: MapPin, href: route('map.index'), match: 'map.*' },
-        { name: 'Unconfigured', icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
-        { name: 'Alarms', icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
-        { name: 'Report', icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
-        { name: 'Panduan', icon: BookOpen, href: route('panduan'), match: 'panduan' },
+        { name: t('nav.dashboard'), icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
+        { name: t('nav.smartolt'), icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*'], except: 'smartolt.unconfigured-all' },
+        { name: t('nav.monitoring'), icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
+        { name: t('nav.map'), icon: MapPin, href: route('map.index'), match: 'map.*' },
+        { name: t('nav.unconfigured'), icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
+        { name: t('nav.alarms'), icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
+        { name: t('nav.report'), icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
+        { name: t('nav.guide'), icon: BookOpen, href: route('panduan'), match: 'panduan' },
     ];
 
     if (can.value.manage_users) {
-        links.push({ name: 'Users', icon: Users, href: route('users.index'), match: 'users.*' });
-        links.push({ name: 'Audit Logs', icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
-        links.push({ name: 'Pengaturan', icon: Settings, href: route('settings.edit'), match: 'settings.*' });
+        links.push({ name: t('nav.users'), icon: Users, href: route('users.index'), match: 'users.*' });
+        links.push({ name: t('nav.audit_logs'), icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
+        links.push({ name: t('nav.settings'), icon: Settings, href: route('settings.edit'), match: 'settings.*' });
     }
 
     if (can.value.is_partner) {
-        links.push({ name: 'Bot Telegram Saya', icon: Send, href: route('partner.telegram.edit'), match: 'partner.telegram.*' });
+        links.push({ name: t('nav.partner_telegram'), icon: Send, href: route('partner.telegram.edit'), match: 'partner.telegram.*' });
     }
 
     return links;
@@ -115,7 +119,7 @@ onUnmounted(() => {
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
-                aria-label="Buka menu navigasi"
+                :aria-label="$t('common.open_nav')"
                 @click="sidebarOpen = true"
             >
                 <Menu class="h-5 w-5" />
@@ -128,11 +132,12 @@ onUnmounted(() => {
                 <button
                     type="button"
                     class="flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-slate-900/60 text-slate-300 transition-colors hover:border-cyan-500/30 hover:bg-slate-900/80 hover:text-white"
-                    aria-label="Buka pencarian"
+                    :aria-label="$t('common.open_search')"
                     @click="searchOpen = true"
                 >
                     <Search class="h-4 w-4" />
                 </button>
+                <LanguageSwitcher />
                 <NotificationBell />
             </div>
         </div>
@@ -184,14 +189,14 @@ onUnmounted(() => {
                             </div>
                             <div v-if="showSidebarContent" class="min-w-0">
                                 <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>
-                                <div class="truncate text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
+                                <div class="truncate text-[11px] text-slate-500">{{ $t('shell.app_subtitle') }}</div>
                             </div>
                         </Link>
                         <!-- Desktop collapse toggle — always centered on right border -->
                         <button
                             type="button"
                             class="absolute right-0 top-1/2 z-20 hidden h-7 w-7 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-400 shadow-md shadow-black/40 transition-colors hover:border-cyan-500/40 hover:text-white lg:flex"
-                            :aria-label="sidebarCollapsed ? 'Buka sidebar' : 'Tutup sidebar'"
+                            :aria-label="sidebarCollapsed ? $t('common.expand_sidebar') : $t('common.collapse_sidebar')"
                             @click="sidebarCollapsed = !sidebarCollapsed"
                         >
                             <ChevronLeft class="h-4 w-4 transition-transform" :class="{ 'rotate-180': sidebarCollapsed }" />
@@ -246,7 +251,7 @@ onUnmounted(() => {
                             @click="sidebarOpen = false"
                         >
                             <User class="h-4 w-4" />
-                            Profile
+                            {{ $t('common.profile') }}
                         </Link>
                         <Link
                             :href="route('logout')"
@@ -255,7 +260,7 @@ onUnmounted(() => {
                             class="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
                         >
                             <LogOut class="h-4 w-4" />
-                            Keluar
+                            {{ $t('common.logout') }}
                         </Link>
                     </div>
                 </div>
@@ -281,13 +286,14 @@ onUnmounted(() => {
                         @click="searchOpen = true"
                     >
                         <Search class="h-4 w-4 flex-shrink-0 text-slate-500 group-hover:text-cyan-400" />
-                        <span class="flex-1 truncate">Cari perangkat, OLT, ONU, atau lokasi&hellip;</span>
+                        <span class="flex-1 truncate">{{ $t('common.search_placeholder') }}</span>
                         <kbd class="hidden items-center gap-1 rounded-md border border-white/10 bg-slate-800/80 px-2 py-0.5 text-[11px] font-medium text-slate-400 sm:inline-flex">
                             <span class="text-xs">&#8984;</span>K
                         </kbd>
                     </button>
 
                     <div class="ml-auto flex items-center gap-3">
+                        <LanguageSwitcher />
                         <NotificationBell />
                         <UserMenu />
                     </div>
@@ -314,7 +320,7 @@ onUnmounted(() => {
                 class="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-300 sm:px-6 lg:px-8"
             >
                 <Eye class="h-4 w-4 flex-shrink-0" />
-                <span>Mode Demo &mdash; tampilan read-only dengan data contoh. Perubahan data dinonaktifkan.</span>
+                <span>{{ $t('shell.demo_banner') }}</span>
             </div>
 
             <!-- Page content -->
@@ -335,7 +341,7 @@ onUnmounted(() => {
             <footer class="z-10 flex-shrink-0 border-t border-white/10 bg-slate-950/40 backdrop-blur-xl">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
                     <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>
-                    <p class="hidden sm:block">Platform manajemen jaringan FTTH untuk ISP Indonesia</p>
+                    <p class="hidden sm:block">{{ $t('shell.footer_tagline') }}</p>
                 </div>
             </footer>
         </div>

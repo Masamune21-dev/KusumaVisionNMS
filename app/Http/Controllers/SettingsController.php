@@ -104,7 +104,7 @@ class SettingsController extends Controller
     {
         // API dimatikan di server → token tak ada gunanya; tolak agar tak menumpuk token nganggur.
         if (! Route::has('api.public.status')) {
-            return back()->with('error', 'API sedang dinonaktifkan. Aktifkan dulu di server (routes/api.php) sebelum membuat token.');
+            return back()->with('error', __('flash.api_disabled'));
         }
 
         $validated = $request->validate([
@@ -115,7 +115,7 @@ class SettingsController extends Controller
 
         return back()
             ->with('apiToken', $token->plainTextToken)
-            ->with('success', 'Token API dibuat. Salin sekarang — token hanya ditampilkan satu kali.');
+            ->with('success', __('flash.token_created'));
     }
 
     /**
@@ -125,7 +125,7 @@ class SettingsController extends Controller
     {
         $request->user()->tokens()->whereKey($token)->delete();
 
-        return back()->with('success', 'Token API dicabut.');
+        return back()->with('success', __('flash.token_revoked'));
     }
 
     /**
@@ -183,7 +183,7 @@ class SettingsController extends Controller
 
         $setting->save();
 
-        return back()->with('success', 'Pengaturan umum tersimpan.');
+        return back()->with('success', __('flash.general_saved'));
     }
 
     /**
@@ -202,7 +202,7 @@ class SettingsController extends Controller
         $setting->confirm_before_notify = (bool) ($validated['confirm_before_notify'] ?? false);
         $setting->save();
 
-        return back()->with('success', 'Pengaturan alarm tersimpan.');
+        return back()->with('success', __('flash.alarm_saved'));
     }
 
     /**
@@ -228,7 +228,7 @@ class SettingsController extends Controller
 
         $setting->save();
 
-        return back()->with('success', 'Pengaturan ACS / TR069 tersimpan.');
+        return back()->with('success', __('flash.acs_saved'));
     }
 
     public function updateTelegram(Request $request): RedirectResponse
@@ -277,7 +277,7 @@ class SettingsController extends Controller
 
         $setting->save();
 
-        return back()->with('success', 'Pengaturan Telegram tersimpan.');
+        return back()->with('success', __('flash.telegram_saved'));
     }
 
     public function testTelegram(TelegramNotifier $notifier): RedirectResponse
@@ -285,10 +285,10 @@ class SettingsController extends Controller
         $result = $notifier->sendTest();
 
         if ($result['ok']) {
-            return back()->with('success', 'Pesan tes Telegram terkirim.');
+            return back()->with('success', __('flash.telegram_test_sent'));
         }
 
-        return back()->with('error', 'Gagal mengirim tes Telegram: '.($result['error'] ?? 'unknown error'));
+        return back()->with('error', __('flash.telegram_test_failed').($result['error'] ?? 'unknown error'));
     }
 
     public function registerWebhook(TelegramWebhookManager $manager): RedirectResponse
@@ -296,10 +296,10 @@ class SettingsController extends Controller
         $result = $manager->register();
 
         if ($result['ok']) {
-            return back()->with('success', 'Webhook Telegram terdaftar. Bot siap menerima perintah.');
+            return back()->with('success', __('flash.webhook_registered'));
         }
 
-        return back()->with('error', 'Gagal mendaftarkan webhook: '.$result['message']);
+        return back()->with('error', __('flash.webhook_register_failed').$result['message']);
     }
 
     public function deleteWebhook(TelegramWebhookManager $manager): RedirectResponse
@@ -307,10 +307,10 @@ class SettingsController extends Controller
         $result = $manager->delete();
 
         if ($result['ok']) {
-            return back()->with('success', 'Webhook Telegram dihapus. Bot tidak lagi menerima perintah.');
+            return back()->with('success', __('flash.webhook_deleted'));
         }
 
-        return back()->with('error', 'Gagal menghapus webhook: '.$result['message']);
+        return back()->with('error', __('flash.webhook_delete_failed').$result['message']);
     }
 
     /**
@@ -349,7 +349,7 @@ class SettingsController extends Controller
 
         $setting->save();
 
-        return back()->with('success', 'Pengaturan notifikasi mobile tersimpan.');
+        return back()->with('success', __('flash.fcm_saved'));
     }
 
     /**
@@ -363,18 +363,18 @@ class SettingsController extends Controller
         ]);
 
         if (! $notifier->enabled()) {
-            return back()->with('error', 'Push FCM belum dikonfigurasi di server (kredensial Firebase belum dipasang).');
+            return back()->with('error', __('flash.fcm_not_configured'));
         }
 
         $res = $notifier->broadcast($validated['title'], $validated['body']);
 
         if ($res['ok']) {
-            return back()->with('success', 'Notifikasi terkirim ke '.$res['sent'].' perangkat.');
+            return back()->with('success', __('flash.fcm_sent', ['n' => $res['sent']]));
         }
 
         $reason = match ($res['reason'] ?? null) {
-            'no_tokens' => 'Belum ada perangkat mobile yang terdaftar.',
-            default => 'Gagal mengirim: '.($res['error'] ?? 'tidak diketahui'),
+            'no_tokens' => __('flash.fcm_no_devices'),
+            default => __('flash.fcm_send_failed').($res['error'] ?? __('flash.unknown')),
         };
 
         return back()->with('error', $reason);

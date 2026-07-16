@@ -60,7 +60,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                         @click="open = false"
                     >
                         <User class="h-4 w-4" />
-                        Profile
+                        {{ $t('common.profile') }}
                     </Link>
                     <Link
                         :href="route('logout')"
@@ -69,7 +69,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                         class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-300 transition-colors hover:bg-red-500/10 hover:text-red-300"
                     >
                         <LogOut class="h-4 w-4" />
-                        Keluar
+                        {{ $t('common.logout') }}
                     </Link>
                 </div>
             </div>

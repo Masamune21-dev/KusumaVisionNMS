@@ -1,8 +1,11 @@
 <script setup>
 import { computed } from 'vue';
 import VueApexCharts from 'vue3-apexcharts';
+import { useI18n } from 'vue-i18n';
 import { CircleDot } from '@lucide/vue';
 import { formatDateTime } from '@/lib/datetime';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     onu: { type: Object, required: true },
@@ -25,7 +28,7 @@ const offlinePct = computed(() => total.value > 0 ? Math.round((offline.value / 
 
 const chartOptions = computed(() => ({
     chart: { type: 'donut', background: 'transparent', animations: { enabled: false } },
-    labels: ['Online', 'Warning', 'Offline'],
+    labels: [t('dashboard.status_online'), t('dashboard.status_warning'), t('dashboard.status_offline')],
     colors: ['#10b981', '#f59e0b', '#ef4444'],
     legend: { show: false },
     stroke: { width: 0 },
@@ -39,7 +42,7 @@ const chartOptions = computed(() => ({
                     value: { show: true, color: '#ffffff', fontSize: '28px', fontWeight: 700, offsetY: -10 },
                     total: {
                         show: true,
-                        label: 'Total ONU',
+                        label: t('dashboard.donut_total'),
                         color: '#94a3b8',
                         fontSize: '11px',
                         formatter: () => total.value.toLocaleString('id-ID'),
@@ -53,9 +56,9 @@ const chartOptions = computed(() => ({
 }));
 
 const legend = computed(() => [
-    { label: 'Online', value: online.value, pct: onlinePct.value, color: '#10b981', dot: 'bg-emerald-400' },
-    { label: 'Warning', value: warning.value, pct: warningPct.value, color: '#f59e0b', dot: 'bg-amber-400' },
-    { label: 'Offline', value: offline.value, pct: offlinePct.value, color: '#ef4444', dot: 'bg-red-400' },
+    { label: t('dashboard.status_online'), value: online.value, pct: onlinePct.value, color: '#10b981', dot: 'bg-emerald-400' },
+    { label: t('dashboard.status_warning'), value: warning.value, pct: warningPct.value, color: '#f59e0b', dot: 'bg-amber-400' },
+    { label: t('dashboard.status_offline'), value: offline.value, pct: offlinePct.value, color: '#ef4444', dot: 'bg-red-400' },
 ]);
 
 const formattedUpdated = computed(() =>
@@ -69,7 +72,7 @@ const formattedUpdated = computed(() =>
             <span class="kv-circle-emerald">
                 <CircleDot class="h-5 w-5" />
             </span>
-            <h3 class="text-base font-semibold text-white">Status ONU</h3>
+            <h3 class="text-base font-semibold text-white">{{ t('dashboard.onu_status') }}</h3>
         </div>
 
         <div class="flex flex-1 flex-col items-center gap-2 px-4 py-4">
@@ -77,7 +80,7 @@ const formattedUpdated = computed(() =>
                 <VueApexCharts type="donut" height="180" width="180" :options="chartOptions" :series="series" />
             </div>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
-                Belum ada data ONU. Jalankan polling.
+                {{ t('dashboard.no_onu_data') }}
             </div>
 
             <ul v-if="total > 0" class="flex w-full flex-col gap-2 px-1 text-sm">
@@ -95,7 +98,7 @@ const formattedUpdated = computed(() =>
         </div>
 
         <p v-if="formattedUpdated" class="border-t border-white/5 px-5 py-2 text-center text-xs text-slate-500">
-            Update terakhir: {{ formattedUpdated }}
+            {{ t('dashboard.last_updated', { time: formattedUpdated }) }}
         </p>
     </div>
 </template>

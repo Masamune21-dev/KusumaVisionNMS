@@ -14,6 +14,9 @@ import { formatDate } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     users: {
@@ -70,18 +73,18 @@ const showOltAssignment = computed(() => form.role === 'partner' || form.role ==
 
 const oltAssignmentHint = computed(() =>
     form.role === 'operator'
-        ? 'Operator dibatasi ke OLT yang dicentang. Kosongkan untuk memberi akses ke semua OLT.'
-        : 'Partner hanya bisa melihat & mengedit OLT yang dicentang di sini.',
+        ? t('users.assign_hint_operator')
+        : t('users.assign_hint_partner'),
 );
 
 // Label ringkas cakupan OLT di daftar user. Operator tanpa assignment = akses penuh (tak ditampilkan).
 const oltScopeText = (user) => {
     const count = assignedCount(user);
     if (user.role === 'partner') {
-        return `${count} OLT di-assign`;
+        return t('users.olt_assigned', { n: count });
     }
     if (user.role === 'operator' && count > 0) {
-        return `${count} OLT di-assign`;
+        return t('users.olt_assigned', { n: count });
     }
     return null;
 };
@@ -139,9 +142,9 @@ const submit = () => {
 
 const deleteUser = async (user) => {
     const ok = await confirm({
-        title: 'Hapus User',
-        message: `Hapus user "${user.name}" (${user.email})? Tindakan ini permanen.`,
-        confirmLabel: 'Hapus',
+        title: t('users.delete'),
+        message: t('users.delete_msg', { name: user.name, email: user.email }),
+        confirmLabel: t('common.delete'),
         variant: 'danger',
     });
 
@@ -153,17 +156,17 @@ const deleteUser = async (user) => {
 </script>
 
 <template>
-    <Head title="Manajemen User" />
+    <Head :title="$t('users.title')" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                    Manajemen User
+                    {{ $t('users.title') }}
                 </h2>
                 <PrimaryButton class="w-full sm:w-auto" @click="openCreate">
                     <Plus class="mr-2 h-4 w-4" />
-                    Tambah User
+                    {{ $t('users.add') }}
                 </PrimaryButton>
             </div>
         </template>
@@ -178,10 +181,10 @@ const deleteUser = async (user) => {
                         </div>
                         <div>
                             <h3 class="text-base font-semibold text-white">
-                                Daftar User
+                                {{ $t('users.list_title') }}
                             </h3>
                             <p class="mt-0.5 text-xs text-slate-500">
-                                Kelola akun pengguna sistem KusumaVision NMS.
+                                {{ $t('users.list_sub') }}
                             </p>
                         </div>
                     </div>
@@ -190,12 +193,12 @@ const deleteUser = async (user) => {
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <Users class="h-7 w-7 text-slate-400" />
                         </div>
-                        <h3 class="text-sm font-semibold text-white">Belum ada user</h3>
-                        <p class="mt-1 text-sm text-slate-500">Tambahkan user pertama untuk memulai.</p>
+                        <h3 class="text-sm font-semibold text-white">{{ $t('users.empty_title') }}</h3>
+                        <p class="mt-1 text-sm text-slate-500">{{ $t('users.empty_sub') }}</p>
                         <div class="mt-5">
                             <PrimaryButton @click="openCreate">
                                 <Plus class="mr-2 h-4 w-4" />
-                                Tambah User
+                                {{ $t('users.add') }}
                             </PrimaryButton>
                         </div>
                     </div>
@@ -211,18 +214,18 @@ const deleteUser = async (user) => {
                                         <div class="min-w-0">
                                             <h4 class="kv-mobile-card-title">
                                                 {{ user.name }}
-                                                <span v-if="user.id === $page.props.auth.user.id" class="text-cyan-400">(Anda)</span>
+                                                <span v-if="user.id === $page.props.auth.user.id" class="text-cyan-400">{{ $t('users.you') }}</span>
                                             </h4>
                                             <p class="kv-mobile-card-subtitle">{{ user.email }}</p>
                                         </div>
                                     </div>
                                     <div class="flex flex-shrink-0 gap-2">
-                                        <IconButton title="Edit User" @click="openEdit(user)">
+                                        <IconButton :title="$t('users.edit')" @click="openEdit(user)">
                                             <Pencil class="h-4 w-4" />
                                         </IconButton>
                                         <IconButton
                                             variant="danger"
-                                            title="Hapus User"
+                                            :title="$t('users.delete')"
                                             :disabled="user.id === $page.props.auth.user.id"
                                             @click="deleteUser(user)"
                                         >
@@ -243,7 +246,7 @@ const deleteUser = async (user) => {
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">Terdaftar</span>
+                                        <span class="kv-mobile-label">{{ $t('users.col_registered') }}</span>
                                         <span class="kv-mobile-value">{{ formatDate(user.created_at) }}</span>
                                     </div>
                                 </div>
@@ -255,7 +258,7 @@ const deleteUser = async (user) => {
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Nama
+                                        {{ $t('users.col_name') }}
                                     </th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Email
@@ -264,10 +267,10 @@ const deleteUser = async (user) => {
                                         Role
                                     </th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Terdaftar
+                                        {{ $t('users.col_registered') }}
                                     </th>
                                     <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                        Aksi
+                                        {{ $t('common.actions') }}
                                     </th>
                                 </tr>
                             </thead>
@@ -281,7 +284,7 @@ const deleteUser = async (user) => {
                                             <div>
                                                 <div class="font-medium text-white">{{ user.name }}</div>
                                                 <div v-if="user.id === $page.props.auth.user.id" class="text-xs text-cyan-400">
-                                                    (Anda)
+                                                    {{ $t('users.you') }}
                                                 </div>
                                             </div>
                                         </div>
@@ -302,12 +305,12 @@ const deleteUser = async (user) => {
                                     </td>
                                     <td class="px-4 py-4">
                                         <div class="flex justify-center gap-1.5">
-                                            <IconButton title="Edit User" @click="openEdit(user)">
+                                            <IconButton :title="$t('users.edit')" @click="openEdit(user)">
                                                 <Pencil class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 variant="danger"
-                                                title="Hapus User"
+                                                :title="$t('users.delete')"
                                                 :disabled="user.id === $page.props.auth.user.id"
                                                 @click="deleteUser(user)"
                                             >
@@ -328,21 +331,21 @@ const deleteUser = async (user) => {
         <Modal :show="showModal" max-width="md" @close="closeModal">
             <form @submit.prevent="submit" class="p-6">
                 <h3 class="text-base font-semibold text-white">
-                    {{ editingUser ? 'Edit User' : 'Tambah User' }}
+                    {{ editingUser ? $t('users.edit') : $t('users.add') }}
                 </h3>
                 <p class="mt-1 text-sm text-slate-500">
-                    {{ editingUser ? 'Perbarui informasi akun user.' : 'Isi data untuk membuat akun baru.' }}
+                    {{ editingUser ? $t('users.modal_edit_sub') : $t('users.modal_create_sub') }}
                 </p>
 
                 <div class="mt-5 space-y-4">
                     <div>
-                        <InputLabel for="name" value="Nama" />
+                        <InputLabel for="name" :value="$t('users.col_name')" />
                         <TextInput
                             id="name"
                             v-model="form.name"
                             type="text"
                             class="mt-1 block w-full"
-                            placeholder="Nama lengkap"
+                            :placeholder="$t('users.name_placeholder')"
                             autofocus
                             autocomplete="name"
                         />
@@ -378,7 +381,7 @@ const deleteUser = async (user) => {
 
                     <!-- OLT yang di-assign (wajib untuk partner, opsional untuk operator) -->
                     <div v-if="showOltAssignment">
-                        <InputLabel value="OLT yang di-assign" />
+                        <InputLabel :value="$t('users.assign_label')" />
                         <p class="mt-0.5 text-xs text-slate-500">
                             {{ oltAssignmentHint }}
                         </p>
@@ -404,7 +407,7 @@ const deleteUser = async (user) => {
                             </label>
                         </div>
                         <p v-else class="mt-2 text-sm text-slate-500">
-                            Belum ada OLT terdaftar. Tambahkan OLT lebih dulu.
+                            {{ $t('users.no_olt') }}
                         </p>
                         <InputError :message="form.errors.olt_ids" class="mt-1" />
                     </div>
@@ -412,7 +415,7 @@ const deleteUser = async (user) => {
                     <div>
                         <InputLabel
                             for="password"
-                            :value="editingUser ? 'Password Baru (kosongkan jika tidak diganti)' : 'Password'"
+                            :value="editingUser ? $t('users.password_new') : $t('users.password')"
                         />
                         <TextInput
                             id="password"
@@ -428,10 +431,10 @@ const deleteUser = async (user) => {
 
                 <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
                     <SecondaryButton type="button" @click="closeModal">
-                        Batal
+                        {{ $t('common.cancel') }}
                     </SecondaryButton>
                     <PrimaryButton type="submit" :disabled="form.processing">
-                        {{ editingUser ? 'Simpan Perubahan' : 'Buat User' }}
+                        {{ editingUser ? $t('users.save_changes') : $t('users.create') }}
                     </PrimaryButton>
                 </div>
             </form>

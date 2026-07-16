@@ -1,0 +1,62 @@
+<?php
+
+// Label laporan (halaman Report + export CSV/PDF). Locale aktif di-set middleware SetLocale.
+return [
+    'title_onu' => 'Laporan Inventaris & RX Power ONU',
+    'title_olt' => 'Laporan Status OLT',
+    'title_alarm' => 'Laporan Riwayat Alarm',
+    'title_provisioning' => 'Laporan Provisioning ONU',
+
+    'type_onu' => 'Inventaris & RX Power ONU',
+    'type_olt' => 'Status OLT',
+    'type_alarm' => 'Riwayat Alarm',
+    'type_provisioning' => 'Provisioning ONU',
+
+    'range_24h' => '24 Jam Terakhir',
+    'range_7d' => '7 Hari Terakhir',
+    'range_30d' => '30 Hari Terakhir',
+    'range_all' => 'Semua Waktu',
+
+    'col_olt' => 'OLT',
+    'col_interface' => 'Interface',
+    'col_onu_id' => 'ONU ID',
+    'col_serial_mac' => 'Serial Number / MAC',
+    'col_serial' => 'Serial Number',
+    'col_name' => 'Nama / Pelanggan',
+    'col_rx_power' => 'RX Power',
+    'col_status' => 'Status',
+    'col_ip' => 'IP',
+    'col_onu_total' => 'Total ONU',
+    'col_online' => 'Online',
+    'col_offline' => 'Offline',
+    'col_last_polled' => 'Polling Terakhir',
+    'col_severity' => 'Severity',
+    'col_type' => 'Tipe',
+    'col_message' => 'Pesan',
+    'col_last_seen' => 'Terakhir Terlihat',
+    'col_date' => 'Tanggal',
+    'col_customer' => 'Pelanggan',
+    'col_wan_mode' => 'Mode WAN',
+    'col_created_by' => 'Dibuat Oleh',
+
+    'sum_total_onu' => 'Total ONU',
+    'sum_online' => 'Online',
+    'sum_offline' => 'Offline',
+    'sum_rx_warning' => 'RX Warning (< -25 dBm)',
+    'sum_rx_critical' => 'RX Critical (< -28 dBm)',
+    'sum_total_olt' => 'Total OLT',
+    'sum_total_alarm' => 'Total Alarm',
+    'sum_critical' => 'Critical',
+    'sum_major' => 'Major',
+    'sum_minor_warning' => 'Minor + Warning',
+    'sum_total_reg' => 'Total Registrasi',
+    'sum_success' => 'Berhasil',
+    'sum_failed' => 'Gagal',
+
+    'status_active' => 'Aktif',
+    'status_cleared' => 'Selesai',
+
+    'pdf_generated' => 'Dibuat',
+    'pdf_no_data' => 'Tidak ada data untuk filter ini.',
+    'pdf_footer' => 'Laporan dibuat otomatis',
+];

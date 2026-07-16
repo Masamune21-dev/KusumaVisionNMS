@@ -142,7 +142,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Cpu class="h-4 w-4 text-cyan-400" /> T-CONT</h3>
-                <button type="button" class="kv-add" @click="addTcont"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addTcont"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                 <div class="space-y-3 md:min-w-[600px] md:space-y-1.5">
@@ -159,10 +159,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         </div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Gap</span><TextInput v-model="row.gap" :class="fieldClass" /></div>
                         <div class="kv-cell kv-action-cell">
-                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.tconts, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.tconts, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
-                    <p v-if="!cfg.tconts.length" class="py-1 text-xs text-slate-500">Belum ada T-CONT.</p>
+                    <p v-if="!cfg.tconts.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_tcont') }}</p>
                 </div>
             </div>
         </section>
@@ -171,7 +171,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Network class="h-4 w-4 text-cyan-400" /> GEM Port</h3>
-                <button type="button" class="kv-add" @click="addGemport"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addGemport"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                 <div class="space-y-3 md:min-w-[700px] md:space-y-1.5">
@@ -185,10 +185,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Upstream Limit</span><TextInput v-model="row.traffic_up" :class="fieldClass" placeholder="profile" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Downstream Limit</span><TextInput v-model="row.traffic_down" :class="fieldClass" placeholder="profile" /></div>
                         <div class="kv-cell kv-action-cell">
-                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.gemports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.gemports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
-                    <p v-if="!cfg.gemports.length" class="py-1 text-xs text-slate-500">Belum ada GEM Port.</p>
+                    <p v-if="!cfg.gemports.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_gemport') }}</p>
                 </div>
             </div>
         </section>
@@ -197,7 +197,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><ListChecks class="h-4 w-4 text-cyan-400" /> Service-port</h3>
-                <button type="button" class="kv-add" @click="addServicePort"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addServicePort"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                 <div class="space-y-3 md:min-w-[560px] md:space-y-1.5">
@@ -210,10 +210,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">User VLAN</span><TextInput v-model.number="row.user_vlan" type="number" :class="fieldClass" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
                         <div class="kv-cell kv-action-cell">
-                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.service_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.service_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
-                    <p v-if="!cfg.service_ports.length" class="py-1 text-xs text-slate-500">Belum ada service-port.</p>
+                    <p v-if="!cfg.service_ports.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_serviceport') }}</p>
                 </div>
             </div>
         </section>
@@ -222,7 +222,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Settings class="h-4 w-4 text-cyan-400" /> PON-ONU-MNG / Service</h3>
-                <button type="button" class="kv-add" @click="addService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addService"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                 <div class="space-y-3 md:min-w-[600px] md:space-y-1.5">
@@ -241,10 +241,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">COS</span><TextInput v-model.number="row.cos" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
                         <div class="kv-cell kv-action-cell">
-                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.services, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
-                    <p v-if="!cfg.services.length" class="py-1 text-xs text-slate-500">Belum ada service.</p>
+                    <p v-if="!cfg.services.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_service') }}</p>
                 </div>
             </div>
         </section>
@@ -253,7 +253,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Globe class="h-4 w-4 text-cyan-400" /> UNI VLAN</h3>
-                <button type="button" class="kv-add" @click="addVlanPort"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addVlanPort"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
                 <div class="space-y-3 md:min-w-[680px] md:space-y-1.5">
@@ -281,10 +281,10 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Def VLAN</span><TextInput v-model.number="row.def_vlan" type="number" :class="fieldClass" :disabled="['trunk','transparent','na'].includes(row.mode)" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Priority</span><TextInput v-model.number="row.priority" type="number" :class="fieldClass" :disabled="['trunk','transparent','na'].includes(row.mode)" /></div>
                         <div class="kv-cell kv-action-cell">
-                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.vlan_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">Hapus baris</span></button>
+                            <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.vlan_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
-                    <p v-if="!cfg.vlan_ports.length" class="py-1 text-xs text-slate-500">Belum ada UNI VLAN.</p>
+                    <p v-if="!cfg.vlan_ports.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_univlan') }}</p>
                 </div>
             </div>
         </section>
@@ -293,11 +293,11 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
         <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200"><Network class="h-4 w-4 text-cyan-400" /> WAN Service Binding</h3>
-                <button type="button" class="kv-add" @click="addWanService"><Plus class="h-3.5 w-3.5" /> Tambah</button>
+                <button type="button" class="kv-add" @click="addWanService"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="space-y-4 p-4 sm:p-6">
                 <p v-if="!cfg.wan_services.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
-                    Belum ada WAN binding. Klik <span class="font-semibold text-slate-300">Tambah</span>.
+                    {{ $t('configonu.cfg_no_wan_before') }} <span class="font-semibold text-slate-300">{{ $t('configonu.cfg_add') }}</span>.
                 </p>
 
                 <div
@@ -308,7 +308,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
                             WAN {{ w.id }}
                         </span>
-                        <button type="button" class="kv-del" title="Hapus WAN binding" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /></button>
+                        <button type="button" class="kv-del" :title="$t('configonu.cfg_del_wan')" @click="removeRow(cfg.wan_services, i)"><Trash2 class="h-4 w-4" /></button>
                     </div>
 
                     <!-- Service Type (multi) -->
@@ -364,11 +364,11 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                 <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200">
                     <Globe class="h-4 w-4 text-cyan-400" /> WAN
                 </h3>
-                <button type="button" class="kv-add" @click="addWanIp"><Plus class="h-3.5 w-3.5" /> Tambah WAN-IP</button>
+                <button type="button" class="kv-add" @click="addWanIp"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add_wanip') }}</button>
             </header>
             <div class="space-y-4 p-4 sm:p-6">
                 <p v-if="!cfg.wan_ips.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
-                    Belum ada WAN-IP. Klik <span class="font-semibold text-slate-300">Tambah WAN-IP</span> untuk membuat koneksi WAN.
+                    {{ $t('configonu.cfg_no_wanip_before') }} <span class="font-semibold text-slate-300">{{ $t('configonu.cfg_add_wanip') }}</span> {{ $t('configonu.cfg_no_wanip_after') }}
                 </p>
 
                 <div
@@ -379,7 +379,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
                             WAN-IP {{ w.id }}
                         </span>
-                        <button type="button" class="kv-del" title="Hapus WAN-IP" @click="removeRow(cfg.wan_ips, i)"><Trash2 class="h-4 w-4" /></button>
+                        <button type="button" class="kv-del" :title="$t('configonu.cfg_del_wanip')" @click="removeRow(cfg.wan_ips, i)"><Trash2 class="h-4 w-4" /></button>
                     </div>
 
                     <!-- Mode -->
@@ -408,7 +408,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                         <div class="sm:col-span-2">
                             <InputLabel value="VLAN Profile (optional)" />
                             <select v-model="w.vlan_profile" :class="fieldClass">
-                                <option :value="null">Tanpa profile</option>
+                                <option :value="null">{{ $t('configonu.cfg_no_profile') }}</option>
                                 <option v-if="w.vlan_profile && !vlanProfileNames.includes(w.vlan_profile)" :value="w.vlan_profile">{{ w.vlan_profile }} (dari OLT)</option>
                                 <option v-for="p in vlanProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
                             </select>
