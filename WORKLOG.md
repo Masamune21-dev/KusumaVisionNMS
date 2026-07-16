@@ -2,6 +2,43 @@
 
 ## 2026-07-17
 
+### Follow-up: unduhan APK di Settings menyajikan versi lama (cache Cloudflare)
+
+User install APK dari halaman Settings tapi masih v1.1.7 padahal server sudah v1.2.0. Diagnosis: domain di-proxy **Cloudflare** dan edge menyimpan salinan APK lama (`cf-cache-status: HIT`, `last-modified` 10 Jul, `cache-control: max-age=14400` disuntik CF) — origin nginx tidak mengirim Cache-Control sama sekali.
+
+Changed:
+
+- `app/Http/Controllers/SettingsController.php` `mobileApkPayload()` — URL unduh kini `?v={filemtime}` (cache-buster): tiap build baru = cache key baru di CDN, link Settings selalu fresh.
+- Nginx live + template `install.sh` + `docker/nginx.conf` — blok baru `location ~* ^/downloads/.*\.apk$` dengan `Cache-Control: no-store` supaya CDN/proxy tak meng-cache APK lagi (verifikasi publik: `cf-cache-status: BYPASS`, last-modified 16 Jul). nginx -t OK, nginx+php-fpm reloaded.
+
+Notes:
+
+- URL polos `/downloads/kusumavision-nms.apk` (tanpa `?v=`) masih tersaji stale dari edge sampai TTL habis (~2 jam) atau di-purge manual di dashboard Cloudflare (Caching → Custom Purge). Link tombol Settings sudah langsung benar.
+
+### Mobile: perbaikan performa (aurora/blur) + fitur Hapus ONU (API v1 + Flutter) + fix reboot/rename non-ZTE
+
+User melapor aplikasi mobile sangat berat di beberapa HP termasuk HP baru. Diagnosis: `AuroraBackground` me-repaint blur gaussian fullscreen bersigma raksasa (`shortestSide*0.16` ≈ 173px, 3 blob + BlendMode.screen) **setiap vsync frame** di hampir semua layar — di Impeller/Android blur multi-pass sangat lambat di GPU Mali/Xclipse (Dimensity/Exynos/Tensor), cocok dgn pola "HP baru tapi berat" (Adreno/Snapdragon kuat). Sekalian: fitur hapus ONU di mobile (API-nya belum ada).
+
+Changed (performa mobile):
+
+- `mobile/lib/core/widgets/aurora_background.dart` — (1) `MaskFilter.blur` raksasa di 3 blob aurora **dihapus**; kelembutan tepi diganti stop tengah `RadialGradient` (`[α.32, α.14, 0]` stops `[0, .55, 1]`) — gradien murni nyaris gratis di GPU. (2) `t` dikuantisasi `(v*400).round()/400` → `shouldRepaint` false di mayoritas frame; repaint efektif ~18/dtk (dari 60–120) dgn siklus 22 dtk, gerakan tak terlihat bedanya.
+- `mobile/lib/core/widgets/pulse_dot.dart` — `AnimatedBuilder`+`CustomPaint` dibungkus `RepaintBoundary` (pola PulseLogo): tanpa ini tiap titik denyut me-repaint seluruh baris/kartu induk 60x/dtk (daftar OLT/port punya banyak titik sekaligus).
+- `GlassCard blur:true` (BackdropFilter σ18) sengaja TIDAK diubah — dgn aurora terquantisasi, re-filter turun drastis; knob cadangan bila masih berat: σ→10–12 / `blur:false`.
+
+Changed (Hapus ONU + API):
+
+- `app/Services/ZteRemoteOnuService.php` — method baru `delete()` (CLI `conf t → interface gpon_olt → no onu {id}`, C600-aware via `gponOltInterface`); `SmartOltController::deleteOnu` di-refactor memakainya (perilaku web tetap).
+- `app/Http/Controllers/Api/V1/OnuActionController.php` — endpoint baru **`DELETE /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}`** (`api.olts.onu.delete`, grup write `role:admin,operator,partner` + `BlockDemoWrites`), gated `supports_onu_delete`, **bercabang per-family** (ZTE `no onu` / C-Data `ont delete` / HiOSO `delete onu`) + `removeCachedOnu` (mirror web) agar cache port langsung bersih. **Bonus fix bug laten:** `reboot()` & `rename()` API semula ZTE-only padahal capability non-ZTE true → mobile ke OLT C-Data/HiOSO salah kirim perintah; kini bercabang 3-arah (pola `OnuMapController`), rename non-ZTE = name-only (paritas web).
+- `routes/api.php` + `docs/API.md` (tabel write, contoh curl delete, catatan per-family, roadmap) diperbarui.
+- Mobile: `nms_api.dart` `deleteOnu()` (dio DELETE); `onu_detail_screen.dart` tombol danger "Hapus ONU dari OLT" (gated `supports_onu_delete` + canWrite) + dialog konfirmasi destruktif; sukses → invalidate `portOnusProvider` + `context.pop()`; ikon `LucideIcons.trash` baru.
+- `mobile/pubspec.yaml` versi `1.1.7+11` → **`1.2.0+12`**.
+
+Notes:
+
+- Tests: 5 test baru di `ApiV1WriteTest` (delete ZTE + asersi cache, delete C-Data via mock service, unknown driver 422, demo 403, reboot C-Data cross-family); `seedOlt()` kini menerima name/vendor/sysDescr (nama default `OLT-C320-TEST` mengandung "c320" → selalu terdeteksi ZTE; seed non-ZTE butuh nama netral). Full suite **359 pass / 1 fail pre-existing** (`test_refresh_port_non_zte_queries_driver`); pint pass; `flutter analyze` bersih.
+- Gotcha: test API membaca **cache rute** (`bootstrap/cache/routes-v7.php`) — rute DELETE baru bikin 405 di test sampai `php artisan route:cache` dijalankan ulang.
+- Deploy: route:cache + reload php8.3-fpm ✓; smoke test prod `DELETE /api/v1/...` tanpa token → 401 (rute live, auth benar). APK release dibangun via `bin/build-apk.sh` → `public/downloads/`. Delete sungguhan belum diuji ke OLT live (destruktif — menunggu ONU uji yang ditunjuk user); uji performa menunggu instalasi APK di HP yang terdampak.
+
 ### i18n follow-up 2: tombol ganti bahasa di halaman Welcome
 
 User melapor halaman Welcome (landing) belum punya tombol ganti bahasa — Welcome memakai header custom sendiri, bukan `GuestLayout` yang sudah ber-switcher.

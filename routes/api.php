@@ -78,7 +78,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('alarms', [AlarmController::class, 'index'])->name('api.alarms.index');
 
-        // --- Aksi TULIS (admin, operator & partner; demo diblokir). ZTE-only di controller.
+        // --- Aksi TULIS (admin, operator & partner; demo diblokir). Register/refresh ZTE-only;
+        //     reboot/rename/delete bercabang per-family (ZTE, C-Data, HiOSO) di controller.
         //     Partner otomatis dibatasi ke OLT yang di-assign (PartnerOltScope → 404 di luar itu). ---
         Route::middleware(['role:admin,operator,partner', BlockDemoWrites::class])->group(function () {
             Route::post('olts/{olt}/register/preview', [OnuRegistrationController::class, 'preview'])
@@ -98,6 +99,9 @@ Route::prefix('v1')->group(function () {
             Route::post('olts/{olt}/onus/{slot}/{port}/{onuId}/name', [OnuActionController::class, 'rename'])
                 ->whereNumber(['slot', 'port', 'onuId'])
                 ->name('api.olts.onu.name');
+            Route::delete('olts/{olt}/onus/{slot}/{port}/{onuId}', [OnuActionController::class, 'delete'])
+                ->whereNumber(['slot', 'port', 'onuId'])
+                ->name('api.olts.onu.delete');
         });
     });
 });

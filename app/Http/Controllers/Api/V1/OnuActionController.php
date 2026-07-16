@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\SnmpOlt;
+use App\Services\CData\CDataCliWriteService;
+use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteRemoteOnuService;
@@ -12,22 +14,30 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Aksi tulis ONU dari aplikasi mobile (ZTE): reboot & rename, plus refresh live
- * snapshot per-port dan discovery unconfigured. Rute-rute ini di-gate role
- * (admin|operator) + BlockDemoWrites di routes/api.php. Aksi telnet/SNMP berjalan
- * sinkron (sama seperti web) — klien memakai timeout longgar.
+ * Aksi tulis ONU dari aplikasi mobile: reboot, rename & delete (bercabang
+ * per-family ZTE / C-Data / HiOSO — pola sama dgn OnuMapController), plus
+ * refresh live snapshot per-port dan discovery unconfigured (ZTE-only).
+ * Rute-rute ini di-gate role (admin|operator|partner) + BlockDemoWrites di
+ * routes/api.php. Aksi telnet/SNMP berjalan sinkron (sama seperti web) —
+ * klien memakai timeout longgar.
  */
 class OnuActionController extends Controller
 {
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot
      */
-    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): JsonResponse
+    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
     {
         $this->assertCapability($olt, 'supports_reboot');
 
         try {
-            $result = $remote->reboot($olt, $slot, $port, $onuId);
+            if ($this->isHioso($olt)) {
+                $result = $hioso->reboot($olt, $port, $onuId);
+            } elseif ($this->isCdata($olt)) {
+                $result = $cdata->reboot($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
+            } else {
+                $result = $remote->reboot($olt, $slot, $port, $onuId);
+            }
 
             return response()->json([
                 'data' => [
@@ -46,7 +56,7 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/name  {name?, description?}
      */
-    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): JsonResponse
+    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');
 
@@ -63,10 +73,27 @@ class OnuActionController extends Controller
             return response()->json(['message' => 'Isi minimal nama atau deskripsi ONU.'], 422);
         }
 
-        $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
-
         try {
-            $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
+            if ($this->isHioso($olt) || $this->isCdata($olt)) {
+                // Non-ZTE hanya punya satu field nama; `description` khusus ZTE (paritas web).
+                if ($name === null) {
+                    return response()->json(['message' => 'OLT ini hanya mendukung ubah nama ONU.'], 422);
+                }
+
+                $result = $this->isHioso($olt)
+                    ? $hioso->setName($olt, $port, $onuId, $name)
+                    : $cdata->setDescription($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId, $name);
+
+                if (! ($result['ok'] ?? false)) {
+                    return response()->json(['message' => 'Update info ONU gagal: '.($result['error'] ?? '')], 422);
+                }
+
+                // Cache non-ZTE memakai name sekaligus sebagai description (paritas web).
+                $description = $name;
+            } else {
+                $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
+                $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
+            }
             $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($name, $description) {
                 if ($name !== null) {
                     $onu['name'] = $name;
@@ -81,6 +108,44 @@ class OnuActionController extends Controller
             return response()->json(['data' => ['ok' => true, 'message' => 'Info ONU diperbarui.']]);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Update info ONU gagal: '.$e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * DELETE /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId} — hapus (deregister)
+     * ONU dari OLT via CLI. Destruktif; gated capability `supports_onu_delete`.
+     * ZTE `no onu {id}`, C-Data `ont delete`, HiOSO `delete onu {id}` — semua
+     * lewat service family masing-masing (sama seperti web).
+     */
+    public function delete(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_delete');
+
+        try {
+            if ($this->isHioso($olt)) {
+                $result = $hioso->delete($olt, $port, $onuId);
+            } elseif ($this->isCdata($olt)) {
+                $result = $cdata->delete($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
+            } else {
+                $result = $remote->delete($olt, $slot, $port, $onuId);
+            }
+
+            $ok = (bool) ($result['ok'] ?? false);
+            if ($ok) {
+                $this->removeCachedOnu($olt, $slot, $port, $onuId);
+            }
+
+            return response()->json([
+                'data' => [
+                    'ok' => $ok,
+                    'message' => $ok
+                        ? "ONU {$onuId} dihapus dari OLT."
+                        : 'Hapus ONU selesai dengan indikasi error.',
+                    'error' => $result['error'] ?? null,
+                ],
+            ], $ok ? 200 : 422);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Hapus ONU gagal: '.$e->getMessage()], 422);
         }
     }
 
@@ -162,6 +227,21 @@ class OnuActionController extends Controller
         );
     }
 
+    private function isCdata(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isCData($this->driver($olt));
+    }
+
+    private function isHioso(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isHioso($this->driver($olt));
+    }
+
+    private function ifaceKeyword(SnmpOlt $olt): string
+    {
+        return $this->driver($olt) === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';
+    }
+
     private function assertCapability(SnmpOlt $olt, string $capability): void
     {
         abort_unless(
@@ -216,6 +296,30 @@ class OnuActionController extends Controller
         }
 
         data_set($snapshot, $path, $onus);
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
+    }
+
+    /**
+     * Buang ONU yang dihapus dari snapshot cache port supaya klien langsung
+     * melihat hasilnya tanpa refresh SNMP penuh (mirror web removeCachedOnu).
+     */
+    private function removeCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $path = "port_onus.{$slot}_{$port}.onus";
+        $onus = data_get($snapshot, $path);
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        $onus = array_values(array_filter($onus, fn (array $onu): bool => (int) ($onu['onu_id'] ?? 0) !== $onuId));
+        data_set($snapshot, $path, $onus);
+
+        if (data_get($snapshot, "port_onus.{$slot}_{$port}.count") !== null) {
+            data_set($snapshot, "port_onus.{$slot}_{$port}.count", count($onus));
+        }
+
         $olt->forceFill(['last_test_result' => $snapshot])->save();
     }
 }

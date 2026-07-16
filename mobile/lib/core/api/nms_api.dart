@@ -179,6 +179,12 @@ class NmsApi {
         (d) => d['data'] as Map<String, dynamic>,
       );
 
+  /// Hapus (deregister) ONU dari OLT — destruktif, gated `supports_onu_delete`.
+  Future<Map<String, dynamic>> deleteOnu(int oltId, int slot, int port, int onuId) => _run(
+        () => _dio.delete('/olts/$oltId/onus/$slot/$port/$onuId'),
+        (d) => d['data'] as Map<String, dynamic>,
+      );
+
   Future<Map<String, dynamic>> refreshUnconfigured(int oltId) => _run(
         () => _dio.post('/olts/$oltId/unconfigured/refresh'),
         (d) => d['data'] as Map<String, dynamic>,

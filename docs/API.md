@@ -10,10 +10,10 @@ kirim token, dan baca hasilnya dalam format JSON.
 > semua `/api/*` membalas `404` dan tab **Pengaturan → API & Token** menampilkan
 > peringatan + tombol "Buat Token" dinonaktifkan.
 
-> **Sifat API ini:** *read-only* (hanya membaca/monitoring). Data berasal dari
-> snapshot polling terakhir yang tersimpan di server — pemanggilan API **tidak**
-> mengakses perangkat OLT secara langsung, jadi cepat dan aman. Aksi tulis
-> (register/reboot/hapus ONU) **belum** diekspos lewat API v1.
+> **Sifat API ini:** endpoint *baca* mengambil snapshot polling terakhir yang
+> tersimpan di server — cepat dan tidak menyentuh OLT. Aksi *tulis* (register,
+> reboot, rename, **hapus ONU**, refresh live) mengeksekusi Telnet/SNMP sinkron
+> ke OLT dan di-gate role `admin`/`operator`/`partner` (lihat §5).
 
 - Base URL (produksi): `https://nms.kusumavision.net/api/v1`
 - Base URL (lokal dev): `http://localhost:8000/api/v1`
@@ -241,12 +241,24 @@ Ringkasan:
 | POST   | `/olts/{olt}/ports/{slot}/{port}/refresh`               | Re-scan ONU 1 port (live SNMP)  |
 | POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot`         | Reboot ONU                      |
 | POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name`           | Ubah nama/deskripsi ONU         |
+| DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}`                | Hapus (deregister) ONU dari OLT |
+
+Contoh hapus ONU (destruktif — deregistrasi permanen dari OLT; gated capability
+`supports_onu_delete`):
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  https://nms.kusumavision.net/api/v1/olts/1/onus/1/2/5
+# → { "data": { "ok": true, "message": "ONU 5 dihapus dari OLT.", "error": null } }
+```
 
 > **Catatan mobile:** endpoint baca `/search`, `/olts/{olt}/ports/.../onus`, `/olts/{olt}/unconfigured`,
 > `/olts/{olt}/register/options` + aksi tulis di atas ditambahkan untuk aplikasi Android (`mobile/`).
-> `GET /olts/{olt}` kini menyertakan `capabilities` (mis. `supports_provisioning`, `supports_reboot`)
-> agar klien menampilkan/menyembunyikan aksi per-driver. Registrasi ONU **ZTE-only** (mode dasar);
-> aksi write mengeksekusi Telnet/SNMP sinkron (timeout klien ~120 dtk). Push FCM: lihat §7.
+> `GET /olts/{olt}` kini menyertakan `capabilities` (mis. `supports_provisioning`, `supports_reboot`,
+> `supports_onu_delete`) agar klien menampilkan/menyembunyikan aksi per-driver. Registrasi ONU &
+> refresh live **ZTE-only** (mode dasar); reboot/rename/delete **bercabang per-family**
+> (ZTE, C-Data EPON/GPON, HiOSO) — perintah CLI menyesuaikan vendor OLT-nya.
+> Aksi write mengeksekusi Telnet/SNMP sinkron (timeout klien ~120 dtk). Push FCM: lihat §7.
 
 ### Push notifikasi FCM (Firebase)
 
@@ -539,7 +551,7 @@ $onus = json_decode($client->get('onus', [
 
 ## 6. Roadmap (belum tersedia di v1)
 
-- Aksi tulis: register ONU, reboot, rename, hapus, set state.
+- Aksi tulis lanjutan: enable/disable ONU (set state).
 - Webhook/push event alarm real-time.
 - Filter rentang waktu & ekspor.
 

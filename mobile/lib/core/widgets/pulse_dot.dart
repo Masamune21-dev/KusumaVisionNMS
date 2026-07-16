@@ -37,11 +37,15 @@ class _PulseDotState extends State<PulseDot> with SingleTickerProviderStateMixin
       height: s * 2.4,
       child: Center(
         child: animate
-            ? AnimatedBuilder(
-                animation: _c,
-                builder: (_, __) => CustomPaint(
-                  size: Size(s * 2.4, s * 2.4),
-                  painter: _PulsePainter(t: _c.value, color: widget.color, core: s),
+            // RepaintBoundary mengisolasi repaint 60fps si titik — tanpa ini
+            // markNeedsPaint merambat & me-repaint seluruh baris/kartu induk.
+            ? RepaintBoundary(
+                child: AnimatedBuilder(
+                  animation: _c,
+                  builder: (_, __) => CustomPaint(
+                    size: Size(s * 2.4, s * 2.4),
+                    painter: _PulsePainter(t: _c.value, color: widget.color, core: s),
+                  ),
                 ),
               )
             : Container(

@@ -79,9 +79,12 @@ class _AuroraBackgroundState extends State<AuroraBackground>
           child: RepaintBoundary(
             child: AnimatedBuilder(
               animation: _c,
+              // t dikuantisasi ke 1/400 siklus (22 dtk → ~18 repaint/dtk):
+              // shouldRepaint false di mayoritas vsync frame, gerakan sepelan
+              // ini tak terlihat bedanya — hemat besar di GPU (Mali/Xclipse).
               builder: (context, _) => CustomPaint(
                 painter: _AuroraPainter(
-                  t: active ? _c.value : 0.12,
+                  t: active ? (_c.value * 400).round() / 400 : 0.12,
                   intensity: widget.intensity,
                   nodes: widget.particles ? _nodes : const [],
                 ),
@@ -120,8 +123,10 @@ class _AuroraPainter extends CustomPainter {
     // Dasar OLED navy.
     canvas.drawRect(rect, Paint()..color = AppColors.bg);
 
-    // Tiga blob aurora bergerak (Lissajous), di-blur besar, blend screen (glow).
-    final blur = MaskFilter.blur(BlurStyle.normal, size.shortestSide * 0.16);
+    // Tiga blob aurora bergerak (Lissajous), blend screen (glow). Kelembutan
+    // tepi dari stop tengah RadialGradient — TANPA MaskFilter.blur: blur
+    // gaussian bersigma ~17% layar tiap frame terbukti mencekik GPU Mali/
+    // Xclipse (Impeller) di banyak HP, sedangkan gradien murni nyaris gratis.
     for (var i = 0; i < AppGradient.aurora.length; i++) {
       final color = AppGradient.aurora[i];
       final a = (t * math.pi * 2) + i * 2.1;
@@ -132,12 +137,13 @@ class _AuroraPainter extends CustomPainter {
       final radius = size.shortestSide * (0.55 + 0.08 * math.sin(a * 1.3));
       final paint = Paint()
         ..blendMode = BlendMode.screen
-        ..maskFilter = blur
         ..shader = RadialGradient(
           colors: [
             color.withValues(alpha: 0.32 * intensity),
+            color.withValues(alpha: 0.14 * intensity),
             color.withValues(alpha: 0.0),
           ],
+          stops: const [0.0, 0.55, 1.0],
         ).createShader(Rect.fromCircle(center: center, radius: radius));
       canvas.drawCircle(center, radius, paint);
     }

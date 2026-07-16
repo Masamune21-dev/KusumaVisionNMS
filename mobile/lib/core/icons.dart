@@ -49,4 +49,5 @@ class LucideIcons {
   static const IconData shieldCheck = Icons.verified_user_outlined;
   static const IconData copy = Icons.copy_rounded;
   static const IconData smartphone = Icons.smartphone_outlined;
+  static const IconData trash = Icons.delete_outline_rounded;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/api/api_exception.dart';
@@ -104,6 +105,43 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
     }
   }
 
+  /// Hapus (deregister) ONU dari OLT — destruktif, konfirmasi danger dulu
+  /// (paritas web). Sukses: refresh daftar ONU port lalu keluar dari layar ini.
+  Future<void> _delete(Onu onu) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Hapus ONU?'),
+        content: Text(
+          '${onu.interface ?? 'ONU ${onu.onuId}'} akan dihapus (deregistrasi) '
+          'permanen dari OLT. Tindakan ini tidak bisa dibatalkan.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      final res = await ref
+          .read(nmsApiProvider)
+          .deleteOnu(widget.oltId, widget.slot, widget.port, widget.onuId);
+      ref.invalidate(portOnusProvider((oltId: widget.oltId, slot: widget.slot, port: widget.port)));
+      _snack(res['message']?.toString() ?? 'ONU dihapus dari OLT.', error: res['ok'] != true);
+      if (mounted && res['ok'] == true) context.pop();
+    } on ApiException catch (e) {
+      _snack(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(onuDetailProvider(_arg));
@@ -112,6 +150,7 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
     final canWrite = (user?.canWrite ?? false);
     final canReboot = canWrite && caps['supports_reboot'] == true;
     final canRename = canWrite && caps['supports_onu_info_write'] == true;
+    final canDelete = canWrite && caps['supports_onu_delete'] == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detail ONU')),
@@ -157,6 +196,18 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
                         ),
                       ),
                   ],
+                ),
+              ],
+              if (canDelete) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _delete(o),
+                  icon: const Icon(LucideIcons.trash, size: 18),
+                  label: const Text('Hapus ONU dari OLT'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.danger,
+                    side: BorderSide(color: AppColors.danger.withValues(alpha: 0.55)),
+                  ),
                 ),
               ],
             ],

@@ -7,6 +7,7 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\CData\CDataCliWriteService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteRemoteOnuService;
@@ -23,18 +24,18 @@ class ApiV1WriteTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function seedOlt(bool $demo = false): SnmpOlt
+    private function seedOlt(bool $demo = false, string $name = 'OLT-C320-TEST', string $vendor = 'ZTE C320', string $sysDescr = 'ZTE ZXA10 C320'): SnmpOlt
     {
         $olt = SnmpOlt::create([
-            'name' => 'OLT-C320-TEST',
-            'vendor' => 'ZTE C320',
+            'name' => $name,
+            'vendor' => $vendor,
             'ip' => $demo ? '10.40.0.7' : '10.40.0.2',
             'snmp_read_community' => 'public',
             'snmp_version' => 'v2c',
             'is_demo' => $demo,
             'last_test_result' => [
                 'ok' => true,
-                'system' => ['sys_descr' => 'ZTE ZXA10 C320'],
+                'system' => ['sys_descr' => $sysDescr],
                 'port_onus' => [
                     '1_1' => ['slot' => 1, 'port' => 1, 'onus' => [
                         ['onu_id' => 5, 'slot' => 1, 'port' => 1, 'if_index' => 123, 'name' => 'Lama'],
@@ -166,6 +167,80 @@ class ApiV1WriteTest extends TestCase
 
         $olt->refresh();
         $this->assertSame('Baru', $olt->last_test_result['port_onus']['1_1']['onus'][0]['name']);
+    }
+
+    public function test_delete_onu_zte_removes_from_cache(): void
+    {
+        $olt = $this->seedOlt();
+        $operator = User::factory()->create();
+
+        $mock = Mockery::mock(ZteRemoteOnuService::class);
+        $mock->shouldReceive('delete')->once()
+            ->withArgs(fn (SnmpOlt $o, int $slot, int $port, int $onuId) => $o->id === $olt->id && $slot === 1 && $port === 1 && $onuId === 5)
+            ->andReturn(['ok' => true, 'output' => '', 'error' => null]);
+        $this->app->instance(ZteRemoteOnuService::class, $mock);
+
+        $this->actingAs($operator, 'sanctum')
+            ->deleteJson("/api/v1/olts/{$olt->id}/onus/1/1/5")
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $olt->refresh();
+        $this->assertSame([], $olt->last_test_result['port_onus']['1_1']['onus']);
+    }
+
+    public function test_delete_onu_cdata_uses_cdata_service(): void
+    {
+        $olt = $this->seedOlt(name: 'OLT-CD-TEST', vendor: 'C-Data FD1208S', sysDescr: 'EPON OLT');
+        $operator = User::factory()->create();
+
+        $mock = Mockery::mock(CDataCliWriteService::class);
+        $mock->shouldReceive('delete')->once()
+            ->withArgs(fn (SnmpOlt $o, string $iface, int $slot, int $port, int $onuId) => $o->id === $olt->id && $iface === 'epon' && $slot === 1 && $port === 1 && $onuId === 5)
+            ->andReturn(['ok' => true, 'output' => '', 'error' => null]);
+        $this->app->instance(CDataCliWriteService::class, $mock);
+
+        $this->actingAs($operator, 'sanctum')
+            ->deleteJson("/api/v1/olts/{$olt->id}/onus/1/1/5")
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+    }
+
+    public function test_delete_onu_unknown_driver_rejected(): void
+    {
+        $olt = $this->seedOlt(name: 'OLT-X-TEST', vendor: 'Huawei MA5800', sysDescr: 'MA5800-X7');
+        $operator = User::factory()->create();
+
+        $this->actingAs($operator, 'sanctum')
+            ->deleteJson("/api/v1/olts/{$olt->id}/onus/1/1/5")
+            ->assertStatus(422);
+    }
+
+    public function test_demo_user_cannot_delete_onu(): void
+    {
+        $olt = $this->seedOlt(demo: true);
+        $demo = User::factory()->demo()->create();
+
+        $this->actingAs($demo, 'sanctum')
+            ->deleteJson("/api/v1/olts/{$olt->id}/onus/1/1/5")
+            ->assertStatus(403);
+    }
+
+    public function test_reboot_onu_cdata_uses_cdata_service(): void
+    {
+        $olt = $this->seedOlt(name: 'OLT-CD-TEST', vendor: 'C-Data FD1208S', sysDescr: 'EPON OLT');
+        $operator = User::factory()->create();
+
+        $mock = Mockery::mock(CDataCliWriteService::class);
+        $mock->shouldReceive('reboot')->once()
+            ->withArgs(fn (SnmpOlt $o, string $iface, int $slot, int $port, int $onuId) => $iface === 'epon' && $onuId === 5)
+            ->andReturn(['ok' => true, 'output' => '', 'error' => null]);
+        $this->app->instance(CDataCliWriteService::class, $mock);
+
+        $this->actingAs($operator, 'sanctum')
+            ->postJson("/api/v1/olts/{$olt->id}/onus/1/1/5/reboot")
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
     }
 
     public function test_refresh_port_non_zte_queries_driver(): void

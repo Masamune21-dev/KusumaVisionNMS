@@ -46,6 +46,25 @@ class ZteRemoteOnuService
     }
 
     /**
+     * Delete (deregister) an ONU via CLI `no onu {id}` under the GPON-OLT
+     * interface (guide §8 rollback). Destructive: removes the ONU registration.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function delete(SnmpOlt $olt, int $slot, int $port, int $onuId): array
+    {
+        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $script = implode("\n", [
+            'conf t',
+            "interface {$iface}",
+            "no onu {$onuId}",
+            'exit',
+        ]);
+
+        return $this->executor->execute($olt, $script);
+    }
+
+    /**
      * Enable (1) or disable (2) an ONU via SNMP SET on the admin-state OID.
      */
     public function setActiveState(SnmpOlt $olt, int $ifIndex, int $onuId, bool $active): bool

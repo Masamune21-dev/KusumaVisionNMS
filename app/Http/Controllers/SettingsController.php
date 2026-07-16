@@ -414,7 +414,9 @@ class SettingsController extends Controller
 
         return [
             'available' => $exists,
-            'url' => $exists ? url('/downloads/kusumavision-nms.apk') : null,
+            // ?v=mtime = cache-buster: tiap build baru menghasilkan URL (cache key)
+            // baru sehingga CDN/proxy (Cloudflare) tidak menyajikan APK versi lama.
+            'url' => $exists ? url('/downloads/kusumavision-nms.apk').'?v='.(int) filemtime($path) : null,
             'version' => $this->mobileAppVersion(),
             'size' => $exists ? $this->humanFilesize((int) filesize($path)) : null,
             'updated_at' => $exists

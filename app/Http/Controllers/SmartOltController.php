@@ -1082,17 +1082,17 @@ class SmartOltController extends Controller
     /**
      * Delete (deregister) an ONU on the OLT via `no onu {id}` under the GPON-OLT
      * interface (guide §8 rollback). Destructive: removes the ONU registration.
+     * CLI-nya di {@see ZteRemoteOnuService::delete} (dipakai juga API v1).
      */
-    public function deleteOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteCliProvisioningExecutor $executor): RedirectResponse
+    public function deleteOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
     {
         $this->assertCapability($olt, 'supports_onu_delete');
 
         $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
-        $script = implode("\n", ['conf t', "interface {$iface}", "no onu {$onuId}", 'exit']);
         $back = redirect()->route('smartolt.port-onus', [$olt, $slot, $port]);
 
         try {
-            $result = $executor->execute($olt, $script);
+            $result = $remote->delete($olt, $slot, $port, $onuId);
             $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
 
             if ($result['ok']) {
