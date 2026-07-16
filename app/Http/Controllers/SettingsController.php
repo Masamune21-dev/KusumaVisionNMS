@@ -9,6 +9,7 @@ use App\Models\FcmDeviceToken;
 use App\Models\FcmSetting;
 use App\Models\GeneralSetting;
 use App\Models\TelegramSetting;
+use App\Models\User;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\Telegram\TelegramWebhookManager;
@@ -21,6 +22,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class SettingsController extends Controller
 {
@@ -84,6 +86,9 @@ class SettingsController extends Controller
                 'last_sent_at' => $fcm->last_sent_at?->toIso8601String(),
                 'last_error' => $fcm->last_error,
             ],
+            // Semua perangkat mobile lintas user (halaman ini admin-only): token
+            // login Sanctum (nama perangkat) + registrasi push FCM, dengan cabut paksa.
+            'mobileDevices' => $this->mobileDevicesPayload(),
             'severityOptions' => [
                 ['value' => AlarmEvent::SEVERITY_WARNING, 'label' => 'Warning (semua alarm)'],
                 ['value' => AlarmEvent::SEVERITY_MINOR, 'label' => 'Minor ke atas'],
@@ -126,6 +131,73 @@ class SettingsController extends Controller
         $request->user()->tokens()->whereKey($token)->delete();
 
         return back()->with('success', __('flash.token_revoked'));
+    }
+
+    /**
+     * Cabut paksa token login perangkat milik user MANA PUN (admin, dari tab
+     * Notifikasi Mobile). Berbeda dari {@see revokeApiToken} yang scoped ke
+     * token milik sendiri.
+     */
+    public function revokeMobileToken(int $token): RedirectResponse
+    {
+        PersonalAccessToken::query()->whereKey($token)->delete();
+
+        return back()->with('success', __('flash.device_token_revoked'));
+    }
+
+    /**
+     * Hapus satu registrasi push FCM (perangkat berhenti menerima notifikasi).
+     */
+    public function deleteFcmDevice(FcmDeviceToken $device): RedirectResponse
+    {
+        $device->delete();
+
+        return back()->with('success', __('flash.fcm_device_deleted'));
+    }
+
+    /**
+     * Semua perangkat mobile lintas user untuk panel admin di tab Notifikasi
+     * Mobile: token login Sanctum (bernama perangkat, dibuat saat login app)
+     * dan registrasi push FCM. Keduanya tabel terpisah — token = akses API,
+     * FCM = penerima push; tidak bisa dipetakan 1:1.
+     *
+     * @return array{tokens: array<int, array<string, mixed>>, fcm: array<int, array<string, mixed>>}
+     */
+    private function mobileDevicesPayload(): array
+    {
+        if (! Schema::hasTable('personal_access_tokens')) {
+            return ['tokens' => [], 'fcm' => []];
+        }
+
+        $tokens = PersonalAccessToken::query()
+            ->where('tokenable_type', User::class)
+            ->orderByDesc('last_used_at')
+            ->get(['id', 'tokenable_id', 'name', 'last_used_at', 'created_at']);
+        $fcm = FcmDeviceToken::query()->latest()->get();
+
+        $users = User::query()
+            ->whereIn('id', $tokens->pluck('tokenable_id')->merge($fcm->pluck('user_id'))->unique())
+            ->get(['id', 'name', 'role'])
+            ->keyBy('id');
+
+        return [
+            'tokens' => $tokens->map(fn (PersonalAccessToken $t) => [
+                'id' => $t->id,
+                'device' => $t->name,
+                'user' => $users->get($t->tokenable_id)?->name ?? '—',
+                'role' => $users->get($t->tokenable_id)?->role?->value,
+                'last_used_at' => $t->last_used_at?->toIso8601String(),
+                'created_at' => $t->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'fcm' => $fcm->map(fn (FcmDeviceToken $d) => [
+                'id' => $d->id,
+                'device' => $d->device_name,
+                'platform' => $d->platform,
+                'user' => $users->get($d->user_id)?->name ?? '—',
+                'last_seen_at' => $d->last_seen_at?->toIso8601String(),
+                'created_at' => $d->created_at?->toIso8601String(),
+            ])->values()->all(),
+        ];
     }
 
     /**

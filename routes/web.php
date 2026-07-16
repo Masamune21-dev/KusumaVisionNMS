@@ -80,6 +80,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/telegram/webhook/delete', [SettingsController::class, 'deleteWebhook'])->name('settings.telegram.webhook.delete');
         Route::put('/settings/fcm', [SettingsController::class, 'updateFcm'])->name('settings.fcm.update');
         Route::post('/settings/fcm/send', [SettingsController::class, 'sendFcmManual'])->name('settings.fcm.send');
+        Route::delete('/settings/mobile-devices/tokens/{token}', [SettingsController::class, 'revokeMobileToken'])->whereNumber('token')->name('settings.mobile-devices.token.destroy');
+        Route::delete('/settings/mobile-devices/fcm/{device}', [SettingsController::class, 'deleteFcmDevice'])->whereNumber('device')->name('settings.mobile-devices.fcm.destroy');
     });
 
     // Bot Telegram self-service milik partner (bot sendiri, terbatas OLT yang di-assign).

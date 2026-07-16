@@ -1218,7 +1218,20 @@
         "revoke": "Revoke",
         "never": "Never",
         "token_warning": "Tokens are secrets, like passwords. Don't put them in code visible to the public/browser. For other websites, store them server-side (e.g. <span class=\"font-mono\">.env</span>) and call the API from the server.",
-        "revoke_confirm": "Revoke this token? Apps using it will lose access immediately."
+        "revoke_confirm": "Revoke this token? Apps using it will lose access immediately.",
+        "col_actions": "Actions",
+        "devices_title": "Registered Mobile Devices",
+        "devices_sub": "Every phone logged into the mobile app (all users). Revoke a token to cut off a lost/unused phone.",
+        "devices_col_device": "Device",
+        "devices_col_user": "User",
+        "devices_col_last_used": "Last used",
+        "devices_empty": "No devices have logged into the app yet.",
+        "devices_revoke_confirm": "Revoke this device token? The app on that phone loses access immediately and must log in again.",
+        "devices_fcm_title": "Push Registrations (FCM)",
+        "devices_fcm_sub": "Devices receiving push notifications. Delete to stop push to a specific phone (separate from login tokens).",
+        "devices_col_platform": "Platform",
+        "devices_col_last_seen": "Last seen",
+        "devices_fcm_delete_confirm": "Delete this device push registration? That phone stops receiving notifications until it logs in again."
     },
     "welcome": {
         "nav_home": "Home",

@@ -87,9 +87,10 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
           const SizedBox(width: 4),
         ],
       ),
+      // Jala node-fiber + animasi kini aktif juga di sini — dulu dimatikan demi
+      // daftar panjang, tapi painter aurora sudah murah (tanpa blur raksasa,
+      // repaint terquantisasi ~18fps + RepaintBoundary) jadi aman.
       body: AuroraBackground(
-        animate: false,
-        particles: false,
         intensity: 0.5,
         child: RefreshIndicator(
         onRefresh: () async => ref.refresh(portOnusProvider(_arg).future),

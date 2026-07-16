@@ -59,17 +59,22 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   }
 
   Future<void> _logout() async {
+    // PENTING: tombol dialog harus pop memakai context milik DIALOG (dialogCtx),
+    // bukan context layar. Layar Akun hidup di navigator cabang StatefulShellRoute,
+    // sedangkan dialog di root navigator — Navigator.pop(context) dari sini justru
+    // mem-pop halaman /account (IndexedStack jadi kosong → layar hitam) dan
+    // dialognya menggantung, logout tak pernah jalan.
     final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Keluar?'),
         content: const Text('Anda akan keluar dari sesi ini.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: AppColors.danger, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogCtx, true),
             child: const Text('Keluar'),
           ),
         ],

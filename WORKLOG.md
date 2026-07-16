@@ -2,6 +2,26 @@
 
 ## 2026-07-17
 
+### Panel perangkat mobile lintas-user (Settings) + fix logout Akun mobile + node-mesh Port ONU
+
+Tiga permintaan user: (1) daftar token di Settings hanya menampilkan milik akun sendiri padahal 6 HP terdaftar — minta panel admin di tab Notifikasi Mobile; (2) tombol logout di layar Akun APK bikin layar blank hitam (logout di dashboard aman); (3) halaman Port ONU di APK tidak punya latar "rasi bintang".
+
+Changed (web — panel perangkat, admin-only):
+
+- `app/Http/Controllers/SettingsController.php` — prop baru `mobileDevices` (`mobileDevicesPayload()`): SEMUA token login Sanctum lintas user (nama perangkat, user+role, last_used) + SEMUA registrasi push FCM (user, platform, last_seen); aksi `revokeMobileToken()` (cabut paksa token user mana pun — beda dari `revokeApiToken` yang self-scoped) & `deleteFcmDevice()`.
+- `routes/web.php` — `settings.mobile-devices.token.destroy` + `settings.mobile-devices.fcm.destroy` (DELETE, grup `role:admin`).
+- `resources/js/Pages/Settings/Index.vue` — dua kartu tabel baru di tab Notifikasi Mobile: "Perangkat Mobile Terdaftar" (token login + Cabut) dan "Registrasi Push (FCM)" (+ Hapus), konfirmasi sebelum aksi; key i18n baru di `lang/{id,en}.json` (`settings.devices_*`, `col_actions`) + flash `device_token_revoked`/`fcm_device_deleted` di `lang/{id,en}/flash.php`.
+
+Changed (mobile):
+
+- `mobile/lib/features/account/account_screen.dart` — **fix logout blank hitam**: tombol dialog pop memakai `context` layar; layar Akun hidup di navigator cabang `StatefulShellRoute` sedangkan dialog di root navigator, jadi yang ter-pop malah halaman `/account` (IndexedStack kosong → hitam) dan logout tak jalan. Fix: pop pakai `dialogCtx` milik dialog (pola dashboard yang benar). Layar onu_detail/register tak kena karena rutenya di root navigator.
+- `mobile/lib/features/onus/port_onus_screen.dart` — hapus `animate:false, particles:false` di `AuroraBackground`: jala node-fiber ("rasi bintang") kini tampil & bergerak di Port ONU — aman pasca-optimasi painter (tanpa blur raksasa, repaint ~18fps ter-quantize).
+- `mobile/pubspec.yaml` — versi `1.2.1+13` → `1.2.2+14`.
+
+Notes:
+
+- Verifikasi: test `--filter=Settings` 22 pass; `flutter analyze` bersih; vite build OK; route cache di-rebuild (rute web juga ter-cache di prod); data nyata saat pengembangan: 7 token Sanctum (3 user) vs 6 registrasi FCM — dua tabel memang terpisah, tak bisa dipetakan 1:1.
+
 ### Mobile: ikon launcher Android mengikuti logo aplikasi web (logomark cyan)
 
 Ikon launcher APK masih default Flutter (biru); user minta disamakan dengan logo aplikasi web saat ini (logomark Laravel cyan `#22d3ee` + glow, fallback `ApplicationLogo.vue` — branding `logo_url` belum diisi).

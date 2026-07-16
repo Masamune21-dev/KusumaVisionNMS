@@ -49,6 +49,8 @@ return [
     'cant_demote_last_admin' => 'Tidak dapat menurunkan role admin terakhir.',
     'token_created' => 'Token API dibuat. Salin sekarang — token hanya ditampilkan satu kali.',
     'token_revoked' => 'Token API dicabut.',
+    'device_token_revoked' => 'Token perangkat dicabut. Aplikasi di HP itu harus login ulang.',
+    'fcm_device_deleted' => 'Registrasi push perangkat dihapus.',
     'onu_rename_failed' => 'Ubah nama ONU gagal: ',
     'onu_state_failed' => 'Ubah status ONU gagal: ',
     'onu_state_warn' => 'Ubah status ONU selesai dengan indikasi error: ',

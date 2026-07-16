@@ -49,6 +49,8 @@ return [
     'cant_demote_last_admin' => 'Cannot demote the last admin.',
     'token_created' => 'API token created. Copy it now — the token is only shown once.',
     'token_revoked' => 'API token revoked.',
+    'device_token_revoked' => 'Device token revoked. The app on that phone must log in again.',
+    'fcm_device_deleted' => 'Device push registration removed.',
     'onu_rename_failed' => 'Renaming the ONU failed: ',
     'onu_state_failed' => 'Changing the ONU state failed: ',
     'onu_state_warn' => 'ONU state change finished with an error indication: ',

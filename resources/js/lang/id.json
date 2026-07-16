@@ -1218,7 +1218,20 @@
         "revoke": "Cabut",
         "never": "Belum pernah",
         "token_warning": "Token bersifat rahasia seperti kata sandi. Jangan taruh di kode yang bisa dilihat publik/browser. Untuk web lain, simpan di server (mis. <span class=\"font-mono\">.env</span>) dan panggil API dari sisi server.",
-        "revoke_confirm": "Cabut token ini? Aplikasi yang memakainya akan langsung kehilangan akses."
+        "revoke_confirm": "Cabut token ini? Aplikasi yang memakainya akan langsung kehilangan akses.",
+        "col_actions": "Aksi",
+        "devices_title": "Perangkat Mobile Terdaftar",
+        "devices_sub": "Semua HP yang login di aplikasi mobile (lintas user). Cabut token untuk memutus akses HP yang hilang/tidak dipakai.",
+        "devices_col_device": "Perangkat",
+        "devices_col_user": "User",
+        "devices_col_last_used": "Terakhir dipakai",
+        "devices_empty": "Belum ada perangkat yang login di aplikasi.",
+        "devices_revoke_confirm": "Cabut token perangkat ini? Aplikasi di HP itu langsung kehilangan akses dan harus login ulang.",
+        "devices_fcm_title": "Registrasi Push (FCM)",
+        "devices_fcm_sub": "Perangkat penerima notifikasi push. Hapus untuk menghentikan push ke HP tertentu (terpisah dari token login).",
+        "devices_col_platform": "Platform",
+        "devices_col_last_seen": "Terakhir aktif",
+        "devices_fcm_delete_confirm": "Hapus registrasi push perangkat ini? HP itu berhenti menerima notifikasi sampai login ulang di aplikasi."
     },
     "welcome": {
         "nav_home": "Beranda",

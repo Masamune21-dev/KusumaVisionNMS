@@ -21,6 +21,7 @@ const props = defineProps({
     alarm: { type: Object, default: () => ({ confirm_before_notify: true }) },
     telegram: { type: Object, required: true },
     fcm: { type: Object, required: true },
+    mobileDevices: { type: Object, default: () => ({ tokens: [], fcm: [] }) },
     api: { type: Object, default: () => ({ enabled: false, base_url: '', public_status_url: '', new_token: null, tokens: [] }) },
     severityOptions: { type: Array, default: () => [] },
     alarmTypeOptions: { type: Array, default: () => [] },
@@ -256,6 +257,17 @@ const createToken = () => {
 const revokeToken = (id) => {
     if (!confirm(t('settings.revoke_confirm'))) return;
     router.delete(route('settings.api-tokens.destroy', id), { preserveScroll: true });
+};
+
+// Panel admin "perangkat mobile" (tab Notifikasi Mobile): cabut paksa token
+// login perangkat user mana pun / hapus registrasi push FCM-nya.
+const revokeDeviceToken = (id) => {
+    if (!confirm(t('settings.devices_revoke_confirm'))) return;
+    router.delete(route('settings.mobile-devices.token.destroy', id), { preserveScroll: true });
+};
+const deleteFcmDevice = (id) => {
+    if (!confirm(t('settings.devices_fcm_delete_confirm'))) return;
+    router.delete(route('settings.mobile-devices.fcm.destroy', id), { preserveScroll: true });
 };
 
 // Token plain-text yang baru dibuat (hanya muncul sekali via flash dari server).
@@ -888,6 +900,96 @@ const copyText = async (text, key) => {
                             </div>
                         </div>
                     </form>
+
+                    <!-- Perangkat login mobile semua user (token Sanctum) + cabut paksa -->
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                                <Smartphone class="h-5 w-5 text-cyan-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.devices_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.devices_sub') }}</p>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[640px] text-sm">
+                                <thead>
+                                    <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs uppercase tracking-wider text-slate-400">
+                                        <th class="px-5 py-3 sm:px-6">{{ $t('settings.devices_col_device') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.devices_col_user') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.devices_col_last_used') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.col_created') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ $t('settings.col_actions') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="mobileDevices.tokens.length === 0">
+                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-6">{{ $t('settings.devices_empty') }}</td>
+                                    </tr>
+                                    <tr v-for="d in mobileDevices.tokens" :key="`tok-${d.id}`" class="border-b border-white/5 last:border-0">
+                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-6">{{ d.device }}</td>
+                                        <td class="px-4 py-3 text-slate-300">
+                                            {{ d.user }}
+                                            <span v-if="d.role" class="ml-1.5 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{{ d.role }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-slate-400">{{ d.last_used_at ? formatDateTime(d.last_used_at) : '—' }}</td>
+                                        <td class="px-4 py-3 text-slate-400">{{ d.created_at ? formatDateTime(d.created_at) : '—' }}</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button type="button" class="inline-flex items-center gap-1.5 text-xs font-medium text-rose-400 transition hover:text-rose-300" @click="revokeDeviceToken(d.id)">
+                                                <Trash2 class="h-3.5 w-3.5" /> {{ $t('settings.revoke') }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Registrasi push FCM per perangkat -->
+                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                        <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                            <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
+                                <Bell class="h-5 w-5 text-sky-300" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-semibold text-white">{{ $t('settings.devices_fcm_title') }}</h3>
+                                <p class="text-sm text-slate-400">{{ $t('settings.devices_fcm_sub') }}</p>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[560px] text-sm">
+                                <thead>
+                                    <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs uppercase tracking-wider text-slate-400">
+                                        <th class="px-5 py-3 sm:px-6">{{ $t('settings.devices_col_user') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.devices_col_platform') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.devices_col_last_seen') }}</th>
+                                        <th class="px-4 py-3">{{ $t('settings.col_created') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ $t('settings.col_actions') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="mobileDevices.fcm.length === 0">
+                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-6">{{ $t('settings.fcm_no_devices') }}</td>
+                                    </tr>
+                                    <tr v-for="d in mobileDevices.fcm" :key="`fcm-${d.id}`" class="border-b border-white/5 last:border-0">
+                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-6">
+                                            {{ d.user }}
+                                            <span v-if="d.device" class="ml-1.5 text-xs text-slate-400">· {{ d.device }}</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-slate-400">{{ d.platform ?? '—' }}</td>
+                                        <td class="px-4 py-3 text-slate-400">{{ d.last_seen_at ? formatDateTime(d.last_seen_at) : '—' }}</td>
+                                        <td class="px-4 py-3 text-slate-400">{{ d.created_at ? formatDateTime(d.created_at) : '—' }}</td>
+                                        <td class="px-4 py-3 text-right">
+                                            <button type="button" class="inline-flex items-center gap-1.5 text-xs font-medium text-rose-400 transition hover:text-rose-300" @click="deleteFcmDevice(d.id)">
+                                                <Trash2 class="h-3.5 w-3.5" /> {{ $t('common.delete') }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ============================ TAB: API & TOKEN ============================ -->
