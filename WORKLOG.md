@@ -2,6 +2,19 @@
 
 ## 2026-07-17
 
+### i18n follow-up 2: tombol ganti bahasa di halaman Welcome
+
+User melapor halaman Welcome (landing) belum punya tombol ganti bahasa — Welcome memakai header custom sendiri, bukan `GuestLayout` yang sudah ber-switcher.
+
+Changed:
+
+- `resources/js/Pages/Welcome.vue` — `<LanguageSwitcher />` ditambahkan di header kanan (sebelum tombol Login/Dashboard, tampil di semua breakpoint). Berfungsi untuk tamu (route `locale.update` terbuka; pilihan persist di session dan terbawa saat login).
+- **Guard key `v-for`**: kartu fitur `:key="f.title"` → `:key="f.key"` dan modul `:key="m.title"` → index. Key berbasis label ikut berubah saat switch bahasa → Vue me-remount elemen `data-reveal`, padahal reveal GSAP `once:true` sudah lewat → kartu bisa stuck `opacity:0` (tak terlihat). Key stabil mencegah remount.
+
+Notes:
+
+- Verifikasi Playwright (tamu): switcher tampil (badge ID), klik → English: hero/fitur/CTA berganti EN ("Everything You Need in One Platform", "Contact Us"), teks ID hilang; balik ke Bahasa Indonesia OK; **55/55 elemen `data-reveal` tetap terlihat** setelah switch (dibanding baseline 55/55 — dicek dgn scroll penuh); nol error JS.
+
 ### i18n follow-up: panel Sistem, format tanggal/jam, & sinkronisasi locale saat login SPA
 
 User melapor (screenshot panel sidebar): di mode English, "hari dan jam masih indo" — uptime "29 hari, 8 jam", label "SISTEM/Versi/Waktu", dan jam "00.37" masih format Indonesia.

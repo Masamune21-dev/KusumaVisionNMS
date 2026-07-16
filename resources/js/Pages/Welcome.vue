@@ -1,5 +1,6 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Activity,
@@ -582,6 +583,7 @@ onBeforeUnmount(() => {
                 </nav>
 
                 <div class="flex items-center gap-2">
+                    <LanguageSwitcher />
                     <template v-if="canLogin">
                         <Link
                             v-if="$page.props.auth.user"
@@ -864,7 +866,7 @@ onBeforeUnmount(() => {
                 <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     <div
                         v-for="f in features"
-                        :key="f.title"
+                        :key="f.key"
                         v-tilt="{ strength: 4 }"
                         v-spotlight
                         class="kv-tilt kv-spotlight kv-ring kv-glass-card kv-glass-hover group text-center"
@@ -1071,8 +1073,8 @@ onBeforeUnmount(() => {
 
                 <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div
-                        v-for="m in modules"
-                        :key="m.title"
+                        v-for="(m, mi) in modules"
+                        :key="mi"
                         v-spotlight
                         class="kv-glass-card kv-glass-hover kv-spotlight kv-ring group flex items-start gap-4 transition-transform duration-200 hover:-translate-y-0.5"
                         data-reveal
