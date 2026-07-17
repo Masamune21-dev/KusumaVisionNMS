@@ -2,6 +2,26 @@
 
 ## 2026-07-17
 
+### Diagnosa C600 "LAS GALERAS" tak bisa Detail/Konfigur ONU + graceful-fail sesi CLI & koreksi ejaan interface C600
+
+User memberi akses SSH ke server NMS kedua (host `smartolt`, Ubuntu 24.04) yang mengelola OLT **ZTE C600 "LAS GALERAS" (10.100.2.2)**. Gejala: **Detail ONU & Konfigur ONU C600 tidak bisa dibuka**. Diagnosa live (read-only): C600 **memblok CLI (telnet+SSH) dari IP server NMS (`10.40.58.2`)** — uji kontrol menentukan: C320 (10.100.3.2) di server yang sama menyajikan banner telnet (`Welcome to ZXAN product C320`) & SSH (`SSH-2.0-ZTE_SSH.1.0`), sedangkan C600 **hening total di port 22 & 23** (TCP nyambung, tanpa banner, menutup begitu diketik); SNMP 161/udp lancar. Jadi akar masalah = **ACL manajemen di perangkat C600**, bukan bug aplikasi. Namun aplikasi juga gagal tak anggun (broken pipe saat write → exception tak tertangkap → halaman 500), plus beberapa ejaan interface C600 yang keliru di parser CLI.
+
+Changed:
+
+- `app/Services/ZteCliProvisioningExecutor.php` — `run()` & `saveConfig()` membungkus sesi CLI dengan `try/catch (\Throwable)`; sesi terputus (broken pipe / telnet diblok ACL / daemon telnet OLT mati) kini menjadi `ok=false` + pesan lewat helper baru `cliSessionError()` (rahasia tetap tersamar via `maskSecrets`), alih-alih exception yang membuat halaman Detail/Konfigur/Save **500**. `fclose` dijaga `is_resource`.
+- `app/Services/ZteOnuRunningConfigService.php` — regex `segmentByInterface` (baris 97) & `isNoise` (508) kini menerima ejaan C300/C320 `gpon-onu_` **dan** C600 `gpon_onu-` (`gpon[-_]onu[-_]`).
+- `app/Support/SmartOltSupport.php` — heuristik penolak "nama = interface-id" juga mengenali C600 `gpon_onu-` (sebelumnya hanya `gpon-onu_`).
+- `app/Services/ZteOnuRxPowerService.php` — koreksi asumsi C600 lama yang **salah** (4-tier `gpon-onu_1/1/{slot}/{port}`) → satu pola **3-tier spelling-agnostic** `gpon[-_]onu[-_]\d+/(slot)/(port):(id)`, sesuai penamaan C600 terverifikasi (`SmartOltSupport::onuInterfaceId`).
+- `tests/Unit/ZteOnuConfigureTest.php` — test baru `test_fetch_many_segments_c600_gpon_onu_spelling` (fetchMany memecah dump C600 per-interface).
+- `tests/Unit/ZteOnuRxPowerTest.php` — file baru: parse RX untuk ejaan C300 & C600.
+
+Notes:
+
+- Verifikasi live SNMP C600 (read-only): 64 port (slot 3/4/5/17 × 16), tabel ONU `.1082.500.20.2.1.2.1` (SN `.3`, online `.7`, model `.8`) & Rx ONU `.1082.500.20.2.2.2.1.10` (idx `{ifIndex}.{onu}.{port}`, sentinel `65535`) **cocok perangkat** — mapping C600 yang ada sudah benar. `name=null` karena operator memang tidak mengisi nama ONU (bukan bug).
+- Graceful-fail **dibuktikan runtime**: listener drop-session → executor mengembalikan `ok=false` + pesan `broken pipe (errno=32)` tanpa melempar exception. Suite penuh: **366 pass, 1 fail pre-existing** (`ApiV1WriteTest::refresh_port_non_zte` — route cache, bukan regresi). Pint bersih.
+- **Belum terverifikasi live** (menunggu ACL C600 dibuka untuk IP `10.40.58.2`): validitas perintah CLI C600 (`show gpon onu detail-info`, `show running-config interface`, `show onu running config`). Kolom SNMP C600 `.4/.9/.10/.13/.14` (kandidat admin-state/jarak) belum dipetakan — butuh cross-check CLI, jangan ditebak.
+- Backend murni (siklus php-fpm), tak perlu `config:cache`. Deploy ke server C600 (`smartolt`) via `git pull` — server itu tertinggal di `0f5d057` dan akan naik ke commit terbaru sekalian.
+
 ### Fix switcher bahasa lintas Dashboard ↔ Welcome/Login (persist via cookie + adopsi saat login) + rapikan WORKLOG
 
 User melapor switcher bahasa tak konsisten: (1) ganti ke English di dashboard, tapi setelah logout ke Welcome/Login balik ke Indonesia; (2) sebaliknya, ganti ke English di Welcome/Login, tapi setelah login dashboard tetap Indonesia. Akar masalah: `logout` meng-`session()->invalidate()` (hapus `session('locale')`), dan prioritas `SetLocale` menaruh `user->locale` paling atas (preferensi akun lama menang atas pilihan tamu yang barusan diklik).

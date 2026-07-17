@@ -57,6 +57,9 @@ class ZteCliProvisioningExecutor
         stream_set_timeout($connection, 2);
         stream_set_blocking($connection, false);
 
+        $output = '';
+        $sessionError = null;
+
         try {
             $output = $this->login($connection, $olt);
 
@@ -68,12 +71,16 @@ class ZteCliProvisioningExecutor
 
             fwrite($connection, "exit\n");
             $output .= $this->readUntilIdle($connection, 0.8, false, 10);
+        } catch (\Throwable $e) {
+            $sessionError = $this->cliSessionError($olt, $e);
         } finally {
-            fclose($connection);
+            if (is_resource($connection)) {
+                fclose($connection);
+            }
         }
 
         $output = CliOutputSanitizer::clean($output);
-        $error = $this->detectError($output);
+        $error = $sessionError ?? $this->detectError($output);
 
         return [
             'ok' => $error === null,
@@ -105,6 +112,9 @@ class ZteCliProvisioningExecutor
         stream_set_timeout($connection, 2);
         stream_set_blocking($connection, false);
 
+        $output = '';
+        $sessionError = null;
+
         try {
             $output = $this->login($connection, $olt);
 
@@ -125,12 +135,19 @@ class ZteCliProvisioningExecutor
                 fwrite($connection, "no\n");
                 $output .= $this->readUntilIdle($connection, 0.8, false, 10);
             }
+        } catch (\Throwable $e) {
+            // OLT memutus telnet di tengah sesi (mis. broken pipe saat write, telnet
+            // diblokir ACL manajemen, atau daemon telnet OLT tidak aktif) — ubah jadi
+            // error yang bisa ditampilkan alih-alih exception yang membuat halaman 500.
+            $sessionError = $this->cliSessionError($olt, $e);
         } finally {
-            fclose($connection);
+            if (is_resource($connection)) {
+                fclose($connection);
+            }
         }
 
         $output = CliOutputSanitizer::clean($output);
-        $error = $this->detectError($output);
+        $error = $sessionError ?? $this->detectError($output);
 
         return [
             'ok' => $error === null,
@@ -158,6 +175,22 @@ class ZteCliProvisioningExecutor
         }
 
         return $output;
+    }
+
+    /**
+     * Ringkas kegagalan sesi CLI (mis. broken pipe saat OLT memutus telnet) menjadi
+     * pesan yang aman ditampilkan ke pengguna, dengan rahasia tetap tersamar.
+     */
+    private function cliSessionError(SnmpOlt $olt, \Throwable $e): string
+    {
+        $port = $olt->cli_port ?: $olt->defaultCliPort();
+        $detail = trim($e->getMessage());
+
+        $message = "Sesi CLI ke {$olt->ip}:{$port} terputus sebelum selesai — pastikan "
+            .'telnet aktif di OLT dan tidak diblokir ACL manajemen untuk IP server ini.'
+            .($detail !== '' ? " (Detail: {$detail})" : '');
+
+        return $this->maskSecrets($message, $olt);
     }
 
     /**

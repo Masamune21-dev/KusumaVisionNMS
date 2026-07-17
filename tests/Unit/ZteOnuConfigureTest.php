@@ -626,6 +626,51 @@ RAW;
         $this->assertSame(200, $result['onus'][6]['config']['primary_vlan']);
     }
 
+    public function test_fetch_many_segments_c600_gpon_onu_spelling(): void
+    {
+        // C600 mengeja interface `gpon_onu-` (dash/underscore ditukar dari C300 `gpon-onu_`).
+        // segmentByInterface harus tetap memecah dump per-interface untuk C600.
+        $combined = implode("\n", [
+            '> show running-config interface gpon_onu-1/3/1:5',
+            'interface gpon_onu-1/3/1:5',
+            '  name Cust C600',
+            '  tcont 1 name 1 profile SERVER',
+            '  service-port 1 vport 1 user-vlan 100 vlan 100',
+            '> show onu running config gpon_onu-1/3/1:5',
+            'pon-onu-mng gpon_onu-1/3/1:5',
+            '  service ServiceName gemport 1 cos 0 vlan 100',
+            '> show running-config interface gpon_onu-1/3/1:6',
+            'interface gpon_onu-1/3/1:6',
+            '  name Cust C600 B',
+            '  tcont 1 name 1 profile SERVER',
+            '  service-port 1 vport 1 user-vlan 200 vlan 200',
+            '> show onu running config gpon_onu-1/3/1:6',
+            'pon-onu-mng gpon_onu-1/3/1:6',
+            '  service ServiceName gemport 1 cos 0 vlan 200',
+        ]);
+
+        $executor = new class($combined) extends ZteCliProvisioningExecutor
+        {
+            public function __construct(private string $out) {}
+
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                return ['ok' => true, 'error' => null, 'output' => $this->out];
+            }
+        };
+
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $result = (new ZteOnuRunningConfigService($executor))->fetchMany($olt, 3, 1, [5, 6]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertTrue($result['onus'][5]['ok']);
+        $this->assertSame('Cust C600', $result['onus'][5]['config']['name']);
+        $this->assertSame(100, $result['onus'][5]['config']['primary_vlan']);
+        $this->assertTrue($result['onus'][6]['ok']);
+        $this->assertSame('Cust C600 B', $result['onus'][6]['config']['name']);
+        $this->assertSame(200, $result['onus'][6]['config']['primary_vlan']);
+    }
+
     public function test_provisioning_builder_emits_transparent_service_line(): void
     {
         $data = [

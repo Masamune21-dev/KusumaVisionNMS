@@ -30,10 +30,12 @@ class ZteOnuRxPowerService
      */
     public function parse(string $output, bool $isC600 = false): array
     {
-        // C600: gpon-onu_1/1/3/1:5  C300/C320: gpon-onu_1/3/1:5
-        $pattern = $isC600
-            ? '/gpon-onu_\d+\/\d+\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i'
-            : '/gpon-onu_\d+\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i';
+        // Baik C300/C320 (`gpon-onu_1/{slot}/{port}:{id}`) maupun C600
+        // (`gpon_onu-1/{slot}/{port}:{id}`) melistkan ONU sebagai interface 3-tier; hanya
+        // ejaan prefiks yang beda (dash/underscore ditukar). Cabang C600 lama mengasumsikan
+        // bentuk 4-tier `gpon-onu_1/1/{slot}/{port}` — itu keliru; dikoreksi agar sesuai
+        // penamaan C600 yang terverifikasi (lihat SmartOltSupport::onuInterfaceId).
+        $pattern = '/gpon[-_]onu[-_]\d+\/(\d+)\/(\d+):(\d+)\s+(-?\d+(?:\.\d+)?)\s*\(?dbm\)?/i';
 
         preg_match_all($pattern, $output, $matches, PREG_SET_ORDER);
 

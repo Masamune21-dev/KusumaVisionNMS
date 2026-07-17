@@ -373,7 +373,8 @@ class SmartOltSupport
             $name === ''
             || in_array($lower, ['-', 'n/a', 'na', 'null', 'none'], true)
             || ($serial !== '' && strcasecmp($name, $serial) === 0)
-            || str_starts_with($lower, 'gpon-onu_')
+            || str_starts_with($lower, 'gpon-onu_')  // C300/C320
+            || str_starts_with($lower, 'gpon_onu-')  // C600
         ) {
             return null;
         }

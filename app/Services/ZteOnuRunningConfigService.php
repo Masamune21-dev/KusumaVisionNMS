@@ -94,7 +94,8 @@ class ZteOnuRunningConfigService
     private function segmentByInterface(string $raw): array
     {
         $parts = preg_split(
-            '/show running-config interface (gpon-onu_\S+)/i',
+            // Terima ejaan C300/C320 `gpon-onu_` maupun C600 `gpon_onu-` (dash/underscore ditukar).
+            '/show running-config interface (gpon[-_]onu[-_]\S+)/i',
             $raw,
             -1,
             PREG_SPLIT_DELIM_CAPTURE,
@@ -505,7 +506,7 @@ class ZteOnuRunningConfigService
         // (name/tcont/gemport/service/vlan/…) tak mengandung #/> di token pertama.
         // `(the )?configuration is changed` = pesan konfirmasi/simpan sesi ZTE.
         return (bool) preg_match(
-            '/^(!|end|building configuration|(the\s+)?configuration\s+is\s+changed|interface\s+gpon-onu_|pon-onu-mng\s+gpon-onu_|---\s*show|show\s+|exit|conf\s+t|configure\s+terminal|\S*[#>])/i',
+            '/^(!|end|building configuration|(the\s+)?configuration\s+is\s+changed|interface\s+gpon[-_]onu[-_]|pon-onu-mng\s+gpon[-_]onu[-_]|---\s*show|show\s+|exit|conf\s+t|configure\s+terminal|\S*[#>])/i',
             $line,
         );
     }
