@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Http\Controllers\LocaleController;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetLocale;
+use Illuminate\Session\Store;
 
 /**
  * Sumber tunggal daftar bahasa UI yang didukung aplikasi.
@@ -25,6 +26,13 @@ class Locale
     ];
 
     public const DEFAULT = 'id';
+
+    /**
+     * Nama cookie yang menyimpan preferensi bahasa. Bertahan melewati
+     * {@see Store::invalidate()} saat logout, sehingga
+     * pilihan bahasa user tetap terbawa ke halaman Welcome/Login setelahnya.
+     */
+    public const COOKIE = 'kv_locale';
 
     /**
      * @return array<int, string>
