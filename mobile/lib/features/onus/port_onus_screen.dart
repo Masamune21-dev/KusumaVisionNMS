@@ -27,20 +27,33 @@ class PortOnusScreen extends ConsumerStatefulWidget {
     required this.slot,
     required this.port,
     this.focusOnuId,
+    this.initialFilter,
   });
 
   final int oltId, slot, port;
   final int? focusOnuId;
+
+  /// Filter awal untuk kotak cari (dipakai dari pencarian global agar hanya ONU
+  /// yang dicari yang tampil). Null = daftar penuh.
+  final String? initialFilter;
 
   @override
   ConsumerState<PortOnusScreen> createState() => _PortOnusScreenState();
 }
 
 class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
-  String _filter = '';
+  late final TextEditingController _search =
+      TextEditingController(text: widget.initialFilter ?? '');
+  late String _filter = (widget.initialFilter ?? '').trim().toLowerCase();
   bool _refreshing = false;
 
   PortArg get _arg => (oltId: widget.oltId, slot: widget.slot, port: widget.port);
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   /// Walk SNMP live subtree port ini (bukan baca cache polling) lalu muat ulang.
   Future<void> _refreshLive() async {
@@ -107,12 +120,23 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                   child: TextField(
-                    decoration: const InputDecoration(
+                    controller: _search,
+                    decoration: InputDecoration(
                       hintText: 'Cari SN / nama / interface',
-                      prefixIcon: Icon(LucideIcons.search, size: 19),
+                      prefixIcon: const Icon(LucideIcons.search, size: 19),
                       isDense: true,
+                      suffixIcon: _filter.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(LucideIcons.x, size: 18),
+                              tooltip: 'Bersihkan',
+                              onPressed: () {
+                                _search.clear();
+                                setState(() => _filter = '');
+                              },
+                            ),
                     ),
-                    onChanged: (v) => setState(() => _filter = v.toLowerCase()),
+                    onChanged: (v) => setState(() => _filter = v.trim().toLowerCase()),
                   ),
                 ),
                 Padding(

@@ -49,8 +49,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _open(SearchResult r) {
     if (r.isOnu && r.hasPort) {
-      final focus = r.onuId != null ? '?focus=${r.onuId}' : '';
-      context.push('/olts/${r.oltId}/ports/${r.slot}/${r.port}$focus');
+      if (r.onuId != null) {
+        // Langsung ke Detail ONU — hasil klik tak lagi mendarat di daftar ONU
+        // se-port (paritas maksud web global search: fokus ke ONU yang dicari).
+        context.push('/olts/${r.oltId}/ports/${r.slot}/${r.port}/onus/${r.onuId}');
+      } else {
+        // ONU tanpa onu_id (mis. EPON, identitas = MAC): buka port dengan kotak
+        // cari sudah terisi SN/nama sehingga hanya ONU itu yang tampil.
+        final q = Uri.encodeQueryComponent(r.serialNumber ?? r.label);
+        context.push('/olts/${r.oltId}/ports/${r.slot}/${r.port}?q=$q');
+      }
     } else {
       context.push('/olts/${r.oltId}');
     }

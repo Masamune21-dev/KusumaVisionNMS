@@ -98,6 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           slot: int.parse(s.pathParameters['slot']!),
           port: int.parse(s.pathParameters['port']!),
           focusOnuId: int.tryParse(s.uri.queryParameters['focus'] ?? ''),
+          initialFilter: s.uri.queryParameters['q'],
         ),
       ),
       GoRoute(

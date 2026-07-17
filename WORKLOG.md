@@ -2,6 +2,21 @@
 
 ## 2026-07-17
 
+### Perbaiki pencarian global APK mobile — klik hasil ONU langsung ke Detail (bukan daftar ONU se-port)
+
+User melapor: di halaman Pencarian mobile, cari ONU (mis. `masamune`) menampilkan satu hasil, tapi saat diklik mendarat di daftar ONU **se-port** yang memuat semua ONU lain (target hanya di-highlight, tak difilter). Diinginkan: klik hasil → langsung ke Detail ONU; kalau pun harus lewat halaman port, kotak carinya otomatis terisi SN/nama sehingga hanya ONU itu yang tampil (paritas web global search, yang menavigasi `port-onus?q={search_value}&focus={onu_id}`).
+
+Changed:
+
+- `mobile/lib/features/search/search_screen.dart` — `_open()` bercabang: hasil ONU dengan `onu_id` → `context.push('/olts/{id}/ports/{slot}/{port}/onus/{onuId}')` **langsung ke Detail ONU** (didukung `onuDetailProvider` yang memuat sendiri via `GET /olts/{id}/onus/{slot}/{port}/{onuId}`, baca cache `port_onus`); tanpa `onu_id` (mis. ONU EPON, identitas = MAC) → fallback ke halaman port dengan query `?q={SN/label ter-encode}` agar kotak cari terisi.
+- `mobile/lib/router.dart` — route `/olts/:id/ports/:slot/:port` meneruskan query `q` sebagai `initialFilter` ke `PortOnusScreen`.
+- `mobile/lib/features/onus/port_onus_screen.dart` — parameter baru `initialFilter`; `TextEditingController` untuk kotak cari yang terisi otomatis dari filter awal, `_filter` di-seed dari `initialFilter`, plus tombol ✕ "Bersihkan" untuk kembali ke daftar penuh; `dispose()` menutup controller.
+
+Notes:
+
+- Perubahan mobile murni (Dart) — `flutter analyze` pada 3 file: **No issues found**. Tak menyentuh backend/API (endpoint & `GlobalSearchService` sudah menyediakan `onu_id`/`serial_number`).
+- Belum rebuild APK. Untuk uji perangkat perlu `bash bin/build-apk.sh` **disertai bump `version:`** di `mobile/pubspec.yaml` (versionCode identik ditolak Android saat update).
+
 ### Diagnosa C600 "LAS GALERAS" tak bisa Detail/Konfigur ONU + graceful-fail sesi CLI & koreksi ejaan interface C600
 
 User memberi akses SSH ke server NMS kedua (host `smartolt`, Ubuntu 24.04) yang mengelola OLT **ZTE C600 "LAS GALERAS" (10.100.2.2)**. Gejala: **Detail ONU & Konfigur ONU C600 tidak bisa dibuka**. Diagnosa live (read-only): C600 **memblok CLI (telnet+SSH) dari IP server NMS (`10.40.58.2`)** — uji kontrol menentukan: C320 (10.100.3.2) di server yang sama menyajikan banner telnet (`Welcome to ZXAN product C320`) & SSH (`SSH-2.0-ZTE_SSH.1.0`), sedangkan C600 **hening total di port 22 & 23** (TCP nyambung, tanpa banner, menutup begitu diketik); SNMP 161/udp lancar. Jadi akar masalah = **ACL manajemen di perangkat C600**, bukan bug aplikasi. Namun aplikasi juga gagal tak anggun (broken pipe saat write → exception tak tertangkap → halaman 500), plus beberapa ejaan interface C600 yang keliru di parser CLI.
