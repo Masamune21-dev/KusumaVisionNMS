@@ -2,6 +2,21 @@
 
 ## 2026-07-17
 
+### Parser running-config C320 gaya SmartOLT (bridge flow/ip-host/veip): baca tcont/gemport tanpa-nama + traffic-limit downstream-saja + round-trip aman
+
+User melapor konfig ONU di salah satu C320 (EL VALLE, `10.100.3.2` di server smartolt) "terlalu kompleks & beda" dari OLT-nya sendiri (PATI). Diambil live running-config satu ONU vendor ZTE (`ZTEGC4E6F92F`) & satu HWTC (`HWTC211D3BAF`) — ternyata dua-duanya di-provision gaya **SmartOLT** (model bridge): `tcont N profile P` & `gemport N tcont M` **tanpa token `name`**, `traffic-limit downstream` saja (tanpa upstream), dan layanan lewat `flow`/`gemport N flow M`/`ip-host`/`veip`/`switchport-bind`/`dhcp-ip` — bukan `wan-ip mode …`/`service Nama …` gaya PATI. Akibatnya parser lama menampilkan **tcont & gemport kosong**, `services`/`wan_ips` kosong, dan salah membaca `security-mgmt` (banyak entri ACL) jadi satu "Remote ONT".
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — (1) `tcont`/`gemport`/`traffic-limit` regex menerima bentuk tanpa `name` & `downstream`-saja (name → `null` bila tak ada). (2) `normalizeLines`: tambah direktif bridge (`flow`, `ip-host`, `veip`, `switchport-bind`, `dhcp-ip`, `voip`, `vlan-filter`, `vlan-filter-mode`) ke daftar `$keywords` — tanpa ini token pertamanya dikira continuation char-wrap lalu di-lem jadi satu baris. (3) field baru `security_mgmts[]` (semua entri) & `extra_mgmt[]` (baris bridge mentah, read-only, diabaikan builder) supaya konfig tak hilang dari tampilan.
+- `app/Services/ZteOnuReconfigureScriptBuilder.php` — `diffTconts`/`diffGemports`: default nama dibuat **simetris** (`''`, bukan `'1'`) dan emit bentuk **tanpa `name`** (`tcont N profile P`, `gemport N tcont M`) + `traffic-limit downstream`-saja bila nama/upstream kosong. Menjaga **round-trip kosong** (buka editor lalu Simpan tanpa ubah → nol perintah ke OLT) untuk ONU gaya SmartOLT, dan tetap emit bentuk PATI (`name …`) untuk yang punya nama.
+- `tests/Unit/ZteOnuConfigureTest.php` — fixture running-config SmartOLT asli (kredensial ACS disamarkan) + 3 test: parse tcont/gemport/security_mgmts/extra_mgmt; **round-trip delta kosong** (gerbang keamanan); edit tcont/gemport meng-emit bentuk tanpa-nama.
+
+Notes:
+
+- Diverifikasi atas **raw asli lengkap** (banner + baris ke-wrap `passw`/`ord`): tcont(2)/gemport(2) terisi benar, 15 baris bridge tertangkap individual (tak ke-lem), round-trip `[]` kosong. Suite penuh: **369 pass, 1 fail pre-existing** (`ApiV1WriteTest::refresh_port_non_zte`, route cache). Pint bersih. Backend murni (siklus php-fpm + worker utk copy-ONU).
+- **Belum**: UI editor belum menampilkan `extra_mgmt`/`security_mgmts`, dan kontrol "Remote ONT" masih menyesatkan untuk ONU multi-`security-mgmt` (toggle+simpan bisa `security-mgmt 999 state disable` → matikan akses manajemen). Editing penuh model flow/ip-host/veip = increment berikutnya. Sampai itu aman untuk **lihat**; hati-hati **edit** field bridge/Remote-ONT di OLT gaya SmartOLT.
+
 ### Perbaiki pencarian global APK mobile — klik hasil ONU langsung ke Detail (bukan daftar ONU se-port)
 
 User melapor: di halaman Pencarian mobile, cari ONU (mis. `masamune`) menampilkan satu hasil, tapi saat diklik mendarat di daftar ONU **se-port** yang memuat semua ONU lain (target hanya di-highlight, tak difilter). Diinginkan: klik hasil → langsung ke Detail ONU; kalau pun harus lewat halaman port, kotak carinya otomatis terisi SN/nama sehingga hanya ONU itu yang tampil (paritas web global search, yang menavigasi `port-onus?q={search_value}&focus={onu_id}`).

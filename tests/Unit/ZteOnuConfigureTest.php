@@ -717,4 +717,109 @@ RAW;
         $this->assertStringContainsString('name Budi no onu 5 interface gpon-olt_1/2/1', $script);
         $this->assertStringContainsString('sn ZTEGABC12345 NO ONU 99', $script);
     }
+
+    /**
+     * Running-config asli C320 gaya SmartOLT (EL VALLE) — verbatim dari perangkat,
+     * kredensial ACS disamarkan. Beda dari PATI: `tcont N profile P` & `gemport N tcont M`
+     * TANPA token `name`, `traffic-limit downstream` saja, dan model bridge flow/ip-host/veip.
+     */
+    private function smartOltRaw(): string
+    {
+        return <<<'RAW'
+interface gpon-onu_1/2/1:28
+  name CARLOS MANUEL DISHMEY BALBUENA
+  description none
+  tcont 1 profile SMARTOLT-1G-UP
+  tcont 2 profile SMARTOLT-VOIPMNG-10M
+  gemport 1 tcont 1
+  gemport 1 traffic-limit downstream SMARTOLT-1G-DOWN
+  gemport 2 tcont 2
+  gemport 2 traffic-limit downstream SMARTOLT-VOIPMNG-10M
+  service-port 1 vport 1 user-vlan 202 vlan 202
+  service-port 2 vport 2 user-vlan 602 vlan 602
+!
+pon-onu-mng gpon-onu_1/2/1:28
+  voip protocol sip
+  flow 2 switch switch_0/1
+  flow mode 1 tag-filter vlan-filter untag-filter discard
+  flow 1 pri 0 vlan 202
+  flow 2 pri 2 vlan 602
+  gemport 1 flow 1
+  gemport 2 flow 2
+  switchport-bind switch_0/1 iphost 1
+  switchport-bind switch_0/1 veip 1
+  ip-host 2 ip 10.65.67.193 mask 255.255.252.0 gateway 10.65.64.1
+  veip 1 port udp 1232 host 2
+  tr069-mgmt 1 state unlock
+  tr069-mgmt 1 acs http://10.69.69.1:14501 validate basic username acsuser password acspass
+  security-mgmt 1 state enable mode forward protocol web https
+  security-mgmt 5 state enable mode forward protocol web https
+  security-mgmt 998 state enable mode forward ingress-type lan protocol web https
+  security-mgmt 999 state enable ingress-type lan protocol ftp telnet ssh snmp tr069
+RAW;
+    }
+
+    public function test_parses_smartolt_bridge_style_config(): void
+    {
+        $config = $this->parser()->parse($this->smartOltRaw());
+
+        $this->assertSame('CARLOS MANUEL DISHMEY BALBUENA', $config['name']);
+
+        // tcont TANPA name — dulu kosong, sekarang terbaca dgn name null.
+        $this->assertCount(2, $config['tconts']);
+        $this->assertSame(1, $config['tconts'][0]['id']);
+        $this->assertNull($config['tconts'][0]['name']);
+        $this->assertSame('SMARTOLT-1G-UP', $config['tconts'][0]['profile']);
+        $this->assertSame('SMARTOLT-VOIPMNG-10M', $config['tconts'][1]['profile']);
+
+        // gemport TANPA name + traffic-limit downstream saja.
+        $this->assertCount(2, $config['gemports']);
+        $this->assertNull($config['gemports'][0]['name']);
+        $this->assertSame(1, $config['gemports'][0]['tcont']);
+        $this->assertNull($config['gemports'][0]['traffic_up']);
+        $this->assertSame('SMARTOLT-1G-DOWN', $config['gemports'][0]['traffic_down']);
+
+        $this->assertCount(2, $config['service_ports']);
+        $this->assertTrue($config['tr069']);
+        $this->assertSame('acsuser', $config['acs_username']);
+
+        // Semua security-mgmt tertangkap (bukan cuma satu).
+        $this->assertCount(4, $config['security_mgmts']);
+        $this->assertSame([1, 5, 998, 999], array_column($config['security_mgmts'], 'id'));
+
+        // Baris bridge yg belum dimodelkan tersimpan mentah (tak hilang).
+        $this->assertContains('ip-host 2 ip 10.65.67.193 mask 255.255.252.0 gateway 10.65.64.1', $config['extra_mgmt']);
+        $this->assertContains('gemport 1 flow 1', $config['extra_mgmt']);
+        $this->assertContains('veip 1 port udp 1232 host 2', $config['extra_mgmt']);
+    }
+
+    public function test_smartolt_config_round_trips_to_empty_delta(): void
+    {
+        // GERBANG KEAMANAN: membuka editor lalu Simpan TANPA mengubah apa pun tidak boleh
+        // mengirim perintah apa pun ke OLT (kalau tidak, config pelanggan bisa rusak).
+        $config = $this->parser()->parse($this->smartOltRaw());
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($config, $config, ['onu_iface' => 'gpon-onu_1/2/1:28']);
+
+        $this->assertSame('', $delta['script']);
+        $this->assertSame([], $delta['changes']);
+    }
+
+    public function test_smartolt_tcont_and_gemport_changes_emit_nameless_form(): void
+    {
+        $base = $this->parser()->parse($this->smartOltRaw());
+        $target = $base;
+        $target['tconts'][0]['profile'] = 'SMARTOLT-2G-UP';          // ganti profil tcont
+        $target['gemports'][0]['traffic_down'] = 'SMARTOLT-2G-DOWN'; // ganti traffic-limit down
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:28']);
+
+        // Bentuk SmartOLT: tanpa `name`, downstream saja — bukan bentuk routed PATI.
+        $this->assertStringContainsString('tcont 1 profile SMARTOLT-2G-UP', $delta['script']);
+        $this->assertStringNotContainsString('tcont 1 name', $delta['script']);
+        $this->assertStringContainsString('gemport 1 traffic-limit downstream SMARTOLT-2G-DOWN', $delta['script']);
+        $this->assertStringNotContainsString('upstream', $delta['script']);
+        // tcont 2 & gemport 2 tak berubah → tak ikut ter-emit.
+        $this->assertStringNotContainsString('tcont 2', $delta['script']);
+    }
 }

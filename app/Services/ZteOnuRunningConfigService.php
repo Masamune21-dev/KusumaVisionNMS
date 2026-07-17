@@ -147,6 +147,11 @@ class ZteOnuRunningConfigService
             'remote_ont_id' => null,
             'remote_ont_mode' => null,
             'remote_ont_protocol' => null,
+            // Semua entri `security-mgmt` (gaya SmartOLT bisa banyak: ACL web/ftp/telnet/…).
+            'security_mgmts' => [],
+            // Baris pon-onu-mng gaya bridge/SmartOLT yang belum dimodelkan untuk diedit
+            // (flow/ip-host/veip/switchport-bind/dhcp-ip/voip) — disimpan mentah, read-only.
+            'extra_mgmt' => [],
             'primary_vlan' => null,
         ];
 
@@ -180,11 +185,13 @@ class ZteOnuRunningConfigService
             return;
         }
 
-        if (preg_match('/^tcont\s+(\d+)\s+name\s+(\S+)\s+profile\s+(\S+)/i', $line, $m)) {
+        // `tcont N name X profile P` (routed/PATI) atau `tcont N profile P` (bridge/SmartOLT
+        // tanpa token `name`). Token `name` dibuat opsional.
+        if (preg_match('/^tcont\s+(\d+)\s+(?:name\s+(\S+)\s+)?profile\s+(\S+)/i', $line, $m)) {
             $id = (int) $m[1];
             $config['tconts'][$id] = array_merge($config['tconts'][$id] ?? ['gap' => null], [
                 'id' => $id,
-                'name' => $m[2],
+                'name' => ($m[2] ?? '') !== '' ? $m[2] : null,
                 'profile' => $m[3],
             ]);
 
@@ -203,24 +210,26 @@ class ZteOnuRunningConfigService
 
         // OLT gaya bridge (mis. Bulumanis Lor) menyimpan bentuk panjang
         // `gemport 1 name 1 unicast tcont 1 dir both`; OLT routed memakai bentuk
-        // pendek `gemport 1 name 1 tcont 1`. Token `unicast` (opsional) & `dir …`
-        // (trailing) diabaikan — keduanya dinormalisasi firmware saat re-emit.
-        if (preg_match('/^gemport\s+(\d+)\s+name\s+(\S+)\s+(?:unicast\s+|multicast\s+|broadcast\s+)?tcont\s+(\d+)/i', $line, $m)) {
+        // pendek `gemport 1 name 1 tcont 1`; SmartOLT memakai `gemport 1 tcont 1`
+        // (tanpa `name`). Token `name` & `unicast`/… dibuat opsional.
+        if (preg_match('/^gemport\s+(\d+)\s+(?:name\s+(\S+)\s+(?:unicast\s+|multicast\s+|broadcast\s+)?)?tcont\s+(\d+)/i', $line, $m)) {
             $id = (int) $m[1];
             $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['traffic_up' => null, 'traffic_down' => null], [
                 'id' => $id,
-                'name' => $m[2],
+                'name' => ($m[2] ?? '') !== '' ? $m[2] : null,
                 'tcont' => (int) $m[3],
             ]);
 
             return;
         }
 
-        if (preg_match('/^gemport\s+(\d+)\s+traffic-limit\s+upstream\s+(\S+)\s+downstream\s+(\S+)/i', $line, $m)) {
+        // `traffic-limit upstream U downstream D` (routed) atau `traffic-limit downstream D`
+        // saja (SmartOLT — hanya batasi downstream). Token upstream dibuat opsional.
+        if (preg_match('/^gemport\s+(\d+)\s+traffic-limit\s+(?:upstream\s+(\S+)\s+)?downstream\s+(\S+)/i', $line, $m)) {
             $id = (int) $m[1];
             $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['name' => null, 'tcont' => null], [
                 'id' => $id,
-                'traffic_up' => $m[2],
+                'traffic_up' => ($m[2] ?? '') !== '' ? $m[2] : null,
                 'traffic_down' => $m[3],
             ]);
 
@@ -303,10 +312,31 @@ class ZteOnuRunningConfigService
         }
 
         if (preg_match('/^security-mgmt\s+(\d+)\s+state\s+(enable|disable)(?:\s+mode\s+(\S+))?(?:\s+protocol\s+(\S+))?/i', $line, $m)) {
+            $config['security_mgmts'][] = [
+                'id' => (int) $m[1],
+                'state' => strtolower($m[2]),
+                'mode' => ($m[3] ?? '') !== '' ? $m[3] : null,
+                'protocol' => ($m[4] ?? '') !== '' ? $m[4] : null,
+                'raw' => $line,
+            ];
+            // Backward-compat field tunggal `remote_ont` (gaya PATI 1-entri). Untuk gaya
+            // SmartOLT yang punya banyak entri ini hanya mencerminkan yang terakhir dan
+            // bersifat indikatif — sumber lengkap ada di `security_mgmts`.
             $config['remote_ont'] = strtolower($m[2]) === 'enable';
             $config['remote_ont_id'] = (int) $m[1];
             $config['remote_ont_mode'] = ($m[3] ?? '') !== '' ? $m[3] : null;
             $config['remote_ont_protocol'] = ($m[4] ?? '') !== '' ? $m[4] : null;
+
+            return;
+        }
+
+        // Baris pon-onu-mng gaya bridge/SmartOLT yang belum dimodelkan untuk diedit —
+        // disimpan mentah agar tetap terlihat & tak hilang (read-only, diabaikan builder).
+        if (preg_match('/^(?:flow|ip-host|veip|switchport-bind|dhcp-ip|voip|vlan-filter)\b/i', $line)
+            || preg_match('/^gemport\s+\d+\s+flow\s+\d+/i', $line)) {
+            $config['extra_mgmt'][] = $line;
+
+            return;
         }
     }
 
@@ -462,6 +492,10 @@ class ZteOnuRunningConfigService
         $keywords = [
             'name', 'description', 'tcont', 'gemport', 'service-port', 'service',
             'vlan', 'wan-ip', 'wan', 'tr069-mgmt', 'security-mgmt', 'encrypt',
+            // Direktif gaya bridge/SmartOLT — tanpa ini token pertamanya dikira
+            // continuation char-wrap lalu di-lem ke baris sebelumnya (rusak).
+            'flow', 'ip-host', 'veip', 'switchport-bind', 'dhcp-ip', 'voip',
+            'vlan-filter', 'vlan-filter-mode',
         ];
 
         $lines = [];

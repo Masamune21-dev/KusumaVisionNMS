@@ -161,7 +161,9 @@ class ZteOnuReconfigureScriptBuilder
         $next = $this->keyById($target['tconts'] ?? []);
 
         foreach ($next as $id => $row) {
-            $name = $this->str($row['name'] ?? '1');
+            // Default '' (bukan '1') agar simetris dgn banding baseline → round-trip kosong
+            // untuk tcont gaya SmartOLT yang memang tanpa token `name`.
+            $name = $this->str($row['name'] ?? '');
             $profile = $this->str($row['profile'] ?? '');
             if ($profile === '') {
                 continue;
@@ -171,8 +173,12 @@ class ZteOnuReconfigureScriptBuilder
             if ($prev === null
                 || ! $this->same($this->str($prev['name'] ?? ''), $name)
                 || ! $this->same($this->str($prev['profile'] ?? ''), $profile)) {
-                $lines[] = "tcont {$id} name {$name} profile {$profile}";
-                $changes[] = $this->change("T-CONT {$id}", $this->fmtTcont($prev), "name {$name} profile {$profile}");
+                // SmartOLT: `tcont N profile P` (tanpa name); routed/PATI: dengan `name`.
+                $line = $name === ''
+                    ? "tcont {$id} profile {$profile}"
+                    : "tcont {$id} name {$name} profile {$profile}";
+                $lines[] = $line;
+                $changes[] = $this->change("T-CONT {$id}", $this->fmtTcont($prev), ltrim(substr($line, strlen("tcont {$id} "))));
             }
 
             $gap = $this->str($row['gap'] ?? '');
@@ -196,23 +202,30 @@ class ZteOnuReconfigureScriptBuilder
         $next = $this->keyById($target['gemports'] ?? []);
 
         foreach ($next as $id => $row) {
-            $name = $this->str($row['name'] ?? '1');
+            $name = $this->str($row['name'] ?? '');
             $tcont = $this->str($row['tcont'] ?? '1');
             $prev = $base[$id] ?? null;
 
             if ($prev === null
                 || ! $this->same($name, $this->str($prev['name'] ?? ''))
                 || ! $this->same($tcont, $this->str($prev['tcont'] ?? ''))) {
-                $lines[] = "gemport {$id} name {$name} tcont {$tcont}";
-                $changes[] = $this->change("GEM Port {$id}", $this->fmtGemport($prev), "name {$name} tcont {$tcont}");
+                // SmartOLT: `gemport N tcont M` (tanpa name); routed: dengan `name`.
+                $line = $name === ''
+                    ? "gemport {$id} tcont {$tcont}"
+                    : "gemport {$id} name {$name} tcont {$tcont}";
+                $lines[] = $line;
+                $changes[] = $this->change("GEM Port {$id}", $this->fmtGemport($prev), ltrim(substr($line, strlen("gemport {$id} "))));
             }
 
             $up = $this->str($row['traffic_up'] ?? '');
             $down = $this->str($row['traffic_down'] ?? '');
-            if ($up !== '' && $down !== ''
+            if ($down !== ''
                 && (! $this->same($up, $this->str($prev['traffic_up'] ?? '')) || ! $this->same($down, $this->str($prev['traffic_down'] ?? '')))) {
-                $lines[] = "gemport {$id} traffic-limit upstream {$up} downstream {$down}";
-                $changes[] = $this->change("GEM Port {$id} traffic", '', "up {$up} down {$down}");
+                // SmartOLT: batasi downstream saja; routed: upstream + downstream.
+                $lines[] = $up === ''
+                    ? "gemport {$id} traffic-limit downstream {$down}"
+                    : "gemport {$id} traffic-limit upstream {$up} downstream {$down}";
+                $changes[] = $this->change("GEM Port {$id} traffic", '', $up === '' ? "down {$down}" : "up {$up} down {$down}");
             }
         }
 
