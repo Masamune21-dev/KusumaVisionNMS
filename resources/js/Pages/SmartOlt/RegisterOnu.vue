@@ -10,7 +10,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Check, Copy, Cpu, Globe, LayoutList, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
+import { Check, Copy, Cpu, Globe, LayoutList, RefreshCw, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -44,6 +44,30 @@ const clone = (value) => JSON.parse(JSON.stringify(value ?? null));
 // internet+manajemen, mgmt-ip in-band, ACS. Menggantikan tab simple/advanced C300.
 const isC600 = computed(() => props.olt.capabilities?.is_c600 === true);
 const c600Form = useForm({ ...props.c600_defaults });
+
+// Auto mgmt-IP: baca IP terpakai dari OLT (hindari bentrok SmartOLT) → isi mgmt-ip bebas +
+// mask/gateway/vlan/priority/host. Scan pertama ~18 dtk (di-cache 10 mnt server-side).
+const mgmtAuto = reactive({ loading: false, error: null, info: null });
+const autoMgmtIp = async (fresh = false) => {
+    mgmtAuto.loading = true;
+    mgmtAuto.error = null;
+    try {
+        const { data } = await window.axios.get(route('smartolt.register.mgmt-pool', props.olt.id), {
+            params: { fresh: fresh ? 1 : 0 },
+        });
+        c600Form.mgmt_ip = data.mgmt_ip;
+        c600Form.mgmt_mask = data.mask;
+        c600Form.mgmt_gateway = data.gateway;
+        if (data.vlan) c600Form.mgmt_vlan = data.vlan;
+        if (data.priority !== null && data.priority !== undefined) c600Form.mgmt_priority = data.priority;
+        if (data.host !== null && data.host !== undefined) c600Form.mgmt_host = data.host;
+        mgmtAuto.info = t('registeronu.c600_pool_info', { free: data.free_count, used: data.used_count });
+    } catch (e) {
+        mgmtAuto.error = e?.response?.data?.error || t('registeronu.c600_pool_failed');
+    } finally {
+        mgmtAuto.loading = false;
+    }
+};
 
 // 'simple' = wizard template tetap (1 service); 'advanced' = editor granular
 // (tcont/gemport/service-port/service per baris) untuk multi-service.
@@ -130,6 +154,8 @@ const activePayload = computed(() => (isC600.value
 watch(activePayload, schedulePreview);
 watch(mode, () => { preview.script = t('registeronu.loading_comment'); runPreview(); });
 onMounted(runPreview);
+// C600: auto-suggest IP mgmt bebas saat form dibuka (pakai cache; hanya scan pertama yang lama).
+onMounted(() => { if (isC600.value && !c600Form.mgmt_ip) autoMgmtIp(false); });
 onUnmounted(() => clearTimeout(debounceTimer));
 
 const copied = ref(false);
@@ -350,14 +376,29 @@ const submitC600 = async (execute) => {
                         </div>
 
                         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
-                                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
-                                    <Settings class="h-4 w-4 text-cyan-400" />
+                            <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                        <Settings class="h-4 w-4 text-cyan-400" />
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.c600_mgmt') }}</h3>
+                                        <p class="text-xs text-slate-500">{{ $t('registeronu.c600_mgmt_hint') }}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.c600_mgmt') }}</h3>
-                                    <p class="text-xs text-slate-500">{{ $t('registeronu.c600_mgmt_hint') }}</p>
-                                </div>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/30 transition-colors hover:bg-cyan-500/25 disabled:opacity-50"
+                                    :disabled="mgmtAuto.loading"
+                                    @click="autoMgmtIp(true)"
+                                >
+                                    <RefreshCw class="h-3.5 w-3.5" :class="{ 'animate-spin': mgmtAuto.loading }" />
+                                    {{ mgmtAuto.loading ? $t('registeronu.c600_scanning') : $t('registeronu.c600_auto_ip') }}
+                                </button>
+                            </div>
+                            <div v-if="mgmtAuto.info || mgmtAuto.error" class="px-4 pt-3 sm:px-6">
+                                <p v-if="mgmtAuto.error" class="text-xs text-red-300">{{ mgmtAuto.error }}</p>
+                                <p v-else class="text-xs text-emerald-300/80">{{ mgmtAuto.info }}</p>
                             </div>
                             <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
                                 <div>

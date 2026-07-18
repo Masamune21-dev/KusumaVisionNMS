@@ -157,6 +157,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/{olt}/unconfigured', [SmartOltController::class, 'unconfigured'])->name('smartolt.unconfigured');
     Route::post('/smartolt/{olt}/unconfigured/refresh', [SmartOltController::class, 'refreshUnconfigured'])->name('smartolt.unconfigured.refresh');
     Route::get('/smartolt/{olt}/register', [SmartOltController::class, 'registerOnuForm'])->name('smartolt.register');
+    Route::get('/smartolt/{olt}/register/mgmt-pool', [SmartOltController::class, 'registerMgmtPool'])->name('smartolt.register.mgmt-pool');
     Route::post('/smartolt/{olt}/register/preview', [SmartOltController::class, 'registerOnuPreview'])->name('smartolt.register.preview');
     Route::post('/smartolt/{olt}/register/advanced/preview', [SmartOltController::class, 'registerOnuAdvancedPreview'])->name('smartolt.register.advanced.preview');
     Route::post('/smartolt/{olt}/register/advanced', [SmartOltController::class, 'storeOnuAdvanced'])->name('smartolt.register.advanced.store');

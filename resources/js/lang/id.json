@@ -735,7 +735,11 @@
         "c600_mgmt_ip": "mgmt-ip (unik)",
         "c600_mgmt_mask": "Subnet mask",
         "c600_mgmt_gateway": "Gateway",
-        "c600_remote_ont": "Aktifkan akses web ONU (security-mgmt)"
+        "c600_remote_ont": "Aktifkan akses web ONU (security-mgmt)",
+        "c600_auto_ip": "Auto mgmt-IP",
+        "c600_scanning": "Memindai OLT…",
+        "c600_pool_info": "{free} IP bebas · {used} terpakai (dari config OLT)",
+        "c600_pool_failed": "Gagal auto-alokasi mgmt-IP dari OLT."
     },
     "cdataform": {
         "create_cdata": "Tambah OLT C-Data",

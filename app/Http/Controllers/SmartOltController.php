@@ -19,6 +19,7 @@ use App\Services\OnuInventoryService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
+use App\Services\Zte\C600MgmtPoolService;
 use App\Services\Zte\OnuRegistrationService;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
@@ -1151,6 +1152,32 @@ class SmartOltController extends Controller
      * left-hand "live raw CLI" panel can update on every keystroke. Read-only:
      * never touches the OLT.
      */
+    /**
+     * Auto-alokasi mgmt-IP C600: baca IP terpakai dari OLT (menghindari bentrok SmartOLT) lalu
+     * kembalikan IP bebas terendah + parameter pool (mask/gateway/vlan/priority/host) yang diturunkan
+     * dari config. `?fresh=1` memaksa scan ulang (abaikan cache ~10 mnt). Read-only ke OLT.
+     */
+    public function registerMgmtPool(Request $request, SnmpOlt $olt, C600MgmtPoolService $pool): JsonResponse
+    {
+        if (! SmartOltSupport::isC600($olt)) {
+            return response()->json(['error' => 'Auto mgmt-IP hanya untuk OLT C600.'], 422);
+        }
+
+        $this->assertCapability($olt, 'supports_provisioning');
+
+        try {
+            $next = $pool->nextFreeIp($olt, $request->boolean('fresh'));
+
+            if ($next === null) {
+                return response()->json(['error' => 'Pool mgmt-IP tidak terbaca dari OLT atau sudah penuh.'], 422);
+            }
+
+            return response()->json($next);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, OnuRegistrationService $registration): JsonResponse
     {
         // C600 = builder Model B lewat OnuRegistrationService. Preview toleran form parsial:

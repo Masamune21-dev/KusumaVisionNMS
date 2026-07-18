@@ -735,7 +735,11 @@
         "c600_mgmt_ip": "mgmt-ip (unique)",
         "c600_mgmt_mask": "Subnet mask",
         "c600_mgmt_gateway": "Gateway",
-        "c600_remote_ont": "Enable ONU web access (security-mgmt)"
+        "c600_remote_ont": "Enable ONU web access (security-mgmt)",
+        "c600_auto_ip": "Auto mgmt-IP",
+        "c600_scanning": "Scanning OLT…",
+        "c600_pool_info": "{free} free · {used} used (from OLT config)",
+        "c600_pool_failed": "Failed to auto-allocate mgmt-IP from the OLT."
     },
     "cdataform": {
         "create_cdata": "Add C-Data OLT",
