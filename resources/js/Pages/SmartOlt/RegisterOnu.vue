@@ -89,6 +89,10 @@ const advForm = useForm({
 const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
+// Nama profil untuk memastikan nilai form yang tak ada di katalog (mis. model hasil discovery
+// yang belum tersinkron) tetap muncul sebagai opsi terpilih di dropdown C600.
+const onuTypeNames = computed(() => onuTypeProfiles.value.map((p) => p.name));
+const tcontNames = computed(() => tcontProfiles.value.map((p) => p.name));
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
 const canExecute = computed(() => !!(props.olt.capabilities?.supports_cli_onu_configure));
@@ -317,7 +321,11 @@ const submitC600 = async (execute) => {
                                 </div>
                                 <div>
                                     <InputLabel :value="$t('registeronu.onu_type')" />
-                                    <TextInput v-model="c600Form.onu_type" class="mt-1 w-full font-mono" placeholder="HG8145X6-10" />
+                                    <select v-model="c600Form.onu_type" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                        <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
+                                        <option v-if="c600Form.onu_type && !onuTypeNames.includes(c600Form.onu_type)" :value="c600Form.onu_type">{{ c600Form.onu_type }}</option>
+                                        <option v-for="p in onuTypeProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                    </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.onu_type" />
                                 </div>
                                 <div>
@@ -351,7 +359,11 @@ const submitC600 = async (execute) => {
                                 </div>
                                 <div>
                                     <InputLabel :value="$t('registeronu.c600_internet_tcont')" />
-                                    <TextInput v-model="c600Form.internet_tcont_profile" class="mt-1 w-full font-mono" list="c600-tcont-list" />
+                                    <select v-model="c600Form.internet_tcont_profile" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                        <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
+                                        <option v-if="c600Form.internet_tcont_profile && !tcontNames.includes(c600Form.internet_tcont_profile)" :value="c600Form.internet_tcont_profile">{{ c600Form.internet_tcont_profile }}</option>
+                                        <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                    </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.internet_tcont_profile" />
                                 </div>
                                 <div>
@@ -361,17 +373,19 @@ const submitC600 = async (execute) => {
                                 </div>
                                 <div>
                                     <InputLabel :value="$t('registeronu.c600_mgmt_tcont')" />
-                                    <TextInput v-model="c600Form.mgmt_tcont_profile" class="mt-1 w-full font-mono" list="c600-tcont-list" />
+                                    <select v-model="c600Form.mgmt_tcont_profile" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                        <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
+                                        <option v-if="c600Form.mgmt_tcont_profile && !tcontNames.includes(c600Form.mgmt_tcont_profile)" :value="c600Form.mgmt_tcont_profile">{{ c600Form.mgmt_tcont_profile }}</option>
+                                        <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                    </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.mgmt_tcont_profile" />
                                 </div>
                                 <div class="sm:col-span-2">
                                     <InputLabel :value="$t('registeronu.c600_egress')" />
                                     <TextInput v-model="c600Form.egress_traffic_policy" class="mt-1 w-full font-mono" placeholder="SMARTOLT-10M-DOWN" />
                                     <InputError class="mt-1.5" :message="c600Form.errors.egress_traffic_policy" />
+                                    <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.c600_egress_hint') }}</p>
                                 </div>
-                                <datalist id="c600-tcont-list">
-                                    <option v-for="p in tcontProfiles" :key="p.name" :value="p.name" />
-                                </datalist>
                             </div>
                         </div>
 

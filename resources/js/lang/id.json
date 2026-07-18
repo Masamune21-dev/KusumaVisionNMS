@@ -739,7 +739,9 @@
         "c600_auto_ip": "Auto mgmt-IP",
         "c600_scanning": "Memindai OLT…",
         "c600_pool_info": "{free} IP bebas · {used} terpakai (dari config OLT)",
-        "c600_pool_failed": "Gagal auto-alokasi mgmt-IP dari OLT."
+        "c600_pool_failed": "Gagal auto-alokasi mgmt-IP dari OLT.",
+        "c600_select": "— pilih —",
+        "c600_egress_hint": "Ketik manual — traffic-policy downstream tak tersinkron di katalog profil."
     },
     "cdataform": {
         "create_cdata": "Tambah OLT C-Data",

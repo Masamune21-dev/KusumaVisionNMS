@@ -146,6 +146,7 @@ const formatDate = (value) => formatDateTime(value);
                                                 port: onu.port,
                                                 oid_index: onu.oid_index,
                                                 suggested_onu_id: onu.suggested_onu_id,
+                                                model: onu.model,
                                             })"
                                         >
                                             <Plus class="h-4 w-4" />
@@ -183,6 +184,7 @@ const formatDate = (value) => formatDateTime(value);
                                                         port: onu.port,
                                                         oid_index: onu.oid_index,
                                                         suggested_onu_id: onu.suggested_onu_id,
+                                                        model: onu.model,
                                                     })"
                                                 >
                                                     <Plus class="h-4 w-4" />

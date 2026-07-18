@@ -739,7 +739,9 @@
         "c600_auto_ip": "Auto mgmt-IP",
         "c600_scanning": "Scanning OLT…",
         "c600_pool_info": "{free} free · {used} used (from OLT config)",
-        "c600_pool_failed": "Failed to auto-allocate mgmt-IP from the OLT."
+        "c600_pool_failed": "Failed to auto-allocate mgmt-IP from the OLT.",
+        "c600_select": "— select —",
+        "c600_egress_hint": "Type manually — downstream traffic-policies aren't synced in the profile catalog."
     },
     "cdataform": {
         "create_cdata": "Add C-Data OLT",
