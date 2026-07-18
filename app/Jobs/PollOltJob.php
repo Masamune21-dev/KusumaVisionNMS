@@ -88,6 +88,14 @@ class PollOltJob implements ShouldQueue
             }
         }
 
+        // Poller Go belum memetakan tabel ONU C600 (subtree .1082), jadi ia selalu balik
+        // daftar ONU kosong untuk C600 — dan `[]` (bukan null) membuat fallback PHP di bawah
+        // ter-skip → 0 ONU tiap poll terjadwal. Paksa null agar OltSnmpClient::registeredOnus
+        // (yang mendukung C600) mengisi ONU; port/system tetap dari poll Go.
+        if (SmartOltSupport::isC600($olt)) {
+            $onus = null;
+        }
+
         $snapshot ??= $client->snapshot($olt);
         $merged = array_merge($olt->last_test_result ?? [], [
             'ok' => $snapshot['ok'],

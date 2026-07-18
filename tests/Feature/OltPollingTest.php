@@ -7,6 +7,7 @@ use App\Models\OnuRxSample;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\CData\CDataOltScanner;
+use App\Services\Snmp\GoSnmpPoller;
 use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -375,5 +376,72 @@ class OltPollingTest extends TestCase
         (new PollOltJob($olt->id))->handle($this->fakeClient(rxError: 'SNMP walk failed'), new AlarmEvaluator);
 
         $this->assertDatabaseCount('onu_rx_samples', 0);
+    }
+
+    private function fakeGoPoller(array $onus): GoSnmpPoller
+    {
+        return new class($onus) extends GoSnmpPoller
+        {
+            public function __construct(private readonly array $onus) {}
+
+            public function enabled(): bool
+            {
+                return true;
+            }
+
+            public function poll(SnmpOlt $olt, bool $includeRx): array
+            {
+                return [
+                    'ok' => true,
+                    'driver' => 'zte',
+                    'latency_ms' => 5,
+                    'system' => ['sys_name' => 'ZXAN'],
+                    'ports' => [
+                        // Port 1/1 cocok dgn ONU fakeClient::registeredOnus (fallback C600);
+                        // port 3/1 cocok dgn goOnu (jalur non-C600). Keduanya agar bucketing jalan.
+                        ['if_index' => 268501760, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
+                        ['if_index' => 285278977, 'name' => 'gpon_olt-1/3/1', 'slot' => 3, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
+                    ],
+                    'onus' => $this->onus, // C600: poller Go tak punya OID ONU-nya → selalu kosong
+                    'rx_power' => ['ok' => false, 'error' => null],
+                    'error' => null,
+                ];
+            }
+        };
+    }
+
+    public function test_poll_job_falls_back_to_php_onus_for_c600_when_go_returns_none(): void
+    {
+        // Poller Go mengembalikan port tapi 0 ONU untuk C600 (tak punya OID-nya). PollOltJob
+        // harus tetap mengisi ONU dari OltSnmpClient::registeredOnus (PHP), bukan menulis 0.
+        $olt = $this->makeOlt(['name' => 'LAS GALERAS', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, $this->fakeGoPoller([]));
+
+        $olt->refresh();
+        $ltr = $olt->last_test_result;
+        $this->assertSame('go', $ltr['poller']); // port/system tetap dari poll Go
+        $onus = collect($ltr['port_onus'] ?? [])->flatMap(fn ($p) => $p['onus'] ?? [])->all();
+        $this->assertCount(1, $onus);
+        $this->assertSame('ZTEG1', $onus[0]['serial_number']);
+    }
+
+    public function test_poll_job_keeps_go_onus_for_non_c600(): void
+    {
+        // Regresi: untuk OLT non-C600, ONU dari poller Go dipakai apa adanya (tak dipaksa
+        // fallback PHP). Go balik 1 ONU → itulah yang tersimpan.
+        $olt = $this->makeOlt(['vendor' => 'ZTE C320', 'polling_enabled' => true]);
+        $goOnu = [[
+            'if_index' => 285278977, 'onu_id' => 7, 'slot' => 3, 'port' => 1,
+            'interface' => 'gpon-onu_1/3/1:7', 'type_name' => 'F660', 'serial_number' => 'GOONU7',
+            'online' => true, 'phase_state' => 'Working',
+        ]];
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, $this->fakeGoPoller($goOnu));
+
+        $olt->refresh();
+        $onus = collect($olt->last_test_result['port_onus'] ?? [])->flatMap(fn ($p) => $p['onus'] ?? [])->all();
+        $this->assertCount(1, $onus);
+        $this->assertSame('GOONU7', $onus[0]['serial_number']); // dari Go, bukan registeredOnus (ZTEG1)
     }
 }

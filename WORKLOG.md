@@ -2,6 +2,20 @@
 
 ## 2026-07-18
 
+### Fix ONU C600 hilang (0) di polling terjadwal — fallback PHP untuk tabel ONU C600 (poller Go tak mendukung)
+
+User: polling C600 jalan tapi ONU tak tampil (**Total ONU 0/0**), padahal refresh per-port & sync ONU Monitoring bisa. Akar masalah: **poller Go (`bin/kv-snmp-poller`, jalur terjadwal) belum memetakan tabel ONU C600** (subtree `.1082`) — `grep 1082|c600 cmd/kv-snmp-poller/` kosong. Untuk C600 ia mengembalikan daftar ONU **kosong `[]`** (bukan `null`), sehingga cek fallback `PollOltJob` `if ($onus === null)` jadi false → `OltSnmpClient::registeredOnus` (PHP, yang **mendukung** C600; live = **1343 ONU**) ter-skip → tiap poll 5-menit menimpa cache jadi **0 ONU**. On-demand (refresh port / ONU Monitoring) memakai jalur PHP → itulah kenapa "sebelumnya bisa".
+
+Changed:
+
+- `app/Jobs/PollOltJob.php` — setelah blok poll Go, `if (SmartOltSupport::isC600($olt)) { $onus = null; }` → memaksa fallback PHP `registeredOnus` mengisi ONU C600 (port/system tetap dari poll Go yang benar). RX ikut terisi karena `OltSnmpClient::onuRxPowers` sudah C600-aware (OID SNMP `.1082.500.20.2.2.2.1.10`).
+- `tests/Feature/OltPollingTest.php` — helper fake `GoSnmpPoller` (`enabled()`=true, `poll()` balik port tanpa ONU) + 2 test: C600 fallback ke ONU PHP saat Go balik kosong; non-C600 tetap memakai ONU dari Go (regression guard).
+
+Notes:
+
+- Suite penuh hijau (1 fail pre-existing `ApiV1WriteTest`). Backend murni — deploy = `git pull` + reload php-fpm + **restart worker** (daemon yang menjalankan poll terjadwal). Verifikasi live pasca-deploy: `PollOltJob::dispatchSync(2)` → ONU terisi + RX.
+- Perbaikan sejati (memetakan OID ONU C600 di poller Go `cmd/kv-snmp-poller`) = pekerjaan Go tersendiri; fallback PHP ini menuntaskan gejala sekarang (ONU C600 tampil lagi di dashboard, konsisten dgn on-demand).
+
 ### Display timezone bisa dikonfigurasi per-deployment + fix interval polling C600 + OS timezone server Dominika
 
 Tiga keluhan di server smartolt (C600, Rep. Dominika): polling C600 seolah mati, waktu tak ikut lokal, Configure ONU C600 lambat. Diperiksa live:
