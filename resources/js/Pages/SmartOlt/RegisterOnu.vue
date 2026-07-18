@@ -61,6 +61,10 @@ const autoMgmtIp = async (fresh = false) => {
         if (data.vlan) c600Form.mgmt_vlan = data.vlan;
         if (data.priority !== null && data.priority !== undefined) c600Form.mgmt_priority = data.priority;
         if (data.host !== null && data.host !== undefined) c600Form.mgmt_host = data.host;
+        // Preset TR069 dari OLT (ACS konsisten dgn ONU lain) — isi hanya bila terbaca.
+        if (data.acs_url) c600Form.acs_url = data.acs_url;
+        if (data.acs_username) c600Form.acs_username = data.acs_username;
+        if (data.acs_password) c600Form.acs_password = data.acs_password;
         mgmtAuto.info = t('registeronu.c600_pool_info', { free: data.free_count, used: data.used_count });
     } catch (e) {
         mgmtAuto.error = e?.response?.data?.error || t('registeronu.c600_pool_failed');

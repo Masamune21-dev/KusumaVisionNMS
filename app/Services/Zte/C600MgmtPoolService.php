@@ -4,6 +4,7 @@ namespace App\Services\Zte;
 
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SnmpOlt;
+use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Support\Facades\Cache;
 
@@ -22,7 +23,54 @@ class C600MgmtPoolService
 {
     private const CACHE_TTL = 600; // 10 menit — scan ~18 dtk, jangan diulang tiap muat form.
 
-    public function __construct(private readonly ZteCliProvisioningExecutor $executor) {}
+    // Tabel TR069/ACS C600 (zx...tr069Mgmt): .2 = ACS URL, .4 = username, .5 = password (teks polos
+    // via read community — konsisten di seluruh ONU OLT ini). Dipakai jadi preset registrasi.
+    private const ACS_TABLE = '1.3.6.1.4.1.3902.1082.500.20.2.14.2.1';
+
+    public function __construct(
+        private readonly ZteCliProvisioningExecutor $executor,
+        private readonly OltSnmpClient $snmp,
+    ) {}
+
+    /**
+     * Preset TR069 "profil SmartOLT" dibaca dari OLT (ACS URL/username/password) — agar registrasi
+     * baru memakai ACS yang SAMA dgn ONU eksisting (hindari salah endpoint). Password sensitif, tapi
+     * ini OLT & kredensial milik operator sendiri; hanya di-serve ke admin ber-capability provisioning.
+     * Cached bersama scan pool. Nilai null bila tabel tak terbaca.
+     *
+     * @return array{acs_url:?string, acs_username:?string, acs_password:?string}
+     */
+    public function tr069Preset(SnmpOlt $olt, bool $fresh = false): array
+    {
+        $key = "c600_tr069_preset_{$olt->id}";
+
+        if ($fresh) {
+            Cache::forget($key);
+        }
+
+        return Cache::remember($key, self::CACHE_TTL, fn () => [
+            'acs_url' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.2'),
+            'acs_username' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.4'),
+            'acs_password' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.5'),
+        ]);
+    }
+
+    /** Nilai non-kosong pertama dari sebuah kolom SNMP (nilai identik di semua ONU → cukup satu). */
+    private function firstSnmpValue(SnmpOlt $olt, string $oid): ?string
+    {
+        try {
+            foreach ($this->snmp->walk($olt, $oid) as $value) {
+                $value = trim((string) $value);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        } catch (\Throwable) {
+            // SNMP mati / tabel kosong → tanpa preset (form pakai default config).
+        }
+
+        return null;
+    }
 
     /**
      * Pool mgmt (parameter + daftar IP terpakai), di-cache. `$fresh` memaksa scan ulang.

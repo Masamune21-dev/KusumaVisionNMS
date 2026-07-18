@@ -1166,13 +1166,15 @@ class SmartOltController extends Controller
         $this->assertCapability($olt, 'supports_provisioning');
 
         try {
-            $next = $pool->nextFreeIp($olt, $request->boolean('fresh'));
+            $fresh = $request->boolean('fresh');
+            $next = $pool->nextFreeIp($olt, $fresh);
 
             if ($next === null) {
                 return response()->json(['error' => 'Pool mgmt-IP tidak terbaca dari OLT atau sudah penuh.'], 422);
             }
 
-            return response()->json($next);
+            // Preset TR069 (ACS url/username/password) dari OLT → registrasi konsisten dgn ONU lain.
+            return response()->json([...$next, ...$pool->tr069Preset($olt, $fresh)]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
