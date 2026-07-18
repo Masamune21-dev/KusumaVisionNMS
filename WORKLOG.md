@@ -2,6 +2,22 @@
 
 ## 2026-07-18
 
+### Detail port GPON & uplink C600 (klik chassis) + CPU/mem kartu via `show processor`
+
+Lanjutan chassis C600: (1) port uplink di chassis **tak bisa diklik** (kartu SFUB tak dikenali sbg uplink → tak ada link), (2) detail port GPON/uplink **gagal Refresh from OLT** (nama interface & perintah CLI masih ejaan C300/C320), (3) **CPU/mem kartu kosong**. Semua perintah CLI **diverifikasi live** ke LAS GALERAS dulu.
+
+Temuan live (C600/TITAN): `show interface gpon_olt-1/3/1` JALAN (`is activate,line protocol is up`, Description, Input/Output rate) tapi **tak ada** `optical-module-info` (Invalid input); `show interface xgei-1/10/1` JALAN (`admin status is up, line protocol is up`, rate format beda `input : N Bps, M pps`) tapi `port-status`/`optical-module-info` **gagal**; `show processor` JALAN → per-kartu `PFU-1/{slot}/0`/`MPU-1/{slot}/0` dgn CPU%/PhyMem/Mem%.
+
+Changed:
+
+- `app/Services/ZteCardUplinkService.php` — `interfaceMetadata` kenali ejaan C600 (`gpon_olt-1/s/p`, `xgei-1/s/p`); `refreshGponInterface` branch C600 (regex C600, `show interface` saja tanpa optical, reuse `parseGponInterface` — format `is activate,line protocol is up` cocok); `refreshUplinkInterface`+`refreshInterfaceDetails`+`getUplinkInfo` branch C600 → `show interface` + **parser baru `parseC600UplinkInterface`** (admin/line status, description [skip `null`], rate current/peak, utilisasi); **CPU/mem C600 via `show processor`** (`mergeC600ProcessorLoad`+`parseC600Processors`, gantikan walk SNMP `.1015` yg tak ada di C600).
+- `app/Http/Controllers/SmartOltController.php` — konstanta `PORT_INTERFACE_REGEX`/`UPLINK_INTERFACE_REGEX` mencakup C300/C320 **dan** C600; dipakai di `portDetail`/`refreshPortDetail`/`portTraffic`/`storePortVlan`; ekstraksi slot/port tail pakai `[_-]` (separator `_` C300 / `-` C600).
+- `resources/js/Components/SmartOlt/OltChassis.vue` — prop `isC600`; `interfaceName` C600 (`gpon_olt-1/…`, `xgei-1/…`) + kenali kartu uplink C600 (SFUB/XGEI/SFUL/SFUM, GEI) → **port uplink kini punya link (bisa diklik)**.
+- `resources/js/Pages/SmartOlt/Detail.vue` — teruskan `:is-c600="olt.capabilities.is_c600"`.
+- `tests/Unit/C600PortDetailParseTest.php` — baru: parseC600UplinkInterface (GAMER live + description `null`→null), parseC600Processors (PFU/MPU), interfaceMetadata C600 + C300 tetap.
+
+Notes: C300/C320 tak tersentuh (semua branch di-gate `isC600`). C600 GPON tak ekspos SFP OLT-side via CLI (optical dilewati). Suite hijau, Pint bersih, build OK. Deploy = `git pull` + `npm run build` + reload php-fpm.
+
 ### Fix: Refresh Hardware / Visualisasi Chassis C600 gagal ("show card tidak berisi data") → baca kartu via SNMP zxAnCardTable
 
 Laporan user (+ screenshot): tombol **Refresh Hardware** di halaman Detail C600 gagal dengan "Hardware refresh failed: Output show card tidak berisi data card yang bisa diparse". Sebab: `ZteCardUplinkService::refreshCardStatus()` menjalankan CLI `show card` lalu `parseCards()` (regex kolom CLI) — format `show card` C600 beda/ tak ter-parse → daftar kosong → throw. Solusi: baca inventaris kartu C600 dari **SNMP zxAnCardTable** (`.1082.10.1.2.4.1`, index `{rack}.{shelf}.{slot}`, rack/shelf selalu 1), sesuai dokumen `docs/ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md`. Semua kolom **diverifikasi live** ke LAS GALERAS sebelum masuk kode.

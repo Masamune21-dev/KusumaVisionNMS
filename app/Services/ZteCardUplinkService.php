@@ -111,9 +111,10 @@ class ZteCardUplinkService
     private function mergeProcessorLoad(SnmpOlt $olt, array $cards): array
     {
         // cardProcessors() walks the C300/C320 zxAnCardTable (.1015), which doesn't exist on C600
-        // (its per-board CPU/mem .9/.11 read 0 anyway) — skip the wasted, always-failing walk there.
+        // (its per-board CPU/mem .9/.11 read 0 anyway) — C600 exposes per-card CPU/mem via CLI
+        // `show processor` instead, so route it there.
         if (SmartOltSupport::isC600($olt)) {
-            return $cards;
+            return $this->mergeC600ProcessorLoad($olt, $cards);
         }
 
         try {
@@ -137,6 +138,64 @@ class ZteCardUplinkService
         unset($card);
 
         return $cards;
+    }
+
+    /**
+     * Enrich C600 card rows with per-board CPU/mem from CLI `show processor` (SNMP .1082 CPU/mem
+     * read 0). Matched by slot from the board name PFU-1/{slot}/0 / MPU-1/{slot}/0. Non-fatal: a
+     * telnet hiccup leaves load null and the card list stays valid.
+     *
+     * @param  array<int, array<string, mixed>>  $cards
+     * @return array<int, array<string, mixed>>
+     */
+    private function mergeC600ProcessorLoad(SnmpOlt $olt, array $cards): array
+    {
+        try {
+            $result = $this->executor->execute($olt, 'show processor');
+            $bySlot = $this->parseC600Processors($this->cleanCliOutput($result['output']));
+        } catch (Throwable) {
+            $bySlot = [];
+        }
+
+        foreach ($cards as &$card) {
+            $proc = $bySlot[(int) ($card['slot'] ?? 0)] ?? null;
+            $card['cpu_load'] = $proc['cpu'] ?? null;
+            $card['mem_load'] = $proc['mem'] ?? null;
+            $card['phy_mem_mb'] = $proc['phy_mem'] ?? null;
+        }
+        unset($card);
+
+        return $cards;
+    }
+
+    /**
+     * Parse C600 `show interface`-less `show processor` table into {slot => {cpu, mem, phy_mem}}.
+     * Row (verified live): `PFU-1/3/0  N/A  37% 27% 24% 37% 2048 1012 50.586%` →
+     * name, character, CPU(5s), CPU(1m), CPU(5m), Peak, PhyMem(MB), FreeMem(MB), Mem%.
+     *
+     * @return array<int, array{cpu:int, mem:int, phy_mem:int}>
+     */
+    private function parseC600Processors(string $output): array
+    {
+        $bySlot = [];
+
+        foreach (explode("\n", $output) as $line) {
+            if (! preg_match(
+                '#^[A-Z]+-\d+/(\d+)/\d+\s+\S+\s+(\d+)%\s+\d+%\s+\d+%\s+\d+%\s+(\d+)\s+\d+\s+(\d+(?:\.\d+)?)%#',
+                trim($line),
+                $m
+            )) {
+                continue;
+            }
+
+            $bySlot[(int) $m[1]] = [
+                'cpu' => (int) $m[2],
+                'phy_mem' => (int) $m[3],
+                'mem' => (int) round((float) $m[4]),
+            ];
+        }
+
+        return $bySlot;
     }
 
     /**
@@ -264,6 +323,10 @@ class ZteCardUplinkService
             throw new RuntimeException('Belum ada card uplink aktif untuk discovery interface. Refresh hardware terlebih dahulu.');
         }
 
+        if (SmartOltSupport::isC600($olt)) {
+            return $this->refreshC600InterfaceDetails($olt, $inventory);
+        }
+
         $commands = [];
         foreach ($inventory as $item) {
             $interface = $item['interface'];
@@ -360,23 +423,96 @@ class ZteCardUplinkService
     }
 
     /**
+     * C600 uplink discovery: `show interface {iface}` per uplink (port-status/optical unsupported),
+     * parsed with parseC600UplinkInterface. Persists rows like refreshInterfaceDetails.
+     *
+     * @param  array<int, array<string, mixed>>  $inventory
+     * @return array<int, array<string, mixed>>
+     */
+    private function refreshC600InterfaceDetails(SnmpOlt $olt, array $inventory): array
+    {
+        $commands = [];
+        foreach ($inventory as $item) {
+            $commands[] = "show interface {$item['interface']}";
+        }
+        $commands = array_values(array_unique($commands));
+
+        $result = $this->executor->execute($olt, implode("\n", $commands));
+        $output = $this->cleanCliOutput($result['output']);
+        $segments = $this->splitCommandOutput($output);
+        $now = now();
+        $rows = [];
+
+        foreach ($inventory as $item) {
+            $interface = $item['interface'];
+            $statusOutput = $segments["show interface {$interface}"] ?? '';
+            $parsed = $this->parseC600UplinkInterface($statusOutput, $interface);
+
+            if ($parsed === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'snmp_olt_id' => $olt->id,
+                'interface' => $interface,
+                'interface_type' => $item['interface_type'],
+                'slot' => $item['slot'],
+                'port' => $item['port'],
+                'card_type' => $item['card_type'],
+                ...$parsed,
+                'raw_status' => trim($statusOutput) ?: null,
+                'status_refreshed_at' => $now,
+                'refreshed_at' => $now,
+            ];
+        }
+
+        if ($rows === []) {
+            $reason = $result['error'] ? ': '.$result['error'] : '';
+
+            throw new RuntimeException('Tidak ada detail interface yang berhasil diparse'.$reason);
+        }
+
+        DB::transaction(function () use ($olt, $rows): void {
+            SmartOltInterfaceStatus::query()
+                ->where('snmp_olt_id', $olt->id)
+                ->where('interface_type', 'uplink')
+                ->delete();
+
+            foreach ($rows as $row) {
+                SmartOltInterfaceStatus::create($row);
+            }
+        });
+
+        return $this->getStoredUplinkInterfaces($olt);
+    }
+
+    /**
      * Refresh one GPON interface detail from `show interface gpon-olt_...`.
      *
      * @return array<string, mixed>
      */
     public function refreshGponInterface(SnmpOlt $olt, string $interface): array
     {
-        if (! preg_match('/^gpon(?:-olt)?_\d+\/\d+\/\d+$/', $interface)) {
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        if ($isC600
+            ? ! preg_match('#^gpon_olt-\d+/\d+/\d+$#', $interface)
+            : ! preg_match('/^gpon(?:-olt)?_\d+\/\d+\/\d+$/', $interface)) {
             throw new RuntimeException('Interface GPON tidak valid.');
         }
 
         $statusCommand = "show interface {$interface}";
-        $opticalCommand = "show interface optical-module-info {$interface}";
-        $result = $this->executor->execute($olt, "{$statusCommand}\n{$opticalCommand}");
+        // C600 has no `show interface optical-module-info` for GPON ports (Invalid input),
+        // so skip the optical read there — the OLT-side SFP metrics aren't exposed via CLI.
+        $opticalCommand = $isC600 ? null : "show interface optical-module-info {$interface}";
+        $result = $this->executor->execute(
+            $olt,
+            $opticalCommand ? "{$statusCommand}\n{$opticalCommand}" : $statusCommand
+        );
         $output = $this->cleanCliOutput($result['output']);
         $segments = $this->splitCommandOutput($output);
         $statusOutput = $segments[$statusCommand] ?? $output;
-        $opticalOutput = $segments[$opticalCommand] ?? '';
+        $opticalOutput = $opticalCommand ? ($segments[$opticalCommand] ?? '') : '';
         $parsed = $this->parseGponInterface($statusOutput, $interface);
 
         if ($parsed === null) {
@@ -424,6 +560,10 @@ class ZteCardUplinkService
      */
     public function refreshUplinkInterface(SnmpOlt $olt, string $interface): array
     {
+        if (SmartOltSupport::isC600($olt)) {
+            return $this->refreshC600UplinkInterface($olt, $interface);
+        }
+
         if (! preg_match('/^(?:xgei|gei)_\d+\/\d+\/\d+$/', $interface)) {
             throw new RuntimeException('Interface uplink tidak valid.');
         }
@@ -498,12 +638,151 @@ class ZteCardUplinkService
     }
 
     /**
+     * Refresh one C600 uplink interface (xgei-1/{slot}/{port}) from CLI and persist it.
+     * C600 has no `show interface port-status` / `optical-module-info` for uplinks (Invalid input),
+     * so `show interface {iface}` is the single source: admin/line status, description, rates.
+     *
+     * @return array<string, mixed>
+     */
+    private function refreshC600UplinkInterface(SnmpOlt $olt, string $interface): array
+    {
+        if (! preg_match('#^(?:xgei|gei)-\d+/\d+/\d+$#', $interface)) {
+            throw new RuntimeException('Interface uplink tidak valid.');
+        }
+
+        $statusCommand = "show interface {$interface}";
+        $result = $this->executor->execute($olt, $statusCommand);
+        $statusOutput = $this->cleanCliOutput($result['output']);
+        $parsed = $this->parseC600UplinkInterface($statusOutput, $interface);
+
+        if ($parsed === null) {
+            $reason = $result['error'] ? ': '.$result['error'] : '';
+
+            throw new RuntimeException("Output {$interface} tidak bisa diparse{$reason}");
+        }
+
+        $metadata = $this->interfaceMetadata($interface);
+        $now = now();
+        $values = [
+            ...$metadata,
+            'card_type' => $this->cardTypeForSlot($olt, (int) ($metadata['slot'] ?? 0)),
+            ...$parsed,
+            'raw_status' => trim($statusOutput) ?: null,
+            'status_refreshed_at' => $now,
+            'refreshed_at' => $now,
+        ];
+
+        $row = SmartOltInterfaceStatus::updateOrCreate(
+            ['snmp_olt_id' => $olt->id, 'interface' => $interface],
+            $values,
+        );
+
+        return $this->serializeInterface($row);
+    }
+
+    /**
+     * Parse a C600 `show interface xgei-1/{slot}/{port}` block. Format (verified live):
+     *   xgei-1/10/1 admin status is up, line protocol is up, detect status is OK
+     *   Description is GAMER
+     *   The port negotiation is force / The port is optical / Duplex full
+     *     Interface current rate:  input : N Bps, M pps  /  output : N Bps, M pps
+     *     Interface peak rate:     input : N Bps, output: N Bps
+     *     Interface utilization:   input : P%,  output : P%
+     *
+     * @return array<string, mixed>|null
+     */
+    public function parseC600UplinkInterface(string $output, ?string $expectedInterface = null): ?array
+    {
+        $output = $this->cleanCliOutput($output);
+
+        if ($this->isInvalidOutput($output)) {
+            return null;
+        }
+
+        $ifacePattern = $expectedInterface !== null
+            ? preg_quote($expectedInterface, '/')
+            : '(?:xgei|gei)-\d+\/\d+\/\d+';
+
+        if (! preg_match('/\b'.$ifacePattern.'\b\s+admin status is\s+([^,]+?)\s*,\s*line protocol is\s+([^,\s]+)/i', $output, $m)) {
+            return null;
+        }
+
+        $description = null;
+        if (preg_match('/Description\s+is\s+(.+)/i', $output, $dm)) {
+            $description = trim(rtrim($dm[1], '.'));
+            $description = ($description === '' || strcasecmp($description, 'null') === 0 || strcasecmp($description, 'none') === 0)
+                ? null
+                : $description;
+        }
+
+        // Current rate: "input : N Bps, M pps" (first match) / "output : N Bps, M pps".
+        $inputBps = $outputBps = $inputPps = $outputPps = null;
+        if (preg_match('/input\s*:\s*(\d+)\s*Bps,\s*(\d+)\s*pps/i', $output, $rm)) {
+            $inputBps = (int) $rm[1];
+            $inputPps = (int) $rm[2];
+        }
+        if (preg_match('/output\s*:\s*(\d+)\s*Bps,\s*(\d+)\s*pps/i', $output, $rm)) {
+            $outputBps = (int) $rm[1];
+            $outputPps = (int) $rm[2];
+        }
+
+        // Peak rate: "input : N Bps, output: N Bps" (bps only, no pps).
+        $inputPeakBps = $outputPeakBps = null;
+        if (preg_match('/input\s*:\s*(\d+)\s*Bps,\s*output:\s*(\d+)\s*Bps/i', $output, $pm)) {
+            $inputPeakBps = (int) $pm[1];
+            $outputPeakBps = (int) $pm[2];
+        }
+
+        // Utilization: "input : P%,  output : P%".
+        $inputPct = $outputPct = null;
+        if (preg_match('/input\s*:\s*(-?\d+(?:\.\d+)?)%\s*,?\s*output\s*:\s*(-?\d+(?:\.\d+)?)%/i', $output, $um)) {
+            $inputPct = (float) $um[1];
+            $outputPct = (float) $um[2];
+        }
+
+        $duplex = preg_match('/Duplex\s+(\S+)/i', $output, $dpx) ? strtolower($dpx[1]) : null;
+        $negotiation = preg_match('/port negotiation is\s+(\S+)/i', $output, $ng) ? strtolower($ng[1]) : null;
+
+        return [
+            'admin_status' => strtolower(trim($m[1])),
+            'link_status' => strtolower(trim($m[2])),
+            'description' => $description,
+            'negotiation' => $negotiation,
+            'duplex' => $duplex,
+            'input_bps' => $inputBps,
+            'output_bps' => $outputBps,
+            'input_pps' => $inputPps,
+            'output_pps' => $outputPps,
+            'input_peak_bps' => $inputPeakBps,
+            'output_peak_bps' => $outputPeakBps,
+            'input_throughput_percent' => $inputPct,
+            'output_throughput_percent' => $outputPct,
+        ];
+    }
+
+    /**
      * @return array{interface:string, line_status:string, input_bps:int, output_bps:int, input_pps:int, output_pps:int, timestamp:int}
      */
     public function getUplinkInfo(SnmpOlt $olt, string $interface): array
     {
         $result = $this->executor->execute($olt, "show interface {$interface}");
         $output = $this->cleanCliOutput($result['output']);
+
+        // C600 uplink output differs ("… admin status is up, line protocol is up" + "input : N Bps, M pps")
+        // — reuse the C600 parser so live traffic works on TITAN uplinks.
+        if (SmartOltSupport::isC600($olt)) {
+            $parsed = $this->parseC600UplinkInterface($output, $interface);
+
+            return [
+                'interface' => $interface,
+                'line_status' => $parsed['link_status'] ?? 'unknown',
+                'input_bps' => (int) ($parsed['input_bps'] ?? 0),
+                'output_bps' => (int) ($parsed['output_bps'] ?? 0),
+                'input_pps' => (int) ($parsed['input_pps'] ?? 0),
+                'output_pps' => (int) ($parsed['output_pps'] ?? 0),
+                'timestamp' => time(),
+            ];
+        }
 
         $lineStatus = 'unknown';
         if (preg_match('/\b'.preg_quote($interface, '/').'\b\s+is\s+(administratively\s+down|up|down)/i', $output, $m)) {
@@ -1012,6 +1291,23 @@ class ZteCardUplinkService
      */
     private function interfaceMetadata(string $interface): array
     {
+        // C600/TITAN 3-tier naming: gpon_olt-1/{slot}/{port}, xgei-1/{slot}/{port} (rack always 1).
+        if (preg_match('#^gpon_olt-\d+/(\d+)/(\d+)$#i', $interface, $m)) {
+            return [
+                'interface_type' => 'gpon',
+                'slot' => (int) $m[1],
+                'port' => (int) $m[2],
+            ];
+        }
+
+        if (preg_match('#^(?:xgei|gei)-\d+/(\d+)/(\d+)$#i', $interface, $m)) {
+            return [
+                'interface_type' => 'uplink',
+                'slot' => (int) $m[1],
+                'port' => (int) $m[2],
+            ];
+        }
+
         if (preg_match('/^(xgei|gei)_(\d+)\/(\d+)\/(\d+)$/i', $interface, $m)) {
             return [
                 'interface_type' => 'uplink',

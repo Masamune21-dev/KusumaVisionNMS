@@ -17,6 +17,8 @@ const props = defineProps({
     interfaces: { type: Array, default: () => [] },
     model: { type: String, default: '' },
     lastRefresh: { type: String, default: null },
+    // C600/TITAN memakai penamaan interface 3-tier berbeda (gpon_olt-1/s/p, xgei-1/s/p).
+    isC600: { type: Boolean, default: false },
 });
 
 // Tipe kartu layanan GPON (C300/C320/C600) — port-nya diwarnai live dari oper_status.
@@ -24,6 +26,9 @@ const GPON_PREFIX = /^G[TF]/i;
 // Kartu uplink (selaras dgn ZteCardUplinkService): XGEI = 10GE, GEI = 1GE.
 const XGEI_CARDS = ['HUVQ', 'HUVG', 'HUVX'];
 const GEI_CARDS = ['SMXA', 'SMXB'];
+// Kartu uplink C600 (selaras C600_XGEI_CARDS/C600_GEI_CARDS di ZteCardUplinkService).
+const C600_XGEI_CARDS = ['SFUB', 'XGEI', 'SFUL', 'SFUM'];
+const C600_GEI_CARDS = ['GEI'];
 // Kartu catu daya (PRWG/PRWH/dll): tak punya port GPON/uplink, tapi fisiknya
 // ada konektor daya -48V + 2 port LAN RJ45 → digambar faceplate, bukan "tanpa port".
 const POWER_PREFIX = /^PRW/i;
@@ -133,6 +138,13 @@ const portCount = (card) => {
 // Nama interface CLI untuk port tertentu, atau null bila kartu tak punya interface (kontrol/power).
 const interfaceName = (card, port) => {
     const cfg = String(card.cfg_type ?? '').toUpperCase();
+    if (props.isC600) {
+        // C600 3-tier: gpon_olt-1/{slot}/{port}, xgei-1/{slot}/{port} (rack 1).
+        if (isGponCard(card)) return `gpon_olt-1/${card.slot}/${port}`;
+        if (C600_XGEI_CARDS.includes(cfg)) return `xgei-1/${card.slot}/${port}`;
+        if (C600_GEI_CARDS.includes(cfg)) return `gei-1/${card.slot}/${port}`;
+        return null;
+    }
     if (isGponCard(card)) return `gpon-olt_1/${card.slot}/${port}`;
     if (XGEI_CARDS.includes(cfg)) return `xgei_1/${card.slot}/${port}`;
     if (GEI_CARDS.includes(cfg)) return `gei_1/${card.slot}/${port}`;

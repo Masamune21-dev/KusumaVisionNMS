@@ -203,6 +203,7 @@ const oltImage = computed(() => {
                     :ports="snapshot.ports"
                     :interfaces="interfaces"
                     :model="olt.name"
+                    :is-c600="olt.capabilities.is_c600"
                     :last-refresh="hardwareLastRefresh"
                 >
                     <template #actions>

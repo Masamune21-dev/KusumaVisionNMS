@@ -42,6 +42,13 @@ class SmartOltController extends Controller
 {
     use ManagesOltOwnership;
 
+    // Nama interface port yang valid untuk halaman detail port — mencakup ejaan C300/C320
+    // (gpon-olt_1/s/p, xgei_1/s/p) DAN C600/TITAN (gpon_olt-1/s/p, xgei-1/s/p).
+    private const PORT_INTERFACE_REGEX = '/^(?:gpon(?:-olt_|_olt-|_)\d+\/\d+\/\d+|(?:xgei|gei)[_-]\d+\/\d+\/\d+)$/';
+
+    // Subset uplink saja (traffic live & tag VLAN tak berlaku untuk port GPON).
+    private const UPLINK_INTERFACE_REGEX = '/^(?:xgei|gei)[_-]\d+\/\d+\/\d+$/';
+
     /**
      * Cache saklar alarm partner per-OLT untuk request ini (id OLT → bool), agar
      * serialisasi daftar OLT tak N+1. Hanya di-isi bila viewer seorang partner.
@@ -138,7 +145,7 @@ class SmartOltController extends Controller
     public function portDetail(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): Response
     {
         $data = $request->validate([
-            'interface' => ['required', 'string', 'regex:/^(?:gpon(?:-olt)?|xgei|gei)_\d+\/\d+\/\d+$/'],
+            'interface' => ['required', 'string', 'regex:'.self::PORT_INTERFACE_REGEX],
         ]);
 
         $interface = $data['interface'];
@@ -151,7 +158,8 @@ class SmartOltController extends Controller
         $port = null;
         $onuSummary = null;
 
-        if (preg_match('/_(\d+)\/(\d+)\/(\d+)$/', $interface, $m)) {
+        // Tail {slot}/{port} — separator is `_` on C300/C320, `-` on C600 (gpon_olt-1/3/1).
+        if (preg_match('/[_-](\d+)\/(\d+)\/(\d+)$/', $interface, $m)) {
             $slot = (int) $m[2];
             $port = (int) $m[3];
         }
@@ -179,7 +187,7 @@ class SmartOltController extends Controller
     public function refreshPortDetail(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): RedirectResponse
     {
         $data = $request->validate([
-            'interface' => ['required', 'string', 'regex:/^(?:gpon(?:-olt)?|xgei|gei)_\d+\/\d+\/\d+$/'],
+            'interface' => ['required', 'string', 'regex:'.self::PORT_INTERFACE_REGEX],
         ]);
 
         $interface = $data['interface'];
@@ -231,7 +239,7 @@ class SmartOltController extends Controller
     {
         $interface = $request->query('interface', '');
 
-        if (! preg_match('/^(?:xgei|gei)_\d+\/\d+\/\d+$/', $interface)) {
+        if (! preg_match(self::UPLINK_INTERFACE_REGEX, $interface)) {
             return response()->json(['error' => 'Parameter interface tidak valid.'], 422);
         }
 
@@ -245,7 +253,7 @@ class SmartOltController extends Controller
     public function storePortVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
     {
         $data = $request->validate([
-            'interface' => ['required', 'string', 'regex:/^(?:xgei|gei)_\d+\/\d+\/\d+$/'],
+            'interface' => ['required', 'string', 'regex:'.self::UPLINK_INTERFACE_REGEX],
             'vlan_id' => ['required', 'integer', 'min:1', 'max:4094'],
         ]);
 
