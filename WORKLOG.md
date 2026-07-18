@@ -2,6 +2,18 @@
 
 ## 2026-07-18
 
+### C600: deskripsi ONU + model/firmware pada daftar unconfigured (lengkapi data SNMP)
+
+Lanjutan opsional untuk melengkapi data C600 biar sesuai (SmartOLT). (1) Deskripsi ONU terkonfigurasi; (2) model + firmware pada daftar unconfigured.
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — (1) `C600_ONU_DESCRIPTION = .1082.500.10.2.3.3.1.3` + `onuOids` C600 `description` → di-*merge* otomatis oleh `registeredOnus` (isi metadata SmartOLT mentah `zone_…_[extid_…]_authd_…`). (2) `C600_UNCFG_MODEL` (`.8`) + `C600_UNCFG_FIRMWARE` (`.10`) — `unconfiguredOnus` memperkaya tiap record C600 dengan model + firmware (best-effort; serial+port tetap cukup bila walk ini gagal).
+- `resources/js/Pages/SmartOlt/Unconfigured.vue` — kolom **Type** (model) di tabel desktop + kartu mobile (`$t('common.type')`, sudah ada id/en). Kosong (`—`) untuk OLT yang tak menyediakannya.
+- `tests/Unit/C600UnconfiguredOnuTest.php` — assert model (`HG8145X6-10`) + firmware (`V5R022C00S266`) hasil enrich.
+
+Notes: suite penuh hijau, Pint bersih, build frontend temp OK. Deskripsi disimpan mentah — parse terstruktur (zone/external-id/authd date) = peningkatan lanjutan. Deploy = `git pull` + build + reload php-fpm + restart worker.
+
 ### C600 nama pelanggan + admin-state + phase-state kaya via SNMP (CLI menyensor Name/Description jadi ********)
 
 User melampirkan dokumen packet-capture baru: nama ONU C600 ternyata **terbaca via SNMP** (disimpan `docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md`), dan minta sekalian admin-state + last-down. Klarifikasi penting: `********` yang tampil di CLI `show gpon onu detail-info` itu **masking firmware C600 sendiri**, bukan `maskSecrets` kita — SNMP mengembalikan nilai asli (dugaan sebelumnya "name == cli_password" keliru). Sebelumnya `C600_ONU_NAME`/`ADMIN_STATE`/`LAST_DOWN` = `null` (dikira tak ada tabelnya).

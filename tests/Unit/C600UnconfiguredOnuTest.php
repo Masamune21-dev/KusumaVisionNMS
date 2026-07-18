@@ -19,11 +19,15 @@ class C600UnconfiguredOnuTest extends TestCase
         {
             public function walk(SnmpOlt $olt, string $oid): array
             {
-                if (str_contains($oid, '1082.500.2.2.11.2.1.2')) {
-                    return ['.'.ltrim($oid, '.').'.285279504.1' => '48 57 54 43 C6 2B 52 AF'];
-                }
+                $base = '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1';
+                $cols = [
+                    $base.'.2' => '48 57 54 43 C6 2B 52 AF', // serial
+                    $base.'.8' => 'HG8145X6-10',             // model
+                    $base.'.10' => 'V5R022C00S266',          // firmware
+                ];
 
-                return [];
+                // walk() normalizes rows (no leading dot); key = column-oid + .{ifIndex}.{entry}.
+                return isset($cols[$oid]) ? ["{$oid}.285279504.1" => $cols[$oid]] : [];
             }
         };
 
@@ -36,6 +40,8 @@ class C600UnconfiguredOnuTest extends TestCase
         $this->assertSame(5, $rows[0]['slot']);  // ifIndex 0x11010510 → (>>8)&0xFF
         $this->assertSame(16, $rows[0]['port']); //                   →  &0xFF
         $this->assertSame('gpon_onu-1/5/16:1', $rows[0]['port_alias']);
+        $this->assertSame('HG8145X6-10', $rows[0]['model']);       // enriched from .8
+        $this->assertSame('V5R022C00S266', $rows[0]['firmware']);  // enriched from .10
     }
 
     public function test_non_c600_does_not_use_c600_unconfigured_oid(): void

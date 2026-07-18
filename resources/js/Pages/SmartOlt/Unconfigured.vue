@@ -102,6 +102,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <p class="kv-mobile-card-subtitle">
                                             <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
                                             <span v-else>-</span>
+                                            <span v-if="onu.model"> · {{ onu.model }}</span>
                                         </p>
                                     </div>
                                     <IconButton
@@ -127,6 +128,7 @@ const formatDate = (value) => formatDateTime(value);
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.type') }}</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
                                     <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                 </tr>
@@ -135,6 +137,7 @@ const formatDate = (value) => formatDateTime(value);
                                 <tr v-for="onu in snapshot.onus" :key="onu.serial_number"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]">
                                     <td class="px-4 py-4 font-mono text-xs text-slate-300">{{ onu.serial_number }}</td>
+                                    <td class="px-4 py-4 text-sm text-slate-300">{{ onu.model || '—' }}</td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
                                         <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
                                         <span v-else class="text-slate-400">-</span>

@@ -93,6 +93,10 @@ class OltSnmpClient
     // docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md.
     private const C600_ONU_NAME = '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2';
 
+    // Description column .3 in the same name table — holds SmartOLT metadata
+    // "zone_<zone>_[descr_<text>_][extid_<id>_]authd_<YYYYMMDD>" (verified live). Stored raw.
+    private const C600_ONU_DESCRIPTION = '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.3';
+
     // Admin state (operator enable/disable) — state table .10.2.3.8.1.1, verified live: 1=enable,
     // 2=disable (value 2 → CLI "Admin state: disable" on the 27 disabled ONUs). decodeAdminState
     // already maps 1→active, 2→disabled.
@@ -111,6 +115,12 @@ class OltSnmpClient
     private const C600_UNCFG_OIDS = [
         '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.2',
     ];
+
+    // Unconfigured-table model (.8) & firmware (.10) columns — merged onto discovery records by
+    // the same {PON-ifIndex}.{entry} index so operators see the device type before registering.
+    private const C600_UNCFG_MODEL = '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.8';
+
+    private const C600_UNCFG_FIRMWARE = '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.10';
 
     /**
      * @return array<string, mixed>
@@ -361,7 +371,7 @@ class OltSnmpClient
             return [
                 'type' => self::C600_ONU_TYPE,
                 'name' => self::C600_ONU_NAME,
-                'description' => null, // no separate description column on the C600 ONU table
+                'description' => self::C600_ONU_DESCRIPTION,
                 'sn' => self::C600_ONU_SN,
                 'admin_state' => self::C600_ONU_ADMIN_STATE,
                 'phase_state' => self::C600_ONU_PHASE_STATE,
@@ -624,6 +634,23 @@ class OltSnmpClient
 
             if ($onus !== []) {
                 break;
+            }
+        }
+
+        // C600: enrich each discovered ONU with its model + firmware (best-effort — serial + port
+        // already suffice for registration if these walks fail).
+        if ($isC600 && $onus !== []) {
+            try {
+                $models = $this->walk($olt, self::C600_UNCFG_MODEL);
+                $firmwares = $this->walk($olt, self::C600_UNCFG_FIRMWARE);
+                foreach ($onus as &$onu) {
+                    $suffix = (string) $onu['oid_index'];
+                    $onu['model'] = $this->walkValue($models, self::C600_UNCFG_MODEL, $suffix);
+                    $onu['firmware'] = $this->walkValue($firmwares, self::C600_UNCFG_FIRMWARE, $suffix);
+                }
+                unset($onu);
+            } catch (Throwable) {
+                // leave model/firmware unset
             }
         }
 
