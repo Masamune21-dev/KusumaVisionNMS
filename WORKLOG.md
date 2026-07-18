@@ -2,6 +2,18 @@
 
 ## 2026-07-18
 
+### Fix: Refresh Hardware / Visualisasi Chassis C600 gagal ("show card tidak berisi data") → baca kartu via SNMP zxAnCardTable
+
+Laporan user (+ screenshot): tombol **Refresh Hardware** di halaman Detail C600 gagal dengan "Hardware refresh failed: Output show card tidak berisi data card yang bisa diparse". Sebab: `ZteCardUplinkService::refreshCardStatus()` menjalankan CLI `show card` lalu `parseCards()` (regex kolom CLI) — format `show card` C600 beda/ tak ter-parse → daftar kosong → throw. Solusi: baca inventaris kartu C600 dari **SNMP zxAnCardTable** (`.1082.10.1.2.4.1`, index `{rack}.{shelf}.{slot}`, rack/shelf selalu 1), sesuai dokumen `docs/ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md`. Semua kolom **diverifikasi live** ke LAS GALERAS sebelum masuk kode.
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — method baru `cardInventory($olt)`: walk 6 kolom zxAnCardTable → baris kartu bergaya `show card` (rack/shelf/slot/cfg_type/real_type/port_count/hard_ver/soft_ver/status/raw_line). Kolom: `.2` kode tipe konfigurasi, `.4` model terdeteksi, `.5` oper-status enum, `.7` jumlah port, `.26` versi board (hard_ver), `.31` versi software (soft_ver). Peta kode-tipe→model **terverifikasi live** (656131 SFUB, 659973 GFGM, 659974 GFGL, 659979 GFGN, 663810 PRVR, 665602 FCVDE-I) — dipakai utk slot yang board-nya offline (`.4` kosong) supaya cfg_type tetap terisi. Enum oper-status→token status yg dimengerti UI (1/3/34→INSERVICE, 4/2/…→OFFLINE, 11→PWROFF; INACTIVE_CARD_STATUSES menggerbang tampilan aktif/nonaktif). Helper `normalizeCardText` buang sentinel "N/A"/kosong→null.
+- `app/Services/ZteCardUplinkService.php` — `refreshCardStatus()` bercabang: **C600 → `snmp->cardInventory()`** (CLI `show card` tak dipakai), C300/C320 tetap `parseCards(show card)`. Persist & visualisasi identik. Import `SmartOltSupport`.
+- `tests/Unit/C600CardInventoryTest.php` — baru: dekode tipe/status/port/versi atas data live (GFGL/SFUB/GFGN/PRVR; board offline slot 11/17 model kosong→cfg_type dari kode + status OFFLINE; soft_ver "N/A"→null).
+
+Notes: tabel card diverifikasi live via `snmpbulkwalk` (kolom .2/.4/.5/.7/.26/.31) — cocok 100% dgn dokumen (slot 11 & 17 = hwOffline, sisanya inService). CPU/mem `.9/.11` = 0 di semua kartu → cpu_load/mem_load dibiarkan null (mergeProcessorLoad C300 `.1015` tak berlaku C600). Uplink-refresh setelah kartu tetap non-fatal (try/catch di controller). Suite hijau (8 test hardware+C600, 100 assertion), Pint bersih. Backend murni — deploy = `git pull` + reload php-fpm.
+
 ### Percepat buka Configure ONU C600 (~25-30s → ~detik) via `show this` config-mode, digerbang cek cache
 
 Buka Configure ONU C600 lambat (~25-30 dtk) karena `show running-config xpon | begin <iface>` mentransfer dari ONU target sampai AKHIR konfigurasi seluruh OLT lalu dipotong sisi aplikasi. Alternatif jauh lebih cepat: masuk config-mode dan `show this` yang mengembalikan HANYA blok ONU itu (~detik, terbukti live).

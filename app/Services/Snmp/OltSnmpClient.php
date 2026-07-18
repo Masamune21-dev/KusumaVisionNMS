@@ -122,6 +122,53 @@ class OltSnmpClient
 
     private const C600_UNCFG_FIRMWARE = '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.10';
 
+    // C600/TITAN chassis card inventory — zxAnCardTable (.1082.10.1.2.4.1), index {rack}.{shelf}.{slot}
+    // (rack/shelf always 1). CLI `show card` output isn't parseable on C600, so the Chassis
+    // Visualization / Refresh Hardware reads the card list here instead. Columns verified live
+    // (ZXA10 C600 V1.2.2, docs/ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md): .2 configured type code,
+    // .4 detected model, .5 oper status enum, .7 port count, .26 board version, .31 software version.
+    private const C600_CARD_TABLE = '1.3.6.1.4.1.3902.1082.10.1.2.4.1';
+
+    private const C600_CARD_COLUMNS = [
+        'cfg_code' => self::C600_CARD_TABLE.'.2',
+        'real_model' => self::C600_CARD_TABLE.'.4',
+        'oper_status' => self::C600_CARD_TABLE.'.5',
+        'port_count' => self::C600_CARD_TABLE.'.7',
+        'hard_ver' => self::C600_CARD_TABLE.'.26',
+        'soft_ver' => self::C600_CARD_TABLE.'.31',
+    ];
+
+    // Configured-type code (.2) → card model, verified live against LAS GALERAS. Used for slots whose
+    // board is offline/absent (detected model .4 is then empty) so cfg_type still resolves.
+    private const C600_CARD_TYPE_CODES = [
+        656131 => 'SFUB',
+        659973 => 'GFGM',
+        659974 => 'GFGL',
+        659979 => 'GFGN',
+        663810 => 'PRVR',
+        665602 => 'FCVDE-I',
+    ];
+
+    // zxAnCardTable oper-status enum (.5) → CLI-style status token the UI understands. Only 1/4 seen
+    // live; the rest follow the documented enum. INACTIVE_CARD_STATUSES (OFFLINE/EMPTY/PWROFF) gate the
+    // "inactive" styling & aktif/nonaktif port counts, so anything not clearly up maps to those.
+    private const C600_CARD_STATUS_MAP = [
+        1 => 'INSERVICE',   // inService
+        3 => 'INSERVICE',   // hwOnline
+        34 => 'INSERVICE',  // powerSaving
+        5 => 'PROV',        // configuring
+        2 => 'OFFLINE',     // notInService
+        4 => 'OFFLINE',     // hwOffline
+        6 => 'OFFLINE',     // configFailed
+        7 => 'OFFLINE',     // typeMismatch
+        8 => 'OFFLINE',     // deactivated
+        9 => 'OFFLINE',     // faulty
+        10 => 'OFFLINE',    // invalid
+        12 => 'OFFLINE',    // unauthorized
+        13 => 'OFFLINE',    // adminDown
+        11 => 'PWROFF',     // noPower
+    ];
+
     /**
      * @return array<string, mixed>
      */
@@ -747,6 +794,87 @@ class OltSnmpClient
         }
 
         return $result;
+    }
+
+    /**
+     * C600 chassis card inventory via SNMP (zxAnCardTable). Returns rows shaped like the CLI
+     * `show card` parser (rack/shelf/slot/cfg_type/real_type/port_count/hard_ver/soft_ver/status/
+     * raw_line) so ZteCardUplinkService can persist & visualize them identically. C600's `show card`
+     * CLI output isn't parseable, so this is the only reliable card source for the Chassis view.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function cardInventory(SnmpOlt $olt): array
+    {
+        $byIndex = [];
+
+        foreach (self::C600_CARD_COLUMNS as $field => $baseOid) {
+            foreach ($this->walk($olt, $baseOid) as $oid => $value) {
+                $index = $this->cardIndexSuffix((string) $oid, $baseOid);
+
+                if ($index === null) {
+                    continue;
+                }
+
+                $byIndex[$index][$field] = (string) $value;
+            }
+        }
+
+        $cards = [];
+
+        foreach ($byIndex as $index => $vals) {
+            $parts = explode('.', $index);
+            $slot = (int) array_pop($parts);          // index = rack.shelf.slot (rack/shelf = 1)
+            $shelf = (int) (array_pop($parts) ?: 1);
+            $rack = (int) (array_pop($parts) ?: 1);
+
+            if ($slot < 1) {
+                continue;
+            }
+
+            $cfgCode = (int) ($vals['cfg_code'] ?? 0);
+            $realModel = $this->normalizeCardText($vals['real_model'] ?? null);
+            $cfgType = self::C600_CARD_TYPE_CODES[$cfgCode]
+                ?? $realModel
+                ?? ($cfgCode > 0 ? 'CODE-'.$cfgCode : null);
+
+            $status = self::C600_CARD_STATUS_MAP[(int) ($vals['oper_status'] ?? 0)] ?? 'OFFLINE';
+
+            $cards[] = [
+                'rack' => $rack ?: 1,
+                'shelf' => $shelf ?: 1,
+                'slot' => $slot,
+                'cfg_type' => $cfgType,
+                'real_type' => $realModel,
+                'port_count' => (int) ($vals['port_count'] ?? 0),
+                'hard_ver' => $this->normalizeCardText($vals['hard_ver'] ?? null),
+                'soft_ver' => $this->normalizeCardText($vals['soft_ver'] ?? null),
+                'status' => $status,
+                'raw_line' => sprintf(
+                    'SNMP zxAnCardTable slot %d (%s, oper-status %s)',
+                    $slot,
+                    $cfgType ?? '?',
+                    $vals['oper_status'] ?? '?'
+                ),
+            ];
+        }
+
+        usort($cards, fn ($a, $b) => [$a['rack'], $a['shelf'], $a['slot']] <=> [$b['rack'], $b['shelf'], $b['slot']]);
+
+        return $cards;
+    }
+
+    // Trim an SNMP card text column (model/version); drop empty & "N/A" sentinels to null so the UI
+    // shows a blank rather than a placeholder for offline boards.
+    private function normalizeCardText(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '' || strcasecmp($value, 'N/A') === 0) {
+            return null;
+        }
+
+        return $value;
     }
 
     private function cardIndexSuffix(string $oid, string $baseOid): ?string

@@ -6,6 +6,7 @@ use App\Models\SmartOltCardStatus;
 use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
@@ -58,14 +59,24 @@ class ZteCardUplinkService
      */
     public function refreshCardStatus(SnmpOlt $olt): array
     {
-        $result = $this->executor->execute($olt, 'show card');
-        $output = $this->cleanCliOutput($result['output']);
-        $cards = $this->parseCards($output);
+        // C600 `show card` CLI output can't be parsed reliably, so read the chassis card inventory
+        // from SNMP (zxAnCardTable) instead. C300/C320 keep the CLI parser.
+        if (SmartOltSupport::isC600($olt)) {
+            $cards = $this->snmp->cardInventory($olt);
 
-        if ($cards === []) {
-            $reason = $result['error'] ? ': '.$result['error'] : '';
+            if ($cards === []) {
+                throw new RuntimeException('Tabel card SNMP C600 (zxAnCardTable) kosong atau tidak terbaca.');
+            }
+        } else {
+            $result = $this->executor->execute($olt, 'show card');
+            $output = $this->cleanCliOutput($result['output']);
+            $cards = $this->parseCards($output);
 
-            throw new RuntimeException('Output show card tidak berisi data card yang bisa diparse'.$reason);
+            if ($cards === []) {
+                $reason = $result['error'] ? ': '.$result['error'] : '';
+
+                throw new RuntimeException('Output show card tidak berisi data card yang bisa diparse'.$reason);
+            }
         }
 
         $cards = $this->mergeProcessorLoad($olt, $cards);
