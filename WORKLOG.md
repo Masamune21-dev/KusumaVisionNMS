@@ -2,6 +2,12 @@
 
 ## 2026-07-18
 
+### Form registrasi C600: ONU Type & profil TCONT jadi dropdown dari katalog profil
+
+Field ONU Type / Internet TCONT / Management TCONT di form C600 tadinya teks bebas — padahal katalog profil sudah tersinkron (onu_type 38, tcont 21). Diubah jadi `<select>` dari `props.profiles` (mempertahankan nilai form yang tak ada di katalog sbg opsi terpilih). Egress traffic-policy tetap teks (traffic-policy downstream tak tersinkron di katalog — dikonfirmasi 0 profil DOWN untuk OLT 2) + hint. Link "Register" di halaman Unconfigured/Global kini mengirim `model` hasil discovery → ONU Type ter-preselect.
+
+Changed: `resources/js/Pages/SmartOlt/RegisterOnu.vue` (3 select + computed nama profil), `Unconfigured.vue`/`UnconfiguredGlobal.vue` (param `model`), `lang/{id,en}.json` (+2 key). Frontend-only; deploy = `git pull` + `npm run build`.
+
 ### Auto-alokasi mgmt-IP C600 (baca IP terpakai dari OLT, hindari bentrok SmartOLT)
 
 Permintaan user: mgmt-IP otomatis seperti SmartOLT ("Auto select from 10.64.64.0/20") biar tak isi field manual. OLT co-managed dgn SmartOLT → auto-alokasi kita **membaca IP mgmt yang benar-benar terpakai di OLT** (sumber kebenaran) lalu memberi IP bebas terendah. **Kunci reliabilitas (terbukti live): `terminal length 0`** mematikan pager `--More--` — tanpa itu scan terpotong ~12 baris (1 layar); dengan pager mati + `execute(largeOutput=true)`, **624 mgmt-ip terbaca penuh ~18 dtk**. Baris mgmt-ip memuat mask/gateway/vlan/priority/host → **pool diturunkan dari config OLT** (tak perlu setelan manual). Verifikasi live: sarankan 10.64.64.2 (terendah bebas), 3657 free.
