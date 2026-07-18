@@ -106,38 +106,40 @@ class C600MgmtPoolService
     {
         // `terminal length 0` mematikan pager → seluruh baris mgmt-ip streaming tanpa `--More--`.
         $result = $this->executor->execute($olt, "terminal length 0\nshow running-config | include mgmt-ip", true);
+        $raw = (string) ($result['output'] ?? '');
 
-        // Config ZTE membungkus baris panjang di kolom tetap → satukan semua whitespace jadi 1 spasi
-        // supaya regex per-entri tak putus di tengah baris.
-        $flat = preg_replace('/\s+/', ' ', (string) ($result['output'] ?? '')) ?? '';
+        // ZTE membungkus baris panjang di kolom tetap, MEMOTONG di tengah token — termasuk di tengah
+        // IP (mis. `route 0.0.0.0 0.0.0.0 10\n.64.64.1 host 2`). Buang newline lalu rapatkan spasi
+        // yang menempel titik (bekas titik-potong di dalam IP) supaya IP utuh kembali.
+        $flat = str_replace(["\r", "\n"], '', $raw);
+        $flat = preg_replace('/(\d)\s+\./', '$1.', $flat) ?? $flat;
+        $flat = preg_replace('/\.\s+(\d)/', '.$1', $flat) ?? $flat;
 
-        preg_match_all(
-            '/mgmt-ip (\d+\.\d+\.\d+\.\d+) (\d+\.\d+\.\d+\.\d+) vlan (\d+) priority (\d+) route \S+ \S+ (\d+\.\d+\.\d+\.\d+) host (\d+)/',
-            $flat,
-            $matches,
-            PREG_SET_ORDER,
-        );
-
+        // IP terpakai: `mgmt-ip {ip}` — IP ada di awal baris, tak pernah terpotong wrap → andal.
+        preg_match_all('/mgmt-ip (\d+\.\d+\.\d+\.\d+)/', $flat, $ipm);
         $used = [];
+        foreach ($ipm[1] as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                $used[$ip] = true;
+            }
+        }
+
+        // Parameter pool representatif dari entri lengkap pertama.
         $mask = $gateway = $cidr = null;
         $vlan = null;
         $priority = 2;
         $host = 2;
-
-        foreach ($matches as $m) {
-            if (! filter_var($m[1], FILTER_VALIDATE_IP)) {
-                continue;
-            }
-            $used[$m[1]] = true;
-
-            if ($mask === null) {   // parameter representatif dari entri pertama yang valid
-                $mask = $m[2];
-                $vlan = (int) $m[3];
-                $priority = (int) $m[4];
-                $gateway = $m[5];
-                $host = (int) $m[6];
-                $cidr = $this->cidrFor($m[1], $mask);
-            }
+        if (preg_match(
+            '/mgmt-ip (\d+\.\d+\.\d+\.\d+) (\d+\.\d+\.\d+\.\d+) vlan (\d+) priority (\d+) route \S+ \S+ (\d+\.\d+\.\d+\.\d+) host (\d+)/',
+            $flat,
+            $m,
+        )) {
+            $mask = $m[2];
+            $vlan = (int) $m[3];
+            $priority = (int) $m[4];
+            $gateway = $m[5];
+            $host = (int) $m[6];
+            $cidr = $this->cidrFor($m[1], $mask);
         }
 
         return [
