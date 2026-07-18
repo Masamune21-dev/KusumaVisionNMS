@@ -19,7 +19,29 @@ class ZteOnuRunningConfigService
      */
     public function fetch(SnmpOlt $olt, int $slot, int $port, int $onuId): array
     {
-        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+        $isC600 = SmartOltSupport::isC600($olt);
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
+
+        if ($isC600) {
+            // C600/TITAN: running-config per-ONU tidak lewat `show running-config interface`
+            // (perintah itu invalid) melainkan modul `xpon`. Ambil dua blok — `interface …`
+            // dan `pon-onu-mng …` — via `| begin` lalu potong di delimiter blok `$`.
+            $script = implode("\n", [
+                'terminal length 0',
+                "show running-config xpon | begin interface {$iface}",
+                "show running-config xpon | begin pon-onu-mng {$iface}",
+            ]);
+
+            $result = $this->executor->execute($olt, $script, true);
+            $raw = $this->extractC600Blocks(CliOutputSanitizer::clean($result['output']), $iface);
+
+            return [
+                'ok' => $result['ok'],
+                'config' => $this->parse($raw),
+                'raw' => $raw,
+                'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
+            ];
+        }
 
         $script = implode("\n", [
             'terminal length 0',
@@ -36,6 +58,44 @@ class ZteOnuRunningConfigService
             'raw' => $raw,
             'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
         ];
+    }
+
+    /**
+     * Dari output `show running-config xpon | begin …` C600, ambil blok pertama untuk
+     * tiap header (`interface gpon_onu-…` dan `pon-onu-mng gpon_onu-…`) milik ONU target,
+     * dipotong di baris delimiter `$`. `| begin` menampilkan dari kecocokan pertama sampai
+     * akhir, jadi kita hanya menahan blok pertama tiap section untuk ONU yang diminta.
+     */
+    private function extractC600Blocks(string $raw, string $iface): string
+    {
+        $needle = strtolower($iface);
+        $blocks = [];
+
+        foreach (['interface', 'pon-onu-mng'] as $header) {
+            $capture = false;
+            $buf = [];
+            foreach (preg_split('/\r?\n/', $raw) ?: [] as $line) {
+                $trimmed = trim($line);
+                if (! $capture) {
+                    if (strtolower($trimmed) === $header.' '.$needle) {
+                        $capture = true;
+                        $buf[] = $trimmed;
+                    }
+
+                    continue;
+                }
+                // Delimiter blok C600, atau mulainya blok ONU berikutnya → berhenti.
+                if ($trimmed === '$' || preg_match('/^(interface|pon-onu-mng)\s+gpon[-_]onu[-_]/i', $trimmed)) {
+                    break;
+                }
+                $buf[] = rtrim($line);
+            }
+            if ($buf !== []) {
+                $blocks[] = implode("\n", $buf);
+            }
+        }
+
+        return implode("\n", $blocks);
     }
 
     /**
@@ -332,7 +392,7 @@ class ZteOnuRunningConfigService
 
         // Baris pon-onu-mng gaya bridge/SmartOLT yang belum dimodelkan untuk diedit —
         // disimpan mentah agar tetap terlihat & tak hilang (read-only, diabaikan builder).
-        if (preg_match('/^(?:flow|ip-host|veip|switchport-bind|dhcp-ip|voip|vlan-filter)\b/i', $line)
+        if (preg_match('/^(?:flow|ip-host|veip|switchport-bind|dhcp-ip|voip|vlan-filter|vport|vport-mode|vport-map)\b/i', $line)
             || preg_match('/^gemport\s+\d+\s+flow\s+\d+/i', $line)) {
             $config['extra_mgmt'][] = $line;
 
@@ -496,6 +556,8 @@ class ZteOnuRunningConfigService
             // continuation char-wrap lalu di-lem ke baris sebelumnya (rusak).
             'flow', 'ip-host', 'veip', 'switchport-bind', 'dhcp-ip', 'voip',
             'vlan-filter', 'vlan-filter-mode',
+            // Model vport C600/TITAN.
+            'vport', 'vport-mode', 'vport-map',
         ];
 
         $lines = [];

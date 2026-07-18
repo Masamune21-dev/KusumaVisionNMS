@@ -220,6 +220,10 @@ class SmartOltSupport
             'supports_cli_rx' => true,
             'supports_cli_onu_detail' => true,
             'supports_cli_onu_configure' => true,
+            // Menulis ulang config ONU (preview/apply) — MATI untuk C600 karena builder
+            // delta masih gaya C300 (tcont/gemport/service-port), sedang C600 pakai model
+            // vport (vport-mode/vport-map). Configure C600 = lihat-saja sampai builder C600 ada.
+            'supports_onu_config_write' => ! $isC600,
             'supports_reboot' => true,
             'reboot_mode' => 'cli',
             // C600: sintaks provisioning-nya beda struktur (vport-mode/vport-map + service-port di

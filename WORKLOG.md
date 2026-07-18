@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-07-18
+
+### C600 Configure ONU (read-only): retrieval running-config via `xpon | begin` + parser vport + gate write
+
+Setelah ACL C600 dibuka (telnet konek dari server smartolt), diverifikasi live: **Detail ONU C600 jalan** (`show gpon onu detail-info gpon_onu-1/3/1:1` valid, balik data lengkap), tapi **Configure gagal** — `show running-config interface …` → `%Error 140303 Invalid input` & `show onu running config …` → `%Error 140301 Ambiguous` (C600 = seri TITAN, sintaks beda). Dari CLI help device (`show running-config ?`, bukan tebak): running-config per-ONU C600 lewat modul **`xpon`** — `show running-config xpon | begin interface|pon-onu-mng <iface>`, blok dipisah delimiter `$`, formatnya `vport-mode`/`vport N map-type`/`vport-map` (model vport, beda dari C300). Karena builder delta masih gaya C300, Configure C600 dibuat **read-only** dulu (baca+tampilkan, tanpa tulis).
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — `fetch()` bercabang isC600: `show running-config xpon | begin interface {iface}` + `… begin pon-onu-mng {iface}`, lalu helper baru `extractC600Blocks()` memotong hanya blok ONU target (berhenti di `$` / header ONU berikutnya). Parser menangkap `vport`/`vport-mode`/`vport-map` (ditambah ke `$keywords` normalizeLines agar tak ke-lem + ke regex `extra_mgmt` read-only). `tcont N profile P` tanpa-name & `gemport N name X tcont M` sudah didukung dari increment C320.
+- `app/Support/SmartOltSupport.php` — capability baru `supports_onu_config_write` (`! $isC600`): C600 boleh **baca** config, tapi **tulis** (preview/apply) mati sampai builder delta model vport C600 ada.
+- `app/Http/Controllers/SmartOltController.php` — `configureOnuPreview`/`configureOnuApply` di-gate `supports_onu_config_write`. **Fix penting**: `assertCapability` kini meneruskan `$olt` ke `capabilities()` — tanpa itu `isC600` selalu false di jalur ini, jadi gate yang bergantung C600 (config_write, provisioning, onu_toggle, …) tak pernah aktif.
+- `resources/js/Pages/SmartOlt/ConfigureOnu.vue` — bila `!capabilities.supports_onu_config_write`: tampilkan banner read-only + sembunyikan editor, panel preview delta, dan tombol Apply (panel **Raw running-config** tetap tampil); auto-preview di-skip (endpoint-nya kini 403). Key i18n baru `configonu.readonly_notice`/`readonly_editor_note` di `lang/{id,en}.json`.
+- `tests/Unit/ZteOnuConfigureTest.php` — 2 test: `fetch()` C600 mengambil hanya 1 blok ONU dari dump `xpon` (tcont tanpa-name, gemport dgn-name `internet`, baris vport tertangkap `extra_mgmt`); capability C600 = configure(read) on, config_write off, C320 config_write on.
+
+Notes:
+
+- Perintah C600 diverifikasi **live via CLI help device** (`show running-config zone` ternyata kosong; `xpon | begin` yang benar) — bukan tebakan, sesuai aturan proyek. Suite penuh hijau (1 fail pre-existing `ApiV1WriteTest`), Pint bersih, frontend build ke temp OK (public/build server dev tak disentuh).
+- `name`/`description` ONU C600 tampil `********` karena `ZteCliProvisioningExecutor::maskSecrets` mengganti `cli_password` → berarti **nilainya kebetulan sama persis dengan cli_password OLT** (perlu konfirmasi pemilik; bukan bug parser).
+- **Belum**: penulisan config C600 (butuh `ZteC600ReconfigureScriptBuilder` model vport). Configure C600 = lihat-saja.
+
 ## 2026-07-17
 
 ### Parser running-config C320 gaya SmartOLT (bridge flow/ip-host/veip): baca tcont/gemport tanpa-nama + traffic-limit downstream-saja + round-trip aman

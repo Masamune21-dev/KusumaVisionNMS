@@ -35,6 +35,9 @@ const form = useForm({
 
 const cfg = form.config;
 
+// C600: Configure = lihat-saja (builder delta masih gaya C300; model vport C600 belum ditulis).
+const canWrite = computed(() => !!props.olt?.capabilities?.supports_onu_config_write);
+
 const summary = computed(() => {
     const b = props.config;
     const wans = b.wan_ips ?? [];
@@ -65,6 +68,7 @@ const copied = ref(false);
 let debounceTimer = null;
 
 const runPreview = () => {
+    if (!canWrite.value) return; // read-only OLT (C600): endpoint preview di-gate 403
     preview.loading = true;
     window.axios
         .post(route('smartolt.onu.configure.preview', [props.olt.id, props.slot, props.port, props.onu_id]), {
@@ -85,6 +89,7 @@ const runPreview = () => {
 };
 
 const schedulePreview = () => {
+    if (!canWrite.value) return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(runPreview, 400);
 };
@@ -153,6 +158,12 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                     <p v-html="$t('configonu.warning')"></p>
                 </div>
 
+                <!-- Read-only (mis. C600): tampilkan config asli, tanpa edit/simpan -->
+                <div v-if="!canWrite" class="flex items-start gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                    <Eye class="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-400" />
+                    <p>{{ $t('configonu.readonly_notice') }}</p>
+                </div>
+
                 <div v-if="fetch_error" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                     {{ $t('configonu.fetch_error', { error: fetch_error }) }}
                 </div>
@@ -192,12 +203,16 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                         </div>
                     </div>
 
-                    <!-- RIGHT: editable form -->
-                    <OnuConfigEditor :config="cfg" :profiles="profiles" :errors="form.errors" />
+                    <!-- RIGHT: editable form (OLT write-capable saja) -->
+                    <OnuConfigEditor v-if="canWrite" :config="cfg" :profiles="profiles" :errors="form.errors" />
+                    <div v-else class="flex items-start gap-3 self-start rounded-lg border border-white/10 bg-slate-900/40 p-6 text-sm text-slate-400 shadow-lg shadow-black/30 backdrop-blur-xl">
+                        <Eye class="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-400" />
+                        <p>{{ $t('configonu.readonly_editor_note') }}</p>
+                    </div>
                 </div>
 
-                <!-- Bottom: generated script + what will change -->
-                <div class="grid gap-5 lg:grid-cols-[1fr_minmax(0,360px)]">
+                <!-- Bottom: generated script + what will change (OLT write-capable saja) -->
+                <div v-if="canWrite" class="grid gap-5 lg:grid-cols-[1fr_minmax(0,360px)]">
                     <section class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <header class="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
                             <h3 class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-200">
@@ -237,7 +252,7 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                     <Link :href="route('smartolt.port-onus', [olt.id, slot, port])" class="block w-full sm:w-auto">
                         <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                     </Link>
-                    <PrimaryButton class="w-full sm:w-auto" :disabled="form.processing" @click="apply">
+                    <PrimaryButton v-if="canWrite" class="w-full sm:w-auto" :disabled="form.processing" @click="apply">
                         <Check class="mr-2 h-4 w-4" />
                         {{ $t('configonu.apply') }}
                     </PrimaryButton>

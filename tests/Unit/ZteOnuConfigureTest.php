@@ -7,6 +7,7 @@ use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuReconfigureScriptBuilder;
 use App\Services\ZteOnuRunningConfigService;
 use App\Services\ZteProvisioningScriptBuilder;
+use App\Support\SmartOltSupport;
 use PHPUnit\Framework\TestCase;
 
 class ZteOnuConfigureTest extends TestCase
@@ -821,5 +822,81 @@ RAW;
         $this->assertStringNotContainsString('upstream', $delta['script']);
         // tcont 2 & gemport 2 tak berubah → tak ikut ter-emit.
         $this->assertStringNotContainsString('tcont 2', $delta['script']);
+    }
+
+    public function test_c600_fetch_uses_xpon_and_extracts_single_onu_block(): void
+    {
+        // C600/TITAN: `show running-config xpon | begin …` mengembalikan dari ONU target
+        // sampai akhir. fetch() harus memotong hanya blok interface & pon-onu-mng milik
+        // ONU yang diminta (berhenti di delimiter `$` / header ONU berikutnya).
+        $dump = implode("\n", [
+            '> show running-config xpon | begin interface gpon_onu-1/3/1:1',
+            'interface gpon_onu-1/3/1:1',
+            '  name Cust One',
+            '  description Cust One',
+            '  vport-mode manual',
+            '  tcont 1 profile SMARTOLT_DEFAULT_TCONT_GPON',
+            '  gemport 1 name internet tcont 1',
+            '  vport 1 map-type vlan',
+            '  vport-map 1 1 vlan 200',
+            '$',
+            'interface gpon_onu-1/3/1:2',
+            '  name Cust Two',
+            '  tcont 1 profile 10MB',
+            '$',
+            '> show running-config xpon | begin pon-onu-mng gpon_onu-1/3/1:1',
+            'pon-onu-mng gpon_onu-1/3/1:1',
+            '  service vlan200 gemport 1 vlan 200',
+            '  veip 1 port 1232 ipv4 host 2',
+            '  tr069-mgmt 1 tag pri 2 vlan 601',
+            '$',
+            'pon-onu-mng gpon_onu-1/3/1:2',
+            '  service vlan200 gemport 1 vlan 200',
+            '$',
+        ]);
+
+        $executor = new class($dump) extends ZteCliProvisioningExecutor
+        {
+            public function __construct(private string $out) {}
+
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                return ['ok' => true, 'error' => null, 'output' => $this->out];
+            }
+        };
+
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $result = (new ZteOnuRunningConfigService($executor))->fetch($olt, 3, 1, 1);
+        $c = $result['config'];
+
+        $this->assertTrue($result['ok']);
+        // Hanya ONU :1 yang terambil — bukan :2.
+        $this->assertSame('Cust One', $c['name']);
+        $this->assertStringNotContainsString('Cust Two', $result['raw']);
+
+        // tcont tanpa-name & gemport dgn-name (gaya C600) terbaca.
+        $this->assertCount(1, $c['tconts']);
+        $this->assertNull($c['tconts'][0]['name']);
+        $this->assertSame('SMARTOLT_DEFAULT_TCONT_GPON', $c['tconts'][0]['profile']);
+        $this->assertCount(1, $c['gemports']);
+        $this->assertSame('internet', $c['gemports'][0]['name']);
+
+        // Baris model vport C600 + veip tertangkap read-only (tak hilang/ke-lem).
+        $this->assertContains('vport-mode manual', $c['extra_mgmt']);
+        $this->assertContains('vport 1 map-type vlan', $c['extra_mgmt']);
+        $this->assertContains('vport-map 1 1 vlan 200', $c['extra_mgmt']);
+        $this->assertContains('veip 1 port 1232 ipv4 host 2', $c['extra_mgmt']);
+    }
+
+    public function test_c600_capability_is_config_read_only(): void
+    {
+        $c600 = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $c320 = new SnmpOlt(['vendor' => 'ZTE C320', 'name' => 'EL VALLE']);
+
+        // C600: buka Configure (read) boleh, tapi tulis (preview/apply) MATI.
+        $this->assertTrue(SmartOltSupport::capabilities('zte', $c600)['supports_cli_onu_configure']);
+        $this->assertFalse(SmartOltSupport::capabilities('zte', $c600)['supports_onu_config_write']);
+        // C320: tulis boleh.
+        $this->assertTrue(SmartOltSupport::capabilities('zte', $c320)['supports_onu_config_write']);
     }
 }

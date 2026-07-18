@@ -444,6 +444,8 @@
     },
     "configonu": {
         "back_to_port": "Kembali ke Port",
+        "readonly_notice": "OLT ini (mis. ZTE C600) hanya bisa dilihat di sini — running-config asli ditampilkan, tetapi edit & simpan dinonaktifkan karena penulisan config gaya C600 (model vport) belum didukung.",
+        "readonly_editor_note": "Mode lihat-saja: gunakan panel \"Raw running-config\" di kiri untuk melihat konfigurasi ONU. Editor & tombol Apply dinonaktifkan untuk OLT ini.",
         "warning": "<span class=\"font-semibold\">Perhatian:</span> Setiap perubahan VLAN, service-port, atau WAN credentials akan <span class=\"font-semibold\">memutus koneksi pelanggan ±5-10 detik</span> (re-PPPoE auth). Pastikan info SN & ONU ID benar sebelum Apply.",
         "fetch_error": "Gagal baca running-config live: {error}",
         "check_input": "Periksa kembali input berikut:",

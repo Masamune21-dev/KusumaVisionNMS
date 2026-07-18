@@ -444,6 +444,8 @@
     },
     "configonu": {
         "back_to_port": "Back to Port",
+        "readonly_notice": "This OLT (e.g. ZTE C600) is view-only here — the real running-config is shown, but editing & saving are disabled because C600-style config writes (vport model) aren't supported yet.",
+        "readonly_editor_note": "View-only mode: use the \"Raw running-config\" panel on the left to inspect the ONU configuration. The editor and Apply button are disabled for this OLT.",
         "warning": "<span class=\"font-semibold\">Warning:</span> Any change to VLAN, service-port, or WAN credentials will <span class=\"font-semibold\">disconnect the customer for ±5-10 seconds</span> (re-PPPoE auth). Make sure the SN & ONU ID are correct before Apply.",
         "fetch_error": "Failed to read live running-config: {error}",
         "check_input": "Please re-check the following input:",

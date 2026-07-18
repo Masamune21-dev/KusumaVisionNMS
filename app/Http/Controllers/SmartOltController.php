@@ -884,7 +884,7 @@ class SmartOltController extends Controller
 
     public function configureOnuPreview(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         $baseline = $request->input('baseline', []);
         $target = $request->input('config', []);
@@ -903,7 +903,7 @@ class SmartOltController extends Controller
 
     public function configureOnuApply(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         $target = $this->validatedReconfigure($request);
         $baseline = $request->input('baseline', []);
@@ -1854,7 +1854,9 @@ class SmartOltController extends Controller
         );
 
         abort_unless(
-            (bool) (SmartOltSupport::capabilities($driver)[$capability] ?? false),
+            // Teruskan $olt agar kapabilitas yang bergantung C600 (mis. supports_onu_config_write,
+            // supports_provisioning) dinilai benar — tanpa ini isC600 selalu false di jalur ini.
+            (bool) (SmartOltSupport::capabilities($driver, $olt)[$capability] ?? false),
             403,
             'Aksi ini tidak didukung untuk driver OLT ini.',
         );
