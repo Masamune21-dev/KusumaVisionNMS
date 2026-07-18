@@ -2,6 +2,14 @@
 
 ## 2026-07-18
 
+### Fix: script provisioning C600 gagal di `write` (perlu `end` dulu — write invalid di mode config)
+
+Registrasi C600 live pertama (gpon_onu-1/5/16:2, uji user) gagal **hanya di baris `write`** — SEMUA perintah config ONU sukses (mgmt-ip/service/veip/wan/tr069-mgmt/service-port/qos), tapi builder mengakhiri tiap blok dgn `exit` → berhenti di `ZXAN(config)#`, lalu `write` → `%Error 140303 Invalid input`. **Gotcha C600: `write` HANYA valid di privileged-exec `ZXAN#`**, bukan mode config (`addAndTagVlan` dulu lolos karena pakai `end`→`write`). Fix: emit `end` sebelum `write`. ONU 5/16:2 sudah ter-provision di running-config (perintah sukses) & di-persist manual via `saveConfig` (`write ...[OK]`).
+
+Changed: `app/Services/ZteC600ProvisioningScriptBuilder.php` — `exit` (vport) → `end` → `write`. Test diperbarui (`exit\nend\n\nwrite`).
+
+Notes: deploy = `git pull` + reload php-fpm. Registrasi C600 berikutnya kini menyimpan config dgn benar.
+
 ### Provisioning/registrasi ONU C600 (Model B / SmartOLT TR069) — builder + form + aktivasi
 
 Registrasi ONU C600 diaktifkan, memakai struktur config **yang direproduksi PERSIS dari running-config ONU asli** di lapangan (verifikasi live `gpon_onu-1/3/1:2/:11/:80` di LAS GALERAS via config-mode `show this`). Pilihan user: **Model B** (config asli, bukan struktur dokumen builder-v2 yang berbeda) + **mgmt-ip diisi manual** per registrasi.
