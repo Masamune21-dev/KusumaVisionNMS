@@ -652,11 +652,13 @@ class ZteCardUplinkService
 
         $statusCommand = "show interface {$interface}";
         $opticalCommand = "show optical-module-info {$interface}";
-        $result = $this->executor->execute($olt, "{$statusCommand}\n{$opticalCommand}");
+        $vlanCommand = "show vlan port {$interface}";  // same command & format as C300/C320
+        $result = $this->executor->execute($olt, "{$statusCommand}\n{$opticalCommand}\n{$vlanCommand}");
         $output = $this->cleanCliOutput($result['output']);
         $segments = $this->splitCommandOutput($output);
         $statusOutput = $segments[$statusCommand] ?? $output;
         $opticalOutput = $segments[$opticalCommand] ?? '';
+        $vlanOutput = $segments[$vlanCommand] ?? '';
         $parsed = $this->parseC600UplinkInterface($statusOutput, $interface);
 
         if ($parsed === null) {
@@ -683,6 +685,15 @@ class ZteCardUplinkService
                 ...$optical,
                 'raw_optical' => trim($opticalOutput) ?: null,
                 'optical_refreshed_at' => $now,
+            ];
+        }
+
+        if ($vlanOutput !== '' && ! $this->isInvalidOutput($vlanOutput)) {
+            $values = [
+                ...$values,
+                'tagged_vlans' => $this->parseTaggedVlans($vlanOutput),
+                'raw_vlan' => trim($vlanOutput) ?: null,
+                'vlan_refreshed_at' => $now,
             ];
         }
 

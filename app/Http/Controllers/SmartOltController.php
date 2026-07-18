@@ -257,6 +257,14 @@ class SmartOltController extends Controller
             'vlan_id' => ['required', 'integer', 'min:1', 'max:4094'],
         ]);
 
+        // C600 is config read-only in this app: VLANs are shown but not written from here.
+        if (SmartOltSupport::isC600($olt)) {
+            return response()->json([
+                'ok' => false,
+                'message' => __('flash.c600_vlan_read_only'),
+            ], 422);
+        }
+
         try {
             $result = $service->addAndTagVlan($olt, $data['interface'], (int) $data['vlan_id']);
 

@@ -78,6 +78,7 @@ return [
     'profile_deleted_olt' => 'Profile deleted from the OLT and local cache.',
     'profile_deleted_cache' => 'Profile deleted from the local cache.',
     'port_detail_refreshed' => 'Details of :interface refreshed from the OLT.',
+    'c600_vlan_read_only' => 'C600 is read-only for configuration: uplink VLANs can be viewed but not written from here.',
     'port_refresh_failed' => 'Refreshing :interface failed: ',
     'fcm_sent' => 'Notification sent to :n devices.',
     'fcm_no_devices' => 'No mobile devices registered yet.',

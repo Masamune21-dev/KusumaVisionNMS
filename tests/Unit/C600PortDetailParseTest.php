@@ -165,6 +165,25 @@ OUT;
         $this->assertSame(3.441, $o['supply_voltage_v']);
     }
 
+    /** C600 uplink `show vlan port xgei-1/10/1` — format identik C300/C320 (parseTaggedVlans). */
+    public function test_parse_c600_uplink_tagged_vlans(): void
+    {
+        $output = <<<'OUT'
+PortMode  Pvid CPvid Tpid   TLSStatus TLSVlan  TpidFilter
+--------------------------------------------------------------------
+trunk     --   --    0x8100 disable   --       --
+
+UntaggedVlan:
+
+TaggedVlan:
+  18,100-110,191,200,300,400,601
+OUT;
+
+        $vlans = $this->service()->parseTaggedVlans($output);
+
+        $this->assertSame(['18', '100-110', '191', '200', '300', '400', '601'], $vlans);
+    }
+
     /** interfaceMetadata mengenali ejaan C600 (gpon_olt-1/s/p, xgei-1/s/p). */
     public function test_interface_metadata_c600(): void
     {

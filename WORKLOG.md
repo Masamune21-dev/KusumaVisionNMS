@@ -2,6 +2,20 @@
 
 ## 2026-07-18
 
+### VLAN tagged uplink C600 (baca) + form ADD & TAG VLAN disembunyikan (C600 read-only config)
+
+Bagian **VLAN Tagged** di detail uplink C600 kosong. **Diverifikasi live**: `show vlan port {iface}` **jalan di C600** dgn format identik C300/C320 (PortMode trunk + `TaggedVlan: 18,100-110,191,200,300,400,601`) → `parseTaggedVlans` yang ada langsung memparsenya. Karena C600 posturnya **read-only konfigurasi**, form tulis "ADD & TAG VLAN" (`switchport vlan X tag`+`write` — belum diuji di C600 & menyentuh uplink live) **disembunyikan** di C600; VLAN tetap ditampilkan.
+
+Changed:
+
+- `app/Services/ZteCardUplinkService.php` — `refreshC600UplinkInterface` tambah perintah `show vlan port {iface}` + parse `parseTaggedVlans` (bersama status+optical dlm 1 sesi telnet).
+- `app/Http/Controllers/SmartOltController.php` — `storePortVlan` tolak C600 (422 `flash.c600_vlan_read_only`) sebagai defense-in-depth (form sudah disembunyikan, tapi rute masih terima ejaan C600).
+- `resources/js/Pages/SmartOlt/PortDetail.vue` — computed `isC600` (dari `olt.capabilities.is_c600`); form ADD & TAG VLAN `v-if="!isC600"` (daftar VLAN tetap tampil).
+- `lang/{id,en}/flash.php` — key `c600_vlan_read_only`.
+- `tests/Unit/C600PortDetailParseTest.php` — test parse tagged-vlan C600.
+
+Notes: C300/C320 tak tersentuh. Suite hijau (7 test/55 assertion), Pint bersih, build OK. Deploy = `git pull` + `npm run build` + reload php-fpm.
+
 ### Optical/SFP C600 (PON OLT-side & uplink) — perintah `show optical-module-info` (buang "interface")
 
 Kartu **Optical / SFP (Attenuation)** di detail port C600 masih kosong. Sebab: C600 menolak `show interface optical-module-info` (Invalid input). **Diverifikasi live**: perintah yang benar di C600 = `show optical-module-info {iface}` (**buang** kata "interface" — beda dari C300/C320). Jalan utk GPON **dan** uplink.
