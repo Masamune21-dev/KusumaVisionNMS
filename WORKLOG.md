@@ -2,6 +2,16 @@
 
 ## 2026-07-18
 
+### Fix: registrasi ONU mode WAN "bridge" gagal 500 "Server Error" (constraint DB ketinggalan)
+
+Laporan user: registrasi ONU dari aplikasi mobile (role partner) balik "Server Error". Diagnosis: **bukan** soal role — rute API `api.olts.register` (`routes/api.php`) memang mengizinkan `role:admin,operator,partner` dan partner otomatis di-scope OLT-nya (PartnerOltScope). Akar masalah dari `storage/logs/laravel.log`: `PDOException 23514` — `smartolt_onu_registrations_wan_mode_check` **hanya** izinkan `pppoe/dhcp/static`. Mode `bridge` sudah didukung di validasi (`OnuRegistrationService::rules`, `Rule::in([...,'bridge'])`) & script builder, tapi **tak pernah ada migrasi** yang memperluas CHECK constraint (dari `enum()` migrasi awal). Insert audit → langgar constraint → 500. Berlaku untuk web **maupun** mobile (constraint DB dipakai bersama). Catatan operasional: di `register()` `execute=true`, CLI dieksekusi ke OLT **sebelum** insert audit → ONU kemungkinan sudah ter-provision di OLT walau UI error; user perlu verifikasi port sebelum mendaftar ulang agar tak dobel.
+
+Changed:
+
+- `database/migrations/2026_07_18_090000_add_bridge_to_smartolt_onu_registrations_wan_mode.php` — migrasi baru memperluas CHECK `wan_mode` → `pppoe/dhcp/static/bridge`. pgsql (prod): DROP+ADD constraint bernama; sqlite (test): `->change()` enum baru (SQLiteBuilder rebuild tabel, native tanpa dbal). `down()` mengembalikan ke 3 nilai.
+
+Notes: migrasi sudah `migrate --force` di Postgres prod (constraint terverifikasi memuat `bridge`). Test `SmartOltAdvancedRegisterTest` hijau (validasi jalur sqlite). Tak ada perubahan kode aplikasi/daemon → tak perlu `config:cache`/`queue:restart`. Deploy server lain = `git pull` + `php artisan migrate --force`.
+
 ### Poller Go: dukungan native tabel ONU C600 (.1082) — poll terjadwal tak lagi bergantung fallback PHP
 
 Fix "sejati" dari bug ONU C600 hilang di poll terjadwal: sebelumnya poller Go (`bin/kv-snmp-poller`) hanya punya OID ZTE C300/C320 (`.1012.3.28`) → balik 0 ONU untuk C600, ditambal fallback PHP di `PollOltJob`. Kini poller Go memetakan tabel ONU C600 langsung.
