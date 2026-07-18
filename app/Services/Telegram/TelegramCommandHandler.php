@@ -1098,7 +1098,7 @@ class TelegramCommandHandler
     {
         return Carbon::now()
             ->timezone(config('app.display_timezone', 'Asia/Jakarta'))
-            ->translatedFormat('d M Y H:i').' WIB';
+            ->translatedFormat('d M Y H:i').' '.config('app.display_timezone_label', 'WIB');
     }
 
     private function relative(?string $iso): string

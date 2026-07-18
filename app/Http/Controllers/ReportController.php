@@ -100,7 +100,7 @@ class ReportController extends Controller
 
         $pdf = Pdf::loadView('reports.pdf', [
             'report' => $report,
-            'generatedAt' => now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i').' WIB',
+            'generatedAt' => now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i').' '.config('app.display_timezone_label', 'WIB'),
         ])->setPaper('a4', 'landscape');
 
         return $pdf->download('laporan-'.$type.'-'.now()->format('Ymd-His').'.pdf');

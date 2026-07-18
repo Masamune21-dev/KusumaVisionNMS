@@ -74,6 +74,12 @@ return [
     'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Jakarta'),
 
     /*
+    | Short label appended to human-facing timestamps (e.g. "WIB", "AST").
+    | Match it to display_timezone per deployment.
+    */
+    'display_timezone_label' => env('APP_DISPLAY_TIMEZONE_LABEL', 'WIB'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------

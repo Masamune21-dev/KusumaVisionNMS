@@ -1,10 +1,12 @@
 import { i18n } from '@/i18n';
 
-// All human-facing timestamps are displayed in WIB (Asia/Jakarta) so the web UI,
-// charts, and Telegram notifications stay consistent regardless of the viewer's
-// browser timezone. Storage stays UTC; only display is converted.
-const DISPLAY_TZ = 'Asia/Jakarta';
-const TZ_LABEL = 'WIB';
+// Human-facing timestamps are displayed in one fixed timezone (per deployment) so
+// the web UI, charts, and Telegram notifications stay consistent regardless of the
+// viewer's browser timezone. Storage stays UTC; only display is converted. The zone +
+// label are injected from backend config (window globals in app.blade.php) — e.g.
+// Asia/Jakarta "WIB" (default) or America/Santo_Domingo "AST".
+const DISPLAY_TZ = (typeof window !== 'undefined' && window.KV_DISPLAY_TZ) || 'Asia/Jakarta';
+const TZ_LABEL = (typeof window !== 'undefined' && window.KV_DISPLAY_TZ_LABEL) || 'WIB';
 
 // Format angka/bulan mengikuti bahasa aktif (id "29 Mei, 16.42" · en "29 May, 16:42").
 // Dibaca dari ref locale vue-i18n → pemanggilan saat render ikut reaktif switch bahasa.

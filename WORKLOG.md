@@ -2,6 +2,27 @@
 
 ## 2026-07-18
 
+### Display timezone bisa dikonfigurasi per-deployment + fix interval polling C600 + OS timezone server Dominika
+
+Tiga keluhan di server smartolt (C600, Rep. Dominika): polling C600 seolah mati, waktu tak ikut lokal, Configure ONU C600 lambat. Diperiksa live:
+
+- **Polling C600**: sebenarnya jalan (poller Go, `ok=true`) tapi `poll_interval_minutes` = **59 menit** (C320 = 5m) → data kelihatan beku. Diturunkan ke **5m** (kolom DB per-OLT `snmp_olts.id=2`).
+- **Timezone**: OS server = UTC → di-set `America/Santo_Domingo` (AST, UTC-4). Akar waktu-UI: `datetime.js` **hardcode `Asia/Jakarta`/`WIB`** → seluruh UI tampil WIB (beda 11 jam). Backend sudah pakai `config('app.display_timezone')`; tinggal label + frontend.
+- **Configure C600**: backend berhasil (`ok=true` semua ONU dites) tapi **~25-30 dtk** (`show running-config xpon | begin` mentransfer sampai akhir config). Server tanpa timeout (php-fpm `max_execution_time=0`, nginx `proxy_read_timeout 3600s`) → tetap kebuka (terbukti screenshot user), hanya lambat. Alternatif config-mode `show this` = 6.8 dtk tapi `interface gpon_onu-…` bisa auto-create ONU tak-ada → **DITUNDA** demi aman.
+
+Changed (display timezone configurable — storage tetap UTC, hanya lapisan tampilan):
+
+- `config/app.php` — tambah `display_timezone_label` (env `APP_DISPLAY_TIMEZONE_LABEL`, default `WIB`); melengkapi `display_timezone` yang sudah ada.
+- `resources/views/app.blade.php` — inject `window.KV_DISPLAY_TZ`/`KV_DISPLAY_TZ_LABEL` dari config (script ber-nonce CSP) agar frontend dapat nilainya saat load.
+- `resources/js/lib/datetime.js` — `DISPLAY_TZ`/`TZ_LABEL` kini dibaca dari window global (fallback `Asia/Jakarta`/`WIB`), bukan hardcode.
+- `ReportController`, `TelegramCommandHandler`, `TelegramNotifier` (×2) — label `' WIB'` hardcode → `config('app.display_timezone_label','WIB')`.
+- `.env` smartolt: `APP_DISPLAY_TIMEZONE=America/Santo_Domingo` + `APP_DISPLAY_TIMEZONE_LABEL=AST`. Server utama (Indonesia) default WIB (env tak di-set) → tak berubah.
+
+Notes:
+
+- Storage tetap UTC (`app.timezone` UTC tak diubah) — tak ada isu data historis; hanya tampilan. Suite penuh hijau (label default `WIB` → output backend identik utk server ID). Pint bersih, build frontend temp OK.
+- **Ditunda**: optimasi kecepatan Configure C600; perhalus tampilan name/desc C600 `********` (nilainya == cli_password OLT — set oleh SmartOLT, nama asli ada di DB SmartOLT).
+
 ### C600 Configure ONU (read-only): retrieval running-config via `xpon | begin` + parser vport + gate write
 
 Setelah ACL C600 dibuka (telnet konek dari server smartolt), diverifikasi live: **Detail ONU C600 jalan** (`show gpon onu detail-info gpon_onu-1/3/1:1` valid, balik data lengkap), tapi **Configure gagal** — `show running-config interface …` → `%Error 140303 Invalid input` & `show onu running config …` → `%Error 140301 Ambiguous` (C600 = seri TITAN, sintaks beda). Dari CLI help device (`show running-config ?`, bukan tebak): running-config per-ONU C600 lewat modul **`xpon`** — `show running-config xpon | begin interface|pon-onu-mng <iface>`, blok dipisah delimiter `$`, formatnya `vport-mode`/`vport N map-type`/`vport-map` (model vport, beda dari C300). Karena builder delta masih gaya C300, Configure C600 dibuat **read-only** dulu (baca+tampilkan, tanpa tulis).
