@@ -68,13 +68,14 @@ class OltSnmpClient
     // Serial number as an 8-byte octet string: 4 ASCII vendor chars + 4 raw bytes (ZTEG008EEB08).
     private const C600_ONU_SN = self::C600_ONU_TABLE.'.3';
 
-    // Online state. Only ever 1 or 2 on the live C600, and the value tracks the per-ONU traffic
-    // counters exactly (1 = counters advancing, 2 = frozen) across 51 ONUs on two PON ports.
-    private const C600_ONU_PHASE_STATE = self::C600_ONU_TABLE.'.7';
+    // ONU phase/operational state — the rich enum from the state table .10.2.3.8.1.4, verified live
+    // against CLI `show gpon onu detail-info` (Phase state): 2=LOS, 4=Working, 5=DyingGasp, 7=OffLine.
+    // Preferred over the binary ONU-table .20…2.1.7 online flag because {code==4 Working} matches the
+    // .20…7==1 online set EXACTLY on all 1343 ONUs — online detection is unchanged, but offline ONUs
+    // now carry the real down reason (LOS / DyingGasp / OffLine).
+    private const C600_ONU_PHASE_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.4';
 
-    public const C600_PHASE_WORKING = 1;
-
-    public const C600_PHASE_OFFLINE = 2;
+    public const C600_PHASE_WORKING = 4;
 
     // ONU-side RX power — the direct C600 twin of ZTE_ONU_RX_POWER: same trailing column (.10) and
     // the same {ifIndex}.{onuId}.{onuPort} index, so it shares the C300 parsing and scale. Verified
@@ -84,13 +85,21 @@ class OltSnmpClient
     // {ifIndex}.{onuId} in milli-dBm with -80000 = no signal — a different metric, not wired up.
     private const C600_ONU_RX_POWER = '1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10';
 
-    // Not mapped on the live C600: no column carries the ONU name (.19 is empty for every ONU on
-    // an OLT that sets none), and no admin-state or last-down-cause table was found under 1082.500
-    // — see docs/SMARTOLT_ZTE_C600_GUIDE.md before filling these in.
-    private const C600_ONU_NAME = null;
+    // Configured ONU name lives in a SEPARATE table from the ONU table (.20.2.1…): at
+    // 1082.500.10.2.3.3.1.2, keyed by the same {ifIndex}.{onuId} index. Verified live it returns the
+    // real customer name (e.g. "MARIA ESMIRNA LIZARDO") even though this firmware masks Name/
+    // Description as ******** in CLI `show gpon onu detail-info`. Column .3 there holds the SmartOLT
+    // metadata description (zone_…_extid_…_authd_…), not surfaced yet. See
+    // docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md.
+    private const C600_ONU_NAME = '1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2';
 
-    private const C600_ONU_ADMIN_STATE = null;
+    // Admin state (operator enable/disable) — state table .10.2.3.8.1.1, verified live: 1=enable,
+    // 2=disable (value 2 → CLI "Admin state: disable" on the 27 disabled ONUs). decodeAdminState
+    // already maps 1→active, 2→disabled.
+    private const C600_ONU_ADMIN_STATE = '1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.1';
 
+    // No separate last-down-cause table on the C600 — the offline reason is carried by the rich
+    // phase state above (LOS / DyingGasp / OffLine), exactly how the C600 CLI reports it.
     private const C600_ONU_LAST_DOWN_CAUSE = null;
 
     // C600/TITAN unconfigured (auto-discovered) ONU table — SmartOLT membacanya via SNMPv2c
@@ -1062,12 +1071,12 @@ class OltSnmpClient
     private function decodePhaseState(?int $code, bool $isC600 = false): string
     {
         if ($isC600) {
-            // The C600 column is a plain online flag, not the C300 phase enum: it reports only
-            // 1 or 2 and never distinguishes LOS/DyingGasp/AuthFailed. Do not invent those codes
-            // here — a wrong guess is what previously made every C600 ONU read as offline.
+            // C600 state table .10.2.3.8.1.4 — enum verified live against CLI Phase state.
             return match ($code) {
+                2 => 'LOS',
                 self::C600_PHASE_WORKING => 'Working',
-                self::C600_PHASE_OFFLINE => 'Offline',
+                5 => 'DyingGasp',
+                7 => 'OffLine',
                 default => 'Unknown',
             };
         }

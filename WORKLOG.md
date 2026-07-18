@@ -2,6 +2,25 @@
 
 ## 2026-07-18
 
+### C600 nama pelanggan + admin-state + phase-state kaya via SNMP (CLI menyensor Name/Description jadi ********)
+
+User melampirkan dokumen packet-capture baru: nama ONU C600 ternyata **terbaca via SNMP** (disimpan `docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md`), dan minta sekalian admin-state + last-down. Klarifikasi penting: `********` yang tampil di CLI `show gpon onu detail-info` itu **masking firmware C600 sendiri**, bukan `maskSecrets` kita — SNMP mengembalikan nilai asli (dugaan sebelumnya "name == cli_password" keliru). Sebelumnya `C600_ONU_NAME`/`ADMIN_STATE`/`LAST_DOWN` = `null` (dikira tak ada tabelnya).
+
+Diverifikasi live lalu dipetakan:
+
+- **Nama** `1082.500.10.2.3.3.1.2` — **1343 nama pelanggan asli** (mis. "MARIA ESMIRNA LIZARDO"), index `{ifIndex}.{onuId}` sama dgn tabel ONU → merge otomatis di `registeredOnus`.
+- **Admin-state** `1082.500.10.2.3.8.1.1` — `1`=enable, `2`=disable (dikonfirmasi CLI: 27 ONU dgn `.1=2` → "Admin state: disable"). `decodeAdminState` sudah 1→active/2→disabled.
+- **Phase-state kaya** `1082.500.10.2.3.8.1.4` — `2`=LOS, `4`=Working, `5`=DyingGasp, `7`=OffLine (dikonfirmasi CLI Phase state). Menggantikan `.20…2.1.7` biner; `.4==4` cocok `.7==1` di **1343/1343 ONU (0 disagreement)** → online/alarm tak berubah, tapi ONU offline kini membawa **alasan turun** (LOS/DyingGasp) — inilah "last-down" yang diminta (C600 menaruh alasannya di Phase state; tak ada tabel last-down-cause terpisah).
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — set `C600_ONU_NAME` & `C600_ONU_ADMIN_STATE`; repoint `C600_ONU_PHASE_STATE` ke `.10.2.3.8.1.4`, `C600_PHASE_WORKING`=4, decoder phase C600 (enum 2/4/5/7). `registeredOnus` yang ada meng-*merge* semuanya tanpa perubahan logika.
+- `docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md` — dokumen referensi (dari user, terverifikasi).
+- `CLAUDE.md` — koreksi: nama/admin/phase/unconfigured C600 kini terpetakan via SNMP (bukan lagi "TIDAK terpetakan").
+- `tests/Unit/C600OnuNameStateTest.php` — `registeredOnus` C600 membawa nama + admin (disabled) + phase (LOS) + online(false) untuk ONU ter-disable/LOS.
+
+Notes: suite penuh hijau (1 fail pre-existing). Backend murni — deploy = `git pull` + reload php-fpm + **restart worker** (poll terjadwal). Setelah re-poll, dashboard/detail/port C600 menampilkan nama pelanggan + status enable/disable + LOS/DyingGasp/OffLine. Deskripsi `.3` (zone/extid/authd) belum di-surface (peningkatan lanjutan).
+
 ### C600 unconfigured ONU discovery via SNMP (CLI uncfg tak tersedia di C600)
 
 User: discovery unconfigured ONU C600 via CLI tak jalan → pakai SNMP (dilampirkan dokumen hasil packet-capture SmartOLT, disimpan `docs/ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md`). Di kode, jalur C600 sudah bercabang (`OltSnmpClient::unconfiguredOnus` pakai `C600_UNCFG_OIDS` bila `isC600`) tapi konstanta-nya **kosong `[]`** → C600 selalu 0 unconfigured.
