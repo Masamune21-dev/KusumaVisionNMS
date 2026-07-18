@@ -2,6 +2,19 @@
 
 ## 2026-07-18
 
+### Poller Go: dukungan native tabel ONU C600 (.1082) — poll terjadwal tak lagi bergantung fallback PHP
+
+Fix "sejati" dari bug ONU C600 hilang di poll terjadwal: sebelumnya poller Go (`bin/kv-snmp-poller`) hanya punya OID ZTE C300/C320 (`.1012.3.28`) → balik 0 ONU untuk C600, ditambal fallback PHP di `PollOltJob`. Kini poller Go memetakan tabel ONU C600 langsung.
+
+Changed:
+
+- `cmd/kv-snmp-poller/main.go` — tambah OID C600 (type `.20.2.1.2.1.8`, SN `.3`, name `.10.2.3.3.1.2`, desc `.3`, admin `.10.2.3.8.1.1`, phase `.10.2.3.8.1.4`, RX `.20.2.2.2.1.10`); helper `isC600` (sysDescr/sysObjectID `.1082.1001.600`), `decodeIfIndexC600` (slot `(idx>>8)&0xFF`/port `idx&0xFF`), `decodePhaseStateC600` (2=LOS/4=Working/5=DyingGasp/7=OffLine); `registeredOnusC600` (kembaran `registeredOnus`, name/desc & admin/phase dari tabel terpisah, online=phase 4, iface `gpon_onu-1/…`, kolom opsional best-effort); `onuRXPowers(rxOID)` diparametrikan; `poll()` bercabang isC600 untuk ONU + RX. Semua OID terverifikasi live (sejajar jalur PHP `OltSnmpClient`).
+- `cmd/kv-snmp-poller/main_test.go` — test `decodeIfIndexC600`, `decodePhaseStateC600`, `isC600`.
+- `app/Jobs/PollOltJob.php` — fallback C600 dibuat **kondisional**: hanya paksa jalur PHP bila poller Go balik ONU **kosong** (`$onus === []`) — bila Go sudah balik ONU (binary baru), hasilnya dipakai apa adanya. Aman untuk binary lama maupun baru.
+- `tests/Feature/OltPollingTest.php` — test baru: C600 memakai ONU dari Go bila ada (bukan selalu override ke PHP).
+
+Notes: `go build`/`go test` OK (vendor gitignored → pakai `-mod=mod`). Deploy = `git pull` + rebuild `bin/kv-snmp-poller` (`go build -mod=mod -o bin/kv-snmp-poller ./cmd/kv-snmp-poller`) + restart worker. Verifikasi: binary Go balik ONU C600 (nama/admin/phase) + poll terjadwal `poller=go` dgn ONU terisi native.
+
 ### C600: deskripsi ONU + model/firmware pada daftar unconfigured (lengkapi data SNMP)
 
 Lanjutan opsional untuk melengkapi data C600 biar sesuai (SmartOLT). (1) Deskripsi ONU terkonfigurasi; (2) model + firmware pada daftar unconfigured.

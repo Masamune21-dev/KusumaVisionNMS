@@ -54,3 +54,42 @@ func TestOnuPortPrefixIndexRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeIfIndexC600(t *testing.T) {
+	cases := []struct{ idx, slot, port int }{
+		{285278977, 3, 1},  // gpon_olt-1/3/1 (0x11010301)
+		{285279504, 5, 16}, // gpon_olt-1/5/16 (0x11010510)
+	}
+	for _, c := range cases {
+		if s, p := decodeIfIndexC600(c.idx); s != c.slot || p != c.port {
+			t.Errorf("decodeIfIndexC600(%d) = %d/%d, want %d/%d", c.idx, s, p, c.slot, c.port)
+		}
+	}
+}
+
+func TestDecodePhaseStateC600(t *testing.T) {
+	i := func(v int) *int { return &v }
+	cases := []struct {
+		code *int
+		want string
+	}{
+		{i(2), "LOS"}, {i(4), "Working"}, {i(5), "DyingGasp"}, {i(7), "OffLine"}, {nil, "Unknown"}, {i(99), "Unknown"},
+	}
+	for _, c := range cases {
+		if got := decodePhaseStateC600(c.code); got != c.want {
+			t.Errorf("decodePhaseStateC600 = %q, want %q", got, c.want)
+		}
+	}
+}
+
+func TestIsC600(t *testing.T) {
+	if !isC600(systemInfo{SysDescr: "ZXA10 C600, ZTE ZXA10 Software Version: V1.2.2"}) {
+		t.Error("C600 sysDescr not detected")
+	}
+	if !isC600(systemInfo{SysObjectID: "1.3.6.1.4.1.3902.1082.1001.600.1.1"}) {
+		t.Error("C600 sysObjectID not detected")
+	}
+	if isC600(systemInfo{SysDescr: "ZXA10 C320"}) {
+		t.Error("C320 wrongly detected as C600")
+	}
+}

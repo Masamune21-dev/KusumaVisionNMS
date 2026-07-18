@@ -444,4 +444,24 @@ class OltPollingTest extends TestCase
         $this->assertCount(1, $onus);
         $this->assertSame('GOONU7', $onus[0]['serial_number']); // dari Go, bukan registeredOnus (ZTEG1)
     }
+
+    public function test_poll_job_uses_go_onus_for_c600_when_present(): void
+    {
+        // Poller Go kini mendukung C600 native — bila ia mengembalikan ONU, itulah yang dipakai
+        // (fallback PHP hanya jika Go balik kosong). Bukan lagi selalu di-override ke PHP.
+        $olt = $this->makeOlt(['name' => 'LAS GALERAS', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
+        $goOnu = [[
+            'if_index' => 285278977, 'onu_id' => 5, 'slot' => 3, 'port' => 1,
+            'interface' => 'gpon_onu-1/3/1:5', 'type_name' => 'F641', 'serial_number' => 'C600GO5',
+            'name' => 'GO CUSTOMER', 'online' => true, 'phase_state' => 'Working',
+        ]];
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, $this->fakeGoPoller($goOnu));
+
+        $olt->refresh();
+        $onus = collect($olt->last_test_result['port_onus'] ?? [])->flatMap(fn ($p) => $p['onus'] ?? [])->all();
+        $this->assertCount(1, $onus);
+        $this->assertSame('C600GO5', $onus[0]['serial_number']); // dari Go native, bukan fallback PHP
+        $this->assertSame('GO CUSTOMER', $onus[0]['name']);
+    }
 }

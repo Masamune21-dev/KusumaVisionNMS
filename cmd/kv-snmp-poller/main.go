@@ -35,6 +35,19 @@ const (
 	zteOnuPhaseState    = "1.3.6.1.4.1.3902.1012.3.28.2.1.4"
 	zteOnuLastDownCause = "1.3.6.1.4.1.3902.1012.3.28.2.1.7"
 	zteOnuRXPower       = "1.3.6.1.4.1.3902.1012.3.50.12.1.1.10"
+
+	// ZTE TITAN C600 uses the .1082 subtree. ONU table .20.2.1.2.1 (type .8, SN .3 as 8-byte octet);
+	// name/description in a SEPARATE table .10.2.3.3.1 (.2 name, .3 SmartOLT metadata); admin & phase
+	// in .10.2.3.8.1 (.1 admin 1=enable/2=disable, .4 phase 2=LOS/4=Working/5=DyingGasp/7=OffLine);
+	// RX .20.2.2.2.1.10 (same index/scale as the C300 RX). All verified live — see
+	// docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md.
+	c600OnuType    = "1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.8"
+	c600OnuSN      = "1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.3"
+	c600OnuName    = "1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2"
+	c600OnuDesc    = "1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.3"
+	c600OnuAdmin   = "1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.1"
+	c600OnuPhase   = "1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.4"
+	c600OnuRXPower = "1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10"
 )
 
 type systemInfo struct {
@@ -201,14 +214,24 @@ func (c *collector) poll(includeRX bool) (pollResult, error) {
 		return pollResult{Driver: driver(system), System: system, Ports: []portRow{}, Onus: []onuRow{}}, err
 	}
 
-	onus, err := c.registeredOnus(ports)
+	c600 := isC600(system)
+	var onus []onuRow
+	if c600 {
+		onus, err = c.registeredOnusC600(ports)
+	} else {
+		onus, err = c.registeredOnus(ports)
+	}
 	if err != nil {
 		return pollResult{Driver: driver(system), System: system, Ports: ports, Onus: []onuRow{}}, err
 	}
 
 	rxMeta := rxPowerMeta{OK: true, Source: "snmp", Count: 0, Error: nil}
 	if includeRX {
-		powers, err := c.onuRXPowers()
+		rxOID := zteOnuRXPower
+		if c600 {
+			rxOID = c600OnuRXPower
+		}
+		powers, err := c.onuRXPowers(rxOID)
 		if err != nil {
 			message := err.Error()
 			rxMeta = rxPowerMeta{OK: false, Source: "snmp", Count: 0, Error: &message}
@@ -394,15 +417,98 @@ func (c *collector) registeredOnus(ports []portRow) ([]onuRow, error) {
 	return onus, nil
 }
 
-func (c *collector) onuRXPowers() (map[string]rxPowerRow, error) {
-	rows, err := c.walk(zteOnuRXPower)
+// registeredOnusC600 is the C600 (.1082 subtree) twin of registeredOnus. The ONU type/SN live in the
+// ONU table (.20.2.1.2.1), but name/description and admin/phase live in SEPARATE tables — all keyed by
+// the same {ifIndex}.{onuId}. The C600 ONU-table ifIndex IS the real IF-MIB port if-index, so slot/port
+// come straight from the port map / decodeIfIndexC600 (no prefix-index collision like C300/C320).
+func (c *collector) registeredOnusC600(ports []portRow) ([]onuRow, error) {
+	types, err := c.walk(c600OnuType)
+	if err != nil {
+		return nil, err
+	}
+	if len(types) == 0 {
+		return []onuRow{}, nil
+	}
+
+	// Optional columns (separate tables) — a walk failure shouldn't drop the whole poll.
+	walkOpt := func(oid string) map[string]string {
+		rows, err := c.walk(oid)
+		if err != nil {
+			return map[string]string{}
+		}
+		return rows
+	}
+	serials := walkOpt(c600OnuSN)
+	names := walkOpt(c600OnuName)
+	descriptions := walkOpt(c600OnuDesc)
+	adminStates := walkOpt(c600OnuAdmin)
+	phaseStates := walkOpt(c600OnuPhase)
+
+	portByIfIndex := map[int]portRow{}
+	for _, p := range ports {
+		portByIfIndex[p.IfIndex] = p
+	}
+
+	onus := make([]onuRow, 0, len(types))
+	for oid, typeName := range types {
+		ifIndex, onuID, ok := extractOnuIndex(oid, c600OnuType)
+		if !ok {
+			continue
+		}
+
+		suffix := fmt.Sprintf("%d.%d", ifIndex, onuID)
+		slot, port := decodeIfIndexC600(ifIndex)
+		if pr, ok := portByIfIndex[ifIndex]; ok {
+			slot = pr.Slot
+			port = pr.Port
+		}
+
+		phaseRaw := intPointerFromString(phaseStates[joinOID(c600OnuPhase, suffix)])
+		adminRaw := intPointerFromString(adminStates[joinOID(c600OnuAdmin, suffix)])
+		online := phaseRaw != nil && *phaseRaw == 4 // 4 = Working
+
+		onus = append(onus, onuRow{
+			IfIndex:           ifIndex,
+			OnuID:             onuID,
+			Slot:              slot,
+			Port:              port,
+			Interface:         fmt.Sprintf("gpon_onu-1/%d/%d:%d", slot, port, onuID),
+			TypeName:          typeName,
+			Name:              names[joinOID(c600OnuName, suffix)],
+			Description:       descriptions[joinOID(c600OnuDesc, suffix)],
+			SerialNumber:      decodeOnuSN(serials[joinOID(c600OnuSN, suffix)]),
+			AdminStateCode:    adminRaw,
+			AdminState:        decodeAdminState(adminRaw),
+			PhaseStateCode:    phaseRaw,
+			PhaseState:        decodePhaseStateC600(phaseRaw),
+			Online:            online,
+			LastDownCauseCode: nil,
+			LastDownCause:     decodeLastDownCause(nil),
+		})
+	}
+
+	sort.Slice(onus, func(i, j int) bool {
+		if onus[i].Slot != onus[j].Slot {
+			return onus[i].Slot < onus[j].Slot
+		}
+		if onus[i].Port != onus[j].Port {
+			return onus[i].Port < onus[j].Port
+		}
+		return onus[i].OnuID < onus[j].OnuID
+	})
+
+	return onus, nil
+}
+
+func (c *collector) onuRXPowers(rxOID string) (map[string]rxPowerRow, error) {
+	rows, err := c.walk(rxOID)
 	if err != nil {
 		return nil, err
 	}
 
 	powers := map[string]rxPowerRow{}
 	for oid, rawValue := range rows {
-		ifIndex, onuID, onuPort, ok := extractOnuPortIndex(oid, zteOnuRXPower)
+		ifIndex, onuID, onuPort, ok := extractOnuPortIndex(oid, rxOID)
 		if !ok {
 			continue
 		}
@@ -518,6 +624,13 @@ func driver(system systemInfo) string {
 	}
 
 	return "unknown"
+}
+
+// isC600 recognises a ZTE TITAN C600 from its sysDescr ("C600") or sysObjectID
+// (.3902.1082.1001.600). The C600 answers the .1082 subtree, not the C300/C320 .1012 tables.
+func isC600(system systemInfo) bool {
+	value := strings.ToLower(system.SysDescr + " " + system.SysObjectID)
+	return strings.Contains(value, "c600") || strings.Contains(value, "3902.1082.1001.600")
 }
 
 func valueString(value interface{}) string {
@@ -654,6 +767,12 @@ func decodeIfIndex(ifIndex int) (int, int) {
 	return (ifIndex >> 16) & 0xFF, (ifIndex >> 8) & 0xFF
 }
 
+// decodeIfIndexC600 decodes the C600 IF-MIB index: slot at bits 15-8, port at bits 7-0
+// (e.g. 285278977 = 0x11010301 -> 3/1, 285279504 = 0x11010510 -> 5/16). Verified live.
+func decodeIfIndexC600(ifIndex int) (int, int) {
+	return (ifIndex >> 8) & 0xFF, ifIndex & 0xFF
+}
+
 func buildPortMap(ports []portRow) map[int]portRow {
 	m := map[int]portRow{}
 	for _, port := range ports {
@@ -756,6 +875,26 @@ func decodePhaseState(code *int) string {
 		return "Auth Failed"
 	case 6:
 		return "Offline"
+	default:
+		return "Unknown"
+	}
+}
+
+// decodePhaseStateC600 maps the C600 state enum (.10.2.3.8.1.4) — different from the C300/C320 enum.
+// Verified live against CLI Phase state: 2=LOS, 4=Working, 5=DyingGasp, 7=OffLine.
+func decodePhaseStateC600(code *int) string {
+	if code == nil {
+		return "Unknown"
+	}
+	switch *code {
+	case 2:
+		return "LOS"
+	case 4:
+		return "Working"
+	case 5:
+		return "DyingGasp"
+	case 7:
+		return "OffLine"
 	default:
 		return "Unknown"
 	}
