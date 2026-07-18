@@ -502,17 +502,15 @@ class ZteCardUplinkService
         }
 
         $statusCommand = "show interface {$interface}";
-        // C600 has no `show interface optical-module-info` for GPON ports (Invalid input),
-        // so skip the optical read there — the OLT-side SFP metrics aren't exposed via CLI.
-        $opticalCommand = $isC600 ? null : "show interface optical-module-info {$interface}";
-        $result = $this->executor->execute(
-            $olt,
-            $opticalCommand ? "{$statusCommand}\n{$opticalCommand}" : $statusCommand
-        );
+        // Optical/SFP command differs: C600 drops "interface" (`show optical-module-info {iface}`).
+        $opticalCommand = $isC600
+            ? "show optical-module-info {$interface}"
+            : "show interface optical-module-info {$interface}";
+        $result = $this->executor->execute($olt, "{$statusCommand}\n{$opticalCommand}");
         $output = $this->cleanCliOutput($result['output']);
         $segments = $this->splitCommandOutput($output);
         $statusOutput = $segments[$statusCommand] ?? $output;
-        $opticalOutput = $opticalCommand ? ($segments[$opticalCommand] ?? '') : '';
+        $opticalOutput = $segments[$opticalCommand] ?? '';
         $parsed = $this->parseGponInterface($statusOutput, $interface);
 
         if ($parsed === null) {
@@ -522,7 +520,9 @@ class ZteCardUplinkService
         }
 
         $metadata = $this->interfaceMetadata($interface);
-        $optical = $this->parseOpticalModuleInfo($opticalOutput);
+        $optical = $isC600
+            ? $this->parseC600OpticalModuleInfo($opticalOutput)
+            : $this->parseOpticalModuleInfo($opticalOutput);
         $now = now();
         $values = [
             ...$metadata,
@@ -639,8 +639,8 @@ class ZteCardUplinkService
 
     /**
      * Refresh one C600 uplink interface (xgei-1/{slot}/{port}) from CLI and persist it.
-     * C600 has no `show interface port-status` / `optical-module-info` for uplinks (Invalid input),
-     * so `show interface {iface}` is the single source: admin/line status, description, rates.
+     * C600 has no `show interface port-status` for uplinks, so `show interface {iface}` carries
+     * admin/line status, description & rates; `show optical-module-info {iface}` carries the SFP.
      *
      * @return array<string, mixed>
      */
@@ -651,8 +651,12 @@ class ZteCardUplinkService
         }
 
         $statusCommand = "show interface {$interface}";
-        $result = $this->executor->execute($olt, $statusCommand);
-        $statusOutput = $this->cleanCliOutput($result['output']);
+        $opticalCommand = "show optical-module-info {$interface}";
+        $result = $this->executor->execute($olt, "{$statusCommand}\n{$opticalCommand}");
+        $output = $this->cleanCliOutput($result['output']);
+        $segments = $this->splitCommandOutput($output);
+        $statusOutput = $segments[$statusCommand] ?? $output;
+        $opticalOutput = $segments[$opticalCommand] ?? '';
         $parsed = $this->parseC600UplinkInterface($statusOutput, $interface);
 
         if ($parsed === null) {
@@ -671,6 +675,16 @@ class ZteCardUplinkService
             'status_refreshed_at' => $now,
             'refreshed_at' => $now,
         ];
+
+        $optical = $this->parseC600OpticalModuleInfo($opticalOutput);
+        if ($optical !== null) {
+            $values = [
+                ...$values,
+                ...$optical,
+                'raw_optical' => trim($opticalOutput) ?: null,
+                'optical_refreshed_at' => $now,
+            ];
+        }
 
         $row = SmartOltInterfaceStatus::updateOrCreate(
             ['snmp_olt_id' => $olt->id, 'interface' => $interface],
@@ -1066,6 +1080,59 @@ class ZteCardUplinkService
             'optical_vendor_name' => $this->nullableText($fields['Vendor-Name'] ?? null),
             'optical_vendor_pn' => $this->nullableText($fields['Vendor-Pn'] ?? null),
             'optical_vendor_sn' => $this->nullableText($fields['Vendor-Sn'] ?? null),
+            'optical_module_type' => $this->nullableText($fields['Module-Type'] ?? null),
+            'optical_wavelength_nm' => $this->parseIntegerMeasure($fields['Wavelength'] ?? null),
+            'optical_connector' => $this->nullableText($fields['Connector'] ?? null),
+            'optical_trans_distance' => $this->nullableText($fields['Trans-Distance'] ?? null),
+            'rx_power_dbm' => $this->parseMeasure($fields['RxPower'] ?? null),
+            'tx_power_dbm' => $this->parseMeasure($fields['TxPower'] ?? null),
+            'tx_bias_current_ma' => $this->parseMeasure($fields['TxBias-Current'] ?? null),
+            'laser_rate' => $this->nullableText($fields['Laser-Rate'] ?? null),
+            'temperature_c' => $this->parseMeasure($fields['Temperature'] ?? null),
+            'supply_voltage_v' => $this->parseMeasure($fields['Supply-Vol'] ?? null),
+            'optical_thresholds' => $thresholds,
+        ];
+    }
+
+    /**
+     * Parse a C600 `show optical-module-info {iface}` block (verified live on LAS GALERAS).
+     * Differs from the C300/C320 `show interface optical-module-info`: header is
+     * "Optical Module Information" (capitalised), PN/SN come from Product-Name/Sequence-Number,
+     * and values may carry inline thresholds ("-0.493(dbm) [-10.0, -1.0]"). GPON OLT SFP has no
+     * single RxPower (it receives from many ONUs — per-ONU Rx is `show pon power olt-rx`), so
+     * rx_power_dbm stays null there; uplink SFP exposes both Rx and Tx.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function parseC600OpticalModuleInfo(string $output): ?array
+    {
+        $output = $this->cleanCliOutput($output);
+
+        if ($output === '' || $this->isInvalidOutput($output) || stripos($output, 'Optical Module') === false) {
+            return null;
+        }
+
+        $fields = $this->extractOpticalFields($output);
+
+        if ($fields === []) {
+            return null;
+        }
+
+        $thresholds = [];
+        foreach ([
+            'RxPower-Upper', 'RxPower-Lower', 'TxPower-Upper', 'TxPower-Lower',
+            'Bias-Upper', 'Bias-Lower', 'Voltage-Upper', 'Voltage-Lower',
+            'Temperature-Upper', 'Temperature-Lower',
+        ] as $label) {
+            if (array_key_exists($label, $fields)) {
+                $thresholds[$label] = $this->parseMeasure($fields[$label]);
+            }
+        }
+
+        return [
+            'optical_vendor_name' => $this->nullableText($fields['Vendor-Name'] ?? null),
+            'optical_vendor_pn' => $this->nullableText($fields['Product-Name'] ?? $fields['Vendor-Pn'] ?? null),
+            'optical_vendor_sn' => $this->nullableText($fields['Sequence-Number'] ?? $fields['Vendor-Sn'] ?? null),
             'optical_module_type' => $this->nullableText($fields['Module-Type'] ?? null),
             'optical_wavelength_nm' => $this->parseIntegerMeasure($fields['Wavelength'] ?? null),
             'optical_connector' => $this->nullableText($fields['Connector'] ?? null),

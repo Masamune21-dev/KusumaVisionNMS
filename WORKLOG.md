@@ -2,6 +2,19 @@
 
 ## 2026-07-18
 
+### Optical/SFP C600 (PON OLT-side & uplink) — perintah `show optical-module-info` (buang "interface")
+
+Kartu **Optical / SFP (Attenuation)** di detail port C600 masih kosong. Sebab: C600 menolak `show interface optical-module-info` (Invalid input). **Diverifikasi live**: perintah yang benar di C600 = `show optical-module-info {iface}` (**buang** kata "interface" — beda dari C300/C320). Jalan utk GPON **dan** uplink.
+
+Temuan live (LAS GALERAS): GPON `gpon_olt-1/3/1` → TxPower 11.095dbm, Temp 36.6°C, Vol 3.214v, Bias 29.4mA, WL 1490nm (SFP OLT PON **tak punya RxPower tunggal** — Rx per-ONU via `show pon power olt-rx`); uplink `xgei-1/10/1` → RxPower -0.493dbm + TxPower -0.038dbm + Temp/Vol/Bias/WL 850nm. Header C600 "Optical Module Information" (kapital), PN/SN dari `Product-Name`/`Sequence-Number` (bukan Vendor-Pn/Sn), nilai kadang berthreshold inline `[..]`.
+
+Changed:
+
+- `app/Services/ZteCardUplinkService.php` — parser baru `parseC600OpticalModuleInfo` (reuse `extractOpticalFields`/`parseMeasure`; gate `stripos 'Optical Module'`; map Product-Name→PN, Sequence-Number→SN; rx_power null utk GPON); `refreshGponInterface` C600 kini jalankan `show optical-module-info {iface}` + parser C600 (sebelumnya optical dilewati); `refreshC600UplinkInterface` tambah perintah optical + parse.
+- `tests/Unit/C600PortDetailParseTest.php` — 2 test optical (GPON: PN GPON-OLT-C+++, Tx 11.095, Rx null, threshold; uplink: PN SFP-10G-AOC3M, Rx -0.493, Tx -0.038).
+
+Notes: C300/C320 tak tersentuh (parser & perintah lama tetap; branch `isC600`). Kartu SFP di UI kini terisi setelah **Refresh from OLT** — GPON tampil Tx/temp/vol (Rx `-` wajar), uplink tampil Rx+Tx. Suite hijau, Pint bersih. Backend murni — deploy = `git pull` + reload php-fpm.
+
 ### Detail port GPON & uplink C600 (klik chassis) + CPU/mem kartu via `show processor`
 
 Lanjutan chassis C600: (1) port uplink di chassis **tak bisa diklik** (kartu SFUB tak dikenali sbg uplink → tak ada link), (2) detail port GPON/uplink **gagal Refresh from OLT** (nama interface & perintah CLI masih ejaan C300/C320), (3) **CPU/mem kartu kosong**. Semua perintah CLI **diverifikasi live** ke LAS GALERAS dulu.
