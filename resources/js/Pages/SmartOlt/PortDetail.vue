@@ -28,8 +28,6 @@ const flash = computed(() => page.props.flash ?? {});
 
 const isUplink = computed(() => props.type === 'uplink');
 const isGpon = computed(() => props.type === 'gpon');
-// C600 = read-only untuk konfigurasi: VLAN uplink hanya ditampilkan, tak boleh ditulis dari sini.
-const isC600 = computed(() => props.olt?.capabilities?.is_c600 === true);
 const d = computed(() => props.detail ?? {});
 const hasData = computed(() => props.detail !== null && props.detail !== undefined);
 // SmartOLT-style description → structured zone / external-id / authorization date.
@@ -451,7 +449,7 @@ const submitVlan = async () => {
                             {{ $t('portdetail.no_vlan') }}
                         </div>
 
-                        <div v-if="!isC600" class="mt-5 border-t border-white/10 pt-5">
+                        <div class="mt-5 border-t border-white/10 pt-5">
                             <label for="vlan-add" class="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">{{ $t('portdetail.add_vlan_label') }}</label>
                             <form class="flex flex-col gap-2 sm:flex-row sm:items-center" @submit.prevent="submitVlan">
                                 <input

@@ -78,7 +78,6 @@ return [
     'profile_deleted_olt' => 'Profile berhasil dihapus dari OLT dan cache lokal.',
     'profile_deleted_cache' => 'Profile berhasil dihapus dari cache lokal.',
     'port_detail_refreshed' => 'Detail :interface berhasil diperbarui dari OLT.',
-    'c600_vlan_read_only' => 'C600 hanya-baca untuk konfigurasi: VLAN uplink hanya bisa dilihat, tidak bisa ditulis dari sini.',
     'port_refresh_failed' => 'Refresh :interface gagal: ',
     'fcm_sent' => 'Notifikasi terkirim ke :n perangkat.',
     'fcm_no_devices' => 'Belum ada perangkat mobile yang terdaftar.',
