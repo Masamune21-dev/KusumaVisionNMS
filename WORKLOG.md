@@ -2,6 +2,18 @@
 
 ## 2026-07-18
 
+### Preset TR069 C600 dari OLT (ACS url/user/pass auto-isi) — registrasi konsisten
+
+Lanjutan auto mgmt-IP: baca "profil TR069 SmartOLT" langsung dari OLT jadi preset registrasi. Eksplorasi live: **623 ONU pakai ACS SERAGAM** `http://10.69.69.1:14501`, mgmt VLAN 601, mode via-Mgmt-IP (`wan 2 service tr069`+veip); tak ada varian via-WAN, tak ada objek acs-profile global (ACS inline per-ONU). Username/password tersensor `********` di CLI tapi **teks polos via SNMP** `.1082.500.20.2.14.2.1` (.2 URL, .4 username `soltcpe`, .5 password) — konsisten semua ONU. Motivasi: ONU 5/16:2 (registrasi uji user) tak sengaja pakai ACS beda (`10.42.58.2:7547`); preset dari OLT mencegah itu.
+
+Changed:
+
+- `app/Services/Zte/C600MgmtPoolService.php` — `tr069Preset()` (SNMP baca ACS URL/username/password kolom pertama non-kosong, cached 10 mnt); inject `OltSnmpClient`.
+- `app/Http/Controllers/SmartOltController.php` — endpoint `registerMgmtPool` merge preset TR069 ke response (`?fresh` refresh keduanya).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — `autoMgmtIp` isi juga `acs_url/acs_username/acs_password` (di samping mgmt-ip/mask/gateway/vlan). Saat form C600 dibuka → SEMUA field mgmt+TR069 terisi dari OLT; operator tinggal isi nama/zona.
+
+Notes: password ACS sensitif tapi OLT & kredensial milik operator, hanya di-serve ke admin ber-capability provisioning (rute gated). Backend murni + frontend; deploy = `git pull` + `npm run build` + reload php-fpm. Terverifikasi live (preset terbaca 3.7 dtk).
+
 ### Form registrasi C600: ONU Type & profil TCONT jadi dropdown dari katalog profil
 
 Field ONU Type / Internet TCONT / Management TCONT di form C600 tadinya teks bebas — padahal katalog profil sudah tersinkron (onu_type 38, tcont 21). Diubah jadi `<select>` dari `props.profiles` (mempertahankan nilai form yang tak ada di katalog sbg opsi terpilih). Egress traffic-policy tetap teks (traffic-policy downstream tak tersinkron di katalog — dikonfirmasi 0 profil DOWN untuk OLT 2) + hint. Link "Register" di halaman Unconfigured/Global kini mengirim `model` hasil discovery → ONU Type ter-preselect.
