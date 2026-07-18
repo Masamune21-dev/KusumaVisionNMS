@@ -2,6 +2,18 @@
 
 ## 2026-07-18
 
+### Auto-alokasi mgmt-IP C600 (baca IP terpakai dari OLT, hindari bentrok SmartOLT)
+
+Permintaan user: mgmt-IP otomatis seperti SmartOLT ("Auto select from 10.64.64.0/20") biar tak isi field manual. OLT co-managed dgn SmartOLT → auto-alokasi kita **membaca IP mgmt yang benar-benar terpakai di OLT** (sumber kebenaran) lalu memberi IP bebas terendah. **Kunci reliabilitas (terbukti live): `terminal length 0`** mematikan pager `--More--` — tanpa itu scan terpotong ~12 baris (1 layar); dengan pager mati + `execute(largeOutput=true)`, **624 mgmt-ip terbaca penuh ~18 dtk**. Baris mgmt-ip memuat mask/gateway/vlan/priority/host → **pool diturunkan dari config OLT** (tak perlu setelan manual). Verifikasi live: sarankan 10.64.64.2 (terendah bebas), 3657 free.
+
+Changed:
+
+- `app/Services/Zte/C600MgmtPoolService.php` — baru. `pool()` scan+parse (cache 10 mnt), `nextFreeIp()` pilih IP bebas terendah di CIDR (kecualikan network/gateway/broadcast + IP terpakai OLT + registrasi app baru-baru ini). **Un-wrap** baris ZTE yang memotong IP di tengah token (`route … 10\n.64.64.1` → buang newline + rapatkan spasi menempel titik).
+- `app/Http/Controllers/SmartOltController.php` + `routes/web.php` — rute `smartolt.register.mgmt-pool` (GET, C600, gated `supports_provisioning`, `?fresh=1` scan ulang).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — auto-suggest mgmt-ip saat form C600 dibuka + tombol "Auto mgmt-IP" (rescan); isi mask/gateway/vlan/priority/host, tetap bisa diedit. +4 key i18n.
+
+Notes: rute baru → `route:cache` di deploy (server pakai routes-v7.php). Bukan zero-collision mutlak (co-manage SmartOLT), tapi SmartOLT alokasi dari view-nya sendiri (~929 reserved) & kita dari config nyata OLT → cenderung tak tumpang tindih. Deploy = `git pull` + `npm run build` + `route:cache` + reload php-fpm.
+
 ### Fix: script provisioning C600 gagal di `write` (perlu `end` dulu — write invalid di mode config)
 
 Registrasi C600 live pertama (gpon_onu-1/5/16:2, uji user) gagal **hanya di baris `write`** — SEMUA perintah config ONU sukses (mgmt-ip/service/veip/wan/tr069-mgmt/service-port/qos), tapi builder mengakhiri tiap blok dgn `exit` → berhenti di `ZXAN(config)#`, lalu `write` → `%Error 140303 Invalid input`. **Gotcha C600: `write` HANYA valid di privileged-exec `ZXAN#`**, bukan mode config (`addAndTagVlan` dulu lolos karena pakai `end`→`write`). Fix: emit `end` sebelum `write`. ONU 5/16:2 sudah ter-provision di running-config (perintah sukses) & di-persist manual via `saveConfig` (`write ...[OK]`).
