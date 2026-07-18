@@ -35,3 +35,32 @@ export function lastDownCauseLabel(code) {
 
     return key ? i18n.global.t(key) : code;
 }
+
+/**
+ * Pecah deskripsi ONU gaya SmartOLT menjadi bagian terstruktur. Formatnya
+ * `zone_<zona>[_descr_<teks>][_extid_<id>]_authd_<YYYYMMDD>` (delimiter tetap;
+ * zona/teks boleh mengandung spasi). Mengembalikan null bila tak cocok (deskripsi
+ * manual/biasa) sehingga pemanggil bisa menampilkan nilai mentah apa adanya.
+ * @param {string|null|undefined} raw
+ * @returns {{zone: string|null, description: string|null, externalId: number|null, authDate: string|null, raw: string}|null}
+ */
+export function parseOnuDescription(raw) {
+    if (!raw || typeof raw !== 'string') {
+        return null;
+    }
+
+    const m = raw.match(/^zone_(.*?)(?:_descr_(.*?))?(?:_extid_(\d+))?_authd_(\d{8})$/i);
+    if (!m) {
+        return null;
+    }
+
+    const [, zone, description, extid, authd] = m;
+
+    return {
+        zone: zone || null,
+        description: description || null,
+        externalId: extid ? Number(extid) : null,
+        authDate: `${authd.slice(0, 4)}-${authd.slice(4, 6)}-${authd.slice(6, 8)}`,
+        raw,
+    };
+}

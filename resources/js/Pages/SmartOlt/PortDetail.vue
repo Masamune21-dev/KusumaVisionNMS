@@ -2,6 +2,7 @@
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime, formatTimeOfDay } from '@/lib/datetime';
+import { parseOnuDescription } from '@/lib/onu';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
@@ -29,6 +30,8 @@ const isUplink = computed(() => props.type === 'uplink');
 const isGpon = computed(() => props.type === 'gpon');
 const d = computed(() => props.detail ?? {});
 const hasData = computed(() => props.detail !== null && props.detail !== undefined);
+// SmartOLT-style description → structured zone / external-id / authorization date.
+const descParsed = computed(() => parseOnuDescription(d.value.description));
 
 // ── Refresh dari OLT ───────────────────────────────────────────────────
 const refreshing = ref(false);
@@ -326,7 +329,13 @@ const submitVlan = async () => {
                                 </div>
                                 <div class="col-span-2 bg-slate-900/40 px-4 py-3">
                                     <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.description') }}</dt>
-                                    <dd class="mt-1 break-words text-sm text-white">{{ d.description || '-' }}</dd>
+                                    <dd v-if="descParsed" class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white" :title="descParsed.raw">
+                                        <span v-if="descParsed.zone"><span class="text-slate-500">{{ $t('portdetail.zone') }}:</span> {{ descParsed.zone }}</span>
+                                        <span v-if="descParsed.description" class="break-words">{{ descParsed.description }}</span>
+                                        <span v-if="descParsed.externalId" class="text-slate-400">SmartOLT #{{ descParsed.externalId }}</span>
+                                        <span v-if="descParsed.authDate" class="text-slate-400">{{ $t('portdetail.authorized') }} {{ descParsed.authDate }}</span>
+                                    </dd>
+                                    <dd v-else class="mt-1 break-words text-sm text-white">{{ d.description || '-' }}</dd>
                                 </div>
                             </template>
                             <div class="col-span-2 bg-slate-900/40 px-4 py-3">

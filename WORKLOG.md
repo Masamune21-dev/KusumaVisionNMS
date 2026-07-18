@@ -2,6 +2,18 @@
 
 ## 2026-07-18
 
+### Parse deskripsi ONU gaya SmartOLT (zona / external-id / tanggal otorisasi) di halaman Port Detail
+
+Deskripsi ONU C600 yang di-provision SmartOLT berformat `zone_<zona>[_descr_<teks>][_extid_<id>]_authd_<YYYYMMDD>` (mis. `zone_GUAZUMA_extid_1918_authd_20260506`). Sebelumnya ditampilkan mentah; kini di-parse & dirapikan.
+
+Changed:
+
+- `resources/js/lib/onu.js` — helper `parseOnuDescription(raw)` → `{zone, description, externalId, authDate, raw}` atau `null` bila tak cocok (deskripsi manual/biasa). Delimiter tetap `_descr_`/`_extid_`/`_authd_`; zona boleh berspasi.
+- `resources/js/Pages/SmartOlt/PortDetail.vue` — bila deskripsi cocok gaya SmartOLT, tampilkan **Zona / teks / SmartOLT #id / tanggal otorisasi** (nilai mentah jadi tooltip); selainnya tetap mentah.
+- `resources/js/lang/{id,en}.json` — key `portdetail.zone`, `portdetail.authorized`.
+
+Notes: frontend-only, build OK, regex diuji atas sampel asli (GUAZUMA / MANUEL CHIQUITO EL CRUSE, dgn/tanpa extid & descr). Deskripsi non-SmartOLT jatuh ke tampilan mentah. Deploy = `git pull` + `npm run build`.
+
 ### Fix: registrasi ONU mode WAN "bridge" gagal 500 "Server Error" (constraint DB ketinggalan)
 
 Laporan user: registrasi ONU dari aplikasi mobile (role partner) balik "Server Error". Diagnosis: **bukan** soal role — rute API `api.olts.register` (`routes/api.php`) memang mengizinkan `role:admin,operator,partner` dan partner otomatis di-scope OLT-nya (PartnerOltScope). Akar masalah dari `storage/logs/laravel.log`: `PDOException 23514` — `smartolt_onu_registrations_wan_mode_check` **hanya** izinkan `pppoe/dhcp/static`. Mode `bridge` sudah didukung di validasi (`OnuRegistrationService::rules`, `Rule::in([...,'bridge'])`) & script builder, tapi **tak pernah ada migrasi** yang memperluas CHECK constraint (dari `enum()` migrasi awal). Insert audit → langgar constraint → 500. Berlaku untuk web **maupun** mobile (constraint DB dipakai bersama). Catatan operasional: di `register()` `execute=true`, CLI dieksekusi ke OLT **sebelum** insert audit → ONU kemungkinan sudah ter-provision di OLT walau UI error; user perlu verifikasi port sebelum mendaftar ulang agar tak dobel.
