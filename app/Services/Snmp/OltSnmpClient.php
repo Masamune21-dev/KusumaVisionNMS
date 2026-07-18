@@ -93,7 +93,15 @@ class OltSnmpClient
 
     private const C600_ONU_LAST_DOWN_CAUSE = null;
 
-    private const C600_UNCFG_OIDS = [];
+    // C600/TITAN unconfigured (auto-discovered) ONU table — SmartOLT membacanya via SNMPv2c
+    // (CLI uncfg tidak tersedia di C600). Kolom .2 = serial sebagai octet 8-byte (4 ASCII vendor +
+    // 4 raw byte, mis. "48 57 54 43 C6 2B 52 AF" → HWTCC62B52AF), index {PON-ifIndex}.{entry}.
+    // Terverifikasi live (ZXA10 C600 V1.2.2) + docs/ZTE_C600_Unconfigured_ONU_SNMP_Discovery.
+    // Kolom lain (.8 model, .10 firmware, .12/.13 timestamp) ada tapi tak di-surface — record
+    // unconfigured tetap serial+port seperti jalur ZTE C300/C320.
+    private const C600_UNCFG_OIDS = [
+        '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.2',
+    ];
 
     /**
      * @return array<string, mixed>

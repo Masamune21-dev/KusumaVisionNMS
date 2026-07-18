@@ -2,6 +2,20 @@
 
 ## 2026-07-18
 
+### C600 unconfigured ONU discovery via SNMP (CLI uncfg tak tersedia di C600)
+
+User: discovery unconfigured ONU C600 via CLI tak jalan → pakai SNMP (dilampirkan dokumen hasil packet-capture SmartOLT, disimpan `docs/ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md`). Di kode, jalur C600 sudah bercabang (`OltSnmpClient::unconfiguredOnus` pakai `C600_UNCFG_OIDS` bila `isC600`) tapi konstanta-nya **kosong `[]`** → C600 selalu 0 unconfigured.
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — `C600_UNCFG_OIDS = ['1.3.6.1.4.1.3902.1082.500.2.2.11.2.1.2']` (kolom serial `.2` dari tabel unconfigured C600 `.1082.500.2.2.11.2.1`, index `{PON-ifIndex}.{entry}`). Parsing yang ada sudah menangani C600 tanpa perubahan: `decodeOnuSn` (serial 8-byte = 4 ASCII vendor + 4 hex), `extractUnconfiguredIndex` (ambil ifIndex+entry dari suffix), `decodeIfIndex` C600 (slot=`(idx>>8)&0xFF`, port=`idx&0xFF`).
+- `docs/ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md` — dokumen referensi (dari user; terverifikasi packet-capture + reproduksi).
+- `tests/Unit/C600UnconfiguredOnuTest.php` — 2 test: decode serial + PON port (HWTCC62B52AF → gpon_olt-1/5/16); OLT non-C600 tak memakai OID C600.
+
+Notes:
+
+- **Terverifikasi live** (LAS GALERAS): tabel berisi 1 unconfigured ONU `HWTCC62B52AF` di `gpon_olt-1/5/16` (ifIndex `285279504` = `0x11010510` → slot 5 port 16) — cocok persis dokumen. Record unconfigured tetap **serial + PON port** (konsisten dgn jalur ZTE C300/C320); kolom model `.8`/firmware `.10`/timestamp `.12`-`.13` ada tapi belum di-surface (bisa jadi peningkatan lanjutan). Backend murni.
+
 ### Fix ONU C600 hilang (0) di polling terjadwal — fallback PHP untuk tabel ONU C600 (poller Go tak mendukung)
 
 User: polling C600 jalan tapi ONU tak tampil (**Total ONU 0/0**), padahal refresh per-port & sync ONU Monitoring bisa. Akar masalah: **poller Go (`bin/kv-snmp-poller`, jalur terjadwal) belum memetakan tabel ONU C600** (subtree `.1082`) — `grep 1082|c600 cmd/kv-snmp-poller/` kosong. Untuk C600 ia mengembalikan daftar ONU **kosong `[]`** (bukan `null`), sehingga cek fallback `PollOltJob` `if ($onus === null)` jadi false → `OltSnmpClient::registeredOnus` (PHP, yang **mendukung** C600; live = **1343 ONU**) ter-skip → tiap poll 5-menit menimpa cache jadi **0 ONU**. On-demand (refresh port / ONU Monitoring) memakai jalur PHP → itulah kenapa "sebelumnya bisa".
