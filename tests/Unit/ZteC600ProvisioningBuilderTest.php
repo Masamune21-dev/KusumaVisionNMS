@@ -72,7 +72,9 @@ class ZteC600ProvisioningBuilderTest extends TestCase
         $this->assertStringContainsString('service-port 1 user-vlan 200 vlan 200', $script);
         $this->assertStringContainsString('qos traffic-policy SMARTOLT-10M-DOWN direction egress', $script);
 
-        // Simpan config.
+        // Simpan config: `end` (kembali ke exec) HARUS mendahului `write` — `write` di mode
+        // config error di C600 & config tak tersimpan.
+        $this->assertStringContainsString("exit\nend\n\nwrite", $script);
         $this->assertStringEndsWith("\nwrite", $script);
 
         // Jangan pernah keluarkan kesalahan yang sudah dikoreksi.

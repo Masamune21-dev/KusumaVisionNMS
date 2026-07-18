@@ -135,6 +135,9 @@ class ZteC600ProvisioningScriptBuilder
         }
 
         $lines[] = 'exit';
+        // `end` kembali ke privileged-exec (ZXAN#). `write` C600 HANYA valid di sana — dijalankan
+        // dari mode config (ZXAN(config)#) ia error "Invalid input" & config tak tersimpan ke flash.
+        $lines[] = 'end';
         $lines[] = '';
         $lines[] = 'write';
 
