@@ -110,6 +110,12 @@ class ZteCardUplinkService
      */
     private function mergeProcessorLoad(SnmpOlt $olt, array $cards): array
     {
+        // cardProcessors() walks the C300/C320 zxAnCardTable (.1015), which doesn't exist on C600
+        // (its per-board CPU/mem .9/.11 read 0 anyway) — skip the wasted, always-failing walk there.
+        if (SmartOltSupport::isC600($olt)) {
+            return $cards;
+        }
+
         try {
             $processors = $this->snmp->cardProcessors($olt);
         } catch (Throwable) {
