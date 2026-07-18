@@ -899,4 +899,50 @@ RAW;
         // C320: tulis boleh.
         $this->assertTrue(SmartOltSupport::capabilities('zte', $c320)['supports_onu_config_write']);
     }
+
+    private function recordingExecutor(): ZteCliProvisioningExecutor
+    {
+        return new class extends ZteCliProvisioningExecutor
+        {
+            public string $lastScript = '';
+
+            public function __construct() {}
+
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                $this->lastScript = $script;
+
+                return ['ok' => true, 'error' => null, 'output' => "!<xpon>\n  name TEST ONU\n  tcont 1 profile P\n  gemport 1 name x tcont 1\n!\n"];
+            }
+        };
+    }
+
+    public function test_c600_fetch_uses_fast_show_this_when_onu_is_known(): void
+    {
+        // ONU tercatat di cache poll → aman masuk config-mode; `show this` cepat, bukan `xpon | begin`.
+        $exec = $this->recordingExecutor();
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt->last_test_result = ['port_onus' => ['3_1' => ['onus' => [['onu_id' => 1, 'serial_number' => 'ZTEG1']]]]];
+
+        $result = (new ZteOnuRunningConfigService($exec))->fetch($olt, 3, 1, 1);
+
+        $this->assertStringContainsString('configure terminal', $exec->lastScript);
+        $this->assertStringContainsString('interface gpon_onu-1/3/1:1', $exec->lastScript);
+        $this->assertStringContainsString('show this', $exec->lastScript);
+        $this->assertStringNotContainsString('| begin', $exec->lastScript);
+        $this->assertSame('TEST ONU', $result['config']['name']);
+    }
+
+    public function test_c600_fetch_falls_back_to_xpon_when_onu_unknown(): void
+    {
+        // ONU TIDAK di cache → jangan masuk config-mode (bisa auto-create) → pure-show `xpon | begin`.
+        $exec = $this->recordingExecutor();
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt->last_test_result = ['port_onus' => ['3_1' => ['onus' => [['onu_id' => 1]]]]];
+
+        (new ZteOnuRunningConfigService($exec))->fetch($olt, 3, 1, 99); // onu 99 tak ada
+
+        $this->assertStringContainsString('show running-config xpon | begin', $exec->lastScript);
+        $this->assertStringNotContainsString('configure terminal', $exec->lastScript);
+    }
 }

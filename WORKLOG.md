@@ -2,6 +2,17 @@
 
 ## 2026-07-18
 
+### Percepat buka Configure ONU C600 (~25-30s → ~detik) via `show this` config-mode, digerbang cek cache
+
+Buka Configure ONU C600 lambat (~25-30 dtk) karena `show running-config xpon | begin <iface>` mentransfer dari ONU target sampai AKHIR konfigurasi seluruh OLT lalu dipotong sisi aplikasi. Alternatif jauh lebih cepat: masuk config-mode dan `show this` yang mengembalikan HANYA blok ONU itu (~detik, terbukti live).
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — `fetch()` C600 kini: bila ONU **terbukti ada** (helper baru `c600OnuKnown` — cek `last_test_result.port_onus.{slot}_{port}.onus[*].onu_id`), pakai skrip cepat `configure terminal` → `interface {iface}` → `show this` → `exit` → `pon-onu-mng {iface}` → `show this` → `exit` → `exit` (parse langsung, tanpa `extractC600Blocks`). Bila ONU **belum di cache**, tetap pakai `xpon | begin` (pure-show) — sebab `interface gpon_onu-…` untuk ONU tak-ada bisa **membuat entri baru**; gerbang cache mencegah itu. Tak ada `write`/save (executor menjawab `no` di konfirmasi logout).
+- `tests/Unit/ZteOnuConfigureTest.php` — 2 test: ONU dikenal → skrip `configure terminal`+`show this` (bukan `| begin`); ONU tak dikenal → fallback `xpon | begin` (tanpa config-mode).
+
+Notes: read-only (Configure C600 tetap tak bisa tulis; ini hanya mempercepat pembacaan). Diverifikasi live: `show this` mengembalikan blok ONU yang sama (tcont/gemport/vport/name) yang di-parse identik dgn jalur xpon. Suite penuh hijau, Pint bersih. Backend murni — deploy = `git pull` + reload php-fpm.
+
 ### Parse deskripsi ONU gaya SmartOLT (zona / external-id / tanggal otorisasi) di halaman Port Detail
 
 Deskripsi ONU C600 yang di-provision SmartOLT berformat `zone_<zona>[_descr_<teks>][_extid_<id>]_authd_<YYYYMMDD>` (mis. `zone_GUAZUMA_extid_1918_authd_20260506`). Sebelumnya ditampilkan mentah; kini di-parse & dirapikan.

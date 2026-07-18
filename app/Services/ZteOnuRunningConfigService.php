@@ -23,9 +23,36 @@ class ZteOnuRunningConfigService
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
 
         if ($isC600) {
-            // C600/TITAN: running-config per-ONU tidak lewat `show running-config interface`
-            // (perintah itu invalid) melainkan modul `xpon`. Ambil dua blok — `interface …`
-            // dan `pon-onu-mng …` — via `| begin` lalu potong di delimiter blok `$`.
+            // Jalur CEPAT bila ONU sudah terbukti ada (tercatat di cache poll): masuk config-mode
+            // dan `show this` mengembalikan HANYA blok ONU ini (~detik). `show running-config xpon`
+            // mentransfer dari ONU sampai akhir konfigurasi seluruh OLT (~25-30 dtk). `interface X`
+            // untuk ONU yang TAK ada bisa membuat entri baru — makanya digerbang cek cache dulu.
+            if ($this->c600OnuKnown($olt, $slot, $port, $onuId)) {
+                $script = implode("\n", [
+                    'terminal length 0',
+                    'configure terminal',
+                    "interface {$iface}",
+                    'show this',
+                    'exit',
+                    "pon-onu-mng {$iface}",
+                    'show this',
+                    'exit',
+                    'exit',
+                ]);
+
+                $result = $this->executor->execute($olt, $script, true);
+                $raw = CliOutputSanitizer::clean($result['output']);
+
+                return [
+                    'ok' => $result['ok'],
+                    'config' => $this->parse($raw),
+                    'raw' => $raw,
+                    'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
+                ];
+            }
+
+            // Fallback AMAN (ONU belum di cache): pure-show `xpon | begin`, tanpa config-mode.
+            // Ambil dua blok — `interface …` & `pon-onu-mng …` — lalu potong di delimiter `$`.
             $script = implode("\n", [
                 'terminal length 0',
                 "show running-config xpon | begin interface {$iface}",
@@ -58,6 +85,26 @@ class ZteOnuRunningConfigService
             'raw' => $raw,
             'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
         ];
+    }
+
+    /**
+     * Apakah ONU {slot}/{port}:{onuId} sudah tercatat di cache poll terakhir? Dipakai sebagai
+     * GERBANG KEAMANAN sebelum masuk config-mode C600 untuk jalur `show this` yang cepat —
+     * `interface gpon_onu-…` untuk ONU yang tak ada bisa MEMBUAT entri baru, jadi jalur cepat
+     * hanya dipakai bila ONU terbukti ada; selain itu pakai `show running-config xpon` (pure-show).
+     */
+    private function c600OnuKnown(SnmpOlt $olt, int $slot, int $port, int $onuId): bool
+    {
+        $entry = data_get($olt->last_test_result, "port_onus.{$slot}_{$port}");
+        $onus = is_array($entry) ? ($entry['onus'] ?? []) : [];
+
+        foreach ($onus as $onu) {
+            if (is_array($onu) && (int) ($onu['onu_id'] ?? -1) === $onuId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
