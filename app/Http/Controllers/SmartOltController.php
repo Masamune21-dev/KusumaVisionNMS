@@ -19,6 +19,7 @@ use App\Services\OnuInventoryService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
+use App\Services\Zte\OnuRegistrationService;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuDetailService;
@@ -474,6 +475,32 @@ class SmartOltController extends Controller
                 'remote_ont_id' => 1,
                 'remote_ont_mode' => 'forward',
                 'remote_ont_protocol' => 'web',
+            ],
+            // Default form C600 (Model B / SmartOLT TR069). Nilai VLAN/profil/subnet mengikuti
+            // pola lapangan yang terverifikasi; mgmt-ip WAJIB diisi unik per ONU oleh operator.
+            'c600_defaults' => [
+                'serial_number' => (string) $request->query('sn', ''),
+                'slot' => $slot ?: null,
+                'port' => $port ?: null,
+                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $suggestedOnuId),
+                'oid_index' => (string) $request->query('oid_index', ''),
+                'customer_name' => '',
+                'onu_type' => (string) $request->query('model', ''),
+                'zone' => '',
+                'internet_vlan' => 200,
+                'internet_tcont_profile' => $this->firstProfileName($olt, 'tcont', '10MB'),
+                'mgmt_vlan' => 601,
+                'mgmt_tcont_profile' => 'SMARTOLT-VOIPMNG-10M',
+                'egress_traffic_policy' => 'SMARTOLT-10M-DOWN',
+                'mgmt_ip' => '',
+                'mgmt_mask' => '255.255.240.0',
+                'mgmt_gateway' => '',
+                'mgmt_priority' => 2,
+                'mgmt_host' => 2,
+                'acs_url' => (string) config('services.acs.url', ''),
+                'acs_username' => (string) config('services.acs.username', ''),
+                'acs_password' => (string) config('services.acs.password', ''),
+                'remote_ont_enabled' => false,
             ],
             // Pre-fill template standar untuk mode Lanjutan (editor granular):
             // 1 T-CONT + 1 gemport + 1 service-port + 1 service + 1 WAN-IP, semua
@@ -1124,18 +1151,49 @@ class SmartOltController extends Controller
      * left-hand "live raw CLI" panel can update on every keystroke. Read-only:
      * never touches the OLT.
      */
-    public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder): JsonResponse
+    public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, OnuRegistrationService $registration): JsonResponse
     {
+        // C600 = builder Model B lewat OnuRegistrationService. Preview toleran form parsial:
+        // builder C600 melempar bila field wajib kosong → tampilkan pesan alih-alih 500.
+        if (SmartOltSupport::isC600($olt)) {
+            try {
+                return response()->json(['script' => $registration->buildScript($olt, $request->all())]);
+            } catch (\Throwable) {
+                return response()->json(['script' => '! Lengkapi field wajib (VLAN, profil TCONT, mgmt-ip, ACS) untuk melihat script.']);
+            }
+        }
+
         $data = $this->hydrateProvisioningProfiles($olt, $this->previewProvisioningInput($request));
-        $data['is_c600'] = SmartOltSupport::isC600($olt);
+        $data['is_c600'] = false;
 
         return response()->json(['script' => $builder->build($data)]);
     }
 
-    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration): RedirectResponse
     {
+        // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
+        if (SmartOltSupport::isC600($olt)) {
+            $execute = $request->boolean('execute');
+            if ($execute) {
+                $this->assertCapability($olt, 'supports_cli_onu_configure');
+            }
+
+            $validated = $request->validate($registration->rules($olt));
+            $result = $registration->register($olt, $validated, $execute, $request->user()?->id);
+
+            $flash = match ($result['status']) {
+                'executed' => ['success', __('flash.registered_ok')],
+                'generated' => ['success', __('flash.prov_generated')],
+                default => ['error', __('flash.register_rejected').($result['error'] ?? '')],
+            };
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with($flash[0], $flash[1]);
+        }
+
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
-        $data['is_c600'] = SmartOltSupport::isC600($olt);
+        $data['is_c600'] = false;
         $script = $builder->build($data);
         $execute = $request->boolean('execute');
 

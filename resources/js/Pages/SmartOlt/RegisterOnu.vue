@@ -32,9 +32,18 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    c600_defaults: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const clone = (value) => JSON.parse(JSON.stringify(value ?? null));
+
+// C600 (Titan) = form provisioning tersendiri (Model B / SmartOLT TR069): dua layanan
+// internet+manajemen, mgmt-ip in-band, ACS. Menggantikan tab simple/advanced C300.
+const isC600 = computed(() => props.olt.capabilities?.is_c600 === true);
+const c600Form = useForm({ ...props.c600_defaults });
 
 // 'simple' = wizard template tetap (1 service); 'advanced' = editor granular
 // (tcont/gemport/service-port/service per baris) untuk multi-service.
@@ -90,11 +99,11 @@ let debounceTimer = null;
 
 const runPreview = () => {
     preview.loading = true;
-    const isAdvanced = mode.value === 'advanced';
+    const isAdvanced = !isC600.value && mode.value === 'advanced';
     const url = isAdvanced
         ? route('smartolt.register.advanced.preview', props.olt.id)
         : route('smartolt.register.preview', props.olt.id);
-    const payload = isAdvanced ? { ...advForm.data() } : { ...form.data() };
+    const payload = isC600.value ? { ...c600Form.data() } : (isAdvanced ? { ...advForm.data() } : { ...form.data() });
 
     window.axios
         .post(url, payload)
@@ -114,9 +123,9 @@ const schedulePreview = () => {
     debounceTimer = setTimeout(runPreview, 400);
 };
 
-const activePayload = computed(() => (mode.value === 'advanced'
-    ? JSON.stringify(advForm.data())
-    : JSON.stringify(form.data())));
+const activePayload = computed(() => (isC600.value
+    ? JSON.stringify(c600Form.data())
+    : (mode.value === 'advanced' ? JSON.stringify(advForm.data()) : JSON.stringify(form.data()))));
 
 watch(activePayload, schedulePreview);
 watch(mode, () => { preview.script = t('registeronu.loading_comment'); runPreview(); });
@@ -175,6 +184,26 @@ const submitAdvanced = async (execute) => {
             preserveScroll: true,
         });
 };
+
+const submitC600 = async (execute) => {
+    if (execute) {
+        const ok = await confirm({
+            title: t('registeronu.confirm_exec_title'),
+            message: t('registeronu.confirm_exec_msg', { sn: c600Form.serial_number || '', olt: props.olt.name }),
+            confirmLabel: t('registeronu.confirm_exec_label'),
+        });
+
+        if (!ok) {
+            return;
+        }
+    }
+
+    c600Form
+        .transform((data) => ({ ...data, execute }))
+        .post(route('smartolt.register.store', props.olt.id), {
+            preserveScroll: true,
+        });
+};
 </script>
 
 <template>
@@ -227,8 +256,171 @@ const submitAdvanced = async (execute) => {
                     <!-- Kolom kanan: form konfigurasi -->
                     <div class="order-1 space-y-5 xl:order-2">
 
-                    <!-- Mode toggle: Sederhana vs Lanjutan -->
-                    <div class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <!-- ============ Form C600 (Model B / SmartOLT TR069) ============ -->
+                    <form v-if="isC600" class="space-y-5" @submit.prevent="submitC600(false)">
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                    <User class="h-4 w-4 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.c600_identity') }}</h3>
+                                    <p class="text-xs text-slate-500">{{ $t('registeronu.c600_identity_hint') }}</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
+                                <div class="sm:col-span-2">
+                                    <InputLabel :value="$t('registeronu.serial')" />
+                                    <TextInput v-model="c600Form.serial_number" class="mt-1 w-full font-mono" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.serial_number" />
+                                </div>
+                                <div>
+                                    <InputLabel value="Slot" />
+                                    <TextInput v-model.number="c600Form.slot" type="number" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.slot" />
+                                </div>
+                                <div>
+                                    <InputLabel value="Port" />
+                                    <TextInput v-model.number="c600Form.port" type="number" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.port" />
+                                </div>
+                                <div>
+                                    <InputLabel value="ONU ID" />
+                                    <TextInput v-model.number="c600Form.onu_id" type="number" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.onu_id" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.onu_type')" />
+                                    <TextInput v-model="c600Form.onu_type" class="mt-1 w-full font-mono" placeholder="HG8145X6-10" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.onu_type" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.customer_name')" />
+                                    <TextInput v-model="c600Form.customer_name" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.customer_name" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_zone')" />
+                                    <TextInput v-model="c600Form.zone" class="mt-1 w-full" placeholder="ARROYO AL CABO" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.zone" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                    <Globe class="h-4 w-4 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.c600_service') }}</h3>
+                                    <p class="text-xs text-slate-500">{{ $t('registeronu.c600_service_hint') }}</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_internet_vlan')" />
+                                    <TextInput v-model.number="c600Form.internet_vlan" type="number" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.internet_vlan" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_internet_tcont')" />
+                                    <TextInput v-model="c600Form.internet_tcont_profile" class="mt-1 w-full font-mono" list="c600-tcont-list" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.internet_tcont_profile" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_mgmt_vlan')" />
+                                    <TextInput v-model.number="c600Form.mgmt_vlan" type="number" class="mt-1 w-full" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.mgmt_vlan" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_mgmt_tcont')" />
+                                    <TextInput v-model="c600Form.mgmt_tcont_profile" class="mt-1 w-full font-mono" list="c600-tcont-list" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.mgmt_tcont_profile" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <InputLabel :value="$t('registeronu.c600_egress')" />
+                                    <TextInput v-model="c600Form.egress_traffic_policy" class="mt-1 w-full font-mono" placeholder="SMARTOLT-10M-DOWN" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.egress_traffic_policy" />
+                                </div>
+                                <datalist id="c600-tcont-list">
+                                    <option v-for="p in tcontProfiles" :key="p.name" :value="p.name" />
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                                <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                                    <Settings class="h-4 w-4 text-cyan-400" />
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.c600_mgmt') }}</h3>
+                                    <p class="text-xs text-slate-500">{{ $t('registeronu.c600_mgmt_hint') }}</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_mgmt_ip')" />
+                                    <TextInput v-model="c600Form.mgmt_ip" class="mt-1 w-full font-mono" placeholder="10.64.68.214" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.mgmt_ip" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_mgmt_mask')" />
+                                    <TextInput v-model="c600Form.mgmt_mask" class="mt-1 w-full font-mono" placeholder="255.255.240.0" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.mgmt_mask" />
+                                </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.c600_mgmt_gateway')" />
+                                    <TextInput v-model="c600Form.mgmt_gateway" class="mt-1 w-full font-mono" placeholder="10.64.64.1" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.mgmt_gateway" />
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <InputLabel value="Priority" />
+                                        <TextInput v-model.number="c600Form.mgmt_priority" type="number" class="mt-1 w-full" />
+                                    </div>
+                                    <div>
+                                        <InputLabel value="Host" />
+                                        <TextInput v-model.number="c600Form.mgmt_host" type="number" class="mt-1 w-full" />
+                                    </div>
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <InputLabel value="ACS URL" />
+                                    <TextInput v-model="c600Form.acs_url" class="mt-1 w-full font-mono" placeholder="http://10.69.69.1:14501" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.acs_url" />
+                                </div>
+                                <div>
+                                    <InputLabel value="ACS Username" />
+                                    <TextInput v-model="c600Form.acs_username" class="mt-1 w-full font-mono" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.acs_username" />
+                                </div>
+                                <div>
+                                    <InputLabel value="ACS Password" />
+                                    <TextInput v-model="c600Form.acs_password" type="password" class="mt-1 w-full font-mono" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.acs_password" />
+                                </div>
+                                <label class="flex items-center gap-2 sm:col-span-2 text-sm text-slate-300">
+                                    <input v-model="c600Form.remote_ont_enabled" type="checkbox" class="kv-checkbox" />
+                                    {{ $t('registeronu.c600_remote_ont') }}
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                            <SecondaryButton type="submit" :disabled="c600Form.processing">
+                                <LayoutList class="mr-2 h-4 w-4" />
+                                {{ $t('registeronu.generate') }}
+                            </SecondaryButton>
+                            <PrimaryButton type="button" :disabled="c600Form.processing || !canExecute" @click="submitC600(true)">
+                                <Zap class="mr-2 h-4 w-4" />
+                                {{ c600Form.processing ? $t('registeronu.executing') : $t('registeronu.execute_to_olt') }}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+
+                    <!-- Mode toggle: Sederhana vs Lanjutan (C300/C320 saja) -->
+                    <div v-if="!isC600" class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
                             <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.mode_title') }}</h3>
                             <p class="text-xs text-slate-500">{{ $t('registeronu.mode_hint') }}</p>
@@ -253,7 +445,7 @@ const submitAdvanced = async (execute) => {
                         </div>
                     </div>
 
-                    <form v-if="mode === 'simple'" class="space-y-5" @submit.prevent="submit(canExecute)">
+                    <form v-if="!isC600 && mode === 'simple'" class="space-y-5" @submit.prevent="submit(canExecute)">
 
                     <!-- Section 1: Identitas ONU -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
@@ -569,7 +761,7 @@ const submitAdvanced = async (execute) => {
                     </form>
 
                     <!-- Mode Lanjutan: editor granular -->
-                    <div v-else class="space-y-5">
+                    <div v-if="!isC600 && mode === 'advanced'" class="space-y-5">
                         <div v-if="advErrorList.length" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                             <p class="font-semibold">{{ $t('configonu.check_input') }}</p>
                             <ul class="mt-1 list-inside list-disc space-y-0.5">

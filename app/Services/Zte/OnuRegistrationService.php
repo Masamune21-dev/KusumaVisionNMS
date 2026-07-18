@@ -5,6 +5,7 @@ namespace App\Services\Zte;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
+use App\Services\ZteC600ProvisioningScriptBuilder;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\CliOutputSanitizer;
@@ -21,16 +22,22 @@ class OnuRegistrationService
 {
     public function __construct(
         private readonly ZteProvisioningScriptBuilder $builder,
+        private readonly ZteC600ProvisioningScriptBuilder $c600Builder,
         private readonly ZteCliProvisioningExecutor $executor,
     ) {}
 
     /**
      * Aturan validasi payload registrasi (mode dasar), scoped profil per-OLT.
+     * C600 memakai skema field berbeda (Model B TR069 dua-service) → {@see c600Rules()}.
      *
      * @return array<string, mixed>
      */
     public function rules(SnmpOlt $olt): array
     {
+        if (SmartOltSupport::isC600($olt)) {
+            return $this->c600Rules();
+        }
+
         return [
             'serial_number' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9:_.-]+\z/'],
             'slot' => ['required', 'integer', 'between:1,255'],
@@ -63,13 +70,62 @@ class OnuRegistrationService
     }
 
     /**
+     * Aturan validasi C600 (Model B / SmartOLT TR069): dua layanan (internet + manajemen),
+     * mgmt-ip in-band unik per ONU, ACS. Profil TCONT/qos divalidasi format saja (bukan
+     * keberadaan di katalog) supaya tak terblok bila katalog C600 belum tersinkron.
+     *
+     * @return array<string, mixed>
+     */
+    private function c600Rules(): array
+    {
+        return [
+            'serial_number' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9:_.-]+\z/'],
+            'slot' => ['required', 'integer', 'between:1,255'],
+            'port' => ['required', 'integer', 'between:1,255'],
+            'onu_id' => ['required', 'integer', 'between:1,4096'],
+            'oid_index' => ['nullable', 'string', 'max:191'],
+            'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'zone' => ['nullable', 'string', 'max:120', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'description' => ['nullable', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'authd_date' => ['nullable', 'string', 'max:16', 'regex:/^\d{8}$/'],
+            'internet_vlan' => ['required', 'integer', 'between:1,4094'],
+            'internet_tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'mgmt_vlan' => ['required', 'integer', 'between:1,4094', 'different:internet_vlan'],
+            'mgmt_tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'egress_traffic_policy' => ['nullable', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'mgmt_ip' => ['required', 'ipv4'],
+            'mgmt_mask' => ['required', 'ipv4'],
+            'mgmt_gateway' => ['required', 'ipv4'],
+            'mgmt_priority' => ['nullable', 'integer', 'between:0,7'],
+            'mgmt_host' => ['nullable', 'integer', 'between:1,16'],
+            'acs_url' => ['required', 'url', 'max:255'],
+            'acs_username' => ['required', 'string', 'max:120', 'regex:/^\S+\z/'],
+            'acs_password' => ['required', 'string', 'max:120', 'regex:/^\S+\z/'],
+            'remote_ont_enabled' => ['boolean'],
+        ];
+    }
+
+    /**
+     * Pilih builder sesuai family: C600 (Model B) atau C300/C320.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function buildFor(SnmpOlt $olt, array $data): string
+    {
+        return SmartOltSupport::isC600($olt)
+            ? $this->c600Builder->build($data)
+            : $this->builder->build($data);
+    }
+
+    /**
      * Bangun script CLI dari payload (untuk preview & eksekusi).
      *
      * @param  array<string, mixed>  $data
      */
     public function buildScript(SnmpOlt $olt, array $data): string
     {
-        return $this->builder->build($this->prepare($olt, $data));
+        return $this->buildFor($olt, $this->prepare($olt, $data));
     }
 
     /**
@@ -81,7 +137,7 @@ class OnuRegistrationService
     public function register(SnmpOlt $olt, array $validated, bool $execute, ?int $userId): array
     {
         $data = $this->prepare($olt, $validated);
-        $script = $this->builder->build($data);
+        $script = $this->buildFor($olt, $data);
 
         $base = [
             ...$data,
@@ -155,10 +211,20 @@ class OnuRegistrationService
      */
     private function prepare(SnmpOlt $olt, array $data): array
     {
-        $data = $this->hydrateProfiles($olt, $data);
         $data['is_c600'] = SmartOltSupport::isC600($olt);
 
-        return $data;
+        if ($data['is_c600']) {
+            // Petakan ke kolom audit bersama (builder C600 membaca key spesifiknya sendiri).
+            $data['vlan'] = (int) ($data['internet_vlan'] ?? 0);
+            $data['tcont_profile'] = $data['internet_tcont_profile'] ?? null;
+            $data['service_name'] = 'vlan'.(int) ($data['internet_vlan'] ?? 0);
+            $data['wan_mode'] = 'tr069';
+            $data['tr069_enabled'] = true;
+
+            return $data;
+        }
+
+        return $this->hydrateProfiles($olt, $data);
     }
 
     /**

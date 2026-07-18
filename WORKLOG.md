@@ -2,6 +2,25 @@
 
 ## 2026-07-18
 
+### Provisioning/registrasi ONU C600 (Model B / SmartOLT TR069) — builder + form + aktivasi
+
+Registrasi ONU C600 diaktifkan, memakai struktur config **yang direproduksi PERSIS dari running-config ONU asli** di lapangan (verifikasi live `gpon_onu-1/3/1:2/:11/:80` di LAS GALERAS via config-mode `show this`). Pilihan user: **Model B** (config asli, bukan struktur dokumen builder-v2 yang berbeda) + **mgmt-ip diisi manual** per registrasi.
+
+Model B (dua layanan): `interface gpon_olt` → `onu … type … sn …`; `interface gpon_onu` → name/description + `tcont 1&2` + `gemport 1 internet & 2 mgmt`; `pon-onu-mng` → `mgmt-ip …` + [security-mgmt opt-in] + `service vlan{data}` + `service vlan{mgmt}` + `veip 1 port 1232` + `wan 2 service tr069` + `tr069-mgmt 1 state unlock acs … tag pri {prio} vlan {mgmt}` (SATU baris tergabung, `tag pri` bukan `pr1`); `interface vport` → `service-port 1 …` + `qos traffic-policy … direction egress`; `write`. **Realita lapangan menang atas dokumen** di titik beda (tanpa vport-mode/vport-map, tr069 tergabung, service-port tanpa ingress/egress inline). WAN pppoe/dhcp/static tetap ditolak (tak ada di config C600 mana pun).
+
+Changed:
+
+- `app/Services/ZteC600ProvisioningScriptBuilder.php` — ditulis ulang jadi Model B + validasi field wajib (throw kalau kurang). security-mgmt opt-in (`remote_ont_enabled`). Deskripsi gaya SmartOLT `zone_<zona>_authd_<YYYYMMDD>`.
+- `app/Services/Zte/OnuRegistrationService.php` — inject builder C600; `rules()` branch → `c600Rules()` (dua-service, mgmt-ip/mask/gw `ipv4`, mgmt_vlan `different:internet_vlan`, ACS wajib); `buildFor()` pilih builder per-family; `prepare()` C600 map ke kolom audit (`vlan`/`tcont_profile`/`wan_mode=tr069`/`tr069_enabled`).
+- `app/Http/Controllers/SmartOltController.php` — `storeOnu`/`registerOnuPreview` cabang C600 → `OnuRegistrationService` (preview toleran form parsial); `registerOnuForm` kirim `c600_defaults`.
+- `app/Support/SmartOltSupport.php` — `supports_provisioning` C600 = **true**.
+- `database/migrations/…add_tr069_to_…wan_mode.php` — perluas enum `wan_mode` + `tr069` (lanjutan migrasi bridge; pgsql constraint + sqlite rebuild).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — form C600 tersendiri (identitas / layanan internet+mgmt / manajemen IP+TR069), gantikan tab simple/advanced saat `is_c600`; preview & submit lewat rute sama.
+- `resources/js/lang/{id,en}.json` — 19 key `registeronu.*` (serial/onu_type/generate + `c600_*`).
+- `tests/Unit/ZteC600ProvisioningBuilderTest.php` — output == config asli 3/1:11; security-mgmt opt-in; field wajib.
+
+Notes: **belum ada ONU produksi yang di-provision** lewat jalur ini — diverifikasi lewat PREVIEW/build script saja (aman). User perlu uji 1 ONU sebelum pakai massal. C300/C320 tak tersentuh (semua branch `isC600`). Suite: builder+registrasi C300+API register hijau; 1 gagal pre-existing `ApiV1WriteTest::refresh_port_non_zte` (route-cache, bukan regresi). Pint bersih, build OK. Deploy = `git pull` + `npm run build` + `migrate --force` + reload php-fpm.
+
 ### VLAN tagged uplink C600 (baca) + form ADD & TAG VLAN disembunyikan (C600 read-only config)
 
 Bagian **VLAN Tagged** di detail uplink C600 kosong. **Diverifikasi live**: `show vlan port {iface}` **jalan di C600** dgn format identik C300/C320 (PortMode trunk + `TaggedVlan: 18,100-110,191,200,300,400,601`) → `parseTaggedVlans` yang ada langsung memparsenya. Karena C600 posturnya **read-only konfigurasi**, form tulis "ADD & TAG VLAN" (`switchport vlan X tag`+`write` — belum diuji di C600 & menyentuh uplink live) **disembunyikan** di C600; VLAN tetap ditampilkan.

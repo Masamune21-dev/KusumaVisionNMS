@@ -226,10 +226,11 @@ class SmartOltSupport
             'supports_onu_config_write' => ! $isC600,
             'supports_reboot' => true,
             'reboot_mode' => 'cli',
-            // C600: sintaks provisioning-nya beda struktur (vport-mode/vport-map + service-port di
-            // `interface vport-…`), jadi script gaya C300 akan error separuh jalan di tengah write.
-            // Dimatikan sampai ZteC600ProvisioningScriptBuilder diuji ke OLT sungguhan.
-            'supports_provisioning' => ! $isC600,
+            // Provisioning C600 = Model B / SmartOLT TR069 (ZteC600ProvisioningScriptBuilder), struktur
+            // direproduksi PERSIS dari running-config ONU asli di lapangan (dua-service internet+mgmt,
+            // mgmt-ip in-band, VEIP/ACS, tr069-mgmt tergabung `tag pri`). Berbeda dari C300 (dipisah
+            // via OnuRegistrationService::c600Rules + buildFor). WAN pppoe/dhcp/static tetap ditolak.
+            'supports_provisioning' => true,
             'supports_onu_delete' => true,
             'supports_separate_description' => ! $isC600,
             'supports_onu_info_write' => ! $isC600,
