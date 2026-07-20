@@ -1,5 +1,18 @@
 # Worklog
 
+## 2026-07-20
+
+### Fix krusial: scan mgmt-ip C600 terpotong di tengah → baca sampai prompt (`waitForPrompt`)
+
+Diagnosis auto-alokasi: `show running-config | include mgmt-ip` (walau `terminal length 0`) **terpotong** — OLT jeda >4 dtk di tengah stream (~620 baris) saat memproses config, lalu `readUntilIdle` (quiet 4 dtk largeOutput) menyimpulkan selesai prematur (`clean_end=no`, hitungan 494-635 vs ~929 nyata). Akibat serius: ~300 IP terpakai TAK terbaca → salah dianggap bebas → **allocator menyarankan IP yang sudah dipakai** (terbukti: sebelum fix menyarankan `.2`, sesudah fix `.3` — `.2` ternyata terpakai). Fix: baca **sampai prompt CLI kembali**, bukan patokan jeda.
+
+Changed:
+
+- `app/Services/ZteCliProvisioningExecutor.php` — `readUntilIdle` param `$waitForPrompt` (lewati break-karena-jeda; hanya berhenti saat prompt kembali / cap 240 dtk); `run()` meneruskannya; method publik baru `executeScan()` (largeOutput + waitForPrompt).
+- `app/Services/Zte/C600MgmtPoolService.php` — scan pool pakai `executeScan()`.
+
+Notes: scan kini lengkap & stabil (1319 mgmt-ip lintas subnet; ~926 di /20 utama → free 3167 **persis sama dgn hitungan SmartOLT**). Durasi ~40 dtk (dari 18 terpotong) — di-cache 10 mnt, benar > cepat-salah. Co-manage SmartOLT: kini tak menyarankan IP terpakai; sisa risiko hanya balapan alokasi serentak dua-tool (bisa dihindari dgn alokasi dari ujung-atas bila perlu). Deploy = `git pull` + reload php-fpm (backend murni).
+
 ## 2026-07-18
 
 ### Preset TR069 C600 dari OLT (ACS url/user/pass auto-isi) — registrasi konsisten
