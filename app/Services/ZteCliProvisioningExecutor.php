@@ -92,7 +92,19 @@ class ZteCliProvisioningExecutor
     /**
      * @return array{ok:bool, output:string, error:string|null}
      */
-    private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false): array
+    /**
+     * Seperti execute() tapi membaca tiap perintah SAMPAI prompt CLI kembali (bukan patokan jeda) —
+     * untuk output besar yang bisa jeda di tengah stream (mis. `show running-config | include …`),
+     * supaya tak terpotong. Cap total = pengaman largeOutput.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function executeScan(SnmpOlt $olt, string $script): array
+    {
+        return $this->run($olt, $script, false, true, true);
+    }
+
+    private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false, bool $waitForPrompt = false): array
     {
         if ($olt->cli_transport !== 'telnet') {
             throw new RuntimeException('Eksekusi otomatis saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
@@ -124,8 +136,8 @@ class ZteCliProvisioningExecutor
                 // Output besar (running-config penuh) bisa streaming puluhan detik tanpa jeda pager
                 // (terminal length 0) — pakai toleransi jeda & batas total yang jauh lebih longgar.
                 $output .= $largeOutput
-                    ? $this->readUntilIdle($connection, 4.0, $autoConfirmYes, 240)
-                    : $this->readUntilIdle($connection, 1.25, $autoConfirmYes, 45);
+                    ? $this->readUntilIdle($connection, 4.0, $autoConfirmYes, 240, $waitForPrompt)
+                    : $this->readUntilIdle($connection, 1.25, $autoConfirmYes, 45, $waitForPrompt);
             }
 
             fwrite($connection, "exit\n");
@@ -204,7 +216,7 @@ class ZteCliProvisioningExecutor
      *
      * @param  resource  $connection
      */
-    private function readUntilIdle($connection, float $quietSeconds = 1.25, bool $autoConfirmYes = false, int $maxTotalSeconds = 45): string
+    private function readUntilIdle($connection, float $quietSeconds = 1.25, bool $autoConfirmYes = false, int $maxTotalSeconds = 45, bool $waitForPrompt = false): string
     {
         $output = '';
         $hardStart = microtime(true);
@@ -227,8 +239,11 @@ class ZteCliProvisioningExecutor
                     break;
                 }
 
-                // Sunyi cukup lama → anggap selesai (patokan utama end-of-output).
-                if ($output !== '' && ($now - $lastRead) >= $quietSeconds) {
+                // Sunyi cukup lama → anggap selesai (patokan utama end-of-output). DILEWATI saat
+                // $waitForPrompt: output besar seperti `show running-config | include …` bisa JEDA
+                // >quiet di tengah stream (OLT memproses config) — berhenti di situ = truncation.
+                // Maka tunggu prompt CLI kembali (di atas) / cap; jangan berhenti karena jeda saja.
+                if (! $waitForPrompt && $output !== '' && ($now - $lastRead) >= $quietSeconds) {
                     break;
                 }
 

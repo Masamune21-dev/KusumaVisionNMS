@@ -153,7 +153,9 @@ class C600MgmtPoolService
     private function scan(SnmpOlt $olt): array
     {
         // `terminal length 0` mematikan pager → seluruh baris mgmt-ip streaming tanpa `--More--`.
-        $result = $this->executor->execute($olt, "terminal length 0\nshow running-config | include mgmt-ip", true);
+        // executeScan() membaca SAMPAI prompt kembali (bukan patokan jeda) — config besar bisa jeda
+        // >quiet di tengah stream & memotong hasil (bikin IP terpakai salah terbaca "bebas").
+        $result = $this->executor->executeScan($olt, "terminal length 0\nshow running-config | include mgmt-ip");
         $raw = (string) ($result['output'] ?? '');
 
         // ZTE membungkus baris panjang di kolom tetap, MEMOTONG di tengah token — termasuk di tengah
