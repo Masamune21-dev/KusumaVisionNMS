@@ -7,7 +7,7 @@ use App\Models\AlarmEvent;
 use App\Models\PartnerTelegramBot;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
-use Illuminate\Support\Carbon;
+use App\Support\DisplayTime;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -121,7 +121,7 @@ class TelegramNotifier
         // messages of at most MAX_ITEMS_PER_MESSAGE alarms each.
         $chunks = array_chunk($sections, self::MAX_ITEMS_PER_MESSAGE);
         $total = count($chunks);
-        $timestamp = Carbon::now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->translatedFormat('d M Y H:i').' '.config('app.display_timezone_label', 'WIB');
+        $timestamp = DisplayTime::stamp();
 
         try {
             foreach ($chunks as $index => $chunk) {
@@ -154,7 +154,7 @@ class TelegramNotifier
 
         $text = '✅ <b>KusumaVision NMS</b>'."\n"
             .'Tes notifikasi Telegram berhasil. Bot terhubung dengan benar.'
-            ."\n\n🕒 ".Carbon::now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->translatedFormat('d M Y H:i').' '.config('app.display_timezone_label', 'WIB');
+            ."\n\n🕒 ".DisplayTime::stamp();
 
         try {
             return $this->dispatch($config, $text);

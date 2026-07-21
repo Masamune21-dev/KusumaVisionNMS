@@ -63,7 +63,8 @@ const caps = computed(() => props.olt.capabilities ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 // --- TR069 massal (semua ONU port ini) ---
-const canTr069 = computed(() => !!caps.value.supports_cli_onu_configure);
+// Gate = supports_onu_config_write: penulis config gaya C300 (mati di C600 yang bermodel vport).
+const canTr069 = computed(() => !!caps.value.supports_onu_config_write);
 const tr069ModalOpen = ref(false);
 
 // --- navigasi cepat antar port (OLT sama) ---
@@ -121,7 +122,8 @@ const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; admin
 const { page: onuPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOnus, rangeStart, rangeEnd } = usePagination(filteredOnus);
 
 // --- batch copy konfigurasi ke port lain (OLT sama) ---
-const canCopy = computed(() => !!caps.value.supports_cli_onu_configure);
+// Gate = supports_onu_config_write: rebuild registrasi gaya C300 (mati di C600 yang bermodel vport).
+const canCopy = computed(() => !!caps.value.supports_onu_config_write);
 const selected = ref(new Set());
 const isSelected = (onu) => selected.value.has(onu.onu_id);
 const toggleSelect = (onu) => {

@@ -11,6 +11,7 @@ use App\Services\Dashboard\DashboardStatsService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\ZteRemoteOnuService;
 use App\Services\ZteUncfgOnuService;
+use App\Support\DisplayTime;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -1096,9 +1097,7 @@ class TelegramCommandHandler
 
     private function now(): string
     {
-        return Carbon::now()
-            ->timezone(config('app.display_timezone', 'Asia/Jakarta'))
-            ->translatedFormat('d M Y H:i').' '.config('app.display_timezone_label', 'WIB');
+        return DisplayTime::stamp();
     }
 
     private function relative(?string $iso): string

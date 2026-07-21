@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SnmpOlt;
 use App\Services\Report\ReportService;
+use App\Support\DisplayTime;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -100,7 +101,7 @@ class ReportController extends Controller
 
         $pdf = Pdf::loadView('reports.pdf', [
             'report' => $report,
-            'generatedAt' => now()->timezone(config('app.display_timezone', 'Asia/Jakarta'))->format('d/m/Y H:i').' '.config('app.display_timezone_label', 'WIB'),
+            'generatedAt' => DisplayTime::stamp('d/m/Y H:i', translated: false),
         ])->setPaper('a4', 'landscape');
 
         return $pdf->download('laporan-'.$type.'-'.now()->format('Ymd-His').'.pdf');

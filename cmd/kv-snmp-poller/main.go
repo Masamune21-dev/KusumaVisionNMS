@@ -404,6 +404,13 @@ func (c *collector) registeredOnus(ports []portRow) ([]onuRow, error) {
 		})
 	}
 
+	sortOnus(onus)
+
+	return onus, nil
+}
+
+// sortOnus orders ONU rows by slot, port, then ONU id — shared by both ONU-table collectors.
+func sortOnus(onus []onuRow) {
 	sort.Slice(onus, func(i, j int) bool {
 		if onus[i].Slot != onus[j].Slot {
 			return onus[i].Slot < onus[j].Slot
@@ -413,8 +420,6 @@ func (c *collector) registeredOnus(ports []portRow) ([]onuRow, error) {
 		}
 		return onus[i].OnuID < onus[j].OnuID
 	})
-
-	return onus, nil
 }
 
 // registeredOnusC600 is the C600 (.1082 subtree) twin of registeredOnus. The ONU type/SN live in the
@@ -487,15 +492,7 @@ func (c *collector) registeredOnusC600(ports []portRow) ([]onuRow, error) {
 		})
 	}
 
-	sort.Slice(onus, func(i, j int) bool {
-		if onus[i].Slot != onus[j].Slot {
-			return onus[i].Slot < onus[j].Slot
-		}
-		if onus[i].Port != onus[j].Port {
-			return onus[i].Port < onus[j].Port
-		}
-		return onus[i].OnuID < onus[j].OnuID
-	})
+	sortOnus(onus)
 
 	return onus, nil
 }

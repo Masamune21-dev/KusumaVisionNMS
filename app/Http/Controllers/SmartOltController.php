@@ -444,17 +444,26 @@ class SmartOltController extends Controller
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
-        $suggestedOnuId = (int) $request->query('suggested_onu_id');
+        $isC600 = SmartOltSupport::isC600($olt);
+        // ACS efektif = baris Settings bila terisi, fallback config/env (AcsSetting::resolved).
+        $acs = AcsSetting::resolved();
 
+        // Identitas ONU — bagian bersama semua bentuk form.
+        $identity = [
+            'serial_number' => (string) $request->query('sn', ''),
+            'slot' => $slot ?: null,
+            'port' => $port ?: null,
+            'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
+            'oid_index' => (string) $request->query('oid_index', ''),
+        ];
+
+        // Hanya blok default milik family OLT ini yang dibangun penuh — form family
+        // lain tak dirender frontend, jadi query profil & payload-nya dilewati.
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
             'profiles' => SmartOltProfileController::profileOptions($olt),
-            'defaults' => [
-                'serial_number' => (string) $request->query('sn', ''),
-                'slot' => $slot ?: null,
-                'port' => $port ?: null,
-                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $suggestedOnuId),
-                'oid_index' => (string) $request->query('oid_index', ''),
+            'defaults' => $isC600 ? $identity : [
+                ...$identity,
                 'customer_name' => '',
                 'onu_type' => $this->firstProfileName($olt, 'onu_type', 'ALL-ONT'),
                 'tcont_profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'),
@@ -469,9 +478,9 @@ class SmartOltController extends Controller
                 'static_ip' => '',
                 'static_netmask' => '24',
                 'tr069_enabled' => false,
-                'acs_url' => (string) config('services.acs.url', ''),
-                'acs_username' => (string) config('services.acs.username', ''),
-                'acs_password' => (string) config('services.acs.password', ''),
+                'acs_url' => $acs['url'],
+                'acs_username' => $acs['username'],
+                'acs_password' => $acs['password'],
                 'remote_ont_enabled' => false,
                 'remote_ont_id' => 1,
                 'remote_ont_mode' => 'forward',
@@ -479,12 +488,8 @@ class SmartOltController extends Controller
             ],
             // Default form C600 (Model B / SmartOLT TR069). Nilai VLAN/profil/subnet mengikuti
             // pola lapangan yang terverifikasi; mgmt-ip WAJIB diisi unik per ONU oleh operator.
-            'c600_defaults' => [
-                'serial_number' => (string) $request->query('sn', ''),
-                'slot' => $slot ?: null,
-                'port' => $port ?: null,
-                'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $suggestedOnuId),
-                'oid_index' => (string) $request->query('oid_index', ''),
+            'c600_defaults' => ! $isC600 ? null : [
+                ...$identity,
                 'customer_name' => '',
                 'onu_type' => (string) $request->query('model', ''),
                 'zone' => '',
@@ -498,15 +503,15 @@ class SmartOltController extends Controller
                 'mgmt_gateway' => '',
                 'mgmt_priority' => 2,
                 'mgmt_host' => 2,
-                'acs_url' => (string) config('services.acs.url', ''),
-                'acs_username' => (string) config('services.acs.username', ''),
-                'acs_password' => (string) config('services.acs.password', ''),
+                'acs_url' => $acs['url'],
+                'acs_username' => $acs['username'],
+                'acs_password' => $acs['password'],
                 'remote_ont_enabled' => false,
             ],
             // Pre-fill template standar untuk mode Lanjutan (editor granular):
             // 1 T-CONT + 1 gemport + 1 service-port + 1 service + 1 WAN-IP, semua
             // bisa ditambah/diubah baris per baris.
-            'advanced_defaults' => [
+            'advanced_defaults' => $isC600 ? null : [
                 'name' => '',
                 'tconts' => [['id' => 1, 'name' => '1', 'profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'), 'gap' => 'mode0']],
                 'gemports' => [['id' => 1, 'name' => '1', 'tcont' => 1, 'traffic_up' => '', 'traffic_down' => '']],
@@ -528,9 +533,9 @@ class SmartOltController extends Controller
                     'traceroute_response' => true,
                 ]],
                 'tr069' => false,
-                'acs_url' => (string) config('services.acs.url', ''),
-                'acs_username' => (string) config('services.acs.username', ''),
-                'acs_password' => (string) config('services.acs.password', ''),
+                'acs_url' => $acs['url'],
+                'acs_username' => $acs['username'],
+                'acs_password' => $acs['password'],
                 'remote_ont' => false,
                 'remote_ont_id' => 1,
                 'remote_ont_mode' => 'forward',
@@ -1025,7 +1030,9 @@ class SmartOltController extends Controller
      */
     public function copyOnusToPort(Request $request, SnmpOlt $olt, int $slot, int $port): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        // Rebuild registrasi gaya C300 (tcont/gemport/service-port) — butuh capability TULIS
+        // config, bukan sekadar CLI configure (C600 read-only untuk jalur ini).
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         $data = $request->validate([
             'onu_ids' => ['required', 'array', 'min:1', 'max:256'],
@@ -1083,7 +1090,8 @@ class SmartOltController extends Controller
      */
     public function tr069Bulk(Request $request, SnmpOlt $olt, int $slot, int $port, ZteTr069BulkService $service): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        // Menulis baris tr069-mgmt gaya C300 (dua-baris state+acs) — gate capability tulis config.
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         $data = $request->validate([
             'execute' => ['boolean'],
@@ -1147,12 +1155,6 @@ class SmartOltController extends Controller
     }
 
     /**
-     * Build a live preview of the provisioning CLI script from the (possibly
-     * incomplete) register form, without strict validation, so the form's
-     * left-hand "live raw CLI" panel can update on every keystroke. Read-only:
-     * never touches the OLT.
-     */
-    /**
      * Auto-alokasi mgmt-IP C600: baca IP terpakai dari OLT (menghindari bentrok SmartOLT) lalu
      * kembalikan IP bebas terendah + parameter pool (mask/gateway/vlan/priority/host) yang diturunkan
      * dari config. `?fresh=1` memaksa scan ulang (abaikan cache ~10 mnt). Read-only ke OLT.
@@ -1180,6 +1182,12 @@ class SmartOltController extends Controller
         }
     }
 
+    /**
+     * Build a live preview of the provisioning CLI script from the (possibly
+     * incomplete) register form, without strict validation, so the form's
+     * left-hand "live raw CLI" panel can update on every keystroke. Read-only:
+     * never touches the OLT.
+     */
     public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, OnuRegistrationService $registration): JsonResponse
     {
         // C600 = builder Model B lewat OnuRegistrationService. Preview toleran form parsial:
@@ -1193,7 +1201,6 @@ class SmartOltController extends Controller
         }
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->previewProvisioningInput($request));
-        $data['is_c600'] = false;
 
         return response()->json(['script' => $builder->build($data)]);
     }
@@ -1222,18 +1229,18 @@ class SmartOltController extends Controller
         }
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
-        $data['is_c600'] = false;
         $script = $builder->build($data);
         $execute = $request->boolean('execute');
 
         $base = [
             ...$data,
             'snmp_olt_id' => $olt->id,
+            // Cabang C600 sudah return di atas — jalur ini selalu penamaan C300/C320.
             'pon_port' => SmartOltSupport::onuInterfaceId(
                 (int) $data['slot'],
                 (int) $data['port'],
                 (int) $data['onu_id'],
-                SmartOltSupport::isC600($olt),
+                false,
             ),
             'cli_script' => $script,
             'created_by' => $request->user()?->id,
@@ -1297,7 +1304,9 @@ class SmartOltController extends Controller
      */
     public function registerOnuAdvancedPreview(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        // Mode Lanjutan menyusun config granular gaya C300 — gate capability tulis config
+        // (di C600 form Lanjutan memang tak dirender; registrasi C600 lewat jalur Model B).
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
 
@@ -1355,8 +1364,8 @@ class SmartOltController extends Controller
                 ->with('success', __('flash.prov_generated_advanced'));
         }
 
-        // Eksekusi langsung ke OLT via Telnet.
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        // Eksekusi langsung ke OLT via Telnet — script granular gaya C300 (gate capability tulis).
+        $this->assertCapability($olt, 'supports_onu_config_write');
 
         try {
             $result = $executor->execute($olt, $script);

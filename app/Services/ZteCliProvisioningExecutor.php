@@ -90,9 +90,6 @@ class ZteCliProvisioningExecutor
     }
 
     /**
-     * @return array{ok:bool, output:string, error:string|null}
-     */
-    /**
      * Seperti execute() tapi membaca tiap perintah SAMPAI prompt CLI kembali (bukan patokan jeda) —
      * untuk output besar yang bisa jeda di tengah stream (mis. `show running-config | include …`),
      * supaya tak terpotong. Cap total = pengaman largeOutput.
@@ -104,6 +101,9 @@ class ZteCliProvisioningExecutor
         return $this->run($olt, $script, false, true, true);
     }
 
+    /**
+     * @return array{ok:bool, output:string, error:string|null}
+     */
     private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false, bool $waitForPrompt = false): array
     {
         if ($olt->cli_transport !== 'telnet') {

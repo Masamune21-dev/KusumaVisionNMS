@@ -100,4 +100,16 @@ class ZteC600ProvisioningBuilderTest extends TestCase
         $this->expectException(RuntimeException::class);
         (new ZteC600ProvisioningScriptBuilder)->build($this->input(['mgmt_ip' => '']));
     }
+
+    /** Newline di field teks-bebas diratakan jadi spasi — tak boleh jadi baris CLI baru. */
+    public function test_cli_injection_via_customer_name_is_flattened(): void
+    {
+        $script = (new ZteC600ProvisioningScriptBuilder)->build($this->input([
+            'customer_name' => "Budi\nexit\nno onu 11",
+        ]));
+
+        $lines = array_map('trim', explode("\n", $script));
+        $this->assertNotContains('no onu 11', $lines);
+        $this->assertContains('name Budi exit no onu 11', $lines);
+    }
 }

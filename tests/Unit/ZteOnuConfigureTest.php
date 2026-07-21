@@ -826,9 +826,10 @@ RAW;
 
     public function test_c600_fetch_uses_xpon_and_extracts_single_onu_block(): void
     {
-        // C600/TITAN: `show running-config xpon | begin …` mengembalikan dari ONU target
-        // sampai akhir. fetch() harus memotong hanya blok interface & pon-onu-mng milik
-        // ONU yang diminta (berhenti di delimiter `$` / header ONU berikutnya).
+        // C600/TITAN: `show running-config xpon | begin interface …` mengembalikan dari ONU
+        // target sampai AKHIR konfigurasi — jadi blok pon-onu-mng ikut dalam satu stream.
+        // fetch() harus memotong hanya blok interface & pon-onu-mng milik ONU yang diminta
+        // (berhenti di delimiter `$` / header ONU berikutnya).
         $dump = implode("\n", [
             '> show running-config xpon | begin interface gpon_onu-1/3/1:1',
             'interface gpon_onu-1/3/1:1',
@@ -844,7 +845,6 @@ RAW;
             '  name Cust Two',
             '  tcont 1 profile 10MB',
             '$',
-            '> show running-config xpon | begin pon-onu-mng gpon_onu-1/3/1:1',
             'pon-onu-mng gpon_onu-1/3/1:1',
             '  service vlan200 gemport 1 vlan 200',
             '  veip 1 port 1232 ipv4 host 2',
@@ -942,7 +942,9 @@ RAW;
 
         (new ZteOnuRunningConfigService($exec))->fetch($olt, 3, 1, 99); // onu 99 tak ada
 
-        $this->assertStringContainsString('show running-config xpon | begin', $exec->lastScript);
+        $this->assertStringContainsString('show running-config xpon | begin interface', $exec->lastScript);
+        // Satu perintah saja — blok pon-onu-mng ikut di stream yang sama (| begin tampil s/d akhir).
+        $this->assertSame(1, substr_count($exec->lastScript, '| begin'));
         $this->assertStringNotContainsString('configure terminal', $exec->lastScript);
     }
 }

@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-07-21
+
+### Review kualitas sprint C600 (/simplify): dedup, efisiensi, gating capability, derive label TZ
+
+Review 4-sudut (reuse/simplification/efficiency/altitude) atas seluruh sprint C600 18–20 Jul, lalu perbaikan diterapkan langsung. Tanpa fitur baru — murni merapikan; suite 386 pass (1 fail pre-existing `ApiV1WriteTest`, terdokumentasi), go test pass, `npm run build` bersih.
+
+Created:
+
+- `app/Support/DisplayTime.php` — helper waktu tampilan: `timezone()`, `label()` (label zona **diturunkan otomatis** dari `app.display_timezone` via `format('T')`; env `APP_DISPLAY_TIMEZONE_LABEL` kini hanya override opsional), `stamp()` (format + label, dipakai laporan/Telegram).
+
+Changed:
+
+- `app/Services/ZteOnuRunningConfigService.php` — `fetch()`: tiga blok execute+shape duplikat dilebur jadi satu ekor bersama; **fallback C600 kini 1 perintah** (`xpon | begin interface …` saja — blok `pon-onu-mng` ikut di stream yang sama, perintah kedua redundan ~2× transfer config); `extractC600Blocks` split baris di-hoist keluar loop header.
+- `app/Services/ZteCardUplinkService.php` — ekor identik 18-baris (throw + transaksi delete/create + return) di `refreshInterfaceDetails` & `refreshC600InterfaceDetails` diekstrak jadi `persistUplinkRows()`.
+- `app/Http/Controllers/SmartOltController.php` — `registerOnuForm`: `suggestNextOnuId` dipanggil sekali (blok `$identity` bersama), blok defaults dibangun **per-family** (C600 tak lagi menjalankan ~7 query profil C300 + payload mati, dan sebaliknya), ACS prefill via `AcsSetting::resolved()` (Settings > env — sebelumnya baca config mentah, nilai Settings terlewat); hapus dead `is_c600=false` (builder sudah default) & panggilan `isC600()` yang selalu false; docblock `registerOnuPreview` yang nyasar di atas `registerMgmtPool` dikembalikan ke tempatnya; **gating dipindah** `supports_cli_onu_configure` → `supports_onu_config_write` untuk `copyOnusToPort`, `tr069Bulk`, register Lanjutan (preview+execute) — semuanya penulis config gaya C300 yang salah sintaks di C600.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — `canTr069`/`canCopy` ikut pindah ke `supports_onu_config_write` (tombol TR069 Massal & Copy ONU kini tersembunyi di C600).
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — 3 select profil C600 pakai satu helper `withCurrent()` (ganti 2 computed nama + 3 `<option v-if>` copy-paste); 3 blok legacy dibungkus satu `<template v-else>` (guard `!isC600` per-blok dihapus); `activeForm` computed tunggal utk payload preview (ternary 3-arah yang ditulis dua kali); props `advanced_defaults`/`c600_defaults` nullable per-family.
+- `app/Services/Zte/C600MgmtPoolService.php` — `tr069Preset` kini **1 walk + 2 get** (bukan 3 walk kolom penuh ~600 baris; walk kolom URL cari baris pertama, username/password di-GET pada indeks sama); `recentAppIps` tak lagi menarik 200 blob `cli_script` tiap panggilan — baris `executed` dibatasi `created_at >= scanned_at` (yang lebih lama pasti sudah terlihat scan), baris `generated` tetap direservasi tanpa batas.
+- `routes/web.php` — `smartolt.register.mgmt-pool` diberi `throttle:olt-refresh` (satu-satunya route penyentuh-OLT yang belum di-throttle; scan cold-cache ~40 dtk).
+- `app/Services/ZteCliProvisioningExecutor.php` — docblock `@return` yatim di atas `executeScan` dipindah ke `run()` (miliknya).
+- `cmd/kv-snmp-poller/main.go` — komparator `sort.Slice` 9-baris yang identik di `registeredOnus` & `registeredOnusC600` diekstrak jadi `sortOnus()`; binary di-rebuild.
+- `config/app.php` + `resources/views/app.blade.php` + `app/Http/Controllers/ReportController.php` + `app/Services/Telegram/{TelegramNotifier,TelegramCommandHandler}.php` — 4 concat `config(display_timezone…label)` copy-paste diganti `DisplayTime::stamp()/label()/timezone()`; `display_timezone_label` default null (derive).
+- `tests/Unit/ZteOnuConfigureTest.php` — dump test fallback C600 disesuaikan bentuk 1-perintah + assert `substr_count('| begin') === 1`.
+- `tests/Unit/ZteC600ProvisioningBuilderTest.php` — +test injection CLI via customer_name (diselamatkan dari file lama).
+- `tests/Unit/ZteC600ProvisioningScriptBuilderTest.php` — **DIHAPUS**: test stale pra-sprint yang mengunci kontrak Model-A usang (`vport-mode manual`, `tag pr1`, wan_mode) — 5 test ini gagal di HEAD sejak builder ditulis ulang ke Model B (18 Jul) dan sudah digantikan `ZteC600ProvisioningBuilderTest`.
+- `CLAUDE.md` + `docs/handbook/07-modul-fitur.md` — sinkron gating TR069 Massal → `supports_onu_config_write`.
+
+Notes:
+
+- Perilaku yang SENGAJA tidak diubah (temuan di-skip): literal preset lapangan C600 (`mgmt_tcont SMARTOLT-VOIPMNG-10M`, VLAN 200/601, mask /20) — `firstProfileName` memilih alfabetis, menggantinya mengubah nilai prefill live; injeksi TZ via `window.KV_DISPLAY_TZ` (disengaja: tersedia sebelum Inertia boot); migrasi wan_mode duplikat (sudah jalan di prod); refactor besar yang dicatat sbg follow-up — unifikasi 3 jalur registrasi ke `OnuRegistrationService`, sentinel C600 `PollOltJob` (butuh flag family/schema di binary Go), `largeOutput`⇒`waitForPrompt` utk backup config (perlu verifikasi live C300), chassis Vue konsumsi `port_name_prefix` backend.
+- Fallback 1-perintah `fetch()` C600 valid karena `| begin` menampilkan dari kecocokan sampai AKHIR config & blok `pon-onu-mng` berada setelah blok `interface` (guide §3.1, terverifikasi live sprint lalu).
+- Derivasi label TZ terverifikasi: `format('T')` Asia/Jakarta → "WIB", America/Santo_Domingo → "AST" — dua deployment aktif tak berubah perilaku walau env label tak diset.
+
 ## 2026-07-20
 
 ### Fix krusial: scan mgmt-ip C600 terpotong di tengah → baca sampai prompt (`waitForPrompt`)

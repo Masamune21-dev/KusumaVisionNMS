@@ -21,63 +21,47 @@ class ZteOnuRunningConfigService
     {
         $isC600 = SmartOltSupport::isC600($olt);
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
+        $extractBlocks = false;
 
-        if ($isC600) {
+        if (! $isC600) {
+            $script = [
+                'terminal length 0',
+                "show running-config interface {$iface}",
+                "show onu running config {$iface}",
+            ];
+        } elseif ($this->c600OnuKnown($olt, $slot, $port, $onuId)) {
             // Jalur CEPAT bila ONU sudah terbukti ada (tercatat di cache poll): masuk config-mode
             // dan `show this` mengembalikan HANYA blok ONU ini (~detik). `show running-config xpon`
             // mentransfer dari ONU sampai akhir konfigurasi seluruh OLT (~25-30 dtk). `interface X`
             // untuk ONU yang TAK ada bisa membuat entri baru — makanya digerbang cek cache dulu.
-            if ($this->c600OnuKnown($olt, $slot, $port, $onuId)) {
-                $script = implode("\n", [
-                    'terminal length 0',
-                    'configure terminal',
-                    "interface {$iface}",
-                    'show this',
-                    'exit',
-                    "pon-onu-mng {$iface}",
-                    'show this',
-                    'exit',
-                    'exit',
-                ]);
-
-                $result = $this->executor->execute($olt, $script, true);
-                $raw = CliOutputSanitizer::clean($result['output']);
-
-                return [
-                    'ok' => $result['ok'],
-                    'config' => $this->parse($raw),
-                    'raw' => $raw,
-                    'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
-                ];
-            }
-
+            $script = [
+                'terminal length 0',
+                'configure terminal',
+                "interface {$iface}",
+                'show this',
+                'exit',
+                "pon-onu-mng {$iface}",
+                'show this',
+                'exit',
+                'exit',
+            ];
+        } else {
             // Fallback AMAN (ONU belum di cache): pure-show `xpon | begin`, tanpa config-mode.
-            // Ambil dua blok — `interface …` & `pon-onu-mng …` — lalu potong di delimiter `$`.
-            $script = implode("\n", [
+            // Satu perintah cukup: `| begin` menampilkan dari kecocokan sampai AKHIR konfigurasi,
+            // dan blok `pon-onu-mng {iface}` berada SETELAH blok `interface {iface}` di stream
+            // yang sama — extractC600Blocks memotong kedua blok dari satu output.
+            $script = [
                 'terminal length 0',
                 "show running-config xpon | begin interface {$iface}",
-                "show running-config xpon | begin pon-onu-mng {$iface}",
-            ]);
-
-            $result = $this->executor->execute($olt, $script, true);
-            $raw = $this->extractC600Blocks(CliOutputSanitizer::clean($result['output']), $iface);
-
-            return [
-                'ok' => $result['ok'],
-                'config' => $this->parse($raw),
-                'raw' => $raw,
-                'error' => $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']),
             ];
+            $extractBlocks = true;
         }
 
-        $script = implode("\n", [
-            'terminal length 0',
-            "show running-config interface {$iface}",
-            "show onu running config {$iface}",
-        ]);
-
-        $result = $this->executor->execute($olt, $script);
+        $result = $this->executor->execute($olt, implode("\n", $script), $isC600);
         $raw = CliOutputSanitizer::clean($result['output']);
+        if ($extractBlocks) {
+            $raw = $this->extractC600Blocks($raw, $iface);
+        }
 
         return [
             'ok' => $result['ok'],
@@ -116,12 +100,13 @@ class ZteOnuRunningConfigService
     private function extractC600Blocks(string $raw, string $iface): string
     {
         $needle = strtolower($iface);
+        $lines = preg_split('/\r?\n/', $raw) ?: [];
         $blocks = [];
 
         foreach (['interface', 'pon-onu-mng'] as $header) {
             $capture = false;
             $buf = [];
-            foreach (preg_split('/\r?\n/', $raw) ?: [] as $line) {
+            foreach ($lines as $line) {
                 $trimmed = trim($line);
                 if (! $capture) {
                     if (strtolower($trimmed) === $header.' '.$needle) {

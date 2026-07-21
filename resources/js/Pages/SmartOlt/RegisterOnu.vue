@@ -24,14 +24,16 @@ const props = defineProps({
         type: Object,
         required: true,
     },
+    // Null bila OLT C600 — form Lanjutan C300/C320 tak dirender di sana.
     advanced_defaults: {
         type: Object,
-        required: true,
+        default: () => ({}),
     },
     profiles: {
         type: Object,
         required: true,
     },
+    // Null bila OLT bukan C600 — hanya form C600 yang memakainya.
     c600_defaults: {
         type: Object,
         default: () => ({}),
@@ -93,10 +95,13 @@ const advForm = useForm({
 const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
-// Nama profil untuk memastikan nilai form yang tak ada di katalog (mis. model hasil discovery
-// yang belum tersinkron) tetap muncul sebagai opsi terpilih di dropdown C600.
-const onuTypeNames = computed(() => onuTypeProfiles.value.map((p) => p.name));
-const tcontNames = computed(() => tcontProfiles.value.map((p) => p.name));
+// Nilai form yang tak ada di katalog (mis. model hasil discovery yang belum tersinkron)
+// tetap muncul sebagai opsi terpilih di dropdown C600.
+const withCurrent = (profiles, current) => (
+    current && !profiles.some((p) => p.name === current)
+        ? [{ id: '__current', name: current }, ...profiles]
+        : profiles
+);
 const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
 const canExecute = computed(() => !!(props.olt.capabilities?.supports_cli_onu_configure));
@@ -129,13 +134,16 @@ watch(() => form.wan_mode, (mode) => {
 const preview = reactive({ script: t('registeronu.fill_form_comment'), loading: false });
 let debounceTimer = null;
 
+// Form yang sedang aktif (C600 / lanjutan / sederhana) — satu sumber untuk preview & payload.
+const activeForm = computed(() => (isC600.value ? c600Form : (mode.value === 'advanced' ? advForm : form)));
+
 const runPreview = () => {
     preview.loading = true;
     const isAdvanced = !isC600.value && mode.value === 'advanced';
     const url = isAdvanced
         ? route('smartolt.register.advanced.preview', props.olt.id)
         : route('smartolt.register.preview', props.olt.id);
-    const payload = isC600.value ? { ...c600Form.data() } : (isAdvanced ? { ...advForm.data() } : { ...form.data() });
+    const payload = { ...activeForm.value.data() };
 
     window.axios
         .post(url, payload)
@@ -155,9 +163,7 @@ const schedulePreview = () => {
     debounceTimer = setTimeout(runPreview, 400);
 };
 
-const activePayload = computed(() => (isC600.value
-    ? JSON.stringify(c600Form.data())
-    : (mode.value === 'advanced' ? JSON.stringify(advForm.data()) : JSON.stringify(form.data()))));
+const activePayload = computed(() => JSON.stringify(activeForm.value.data()));
 
 watch(activePayload, schedulePreview);
 watch(mode, () => { preview.script = t('registeronu.loading_comment'); runPreview(); });
@@ -327,8 +333,7 @@ const submitC600 = async (execute) => {
                                     <InputLabel :value="$t('registeronu.onu_type')" />
                                     <select v-model="c600Form.onu_type" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
                                         <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                        <option v-if="c600Form.onu_type && !onuTypeNames.includes(c600Form.onu_type)" :value="c600Form.onu_type">{{ c600Form.onu_type }}</option>
-                                        <option v-for="p in onuTypeProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                        <option v-for="p in withCurrent(onuTypeProfiles, c600Form.onu_type)" :key="p.id" :value="p.name">{{ p.name }}</option>
                                     </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.onu_type" />
                                 </div>
@@ -365,8 +370,7 @@ const submitC600 = async (execute) => {
                                     <InputLabel :value="$t('registeronu.c600_internet_tcont')" />
                                     <select v-model="c600Form.internet_tcont_profile" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
                                         <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                        <option v-if="c600Form.internet_tcont_profile && !tcontNames.includes(c600Form.internet_tcont_profile)" :value="c600Form.internet_tcont_profile">{{ c600Form.internet_tcont_profile }}</option>
-                                        <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                        <option v-for="p in withCurrent(tcontProfiles, c600Form.internet_tcont_profile)" :key="p.id" :value="p.name">{{ p.name }}</option>
                                     </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.internet_tcont_profile" />
                                 </div>
@@ -379,8 +383,7 @@ const submitC600 = async (execute) => {
                                     <InputLabel :value="$t('registeronu.c600_mgmt_tcont')" />
                                     <select v-model="c600Form.mgmt_tcont_profile" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
                                         <option value="" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                        <option v-if="c600Form.mgmt_tcont_profile && !tcontNames.includes(c600Form.mgmt_tcont_profile)" :value="c600Form.mgmt_tcont_profile">{{ c600Form.mgmt_tcont_profile }}</option>
-                                        <option v-for="p in tcontProfiles" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                        <option v-for="p in withCurrent(tcontProfiles, c600Form.mgmt_tcont_profile)" :key="p.id" :value="p.name">{{ p.name }}</option>
                                     </select>
                                     <InputError class="mt-1.5" :message="c600Form.errors.mgmt_tcont_profile" />
                                 </div>
@@ -478,8 +481,11 @@ const submitC600 = async (execute) => {
                         </div>
                     </form>
 
-                    <!-- Mode toggle: Sederhana vs Lanjutan (C300/C320 saja) -->
-                    <div v-if="!isC600" class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <!-- ============ Form C300/C320 (mode Sederhana / Lanjutan) ============ -->
+                    <template v-else>
+
+                    <!-- Mode toggle: Sederhana vs Lanjutan -->
+                    <div class="flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
                             <h3 class="text-sm font-semibold text-white">{{ $t('registeronu.mode_title') }}</h3>
                             <p class="text-xs text-slate-500">{{ $t('registeronu.mode_hint') }}</p>
@@ -504,7 +510,7 @@ const submitC600 = async (execute) => {
                         </div>
                     </div>
 
-                    <form v-if="!isC600 && mode === 'simple'" class="space-y-5" @submit.prevent="submit(canExecute)">
+                    <form v-if="mode === 'simple'" class="space-y-5" @submit.prevent="submit(canExecute)">
 
                     <!-- Section 1: Identitas ONU -->
                     <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
@@ -820,7 +826,7 @@ const submitC600 = async (execute) => {
                     </form>
 
                     <!-- Mode Lanjutan: editor granular -->
-                    <div v-if="!isC600 && mode === 'advanced'" class="space-y-5">
+                    <div v-else class="space-y-5">
                         <div v-if="advErrorList.length" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
                             <p class="font-semibold">{{ $t('configonu.check_input') }}</p>
                             <ul class="mt-1 list-inside list-disc space-y-0.5">
@@ -895,6 +901,8 @@ const submitC600 = async (execute) => {
                             </div>
                         </div>
                     </div>
+
+                    </template>
 
                     </div>
                 </div>

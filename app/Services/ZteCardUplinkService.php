@@ -402,24 +402,7 @@ class ZteCardUplinkService
             }
         }
 
-        if ($rows === []) {
-            $reason = $result['error'] ? ': '.$result['error'] : '';
-
-            throw new RuntimeException('Tidak ada detail interface yang berhasil diparse'.$reason);
-        }
-
-        DB::transaction(function () use ($olt, $rows): void {
-            SmartOltInterfaceStatus::query()
-                ->where('snmp_olt_id', $olt->id)
-                ->where('interface_type', 'uplink')
-                ->delete();
-
-            foreach ($rows as $row) {
-                SmartOltInterfaceStatus::create($row);
-            }
-        });
-
-        return $this->getStoredUplinkInterfaces($olt);
+        return $this->persistUplinkRows($olt, $rows, $result['error']);
     }
 
     /**
@@ -466,8 +449,20 @@ class ZteCardUplinkService
             ];
         }
 
+        return $this->persistUplinkRows($olt, $rows, $result['error']);
+    }
+
+    /**
+     * Simpan hasil parse uplink (replace-all per OLT) lalu kembalikan bentuk tersimpan.
+     * Ekor bersama refreshInterfaceDetails (C300/C320) & refreshC600InterfaceDetails.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function persistUplinkRows(SnmpOlt $olt, array $rows, ?string $error): array
+    {
         if ($rows === []) {
-            $reason = $result['error'] ? ': '.$result['error'] : '';
+            $reason = $error ? ': '.$error : '';
 
             throw new RuntimeException('Tidak ada detail interface yang berhasil diparse'.$reason);
         }

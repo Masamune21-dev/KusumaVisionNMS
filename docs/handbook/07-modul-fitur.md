@@ -48,7 +48,7 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
 - Daftar port PON dari snapshot (`ports[]` di `last_test_result`): status oper/admin, jumlah ONU.
 
 ### 4b. TR069 Massal (per-OLT)
-- **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_cli_onu_configure`, ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.
+- **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_onu_config_write` — penulis config gaya C300, OFF di C600; ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.
 - **Controller**: `tr069Bulk` (POST, antrikan job), `tr069BulkStatus` (GET, poll) · **Service**: `ZteTr069BulkService` · **Job**: `Tr069BulkConfigJob` + tabel `tr069_bulk_tasks`.
 - Alur 2 fase via flag `execute`:
   1. **Dry-run** (`execute=false`): pindai running-config tiap ONU per port (1 sesi telnet/port via `ZteOnuRunningConfigService::fetchMany`), laporkan mana yang **akan diaktifkan** vs **sudah aktif (skip)** vs **gagal baca** — tanpa menulis apa pun ke OLT.

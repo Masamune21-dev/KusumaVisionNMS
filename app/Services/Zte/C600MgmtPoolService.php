@@ -48,28 +48,51 @@ class C600MgmtPoolService
             Cache::forget($key);
         }
 
-        return Cache::remember($key, self::CACHE_TTL, fn () => [
-            'acs_url' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.2'),
-            'acs_username' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.4'),
-            'acs_password' => $this->firstSnmpValue($olt, self::ACS_TABLE.'.5'),
-        ]);
+        return Cache::remember($key, self::CACHE_TTL, function () use ($olt) {
+            // Tabel berisi SATU baris per ONU ber-TR069 (bisa ratusan) dengan nilai identik —
+            // cukup walk kolom URL sekali untuk menemukan baris pertama, lalu GET username &
+            // password pada indeks yang sama (1 walk + 2 get, bukan 3 walk kolom penuh).
+            [$index, $url] = $this->firstSnmpRow($olt, self::ACS_TABLE.'.2');
+
+            return [
+                'acs_url' => $url,
+                'acs_username' => $index === null ? null : $this->snmpGet($olt, self::ACS_TABLE.'.4.'.$index),
+                'acs_password' => $index === null ? null : $this->snmpGet($olt, self::ACS_TABLE.'.5.'.$index),
+            ];
+        });
     }
 
-    /** Nilai non-kosong pertama dari sebuah kolom SNMP (nilai identik di semua ONU → cukup satu). */
-    private function firstSnmpValue(SnmpOlt $olt, string $oid): ?string
+    /**
+     * Indeks baris + nilai non-kosong pertama dari sebuah kolom SNMP.
+     *
+     * @return array{0:?string, 1:?string}
+     */
+    private function firstSnmpRow(SnmpOlt $olt, string $column): array
     {
         try {
-            foreach ($this->snmp->walk($olt, $oid) as $value) {
+            foreach ($this->snmp->walk($olt, $column) as $oid => $value) {
                 $value = trim((string) $value);
                 if ($value !== '') {
-                    return $value;
+                    return [ltrim(substr((string) $oid, strlen($column)), '.'), $value];
                 }
             }
         } catch (\Throwable) {
             // SNMP mati / tabel kosong → tanpa preset (form pakai default config).
         }
 
-        return null;
+        return [null, null];
+    }
+
+    /** GET satu OID, null bila gagal (preset bersifat best-effort). */
+    private function snmpGet(SnmpOlt $olt, string $oid): ?string
+    {
+        try {
+            $value = trim((string) $this->snmp->get($olt, $oid));
+
+            return $value === '' ? null : $value;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -109,7 +132,7 @@ class C600MgmtPoolService
         $gateway = ip2long($pool['gateway']);
 
         $used = array_fill_keys($pool['used'], true);
-        foreach ($this->recentAppIps($olt) as $ip) {
+        foreach ($this->recentAppIps($olt, $pool['scanned_at']) as $ip) {
             $used[$ip] = true;
         }
 
@@ -207,15 +230,21 @@ class C600MgmtPoolService
 
     /**
      * IP mgmt yang di-provision aplikasi ini baru-baru ini (dari cli_script audit) — menutup celah
-     * registrasi beruntun dalam jendela cache sebelum scan berikutnya melihat IP baru.
+     * registrasi beruntun dalam jendela cache sebelum scan berikutnya melihat IP baru. Baris
+     * `executed` yang lebih lama dari `$since` (waktu scan ter-cache) sudah pasti terlihat scan
+     * → dilewati (tak perlu ambil & regex blob script-nya); baris `generated` tetap direservasi
+     * tanpa batas waktu karena IP-nya belum ada di config OLT sampai dieksekusi.
      *
      * @return array<int, string>
      */
-    private function recentAppIps(SnmpOlt $olt): array
+    private function recentAppIps(SnmpOlt $olt, string $since): array
     {
         $scripts = SmartOltOnuRegistration::withoutGlobalScopes()
             ->where('snmp_olt_id', $olt->id)
-            ->whereIn('status', ['generated', 'executed'])
+            ->where(function ($query) use ($since) {
+                $query->where('status', 'generated')
+                    ->orWhere(fn ($q) => $q->where('status', 'executed')->where('created_at', '>=', $since));
+            })
             ->latest('id')
             ->limit(200)
             ->pluck('cli_script');
