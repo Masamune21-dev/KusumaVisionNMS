@@ -50,9 +50,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _open(SearchResult r) {
     if (r.isOnu && r.hasPort) {
       if (r.onuId != null) {
-        // Langsung ke Detail ONU — hasil klik tak lagi mendarat di daftar ONU
-        // se-port (paritas maksud web global search: fokus ke ONU yang dicari).
-        context.push('/olts/${r.oltId}/ports/${r.slot}/${r.port}/onus/${r.onuId}');
+        // Mendarat di Detail ONU, tapi halaman Port ONU disisipkan ke back-stack
+        // (pola deep-link Android): back = daftar ONU se-port dengan ONU-nya
+        // ter-highlight, back lagi = kembali ke pencarian.
+        final portPath = '/olts/${r.oltId}/ports/${r.slot}/${r.port}';
+        context.push('$portPath?focus=${r.onuId}');
+        context.push('$portPath/onus/${r.onuId}');
       } else {
         // ONU tanpa onu_id (mis. EPON, identitas = MAC): buka port dengan kotak
         // cari sudah terisi SN/nama sehingga hanya ONU itu yang tampil.

@@ -2,6 +2,19 @@
 
 ## 2026-07-21
 
+### Mobile: back dari Detail ONU (hasil pencarian global) kini turun ke halaman Port ONU
+
+Changed:
+
+- `mobile/lib/features/search/search_screen.dart` — `_open()` untuk hasil ONU ber-`onu_id` kini push dua rute berurutan (pola deep-link Android): halaman Port ONU (`?focus={onuId}`) disisipkan ke back-stack lalu Detail ONU di atasnya. Tap hasil tetap mendarat langsung di Detail ONU, tapi tombol kembali sekarang turun ke daftar ONU se-port (baris ONU-nya ter-highlight via `focusOnuId` yang memang sudah didukung `PortOnusScreen`), back sekali lagi baru kembali ke pencarian (kata kunci tersimpan karena tab shell dipertahankan).
+- `mobile/pubspec.yaml` — bump versi `1.2.2+14` → `1.2.3+15` (versionCode wajib naik tiap rilis APK).
+
+Notes:
+
+- Efek samping positif: data halaman port ter-preload saat detail terbuka, dan `context.pop()` setelah Hapus ONU dari Detail kini mendarat di daftar port yang langsung ter-refresh (provider sudah di-invalidate), bukan balik ke halaman pencarian.
+- Cabang EPON (ONU tanpa `onu_id`, identitas MAC) tidak berubah — tetap buka halaman port dengan kotak cari terisi.
+- `flutter analyze` bersih; APK release dibangun via `bin/build-apk.sh` dan tersalin ke `public/downloads/kusumavision-nms.apk` (arm64) + `-arm32`.
+
 ### Fix: hasil Configure ONU tampil "Belum dieksekusi" di Riwayat Registrasi padahal sukses
 
 Changed:
