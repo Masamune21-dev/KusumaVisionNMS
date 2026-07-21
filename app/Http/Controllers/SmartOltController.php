@@ -1481,7 +1481,7 @@ class SmartOltController extends Controller
     ): RedirectResponse {
         abort_unless($registration->snmp_olt_id === $olt->id, 404);
 
-        if ($registration->status === 'executed') {
+        if (in_array($registration->status, ['executed', 'reconfigured'], true)) {
             return redirect()
                 ->route('smartolt.registrations', $olt)
                 ->with('success', __('flash.prov_already_registered'));
@@ -1530,7 +1530,7 @@ class SmartOltController extends Controller
     ): RedirectResponse {
         abort_unless($registration->snmp_olt_id === $olt->id, 404);
 
-        if ($registration->status === 'executed') {
+        if (in_array($registration->status, ['executed', 'reconfigured'], true)) {
             return redirect()
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.prov_delete_blocked'));

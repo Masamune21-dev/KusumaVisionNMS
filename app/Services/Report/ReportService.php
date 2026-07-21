@@ -369,9 +369,9 @@ class ReportService
         $failed = 0;
 
         $rows = $registrations->map(function (SmartOltOnuRegistration $r) use (&$success, &$failed) {
-            if (in_array($r->status, ['success', 'executed', 'completed'], true)) {
+            if (in_array($r->status, ['success', 'executed', 'completed', 'reconfigured'], true)) {
                 $success++;
-            } elseif (in_array($r->status, ['failed', 'error'], true)) {
+            } elseif (in_array($r->status, ['failed', 'error', 'reconfig_failed'], true)) {
                 $failed++;
             }
 
@@ -381,7 +381,7 @@ class ReportService
                 'serial_number' => $r->serial_number,
                 'customer_name' => $r->customer_name ?: '-',
                 'wan_mode' => $r->wan_mode ?: '-',
-                'status' => ucfirst((string) $r->status),
+                'status' => ucfirst(str_replace('_', ' ', (string) $r->status)),
                 'created_by' => $r->creator?->name ?? '-',
             ];
         })->all();

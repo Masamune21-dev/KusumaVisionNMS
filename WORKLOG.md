@@ -2,6 +2,20 @@
 
 ## 2026-07-21
 
+### Fix: hasil Configure ONU tampil "Belum dieksekusi" di Riwayat Registrasi padahal sukses
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/Registrations.vue` — halaman Riwayat Registrasi kini mengenal status `reconfigured` (pill sky "Config diperbarui") dan `reconfig_failed` (pill merah). Sebelumnya kedua status jatuh ke fallback `generated`, sehingga eksekusi Configure ONU yang **sukses** (output CLI + `executed_at` lengkap, config terbukti masuk OLT) tampil "Belum dieksekusi / Belum dikirim ke CLI OLT". Helper baru `isDone`/`isFailed`: tombol Play & hapus disembunyikan untuk baris `reconfigured` (delta script tidak boleh dieksekusi ulang — berisiko duplikat service-port), `reconfig_failed` tetap bisa retry seperti `failed`.
+- `resources/js/lang/{id,en}.json` — key baru `registrations.status_reconfigured`, `status_reconfig_failed`, `desc_reconfigured`, `desc_reconfigured_at` (ID + EN).
+- `app/Http/Controllers/SmartOltController.php` — guard `executeRegistration`/`destroyRegistration` kini juga memblokir baris `reconfigured` (sebelumnya hanya `executed`, jadi delta script bisa dieksekusi ulang / log-nya dihapus lewat request langsung).
+- `app/Services/Report/ReportService.php` — laporan registrasi menghitung `reconfigured` sebagai sukses dan `reconfig_failed` sebagai gagal (sebelumnya dua-duanya tak terhitung); label status di CSV/PDF ganti underscore jadi spasi ("Reconfig failed", bukan "Reconfig_failed").
+
+Notes:
+
+- Akar masalah murni tampilan: `configureOnuApply` menyimpan status `reconfigured`/`reconfig_failed`, tapi UI hanya mengenal `generated/executed/failed` dan mem-fallback status asing ke `generated`. Data eksekusi di DB selama ini sudah benar.
+- Tes: `SmartOltRegistrationExecutionTest` + `SmartOltAdvancedRegisterTest` 5 pass. Catatan: test web harus dijalankan setelah `config:clear` (config cache prod bikin semua POST kena 419 CSRF di test — gagal identik tanpa perubahan ini); cache langsung di-`config:cache` ulang setelahnya. `npm run build` bersih.
+
 ### README dirombak ringkas (650 → 120 baris) + ajakan star GitHub
 
 Changed:

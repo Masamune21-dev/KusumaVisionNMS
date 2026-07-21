@@ -58,8 +58,20 @@ const statuses = computed(() => ({
         textClass: 'text-emerald-300',
         icon: CheckCircle2,
     },
+    reconfigured: {
+        label: t('registrations.status_reconfigured'),
+        pillClass: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30',
+        textClass: 'text-sky-300',
+        icon: CheckCircle2,
+    },
     failed: {
         label: t('registrations.status_failed'),
+        pillClass: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30',
+        textClass: 'text-red-300',
+        icon: XCircle,
+    },
+    reconfig_failed: {
+        label: t('registrations.status_reconfig_failed'),
         pillClass: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30',
         textClass: 'text-red-300',
         icon: XCircle,
@@ -70,9 +82,13 @@ const formatDate = (value) => formatDateTime(value);
 
 const statusMeta = (status) => statuses.value[status] ?? statuses.value.generated;
 
-const canExecute = (registration) => registration.status !== 'executed';
+const isDone = (registration) => registration.status === 'executed' || registration.status === 'reconfigured';
 
-const canDelete = (registration) => registration.status !== 'executed';
+const isFailed = (registration) => registration.status === 'failed' || registration.status === 'reconfig_failed';
+
+const canExecute = (registration) => !isDone(registration);
+
+const canDelete = (registration) => !isDone(registration);
 
 const statusDescription = (registration) => {
     if (registration.status === 'executed') {
@@ -81,7 +97,13 @@ const statusDescription = (registration) => {
             : t('registrations.desc_registered');
     }
 
-    if (registration.status === 'failed') {
+    if (registration.status === 'reconfigured') {
+        return registration.executed_at
+            ? t('registrations.desc_reconfigured_at', { date: formatDate(registration.executed_at) })
+            : t('registrations.desc_reconfigured');
+    }
+
+    if (isFailed(registration)) {
         return registration.executed_at
             ? t('registrations.desc_failed_at', { date: formatDate(registration.executed_at) })
             : t('registrations.desc_failed');
@@ -97,10 +119,10 @@ const executeRegistration = async (registration) => {
 
     const ok = await confirm({
         title: t('registrations.confirm_exec_title'),
-        message: registration.status === 'failed'
+        message: isFailed(registration)
             ? t('registrations.confirm_exec_msg_retry', { port: registration.pon_port })
             : t('registrations.confirm_exec_msg_new', { port: registration.pon_port }),
-        confirmLabel: registration.status === 'failed' ? t('registrations.confirm_retry_label') : t('registrations.confirm_exec_label'),
+        confirmLabel: isFailed(registration) ? t('registrations.confirm_retry_label') : t('registrations.confirm_exec_label'),
         variant: 'primary',
     });
 
@@ -198,7 +220,7 @@ const deleteRegistration = async (registration) => {
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}
                                     </span>
-                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
+                                    <IconButton v-if="canExecute(registration)" variant="success" :title="isFailed(registration) ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton v-if="canDelete(registration)" variant="danger" :title="$t('registrations.delete_script_title')" @click="deleteRegistration(registration)">
@@ -239,7 +261,7 @@ const deleteRegistration = async (registration) => {
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}
                                     </span>
-                                    <IconButton v-if="canExecute(registration)" variant="success" :title="registration.status === 'failed' ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
+                                    <IconButton v-if="canExecute(registration)" variant="success" :title="isFailed(registration) ? $t('registrations.retry_title') : $t('registrations.execute_title')" @click="executeRegistration(registration)">
                                         <Play class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton v-if="canDelete(registration)" variant="danger" :title="$t('registrations.delete_script_title')" @click="deleteRegistration(registration)">
