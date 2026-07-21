@@ -2,6 +2,17 @@
 
 ## 2026-07-21
 
+### README dirombak ringkas (650 → 120 baris) + ajakan star GitHub
+
+Changed:
+
+- `README.md` — disederhanakan total dari ~650 jadi 120 baris. Instalasi kini hanya 2 jalur simpel (Docker 3-perintah/`start.bat` dan `install.sh` satu-perintah) + 3 langkah "setelah instalasi"; langkah manual 1–10, setup Go poller, setup Telegram, dan ringkasan hardening dihapus (semuanya sudah tercakup `docs/INSTALL.md` + `docs/handbook/04-instalasi-deploy.md` — diverifikasi tak ada info hilang & tak ada link dari dokumen lain yang putus). Fitur dipadatkan jadi 8 bullet, stack jadi 1 baris, screenshot 12 → 6. Ditambah ajakan **star ⭐**: badge shields.io + kalimat ajakan di atas, dan seksi baru "⭐ Dukung Proyek Ini" di bawah (star, share ke rekan ISP, lapor hasil uji perangkat).
+
+Notes:
+
+- Seksi panjang "Bantu Uji & Lengkapi Dukungan OLT ZTE" dipadatkan jadi 1 paragraf di bagian Komunitas — narasi lama "C600 dukungan parsial / OID nama ONU & unconfigured belum ketemu" sudah usang sejak sprint C600 Jul 2026 (nama/phase/unconfigured via SNMP + registrasi aktif), jadi sekalian tak menyesatkan.
+- Jalur "Manual (dev)" di `docs/INSTALL.md` menaut ke handbook 04 (bukan README), sehingga penghapusan langkah manual dari README aman.
+
 ### Review kualitas sprint C600 (/simplify): dedup, efisiensi, gating capability, derive label TZ
 
 Review 4-sudut (reuse/simplification/efficiency/altitude) atas seluruh sprint C600 18–20 Jul, lalu perbaikan diterapkan langsung. Tanpa fitur baru — murni merapikan; suite 386 pass (1 fail pre-existing `ApiV1WriteTest`, terdokumentasi), go test pass, `npm run build` bersih.
