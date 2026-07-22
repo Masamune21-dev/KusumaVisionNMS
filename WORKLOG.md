@@ -2,6 +2,16 @@
 
 ## 2026-07-22
 
+### Badge shields.io + header README di-center
+
+Changed:
+
+- `README.md` — header dirombak: baris badge shields.io (Status Stable · Versi 2.0.0 · Laravel 12 · PHP 8.3+ · Vue 3 · PostgreSQL 16 · Android Flutter, dengan logo resmi) + judul, badge, dan paragraf deskripsi di-center pakai `<div align="center">`; badge star GitHub lama dipertahankan ikut center.
+
+Notes:
+
+- Versi badge 2.0.0 mengikuti `GeneralSetting::DEFAULT_VERSION` (yang tampil di web); PHP 8.3+ sesuai jalur deploy nyata (install.sh & Docker `php:8.3-fpm`) walau `composer.json` masih `^8.2`. Badge DB pakai PostgreSQL (bukan MySQL seperti contoh referensi) sesuai stack sebenarnya.
+
 ### Deskripsi port PON ikut tampil di aplikasi mobile (API v1 + Flutter)
 
 Created:

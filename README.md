@@ -1,10 +1,22 @@
+<div align="center">
+
 # KusumaVision NMS
+
+![Status](https://img.shields.io/badge/Status-Stable-brightgreen)
+![Versi](https://img.shields.io/badge/Versi-2.0.0-blue)
+![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
+![PHP](https://img.shields.io/badge/PHP-8.3%2B-777BB4?logo=php&logoColor=white)
+![Vue](https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![Flutter](https://img.shields.io/badge/Android-Flutter-02569B?logo=flutter&logoColor=white)
 
 [![Star di GitHub](https://img.shields.io/github/stars/Masamune21-dev/KusumaVisionNMS?style=social)](https://github.com/Masamune21-dev/KusumaVisionNMS)
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
 Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO/V-Sol EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+
+</div>
 
 > ⭐ **Kalau proyek ini bermanfaat, bantu kasih star di GitHub** — gratis, 5 detik, dan sangat berarti untuk kelangsungan proyek ini.
 
