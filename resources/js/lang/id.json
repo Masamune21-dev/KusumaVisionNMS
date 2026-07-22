@@ -1435,6 +1435,14 @@
         "ldc_deactivated": "Dinonaktifkan dari OLT",
         "ldc_manual": "Dimatikan manual (admin)",
         "ldc_dying_gasp": "Listrik pelanggan mati (dying gasp)",
-        "ldc_unknown": "Tidak diketahui"
+        "ldc_unknown": "Tidak diketahui",
+        "phase_logging": "Logging",
+        "phase_los": "Kehilangan sinyal (LOS)",
+        "phase_sync_mib": "Sinkronisasi MIB",
+        "phase_working": "Online",
+        "phase_dying_gasp": "Listrik pelanggan mati (dying gasp)",
+        "phase_auth_failed": "Autentikasi gagal",
+        "phase_offline": "Offline",
+        "phase_unknown": "Tidak diketahui"
     }
 }

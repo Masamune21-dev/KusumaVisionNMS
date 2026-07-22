@@ -6,6 +6,7 @@ import FilterCard from '@/Components/Shell/FilterCard.vue';
 import ListSkeleton from '@/Components/Shell/ListSkeleton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
+import { lastDownCauseLabel, phaseStateLabel } from '@/lib/onu';
 import { usePagination } from '@/Composables/usePagination';
 import { rxBadgeClass, rxLevel } from '@/Composables/useRxLevel';
 import { Head, router, usePage } from '@inertiajs/vue3';
@@ -359,7 +360,7 @@ const phaseDotClass = (onu) => {
                                         </div>
                                         <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">{{ $t('portonus.col_phase') }}</span>
-                                            <span class="kv-mobile-value" :class="phaseClass(onu)">{{ onu.phase_state }}</span>
+                                            <span class="kv-mobile-value" :class="phaseClass(onu)" :title="onu.phase_state || ''">{{ phaseStateLabel(onu.phase_state) }}</span>
                                         </div>
                                         <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">{{ $t('portonus.col_admin') }}</span>
@@ -374,7 +375,7 @@ const phaseDotClass = (onu) => {
                                         </div>
                                         <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">{{ $t('portonus.col_last_down') }}</span>
-                                            <span class="kv-mobile-value">{{ onu.last_down_cause || '—' }}</span>
+                                            <span class="kv-mobile-value" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                         </div>
                                     </div>
 
@@ -425,7 +426,7 @@ const phaseDotClass = (onu) => {
                                             <td class="px-6 py-4">
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full" :class="phaseDotClass(onu)"></span>
-                                                    <span class="text-sm" :class="phaseClass(onu)">{{ onu.phase_state }}</span>
+                                                    <span class="text-sm" :class="phaseClass(onu)" :title="onu.phase_state || ''">{{ phaseStateLabel(onu.phase_state) }}</span>
                                                 </div>
                                             </td>
                                             <td class="px-6 py-4">
@@ -438,7 +439,7 @@ const phaseDotClass = (onu) => {
                                                     {{ onu.admin_state }}
                                                 </span>
                                             </td>
-                                            <td class="px-6 py-4 text-sm text-slate-500">{{ onu.last_down_cause || '—' }}</td>
+                                            <td class="px-6 py-4 text-sm text-slate-500" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</td>
                                             <td class="px-6 py-4">
                                                 <div class="flex items-center justify-center gap-1.5">
                                                     <IconButton :href="portOnuHref(onu)" variant="primary" :title="$t('onumonitor.open_in_port')">

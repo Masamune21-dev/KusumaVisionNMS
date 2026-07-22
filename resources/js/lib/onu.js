@@ -36,6 +36,39 @@ export function lastDownCauseLabel(code) {
     return key ? i18n.global.t(key) : code;
 }
 
+// Interpretasi phase_state (status ONU saat ini) ke keterangan dwibahasa. Beda taksonomi
+// per family: C300/C320 (OltSnmpClient::decodePhaseState) vs C600 (…PhaseState, isC600=true /
+// Go decodePhaseStateC600) — 'Offline' vs 'OffLine' beda kapitalisasi disatukan di sini.
+// DyingGasp memakai teks yang sama dengan onu.ldc_dying_gasp (mati listrik pelanggan) supaya
+// konsisten baik saat itu status TERKINI (phase_state) maupun penyebab TERAKHIR (last_down_cause).
+const PHASE_STATE_KEYS = {
+    Logging: 'onu.phase_logging',
+    LOS: 'onu.phase_los',
+    'Sync MIB': 'onu.phase_sync_mib',
+    Working: 'onu.phase_working',
+    DyingGasp: 'onu.phase_dying_gasp',
+    'Auth Failed': 'onu.phase_auth_failed',
+    Offline: 'onu.phase_offline',
+    OffLine: 'onu.phase_offline',
+    Unknown: 'onu.phase_unknown',
+};
+
+/**
+ * Ubah kode phase_state menjadi keterangan sesuai bahasa aktif. Kode tak dikenal
+ * dikembalikan apa adanya; kosong/null → '—'.
+ * @param {string|null|undefined} code
+ * @returns {string}
+ */
+export function phaseStateLabel(code) {
+    if (code === null || code === undefined || code === '') {
+        return '—';
+    }
+
+    const key = PHASE_STATE_KEYS[code];
+
+    return key ? i18n.global.t(key) : code;
+}
+
 /**
  * Pecah deskripsi ONU gaya SmartOLT menjadi bagian terstruktur. Formatnya
  * `zone_<zona>[_descr_<teks>][_extid_<id>]_authd_<YYYYMMDD>` (delimiter tetap;

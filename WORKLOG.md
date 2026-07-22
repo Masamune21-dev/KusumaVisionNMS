@@ -2,6 +2,22 @@
 
 ## 2026-07-22
 
+### Label ramah status ONU (`phase_state`) di ONU Monitoring & Port ONUs
+
+Changed:
+
+- `resources/js/lib/onu.js` — fungsi baru `phaseStateLabel()` + map `PHASE_STATE_KEYS` (pola kembar `lastDownCauseLabel()`): terjemahkan kode `phase_state` ke keterangan dwibahasa; cakup taksonomi C300/C320 (Logging/LOS/Sync MIB/Working/DyingGasp/Auth Failed/Offline) **dan** C600 (`OffLine` beda kapitalisasi), kode tak dikenal dikembalikan apa adanya, kosong → `—`.
+- `resources/js/lang/{id,en}.json` — 8 key baru `onu.phase_*`; `phase_dying_gasp` memakai teks yang sama dengan `ldc_dying_gasp` ("Listrik pelanggan mati (dying gasp)") supaya status terkini dan penyebab terakhir terbaca seragam.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — tampilan phase (mobile + desktop) via `phaseStateLabel()`; bonus: `last_down_cause` yang sebelumnya masih mentah kini via `lastDownCauseLabel()`; nilai teknis asli dipertahankan sebagai tooltip `:title`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — tampilan phase (mobile + desktop) via `phaseStateLabel()` + tooltip nilai asli.
+
+Notes:
+
+- **Kontribusi rekan dari server uji C600** (38.10.82.29) — di-review penuh lalu diterapkan verbatim di repo utama. Perubahan `CLAUDE.md`/`.gitattributes` di working tree sana (tool graphify lokal) sengaja TIDAK ikut.
+- Presentasi-only: pembanding kanonik `phase_state === 'LOS'/'DyingGasp'/'Offline'` (filter status, statistik, warna) serta backend/alarm/Telegram/Report tak tersentuh sama sekali.
+- Cakupan map diverifikasi terhadap `OltSnmpClient::decodePhaseState` (PHP) dan decoder poller Go — komplet. ONU C-Data/HiOSO ber-phase `Online` (tak ada di map) tampil apa adanya, kebetulan identik dengan terjemahan `Working` → konsisten.
+- Verifikasi: `npm run build` OK; `php artisan test --filter="AlarmEngineTest|SettingsFcmTest"` 24 passed (jalankan dengan override `APP_CONFIG_CACHE=<file-tak-ada>` — tanpa itu test nyasar ke pgsql prod karena config cache; DB prod diverifikasi utuh).
+
 ### Aksi "Remote ONT" di ONU C-Data GPON — buka/tutup akses web ONT via `ont security-mgmt`
 
 Changed:

@@ -1435,6 +1435,14 @@
         "ldc_deactivated": "Deactivated from the OLT",
         "ldc_manual": "Manually disabled (admin)",
         "ldc_dying_gasp": "Customer power outage (dying gasp)",
-        "ldc_unknown": "Unknown"
+        "ldc_unknown": "Unknown",
+        "phase_logging": "Logging",
+        "phase_los": "Loss of signal (LOS)",
+        "phase_sync_mib": "MIB sync",
+        "phase_working": "Online",
+        "phase_dying_gasp": "Customer power outage (dying gasp)",
+        "phase_auth_failed": "Authentication failed",
+        "phase_offline": "Offline",
+        "phase_unknown": "Unknown"
     }
 }

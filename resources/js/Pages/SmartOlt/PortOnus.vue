@@ -15,7 +15,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { formatDateTime } from '@/lib/datetime';
-import { lastDownCauseLabel } from '@/lib/onu';
+import { lastDownCauseLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
@@ -737,8 +737,8 @@ const rxBadgeClass = (value) => {
                                     </div>
                                     <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('portonus.col_phase') }}</span>
-                                        <span class="kv-mobile-value" :class="onu.online ? 'text-emerald-400' : 'text-slate-500'">
-                                            {{ onu.phase_state }}
+                                        <span class="kv-mobile-value" :class="onu.online ? 'text-emerald-400' : 'text-slate-500'" :title="onu.phase_state || ''">
+                                            {{ phaseStateLabel(onu.phase_state) }}
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
@@ -897,8 +897,9 @@ const rxBadgeClass = (value) => {
                                             <span
                                                 class="text-sm"
                                                 :class="onu.online ? 'text-emerald-400' : 'text-slate-500'"
+                                                :title="onu.phase_state || ''"
                                             >
-                                                {{ onu.phase_state }}
+                                                {{ phaseStateLabel(onu.phase_state) }}
                                             </span>
                                         </div>
                                     </td>
