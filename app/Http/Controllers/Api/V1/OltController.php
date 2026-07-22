@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
@@ -33,13 +34,25 @@ class OltController extends Controller
         $result = $olt->last_test_result ?? [];
         $portOnus = collect($result['port_onus'] ?? []);
 
-        $ports = collect($result['ports'] ?? [])->map(function (array $port) use ($portOnus) {
+        // Deskripsi port PON hasil parse CLI (SmartOltInterfaceStatus), sama seperti grid web.
+        // Di C600 `if_descr` SNMP sudah berisi deskripsi bebas — dipakai fallback bila CLI belum ditarik.
+        $descByKey = SmartOltInterfaceStatus::descriptionsBySlotPort($olt->id);
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        $ports = collect($result['ports'] ?? [])->map(function (array $port) use ($portOnus, $descByKey, $isC600) {
             $key = ($port['slot'] ?? 0).'_'.($port['port'] ?? 0);
             $bucket = collect($portOnus->get($key)['onus'] ?? []);
+
+            $description = $descByKey[($port['slot'] ?? 0).'/'.($port['port'] ?? 0)] ?? null;
+            if ($description === null && $isC600) {
+                $ifDescr = trim((string) ($port['if_descr'] ?? ''));
+                $description = $ifDescr !== '' ? $ifDescr : null;
+            }
 
             return [
                 'if_index' => $port['if_index'] ?? null,
                 'name' => $port['name'] ?? null,
+                'description' => $description,
                 'slot' => (int) ($port['slot'] ?? 0),
                 'port' => (int) ($port['port'] ?? 0),
                 'oper_status' => $port['oper_status'] ?? null,

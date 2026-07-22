@@ -1906,13 +1906,7 @@ class SmartOltController extends Controller
         // kartu port. Di C600 `ifDescr` SNMP sendiri sudah berisi deskripsi bebas (bukan nama
         // interface seperti C300/C320), jadi dipakai sebagai fallback saat CLI belum pernah ditarik.
         $isC600 = SmartOltSupport::isC600($olt);
-        $descByKey = SmartOltInterfaceStatus::query()
-            ->where('snmp_olt_id', $olt->id)
-            ->whereNotNull('description')
-            ->where('description', '!=', '')
-            ->get(['slot', 'port', 'description'])
-            ->mapWithKeys(fn (SmartOltInterfaceStatus $row) => ["{$row->slot}/{$row->port}" => $row->description])
-            ->all();
+        $descByKey = SmartOltInterfaceStatus::descriptionsBySlotPort($olt->id);
 
         $ports = collect(data_get($snapshot, 'ports', []))
             ->map(function (array $port) use ($snapshot, $descByKey, $isC600) {

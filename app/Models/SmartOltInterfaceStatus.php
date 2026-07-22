@@ -105,4 +105,22 @@ class SmartOltInterfaceStatus extends Model
     {
         return $this->belongsTo(SnmpOlt::class, 'snmp_olt_id');
     }
+
+    /**
+     * Peta deskripsi port PON (hasil parse CLI `show interface`) ber-key "slot/port".
+     * Dipakai bersama web (`SmartOltController::serializeSnapshot`) dan API v1
+     * (`Api\V1\OltController::show`) untuk menempelkan deskripsi ke tiap kartu port.
+     *
+     * @return array<string, string>
+     */
+    public static function descriptionsBySlotPort(int $oltId): array
+    {
+        return self::query()
+            ->where('snmp_olt_id', $oltId)
+            ->whereNotNull('description')
+            ->where('description', '!=', '')
+            ->get(['slot', 'port', 'description'])
+            ->mapWithKeys(fn (self $row) => ["{$row->slot}/{$row->port}" => $row->description])
+            ->all();
+    }
 }

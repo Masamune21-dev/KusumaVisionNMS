@@ -337,6 +337,7 @@ curl https://nms.bmkv.net/api/v1/summary \
       {
         "if_index": 285278209,
         "name": "gpon-olt_1/1/1",
+        "description": "KETANEN LAMA",
         "slot": 1,
         "port": 1,
         "oper_status": "up",
@@ -349,6 +350,10 @@ curl https://nms.bmkv.net/api/v1/summary \
 ```
 
 OLT tak ada → `404`.
+
+`description` = deskripsi port PON (mis. nama area) hasil parse CLI `show interface`
+(tabel `smartolt_interface_statuses`) — `null` bila belum pernah ditarik; khusus C600
+fallback ke `ifDescr` SNMP.
 
 ### 3.4. `GET /onus` — inventaris ONU lintas-OLT
 

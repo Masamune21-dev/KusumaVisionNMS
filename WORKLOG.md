@@ -2,6 +2,29 @@
 
 ## 2026-07-22
 
+### Deskripsi port PON ikut tampil di aplikasi mobile (API v1 + Flutter)
+
+Created:
+
+- `app/Models/SmartOltInterfaceStatus.php` — static helper baru `descriptionsBySlotPort(int $oltId)`: peta deskripsi port CLI ber-key `"slot/port"`, dipakai bersama web & API v1 (menghindari duplikasi query).
+
+Changed:
+
+- `app/Http/Controllers/Api/V1/OltController.php` — `show()` (GET `/api/v1/olts/{olt}`) kini menyertakan field `description` di tiap entry `ports`, sumber sama dengan grid GPON web: `SmartOltInterfaceStatus` (hasil parse CLI `show interface`), fallback `if_descr` SNMP khusus C600.
+- `app/Http/Controllers/SmartOltController.php` — `serializeSnapshot()` refactor pakai helper `descriptionsBySlotPort` (perilaku sama).
+- `mobile/lib/models/olt.dart` — `OltPort` tambah field `description` (parse dari JSON API).
+- `mobile/lib/features/olts/olt_detail_screen.dart` — `_PortRow` menampilkan deskripsi area di bawah nama port (1 baris, ellipsis, warna muted).
+- `mobile/pubspec.yaml` — bump `1.2.3+15` → `1.2.4+16` (wajib naik versionCode tiap rilis APK).
+- `tests/Feature/Api/ApiV1Test.php` — `test_olts_and_detail` seed baris `interfaceStatuses` + asersi `data.ports.0.description`.
+- `docs/API.md` — contoh payload `GET /olts/{olt}` ports + catatan field `description`.
+
+Notes:
+
+- Verifikasi live: API `GET /olts/2` (OLT-C300-SEKARJALAK) mengembalikan `KETANEN LAMA`/`GOTANJUNG`/`SEKARJALAK-MASAMUNE` sesuai grid web; token uji sementara dihapus setelah tes.
+- Tes `ApiV1Test` 9 passed; config cache prod dipulihkan (`config:cache`, cek `pgsql`) + reload php-fpm.
+- APK release dibuild via `bin/build-apk.sh` → `public/downloads/kusumavision-nms.apk` (arm64 20MB) + fallback arm32.
+- Halaman ONU per-port mobile belum ikut menampilkan deskripsi (layarnya hanya terima oltId/slot/port, butuh fetch tambahan — di luar scope).
+
 ### Fix dropdown ODP terpotong di tabel Port ONU
 
 Changed:

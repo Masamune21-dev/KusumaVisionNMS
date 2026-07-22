@@ -65,6 +65,7 @@ class OltPort {
     required this.slot,
     required this.port,
     required this.name,
+    required this.description,
     required this.operStatus,
     required this.onuTotal,
     required this.onuOnline,
@@ -72,6 +73,9 @@ class OltPort {
 
   final int slot, port;
   final String? name;
+
+  /// Deskripsi port PON (mis. nama area) hasil parse CLI di server.
+  final String? description;
   final String? operStatus;
   final int onuTotal, onuOnline;
 
@@ -81,6 +85,7 @@ class OltPort {
         slot: J.asInt(j['slot']),
         port: J.asInt(j['port']),
         name: J.asStrN(j['name']),
+        description: J.asStrN(j['description']),
         operStatus: J.asStrN(j['oper_status']),
         onuTotal: J.asInt(j['onu_total']),
         onuOnline: J.asInt(j['onu_online']),

@@ -239,6 +239,13 @@ class _PortRow extends StatelessWidget {
               children: [
                 Text(port.name ?? 'Slot ${port.slot}/${port.port}',
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                if (port.description != null && port.description!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(port.description!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.muted, fontSize: 11.5)),
+                ],
                 if (share != null) ...[
                   const SizedBox(height: 7),
                   ClipRRect(

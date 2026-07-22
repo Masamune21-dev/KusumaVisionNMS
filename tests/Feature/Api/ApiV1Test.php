@@ -108,6 +108,14 @@ class ApiV1Test extends TestCase
     public function test_olts_and_detail(): void
     {
         $olt = $this->seedOlt();
+        // Deskripsi port PON hasil parse CLI — harus ikut terekspos di payload ports.
+        $olt->interfaceStatuses()->create([
+            'interface' => 'gpon-olt_1/1/1',
+            'interface_type' => 'gpon',
+            'slot' => 1,
+            'port' => 1,
+            'description' => 'KETANEN LAMA',
+        ]);
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')->getJson('/api/v1/olts')
@@ -119,7 +127,8 @@ class ApiV1Test extends TestCase
         $this->actingAs($user, 'sanctum')->getJson("/api/v1/olts/{$olt->id}")
             ->assertOk()
             ->assertJsonPath('data.system.sys_name', 'OLT-C320-PATI')
-            ->assertJsonPath('data.ports.0.onu_online', 1);
+            ->assertJsonPath('data.ports.0.onu_online', 1)
+            ->assertJsonPath('data.ports.0.description', 'KETANEN LAMA');
     }
 
     public function test_public_status_needs_no_token(): void
