@@ -683,7 +683,9 @@
         "add_tag_vlan": "Add & Tag VLAN",
         "onu_on_port": "ONUs on This Port",
         "view_onu_list": "View ONU List",
-        "request_failed_prefix": "Request failed: {msg}"
+        "request_failed_prefix": "Request failed: {msg}",
+        "description_placeholder": "Port description (e.g. area/customer name)",
+        "description_hint": "Saved to the OLT via CLI (max 64 chars). Leave empty to clear."
     },
     "registeronu": {
         "subtitle": "{olt} · ONU provisioning + direct execution to the OLT",

@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-07-22
+
+### Edit deskripsi port PON (ZTE C300/C320/C600) via CLI + tampil di grid GPON Port
+
+Created:
+
+- `ZteCardUplinkService::setGponPortDescription()` — tulis deskripsi port PON via CLI (`configure terminal → interface {iface} → description {teks}|no description → exit → end → write`), pola sama seperti `addAndTagVlan`. Interface divalidasi per-family (regex C600 `gpon_olt-…` vs C300/C320 `gpon(-olt)?_…`). Teks bebas **disanitasi** (buang CR/LF & kontrol, rapatkan spasi, potong 64 char) untuk cegah command-injection ke sesi telnet. Sukses → `refreshGponInterface()` supaya deskripsi hasil parse langsung persist. Kembalikan `description` bersih.
+- `SmartOltController::storePortDescription()` + route `POST smartolt.port.description` (`throttle:olt-refresh`). Interface dibangun server-side dari slot/port via `SmartOltSupport::gponOltInterface()` (bukan trust string dari klien). Gated `assertCapability('supports_port_description_write')`; validasi `description` max 64.
+- Capability baru `supports_port_description_write` = true untuk ZTE (ketiga family), absent/false untuk non-ZTE & unknown.
+
+Changed:
+
+- `SmartOltController::serializeSnapshot()` — tiap port kini bawa field `description`: sumber utama = CLI-stored (`SmartOltInterfaceStatus.description`, dipetakan per `"slot/port"`); fallback khusus **C600** = `ifDescr` SNMP (di C600 ifDescr memang berisi deskripsi bebas, bukan nama interface seperti C300/C320). Ikut masuk `search_text`.
+- `resources/js/Pages/SmartOlt/GponPorts.vue` — deskripsi tampil di bawah nama port di tiap kartu grid (truncate + title).
+- `resources/js/Pages/SmartOlt/PortDetail.vue` — field DESCRIPTION di kartu Port Status jadi **editable inline** (tombol Edit → input maks 64 → Simpan/Batal + toast), gated `canEditPortDesc` = GPON && manage_olt && `cli_transport==='telnet'` && capability. POST via axios lalu `router.reload({only:['detail']})`.
+- i18n: `portdetail.description_placeholder`/`description_hint` (id+en), flash `port_description_saved` (id+en).
+
+Notes:
+
+- **CLI, bukan SNMP.** Deskripsi port editable = `ifAlias` di standar MIB, tapi belum diverifikasi ZTE terima SNMP SET, dan kebijakan repo melarang OID tak-terverifikasi → dipakai jalur CLI yang read-nya (`show interface … → Description is …`) memang sudah ada.
+- Di grid, deskripsi muncul untuk port yang detail-nya pernah ditarik CLI (atau C600 dari poll SNMP). Sesudah diedit lewat Port Detail langsung tampil.
+- **Terverifikasi tulis ke OLT asli** (uji lapangan oleh user, berhasil). `write` via `execute()` (seperti `addAndTagVlan`) jalan tanpa timeout pada kasus uji.
+- Tes: 60 pass (filter Capabilit|PortDetail|CardUplink|SmartOlt) setelah `config:clear` (config cache prod bikin POST kena 419 di test) → `config:cache` ulang. `npm run build` bersih.
+
 ## 2026-07-21
 
 ### Mobile: back dari Detail ONU (hasil pencarian global) kini turun ke halaman Port ONU

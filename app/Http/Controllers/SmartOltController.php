@@ -10,6 +10,7 @@ use App\Models\CopyOnuTask;
 use App\Models\OnuMapPin;
 use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
+use App\Models\SmartOltInterfaceStatus;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
@@ -266,6 +267,41 @@ class SmartOltController extends Controller
                 'ok' => $result['ok'],
                 'message' => $result['ok']
                     ? __('flash.vlan_added', ['vlan' => $data['vlan_id'], 'interface' => $data['interface']])
+                    : __('flash.cli_error_prefix').($result['error'] ?? 'unknown'),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Edit deskripsi port PON (GPON) via CLI. Interface dibangun dari slot/port server-side
+     * (ejaan per-family via gponOltInterface) — teks bebas disanitasi di service. ZTE-only.
+     */
+    public function storePortDescription(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_port_description_write');
+
+        $data = $request->validate([
+            'slot' => ['required', 'integer', 'min:0', 'max:99'],
+            'port' => ['required', 'integer', 'min:0', 'max:99'],
+            'description' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $interface = SmartOltSupport::gponOltInterface(
+            (int) $data['slot'],
+            (int) $data['port'],
+            SmartOltSupport::isC600($olt),
+        );
+
+        try {
+            $result = $service->setGponPortDescription($olt, $interface, $data['description'] ?? null);
+
+            return response()->json([
+                'ok' => $result['ok'],
+                'description' => $result['description'],
+                'message' => $result['ok']
+                    ? __('flash.port_description_saved', ['interface' => $interface])
                     : __('flash.cli_error_prefix').($result['error'] ?? 'unknown'),
             ]);
         } catch (\Throwable $e) {
@@ -1860,8 +1896,22 @@ class SmartOltController extends Controller
     private function serializeSnapshot(SnmpOlt $olt): array
     {
         $snapshot = $olt->last_test_result ?? [];
+
+        // Deskripsi port PON dibaca via CLI (`show interface … → Description is …`) dan disimpan
+        // per-interface di SmartOltInterfaceStatus. Petakan ke "slot/port" untuk ditempel ke tiap
+        // kartu port. Di C600 `ifDescr` SNMP sendiri sudah berisi deskripsi bebas (bukan nama
+        // interface seperti C300/C320), jadi dipakai sebagai fallback saat CLI belum pernah ditarik.
+        $isC600 = SmartOltSupport::isC600($olt);
+        $descByKey = SmartOltInterfaceStatus::query()
+            ->where('snmp_olt_id', $olt->id)
+            ->whereNotNull('description')
+            ->where('description', '!=', '')
+            ->get(['slot', 'port', 'description'])
+            ->mapWithKeys(fn (SmartOltInterfaceStatus $row) => ["{$row->slot}/{$row->port}" => $row->description])
+            ->all();
+
         $ports = collect(data_get($snapshot, 'ports', []))
-            ->map(function (array $port) use ($snapshot) {
+            ->map(function (array $port) use ($snapshot, $descByKey, $isC600) {
                 $slot = data_get($port, 'slot');
                 $portNumber = data_get($port, 'port');
                 $onus = data_get($snapshot, "port_onus.{$slot}_{$portNumber}.onus", []);
@@ -1888,12 +1938,20 @@ class SmartOltController extends Controller
                     ->all();
                 $searchText = collect($onuSearchItems)->pluck('search_text')->filter()->implode(' ');
 
+                // CLI-stored (verified) menang; fallback C600 = ifDescr SNMP (deskripsi bebas, bukan nama iface).
+                $description = $descByKey["{$slot}/{$portNumber}"] ?? null;
+                if ($description === null && $isC600) {
+                    $ifDescr = trim((string) data_get($port, 'if_descr', ''));
+                    $description = $ifDescr !== '' ? $ifDescr : null;
+                }
+
                 return [
                     ...$port,
+                    'description' => $description,
                     'onu_count' => count($onus),
                     'online_onu_count' => collect($onus)->where('online', true)->count(),
                     'onu_search_items' => $onuSearchItems,
-                    'search_text' => trim(data_get($port, 'name').' '.$slot.'/'.$portNumber.' '.$searchText),
+                    'search_text' => trim(data_get($port, 'name').' '.$slot.'/'.$portNumber.' '.($description ?? '').' '.$searchText),
                 ];
             })
             ->values()

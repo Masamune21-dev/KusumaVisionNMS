@@ -79,6 +79,7 @@ return [
     'profile_deleted_cache' => 'Profile deleted from the local cache.',
     'port_detail_refreshed' => 'Details of :interface refreshed from the OLT.',
     'port_refresh_failed' => 'Refreshing :interface failed: ',
+    'port_description_saved' => 'Description of :interface saved to the OLT.',
     'fcm_sent' => 'Notification sent to :n devices.',
     'fcm_no_devices' => 'No mobile devices registered yet.',
     'fcm_send_failed' => 'Failed to send: ',

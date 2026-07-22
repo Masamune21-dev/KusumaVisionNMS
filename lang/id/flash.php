@@ -79,6 +79,7 @@ return [
     'profile_deleted_cache' => 'Profile berhasil dihapus dari cache lokal.',
     'port_detail_refreshed' => 'Detail :interface berhasil diperbarui dari OLT.',
     'port_refresh_failed' => 'Refresh :interface gagal: ',
+    'port_description_saved' => 'Deskripsi :interface berhasil disimpan ke OLT.',
     'fcm_sent' => 'Notifikasi terkirim ke :n perangkat.',
     'fcm_no_devices' => 'Belum ada perangkat mobile yang terdaftar.',
     'fcm_send_failed' => 'Gagal mengirim: ',

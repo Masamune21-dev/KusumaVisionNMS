@@ -153,6 +153,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/port-detail/refresh', [SmartOltController::class, 'refreshPortDetail'])->name('smartolt.port.refresh');
     Route::get('/smartolt/{olt}/port-detail/traffic', [SmartOltController::class, 'portTraffic'])->name('smartolt.port.traffic');
     Route::post('/smartolt/{olt}/port-detail/vlan', [SmartOltController::class, 'storePortVlan'])->name('smartolt.port.vlan');
+    Route::post('/smartolt/{olt}/port-detail/description', [SmartOltController::class, 'storePortDescription'])->middleware('throttle:olt-refresh')->name('smartolt.port.description');
     Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus', [SmartOltController::class, 'portOnus'])->name('smartolt.port-onus');
     Route::get('/smartolt/{olt}/unconfigured', [SmartOltController::class, 'unconfigured'])->name('smartolt.unconfigured');
     Route::post('/smartolt/{olt}/unconfigured/refresh', [SmartOltController::class, 'refreshUnconfigured'])->name('smartolt.unconfigured.refresh');

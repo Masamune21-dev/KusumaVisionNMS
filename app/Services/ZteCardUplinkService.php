@@ -919,6 +919,51 @@ class ZteCardUplinkService
     }
 
     /**
+     * Set (or clear) the free-text description of a GPON PON port via CLI.
+     * `$interface` must be the PON-port form (gpon-olt_1/… on C300/C320, gpon_olt-1/… on C600).
+     * A null/empty description issues `no description`. On success the interface detail is
+     * re-fetched so the parsed description is persisted for the UI.
+     *
+     * @return array{ok:bool, output:string, error:string|null, description:string|null}
+     */
+    public function setGponPortDescription(SnmpOlt $olt, string $interface, ?string $description): array
+    {
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        if ($isC600
+            ? ! preg_match('#^gpon_olt-\d+/\d+/\d+$#', $interface)
+            : ! preg_match('/^gpon(?:-olt)?_\d+\/\d+\/\d+$/', $interface)) {
+            throw new RuntimeException('Interface GPON tidak valid.');
+        }
+
+        // Cegah command-injection lewat free-text: buang CR/LF & kontrol, rapatkan spasi, batasi 64.
+        $clean = preg_replace('/[\x00-\x1f\x7f]+/', ' ', (string) $description);
+        $clean = trim(preg_replace('/\s{2,}/', ' ', $clean));
+        $clean = mb_substr($clean, 0, 64);
+
+        $script = implode("\n", [
+            'configure terminal',
+            "interface {$interface}",
+            $clean === '' ? 'no description' : "description {$clean}",
+            'exit',
+            'end',
+            'write',
+        ]);
+
+        $result = $this->executor->execute($olt, $script);
+
+        if ($result['ok']) {
+            try {
+                $this->refreshGponInterface($olt, $interface);
+            } catch (Throwable) {
+                //
+            }
+        }
+
+        return [...$result, 'description' => $clean === '' ? null : $clean];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function parseCards(string $output): array

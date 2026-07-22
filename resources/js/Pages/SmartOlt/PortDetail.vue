@@ -238,6 +238,49 @@ const submitVlan = async () => {
         vlanForm.submitting = false;
     }
 };
+
+// ── Deskripsi port PON (GPON, CLI) ─────────────────────────────────────
+const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
+const canEditPortDesc = computed(() =>
+    isGpon.value
+    && canManageOlt.value
+    && props.olt.cli_transport === 'telnet'
+    && Boolean(props.olt.capabilities?.supports_port_description_write),
+);
+const descForm = reactive({ value: '', editing: false, submitting: false });
+const descToast = reactive({ show: false, ok: true, message: '' });
+
+const startEditDesc = () => {
+    descForm.value = d.value.description ?? '';
+    descToast.show = false;
+    descForm.editing = true;
+};
+
+const submitDesc = async () => {
+    descForm.submitting = true;
+    descToast.show = false;
+    try {
+        const { data } = await window.axios.post(route('smartolt.port.description', props.olt.id), {
+            slot: props.slot,
+            port: props.port,
+            description: descForm.value.trim(),
+        });
+        descToast.ok = data.ok;
+        descToast.message = data.message;
+        descToast.show = true;
+        if (data.ok) {
+            descForm.editing = false;
+            router.reload({ only: ['detail'] });
+        }
+        setTimeout(() => { descToast.show = false; }, 5000);
+    } catch (e) {
+        descToast.ok = false;
+        descToast.message = t('portdetail.request_failed_prefix', { msg: e.response?.data?.message ?? e.message });
+        descToast.show = true;
+    } finally {
+        descForm.submitting = false;
+    }
+};
 </script>
 
 <template>
@@ -328,14 +371,50 @@ const submitVlan = async () => {
                                     <dd class="mt-1 text-sm text-white">{{ d.onu_capacity ?? '-' }}</dd>
                                 </div>
                                 <div class="col-span-2 bg-slate-900/40 px-4 py-3">
-                                    <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.description') }}</dt>
-                                    <dd v-if="descParsed" class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white" :title="descParsed.raw">
-                                        <span v-if="descParsed.zone"><span class="text-slate-500">{{ $t('portdetail.zone') }}:</span> {{ descParsed.zone }}</span>
-                                        <span v-if="descParsed.description" class="break-words">{{ descParsed.description }}</span>
-                                        <span v-if="descParsed.externalId" class="text-slate-400">SmartOLT #{{ descParsed.externalId }}</span>
-                                        <span v-if="descParsed.authDate" class="text-slate-400">{{ $t('portdetail.authorized') }} {{ descParsed.authDate }}</span>
-                                    </dd>
-                                    <dd v-else class="mt-1 break-words text-sm text-white">{{ d.description || '-' }}</dd>
+                                    <div class="flex items-start justify-between gap-2">
+                                        <dt class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.description') }}</dt>
+                                        <button v-if="canEditPortDesc && !descForm.editing" type="button"
+                                                class="shrink-0 text-xs font-medium text-cyan-400 transition hover:text-cyan-300"
+                                                @click="startEditDesc">
+                                            {{ $t('common.edit') }}
+                                        </button>
+                                    </div>
+
+                                    <!-- Editor deskripsi (CLI) -->
+                                    <div v-if="descForm.editing" class="mt-2 space-y-2">
+                                        <input
+                                            v-model="descForm.value"
+                                            type="text"
+                                            maxlength="64"
+                                            class="kv-filter-control w-full"
+                                            :placeholder="$t('portdetail.description_placeholder')"
+                                            @keyup.enter="submitDesc"
+                                        />
+                                        <div class="flex items-center gap-2">
+                                            <PrimaryButton type="button" :disabled="descForm.submitting" @click="submitDesc">
+                                                {{ descForm.submitting ? $t('portdetail.saving') : $t('common.save') }}
+                                            </PrimaryButton>
+                                            <SecondaryButton type="button" :disabled="descForm.submitting" @click="descForm.editing = false">
+                                                {{ $t('common.cancel') }}
+                                            </SecondaryButton>
+                                        </div>
+                                        <p class="text-xs text-slate-500">{{ $t('portdetail.description_hint') }}</p>
+                                    </div>
+
+                                    <!-- Tampilan deskripsi -->
+                                    <template v-else>
+                                        <dd v-if="descParsed" class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white" :title="descParsed.raw">
+                                            <span v-if="descParsed.zone"><span class="text-slate-500">{{ $t('portdetail.zone') }}:</span> {{ descParsed.zone }}</span>
+                                            <span v-if="descParsed.description" class="break-words">{{ descParsed.description }}</span>
+                                            <span v-if="descParsed.externalId" class="text-slate-400">SmartOLT #{{ descParsed.externalId }}</span>
+                                            <span v-if="descParsed.authDate" class="text-slate-400">{{ $t('portdetail.authorized') }} {{ descParsed.authDate }}</span>
+                                        </dd>
+                                        <dd v-else class="mt-1 break-words text-sm text-white">{{ d.description || '-' }}</dd>
+                                    </template>
+
+                                    <p v-if="descToast.show" class="mt-2 text-xs" :class="descToast.ok ? 'text-emerald-300' : 'text-red-300'">
+                                        {{ descToast.message }}
+                                    </p>
                                 </div>
                             </template>
                             <div class="col-span-2 bg-slate-900/40 px-4 py-3">

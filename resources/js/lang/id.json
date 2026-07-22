@@ -683,7 +683,9 @@
         "add_tag_vlan": "Tambah & Tag VLAN",
         "onu_on_port": "ONU pada Port Ini",
         "view_onu_list": "Lihat Daftar ONU",
-        "request_failed_prefix": "Request gagal: {msg}"
+        "request_failed_prefix": "Request gagal: {msg}",
+        "description_placeholder": "Deskripsi port (mis. nama area/pelanggan)",
+        "description_hint": "Disimpan ke OLT via CLI (maks. 64 karakter). Kosongkan untuk menghapus."
     },
     "registeronu": {
         "subtitle": "{olt} · provisioning ONU + eksekusi langsung ke OLT",

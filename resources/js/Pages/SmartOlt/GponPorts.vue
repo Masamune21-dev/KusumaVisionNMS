@@ -146,6 +146,9 @@ const onuSummary = (onu) => onu.name || onu.description || onu.serial_number || 
                                 : 'border-cyan-500/30 bg-slate-900/40 backdrop-blur-xl hover:border-white/10 hover:bg-sky-500/15/30'"
                         >
                             <div class="font-mono text-sm font-semibold text-white">{{ port.name }}</div>
+                            <div v-if="port.description" class="mt-1 truncate text-xs text-slate-400" :title="port.description">
+                                {{ port.description }}
+                            </div>
 
                             <div class="mt-4 flex items-end justify-between gap-3">
                                 <span class="text-xs font-bold"

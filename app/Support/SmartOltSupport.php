@@ -238,6 +238,9 @@ class SmartOltSupport
             'supports_onu_toggle' => ! $isC600,
             // Simpan running-config ke memori via CLI `write` (bisa ~30 detik di C300 config besar).
             'supports_config_save' => true,
+            // Edit deskripsi port PON via CLI `interface … / description …` — jalan di ketiga
+            // family ZTE (C300/C320/C600), penamaan interface via gponOltInterface(). Bukan SNMP.
+            'supports_port_description_write' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
