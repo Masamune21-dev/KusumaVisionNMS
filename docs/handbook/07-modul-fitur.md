@@ -45,7 +45,13 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
 
 ## 4. GPON Ports
 - **Controller**: `gponPorts` · **Page**: `SmartOlt/GponPorts.vue`.
-- Daftar port PON dari snapshot (`ports[]` di `last_test_result`): status oper/admin, jumlah ONU.
+- Daftar port PON dari snapshot (`ports[]` di `last_test_result`): status oper/admin, jumlah ONU,
+  **deskripsi port** (parse CLI `show interface` → `smartolt_interface_statuses`; C600 fallback
+  `if_descr` SNMP).
+- **Edit deskripsi port** — `storePortDescription` (POST `smartolt.port.description`) menulis CLI
+  `interface gpon…` + `description …` via telnet; berlaku semua family ZTE (C300/C320/C600, penamaan
+  interface via `gponOltInterface()`), gate `supports_port_description_write`. Deskripsi ikut tampil
+  di aplikasi Android (field `description` payload `ports` API v1).
 
 ### 4b. TR069 Massal (per-OLT)
 - **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_onu_config_write` — penulis config gaya C300, OFF di C600; ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.
@@ -75,6 +81,9 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   - **Reconfigure** → baca running-config (`ZteOnuRunningConfigService`) sebagai baseline →
     `configureOnuPreview` menghasilkan diff script (`ZteOnuReconfigureScriptBuilder`) →
     `configureOnuApply` mengeksekusi via `ZteCliProvisioningExecutor`.
+- **Kolom ODP** — dropdown pilih ODP (splitter) per-ONU via komponen bersama
+  `Components/OnuOdpCell.vue` (submit `onu-odp.assign`); ada di ketiga family
+  (ZTE/C-Data/HiOSO). Detail di [16 — Peta ONU & ODP](16-peta-onu.md).
 - Semua aksi dijaga `assertCapability()` sesuai vendor (lihat `SmartOltSupport`).
 
 ## 7. ONU Monitoring (lintas OLT)
@@ -99,6 +108,12 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   3. `executeRegistration` → eksekusi script via `ZteCliProvisioningExecutor` (telnet), simpan
      output/error + `executed_at/by`, catat `PollingEvent::KIND_PROVISIONING`.
 - Profil di-hydrate dari katalog per-OLT (`hydrateProvisioningProfiles`) dengan fallback global.
+- **C600 (Jul 2026): provisioning AKTIF** (`supports_provisioning=true`) — mode **Model B /
+  SmartOLT TR069** via `ZteC600ProvisioningScriptBuilder`, strukturnya direproduksi persis dari
+  running-config ONU asli (dua service internet+mgmt, mgmt-ip in-band, VEIP/ACS, vport). Pendukung:
+  **alokasi mgmt-IP otomatis** (scan IP terpakai di OLT), dropdown ONU Type & T-CONT dari katalog
+  profil, preset ACS dari OLT. WAN PPPoE/DHCP/Static **tetap ditolak** di C600; reconfigure/edit ONU
+  C600 juga masih OFF (`supports_onu_config_write=false`).
 - Detail builder & sintaks di [09 — CLI & Telnet](09-cli-telnet.md).
 
 ## 10. Profil layanan

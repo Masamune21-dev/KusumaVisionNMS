@@ -2,6 +2,24 @@
 
 ## 2026-07-22
 
+### Sinkronisasi fitur terbaru ke README, halaman Welcome & dokumentasi handbook
+
+Changed:
+
+- `README.md` — Fitur Utama diperbarui: bullet "Peta ONU & ODP" (pin ODP splitter + garis kabel animasi + kolom ODP semua vendor), provisioning kini menyebut C600 (Model B/SmartOLT TR069, mgmt-IP otomatis, dropdown profil) + mode Bridge, deskripsi port PON (edit via CLI), save config ke memori OLT semua vendor, Android + deskripsi port.
+- `resources/js/Pages/Welcome.vue` — 3 kartu fitur baru: **Peta ODP & Topologi** (badge "Baru", icon `Network`), **Backup Config OLT** (icon `History`), **REST API v1** (icon `Webhook`) — grid fitur jadi 18 kartu (pas 6×3 di desktop); marquee + "Peta ODP"/"Config Backup"/"REST API v1".
+- `resources/js/lang/{id,en}.json` — key baru `f_odp_*`, `f_backup_*`, `f_api_*`, `marquee_odp` (dwibahasa); `f_provisioning_body` kini menyebut C600 Model B/SmartOLT TR-069, `f_inventory_body` menyebut edit deskripsi port PON.
+- `docs/handbook/16-peta-onu.md` — judul jadi "Peta ONU & ODP"; seksi ODP lengkap (tabel `odps`/`onu_odp_links`, `OnuOdpService`, pin kuning + badge jumlah ONU, garis kabel animasi, `OdpDetailCard`, toggle ONU/ODP di `AddPinModal`, kolom ODP via `OnuOdpCell`); tabel rute + `map.odps.*` & `onu-odp.assign`; **koreksi**: warna pin ONU kini status hijau/merah (bukan lagi level RX).
+- `docs/handbook/05-database-model.md` — peta tabel↔model ditambah 12 baris yang belum tercatat: `onu_map_pins`, `odps`, `onu_odp_links`, `olt_config_backups`, `copy_onu_tasks`, `tr069_bulk_tasks`, `olt_user`, `partner_telegram_bots`, `alarm_settings`, `fcm_device_tokens`, `fcm_settings`, `acs_settings` + pointer bab terkait.
+- `docs/handbook/07-modul-fitur.md` — §4 GPON Ports: deskripsi port di grid + edit via CLI (`storePortDescription`, gate `supports_port_description_write`, tampil juga di Android); §6 ONU per Port: bullet kolom ODP; §9 Provisioning: catatan **C600 provisioning AKTIF** (Model B/SmartOLT TR069, mgmt-IP otomatis, WAN pppoe/dhcp/static tetap ditolak, reconfigure C600 tetap OFF).
+- `docs/handbook/06-routing.md` — baris rute `smartolt.port.description` + catatan pointer ke tabel rute Peta/ODP di bab 16.
+- `CLAUDE.md` — koreksi klaim basi "Provisioning C600 OFF" → KINI ON (Model B/SmartOLT TR069 via `ZteC600ProvisioningScriptBuilder`, `end` sebelum `write`, mgmt-IP otomatis; `supports_onu_config_write` tetap false).
+
+Notes:
+
+- Kartu Backup Config & REST API bukan fitur baru minggu ini, tapi belum pernah tampil di Welcome — ditambahkan sekalian supaya landing mencerminkan produk nyata; jumlah kartu dijaga kelipatan 3.
+- Verifikasi: JSON id/en valid (130 key namespace welcome, paritas ID/EN), `npm run build` bersih, key `Pages/Welcome.vue` ada di Vite manifest (gotcha facade), php-fpm di-reload.
+
 ### Badge shields.io + header README di-center
 
 Changed:

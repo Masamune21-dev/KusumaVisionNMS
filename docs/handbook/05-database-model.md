@@ -18,10 +18,25 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `alarm_events` | `AlarmEvent` | Alarm aktif/cleared |
 | `polling_events` | `PollingEvent` | Log tiap polling/test/provisioning (untuk tren dashboard) |
 | `onu_rx_samples` | `OnuRxSample` | Time-series RX power per ONU (histogram distribusi & grafik tren) |
+| `onu_map_pins` | `OnuMapPin` | Pin ONU di Peta (referensi OLT/slot/port/onu + koordinat + field pelanggan) |
+| `odps` | `Odp` | Pin ODP/splitter lapangan di Peta (per-OLT: nama, koordinat, notes) |
+| `onu_odp_links` | `OnuOdpLink` | Relasi ONU↔ODP (kunci komposit ONU, unik 1 ODP/ONU) |
+| `olt_config_backups` | `OltConfigBackup` | Riwayat backup running-config OLT (content terenkripsi, sha256 dedup) |
+| `copy_onu_tasks` | `CopyOnuTask` | Progres batch job salin konfigurasi ONU antar port |
+| `tr069_bulk_tasks` | `Tr069BulkTask` | Progres batch job TR069 massal per-port |
+| `olt_user` (pivot) | — | Kepemilikan OLT partner + saklar alarm per-partner (`alarms_enabled`) |
+| `partner_telegram_bots` | `PartnerTelegramBot` | Bot Telegram privat per-partner |
+| `alarm_settings` | `AlarmSetting` | Singleton perilaku notifikasi alarm (jenis/severity yang dikirim) |
+| `fcm_device_tokens` | `FcmDeviceToken` | Token perangkat push FCM (aplikasi Android) |
+| `fcm_settings` | `FcmSetting` | Singleton saklar/filter notifikasi push mobile |
+| `acs_settings` | `AcsSetting` | Singleton default ACS/TR069 (url, user, pass) |
 | `telegram_settings` | `TelegramSetting` | Singleton konfigurasi bot Telegram |
 | `general_settings` | `GeneralSetting` | Singleton branding (nama app, versi, logo) |
 | `audit_logs` | `AuditLog` | Jejak audit immutable |
 | `cache`, `jobs`, `sessions` | — | Tabel bawaan Laravel |
+
+> Detail tabel Peta/ODP di [16 — Peta ONU & ODP](16-peta-onu.md); backup config di
+> [09 — CLI & Telnet](09-cli-telnet.md); FCM/alarm di [10 — Alarm & Telegram](10-alarm-telegram.md).
 
 ## Konsep lintas-model penting
 

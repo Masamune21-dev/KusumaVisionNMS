@@ -45,6 +45,9 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | GET | `/reports/export/csv` | `ReportController@exportCsv` | `reports.export.csv` | auth |
 | GET | `/reports/export/pdf` | `ReportController@exportPdf` | `reports.export.pdf` | auth |
 
+> **Peta ONU & ODP** (`map.*`, `map.odps.*`, `onu-odp.assign`) punya tabel rute sendiri di
+> [16 — Peta ONU & ODP](16-peta-onu.md#rute).
+
 ### Admin only — `middleware('role:admin')`
 | Method | URI | Aksi | Nama |
 |--------|-----|------|------|
@@ -90,6 +93,7 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | POST | `/smartolt/{olt}/port-detail/refresh` | `refreshPortDetail` (CLI per-interface) | `smartolt.port.refresh` |
 | GET | `/smartolt/{olt}/port-detail/traffic` | `portTraffic` (JSON, uplink) | `smartolt.port.traffic` |
 | POST | `/smartolt/{olt}/port-detail/vlan` | `storePortVlan` (JSON) | `smartolt.port.vlan` |
+| POST | `/smartolt/{olt}/port-detail/description` | `storePortDescription` (CLI `description …`, semua ZTE) | `smartolt.port.description` |
 
 > Halaman **Port Manager** lama dihapus; navigasinya kini lewat **klik port di visualisasi chassis** (halaman Detail OLT) → halaman **Detail Port** (`PortDetail.vue`).
 
