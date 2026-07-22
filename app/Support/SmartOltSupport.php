@@ -312,6 +312,9 @@ class SmartOltSupport
             'supports_onu_toggle' => true,
             // Simpan running-config via CLI: enable → config → save.
             'supports_config_save' => true,
+            // Buka/tutup akses remote web ONT via `ont security-mgmt` (klon sintaks ZTE, tak ada di
+            // manual resmi — terverifikasi live FD1608S-B1 V3 Jul 2026, efektif juga utk ONT merk ZTE).
+            'supports_onu_remote_access' => $isV3,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',
         ];
     }

@@ -337,9 +337,13 @@ CLI GPON memakai interface `gpon 0/<slot>`, argumen command = `<port> <onuId>`.
 (config-gpon-0/{slot})# ont activate {port} {onuId}            # enable
 (config-gpon-0/{slot})# ont deactivate {port} {onuId}          # disable
 (config-gpon-0/{slot})# ont delete {port} {onuId}             # hapus/deregister ONU (destruktif, konfirmasi y/n auto)
+(config-gpon-0/{slot})# ont security-mgmt {port} {onuId} 1 state enable mode forward protocol web   # buka akses remote web ONT
+(config-gpon-0/{slot})# ont security-mgmt {port} {onuId} 1 state disable                            # tutup kembali
 (config-gpon-0/{slot})# show ont optical-info {port} all
 (config-gpon-0/{slot})# end
 ```
+
+> **`ont security-mgmt` (Remote ONT) — GPON FlashV3 saja, TIDAK ada di manual resmi C-Data** (ketemu via context-help live FD1608S-B1, Jul 2026). Klon sintaks ZTE: rule index `1-16`, `mode {forward|discard}`, `protocol {web|https|telnet|ssh|ftp|snmp|tr069}`, `ingress-type {wan|lan|iphost0|iphost1}`, opsional `start-src-ip A.B.C.D end-src-ip A.B.C.D` (tanpa filter = semua source). Push via OMCI, **efek instan tanpa reboot, dipatuhi juga ONT merk ZTE** (diverifikasi live: F660 di OLT 277 — web WAN dari timeout jadi HTTP 200). Dipakai tombol **Remote ONT** di halaman Port ONU (`CDataCliWriteService::setRemoteAccess`, route `cdata-olt.onu.remote-access`, gated `supports_onu_remote_access` = V3 only). Lihat config existing: `show current-config` di level enable (**bukan** `show running-config` — Unknown command di V3).
 
 > **`ont delete` terverifikasi live (27 Jun 2026)** via context-help di submode interface (read-only `?`), pada FD1608S (GPON, OLT 277) **dan** FD1108S (EPON, OLT 276) — sintaks **identik**:
 > `ont delete <PORTID>` lalu arg ke-2 `<1-128>` (ONT ID) | `all` | `offline-list`.

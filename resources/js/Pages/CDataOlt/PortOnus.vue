@@ -12,7 +12,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
-import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff } from '@lucide/vue';
+import { ArrowLeft, Globe, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -62,6 +62,7 @@ const canReboot = computed(() => canManage.value && caps.value.supports_reboot);
 const canRename = computed(() => canManage.value && caps.value.supports_onu_info_write);
 const canToggle = computed(() => canManage.value && caps.value.supports_onu_toggle);
 const canDelete = computed(() => canManage.value && caps.value.supports_onu_delete);
+const canRemoteAccess = computed(() => canManage.value && caps.value.supports_onu_remote_access);
 
 // ONU dianggap aktif selama admin_state bukan 'disable' ('enable'/'unknown' → aktif).
 const isEnabled = (onu) => onu.admin_state !== 'disable';
@@ -104,6 +105,15 @@ const toggleOnu = async (onu) => {
     });
     if (!ok) return;
     router.post(route('cdata-olt.onu.state', [props.olt.id, props.slot, props.port, onu.onu_id]), { active }, { preserveScroll: true });
+};
+
+// Remote ONT: buka/tutup akses web ONT dari sisi WAN via `ont security-mgmt` (OMCI push, efek instan).
+const remoteOnu = ref(null);
+const openRemote = (onu) => { remoteOnu.value = onu; };
+const submitRemote = (enable) => {
+    const onu = remoteOnu.value;
+    remoteOnu.value = null;
+    router.post(route('cdata-olt.onu.remote-access', [props.olt.id, props.slot, props.port, onu.onu_id]), { enable }, { preserveScroll: true });
 };
 
 const deleteOnu = async (onu) => {
@@ -290,6 +300,9 @@ const viewOnMap = (onu) => {
                                                     <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
                                                     <ToggleLeft v-else class="h-4 w-4" />
                                                 </IconButton>
+                                                <IconButton v-if="canRemoteAccess" :variant="o.remote_web ? 'success' : 'primary'" :title="$t('cdataportonus.remote_title')" @click="openRemote(o)">
+                                                    <Globe class="h-4 w-4" />
+                                                </IconButton>
                                                 <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
                                                     <Power class="h-4 w-4" />
                                                 </IconButton>
@@ -339,6 +352,9 @@ const viewOnMap = (onu) => {
                                     <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? $t('portonus.act_disable') : $t('portonus.act_enable')" @click="toggleOnu(o)">
                                         <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
                                         <ToggleLeft v-else class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="canRemoteAccess" :variant="o.remote_web ? 'success' : 'primary'" :title="$t('cdataportonus.remote_title')" @click="openRemote(o)">
+                                        <Globe class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
                                         <Power class="h-4 w-4" />
@@ -399,6 +415,28 @@ const viewOnMap = (onu) => {
 
                 <div class="mt-6 flex justify-end">
                     <SecondaryButton type="button" @click="addMap.open = false">{{ $t('common.close') }}</SecondaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- Modal Remote ONT (buka/tutup akses web ONT via security-mgmt) -->
+        <Modal :show="remoteOnu !== null" max-width="md" @close="remoteOnu = null">
+            <div class="p-6">
+                <div class="flex items-center gap-2">
+                    <Globe class="h-5 w-5 text-cyan-400" />
+                    <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.remote_modal_title') }}</h3>
+                </div>
+                <p v-if="remoteOnu" class="mt-1 font-mono text-xs text-slate-400">{{ onuLabel(remoteOnu) }}</p>
+                <p class="mt-4 text-sm text-slate-300">{{ $t('cdataportonus.remote_modal_desc') }}</p>
+                <p class="mt-2 text-xs text-slate-500">{{ $t('cdataportonus.remote_modal_hint') }}</p>
+                <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <SecondaryButton type="button" @click="remoteOnu = null">{{ $t('common.cancel') }}</SecondaryButton>
+                    <SecondaryButton type="button" class="justify-center !border-amber-500/40 !text-amber-300 hover:!bg-amber-500/10" @click="submitRemote(false)">
+                        {{ $t('cdataportonus.remote_disable') }}
+                    </SecondaryButton>
+                    <PrimaryButton type="button" class="justify-center" @click="submitRemote(true)">
+                        <Globe class="mr-2 h-4 w-4" /> {{ $t('cdataportonus.remote_enable') }}
+                    </PrimaryButton>
                 </div>
             </div>
         </Modal>

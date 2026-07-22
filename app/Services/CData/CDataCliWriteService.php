@@ -75,6 +75,29 @@ class CDataCliWriteService
     }
 
     /**
+     * Buka/tutup akses remote web ONT via `ont security-mgmt` (GPON FlashV3 saja — klon sintaks ZTE,
+     * tak terdokumentasi di manual resmi; terverifikasi live FD1608S-B1 Jul 2026, dipatuhi juga oleh
+     * ONT merk ZTE via push OMCI, efek instan tanpa reboot):
+     *   ont security-mgmt {port} {onuId} 1 state enable mode forward protocol web
+     *   ont security-mgmt {port} {onuId} 1 state disable
+     * Rule index dipatok 1 (range 1-16); tanpa filter start/end-src-ip = semua source diizinkan.
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function setRemoteAccess(SnmpOlt $olt, string $iface, int $slot, int $port, int $onuId, bool $enable): array
+    {
+        if (strtolower($iface) !== 'gpon') {
+            throw new RuntimeException('Remote ONT security-mgmt hanya tersedia di C-Data GPON.');
+        }
+
+        $command = $enable
+            ? "ont security-mgmt {$port} {$onuId} 1 state enable mode forward protocol web"
+            : "ont security-mgmt {$port} {$onuId} 1 state disable";
+
+        return $this->runInInterface($olt, $iface, $slot, [$command]);
+    }
+
+    /**
      * Simpan running-config ke memori OLT (EPON & GPON identik): `enable` → `config` → `save`.
      * {@see InteractsWithCDataCli::openCliSession()} sudah masuk level enable, jadi tinggal masuk
      * config lalu `save`. Konfirmasi (bila muncul) dijawab otomatis; save bisa beberapa detik.

@@ -316,6 +316,35 @@ class CDataOltController extends Controller
     }
 
     /**
+     * Buka/tutup akses remote web ONT via CLI `ont security-mgmt` (GPON FlashV3 saja).
+     * Gated `supports_onu_remote_access`. State terakhir di-cache di baris ONU (`remote_web`)
+     * sebagai indikator UI — hilang (kembali unknown) setelah scan penuh, bukan sumber kebenaran.
+     */
+    public function setOnuRemoteAccess(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, CDataCliWriteService $writer): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_remote_access');
+        $enable = (bool) $request->validate(['enable' => ['required', 'boolean']])['enable'];
+        $back = redirect()->route('cdata-olt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $writer->setRemoteAccess($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId, $enable);
+            if (! $result['ok']) {
+                return $back->with('error', __('flash.onu_remote_warn').$result['error']);
+            }
+
+            $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($enable) {
+                $onu['remote_web'] = $enable;
+
+                return $onu;
+            });
+
+            return $back->with('success', $enable ? __('flash.onu_remote_enabled') : __('flash.onu_remote_disabled'));
+        } catch (Throwable $exception) {
+            return $back->with('error', __('flash.onu_remote_failed').$exception->getMessage());
+        }
+    }
+
+    /**
      * Hapus (deregister) ONU dari OLT C-Data via CLI `ont delete {port} {onuId}`
      * (sintaks identik EPON & GPON). Destruktif — gated `supports_onu_delete`.
      */

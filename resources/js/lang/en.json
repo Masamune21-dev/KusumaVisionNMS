@@ -811,7 +811,13 @@
         "toggle_enable_msg": "Enable ONU {onu}?",
         "toggle_disable_msg": "Disable ONU {onu}? The customer service will be down until re-enabled.",
         "delete_msg": "Permanently delete ONU {onu} from the OLT? The ONU registration will be removed (ont delete) and must be re-registered to reactivate.",
-        "delete_msg_hioso": "Permanently delete ONU {onu} from the OLT? The ONU registration will be removed (no onu {onuId}) and must be re-registered to reactivate."
+        "delete_msg_hioso": "Permanently delete ONU {onu} from the OLT? The ONU registration will be removed (no onu {onuId}) and must be re-registered to reactivate.",
+        "remote_title": "Remote ONT",
+        "remote_modal_title": "Remote ONT (web access)",
+        "remote_modal_desc": "Enable to open the ONT web page from the WAN side (the OLT pushes a security-mgmt protocol web rule via OMCI — instant effect, no reboot, works for ZTE-brand ONTs too). Disable to close the access again.",
+        "remote_modal_hint": "The rule is installed without a source-IP filter — restrict access via your router firewall/NAT if the ONT IP is publicly reachable. Save the OLT configuration (Save Config) so the rule survives an OLT reboot.",
+        "remote_enable": "Enable",
+        "remote_disable": "Disable"
     },
     "map": {
         "title": "ONU Map",

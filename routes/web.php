@@ -112,6 +112,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [CDataOltController::class, 'setOnuState'])->name('cdata-olt.onu.state');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [CDataOltController::class, 'updateOnuInfo'])->name('cdata-olt.onu.info');
+    Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/remote-access', [CDataOltController::class, 'setOnuRemoteAccess'])->name('cdata-olt.onu.remote-access');
     Route::delete('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [CDataOltController::class, 'deleteOnu'])->name('cdata-olt.onu.delete');
 
     // OLT HiOSO / V-Sol EPON (enterprise 25355, mis. HA7304) — inventori + rename/reboot ONU (CLI).

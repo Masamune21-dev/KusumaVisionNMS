@@ -2,6 +2,29 @@
 
 ## 2026-07-22
 
+### Aksi "Remote ONT" di ONU C-Data GPON — buka/tutup akses web ONT via `ont security-mgmt`
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — capability baru `supports_onu_remote_access`, `true` hanya untuk C-Data GPON **FlashV3** (EPON/HiOSO/GPON-V2 tidak dapat).
+- `app/Services/CData/CDataCliWriteService.php` — `setRemoteAccess()`: enable = `ont security-mgmt {port} {onuId} 1 state enable mode forward protocol web`, disable = `… 1 state disable`; guard GPON-only, rule index dipatok 1.
+- `app/Http/Controllers/CDataOltController.php` — `setOnuRemoteAccess()` (gate capability, validasi `enable` boolean, flash dwibahasa, cache flag `remote_web` di baris ONU sebagai indikator ikon — hilang setelah scan penuh, bukan sumber kebenaran).
+- `routes/web.php` — rute `cdata-olt.onu.remote-access` (POST `…/onus/{onuId}/remote-access`).
+- `resources/js/Pages/CDataOlt/PortOnus.vue` — tombol ikon Globe di aksi ONU (tabel desktop + kartu mobile, hijau bila akses baru dibuka) + modal konfirmasi Aktifkan/Nonaktifkan dengan hint keamanan (tanpa filter src-IP; saran Save Config).
+- `resources/js/lang/{id,en}.json` — key `cdataportonus.remote_*` (dwibahasa).
+- `lang/{id,en}/flash.php` — key `onu_remote_{enabled,disabled,warn,failed}`.
+- `tests/Feature/CDataOltWriteTest.php` — fixture GPON V3 + 2 tes: panggilan CLI benar & cache ter-update; 403 di family EPON (capability absent).
+- `docs/SMARTOLT_CDATA_GUIDE.md` — §6.2: sintaks `ont security-mgmt` lengkap + catatan "tak ada di manual resmi" + `show current-config`.
+- `CLAUDE.md` — bullet aksi write ONU C-Data ditambah Remote ONT.
+
+Notes:
+
+- **`ont security-mgmt` TIDAK ada di manual resmi C-Data** (FD16xx CLI V1.2/V2.2 di-grep penuh: nihil) — ditemukan via context-help `?` live di FD1608S-B1 (OLT 277 Pati). Klon sintaks ZTE: rule index 1-16, `mode {forward|discard}`, `protocol {web|https|telnet|ssh|ftp|snmp|tr069}`, `ingress-type {wan|lan|iphost0|iphost1}`, opsional `start-src-ip`/`end-src-ip`.
+- Verifikasi end-to-end live di ONT ZTE F660 (0/0/1:2, "Pak Muh Sidokerto"): sebelum rule — ping loss & port 80 timeout (langsung maupun via dst-nat MikroTik `103.189.249.163:1123`); sesudah rule — HTTP 200 dalam 0,09 dtk, `<title>F660</title>`. Push OMCI efek instan tanpa reboot, **dipatuhi juga ONT merk ZTE** di belakang OLT C-Data.
+- Teknik probe read-only aman di CLI C-Data: kirim `cmd ?` TANPA CRLF lalu Ctrl-U (`\x15`) — kalau `?` + Enter, sisa baris tereksekusi begitu command valid.
+- Audit rule: `show current-config` di level enable (`show running-config` = Unknown command di V3).
+- Suite penuh: 388 passed, 1 failed pre-existing (ApiV1WriteTest — bukan regresi). Deploy: Vite build, `config:cache` + `route:cache`, `queue:restart`, reload php-fpm.
+
 ### Sinkronisasi fitur terbaru ke README, halaman Welcome & dokumentasi handbook
 
 Changed:

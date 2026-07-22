@@ -811,7 +811,13 @@
         "toggle_enable_msg": "Enable ONU {onu}?",
         "toggle_disable_msg": "Disable ONU {onu}? Layanan pelanggan akan terputus sampai di-enable kembali.",
         "delete_msg": "Hapus permanen ONU {onu} dari OLT? Registrasi ONU akan dihapus (ont delete) dan perlu didaftarkan ulang untuk mengaktifkan kembali.",
-        "delete_msg_hioso": "Hapus permanen ONU {onu} dari OLT? Registrasi ONU akan dihapus (no onu {onuId}) dan perlu didaftarkan ulang untuk mengaktifkan kembali."
+        "delete_msg_hioso": "Hapus permanen ONU {onu} dari OLT? Registrasi ONU akan dihapus (no onu {onuId}) dan perlu didaftarkan ulang untuk mengaktifkan kembali.",
+        "remote_title": "Remote ONT",
+        "remote_modal_title": "Remote ONT (akses web)",
+        "remote_modal_desc": "Aktifkan untuk membuka akses halaman web ONT dari sisi WAN (OLT memasang rule security-mgmt protocol web via OMCI — efek instan tanpa reboot, termasuk untuk ONT merk ZTE). Nonaktifkan untuk menutup kembali aksesnya.",
+        "remote_modal_hint": "Rule dipasang tanpa filter IP sumber — batasi akses lewat firewall/NAT router bila IP ONT bisa dijangkau publik. Simpan konfigurasi OLT (Save Config) agar rule bertahan setelah OLT reboot.",
+        "remote_enable": "Aktifkan",
+        "remote_disable": "Nonaktifkan"
     },
     "map": {
         "title": "Peta ONU",
