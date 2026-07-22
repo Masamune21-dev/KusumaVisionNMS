@@ -128,6 +128,12 @@ Proyek ini dikembangkan dan diuji langsung di jaringan FTTH produksi. Jika Kusum
 
 ---
 
+## 🤖 Dibuat Sepenuhnya dengan AI
+
+Seluruh kode proyek ini ditulis **100% oleh AI** ([Claude Code](https://claude.com/claude-code)) — dipandu oleh pemilik proyek yang menyediakan **dokumentasi lengkap** (referensi OID/CLI per-vendor, output asli perangkat, panduan arsitektur) dan melakukan **pengujian langsung di server & jaringan FTTH produksi** dengan OLT nyata. Setiap fitur diverifikasi terhadap perangkat asli sebelum masuk kode — bukti bahwa kolaborasi manusia + AI mampu menghasilkan sistem NMS skala produksi.
+
+---
+
 ## Lisensi
 
 MIT — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).

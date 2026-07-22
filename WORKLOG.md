@@ -2,6 +2,16 @@
 
 ## 2026-07-22
 
+### README: section "Dibuat Sepenuhnya dengan AI"
+
+Changed:
+
+- `README.md` — section baru `## 🤖 Dibuat Sepenuhnya dengan AI` di atas section Lisensi: menginformasikan seluruh kode ditulis 100% oleh AI (Claude Code), dipandu dokumentasi lengkap dari pemilik proyek (referensi OID/CLI per-vendor, output asli perangkat) dan diuji langsung di server & jaringan FTTH produksi dengan OLT nyata.
+
+Notes:
+
+- Permintaan owner untuk transparansi asal-usul proyek pasca-relicense MIT; konsisten dengan aturan repo "OID/CLI hanya masuk kode setelah terverifikasi di perangkat asli".
+
 ### Fix 419 Page Expired permanen di deployment belakang Cloudflare Flexible — `trustProxies`
 
 Changed:
