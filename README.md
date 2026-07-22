@@ -18,7 +18,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 
 </div>
 
-> ⭐ **Kalau proyek ini bermanfaat, bantu kasih star di GitHub** — gratis, 5 detik, dan sangat berarti untuk kelangsungan proyek ini.
+> ⭐ **Bantu Starnya Bang.** 
 
 ---
 
