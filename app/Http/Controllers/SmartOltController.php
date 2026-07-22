@@ -17,6 +17,7 @@ use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\OnuInventoryService;
+use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
@@ -309,7 +310,7 @@ class SmartOltController extends Controller
         }
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService): Response
     {
         return Inertia::render('SmartOlt/PortOnus', [
             'olt' => $this->serializeOlt($olt),
@@ -326,6 +327,9 @@ class SmartOltController extends Controller
                 ->where('port', $port)
                 ->pluck('onu_id')
                 ->all(),
+            // Kolom ODP di tabel ONU.
+            'odps' => $odpService->odpsForOlt($olt),
+            'odp_links' => $odpService->linksForPort($olt, $slot, $port),
         ]);
     }
 

@@ -8,6 +8,7 @@ use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
+use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
@@ -155,7 +156,7 @@ class CDataOltController extends Controller
         ]);
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService): Response
     {
         $this->ensureFreshScan($olt, $scanner);
 
@@ -172,6 +173,8 @@ class CDataOltController extends Controller
                 ->where('port', $port)
                 ->pluck('onu_id')
                 ->all(),
+            'odps' => $odpService->odpsForOlt($olt),
+            'odp_links' => $odpService->linksForPort($olt, $slot, $port),
         ]);
     }
 

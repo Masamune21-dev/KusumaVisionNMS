@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Odp;
 use App\Models\OnuMapPin;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\OnuInventoryService;
+use App\Services\OnuOdpService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,10 @@ use Inertia\Response;
 
 class OnuMapController extends Controller
 {
-    public function __construct(private readonly OnuInventoryService $inventory) {}
+    public function __construct(
+        private readonly OnuInventoryService $inventory,
+        private readonly OnuOdpService $odpService,
+    ) {}
 
     public function index(): Response
     {
@@ -51,6 +56,25 @@ class OnuMapController extends Controller
 
         $aggregated = $this->inventory->collect($olts);
 
+        // ODP + ONU terhubung (untuk pin ODP kuning + garis animasi ODP→ONU di peta).
+        $odps = Odp::query()
+            ->whereIn('snmp_olt_id', array_keys($oltMeta))
+            ->orderBy('name')
+            ->get();
+        $connected = $this->odpService->connectedOnus($odps);
+        $odpsPayload = $odps
+            ->map(fn (Odp $odp) => [
+                'id' => $odp->id,
+                'snmp_olt_id' => $odp->snmp_olt_id,
+                'olt_name' => $oltMeta[$odp->snmp_olt_id]['olt']->name ?? null,
+                'name' => $odp->name,
+                'latitude' => (float) $odp->latitude,
+                'longitude' => (float) $odp->longitude,
+                'notes' => $odp->notes,
+                'onus' => $connected[$odp->id] ?? [],
+            ])
+            ->values();
+
         // Fokus ke pin tertentu (dari tombol "Lihat di Peta" di Port ONUs).
         $focus = $this->focusFromRequest();
         $focusPin = $focus
@@ -62,6 +86,7 @@ class OnuMapController extends Controller
 
         return Inertia::render('Map/Index', [
             'pins' => $pins,
+            'odps' => $odpsPayload,
             'olts' => $olts->map(fn (SnmpOlt $olt) => [
                 'id' => $olt->id,
                 'name' => $olt->name,

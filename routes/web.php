@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
+use App\Http\Controllers\OdpController;
 use App\Http\Controllers\OltConfigBackupController;
 use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\PanduanController;
@@ -146,6 +147,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/map/pins/{pin}', [OnuMapController::class, 'destroy'])->name('map.pins.destroy');
     Route::post('/map/pins/{pin}/reboot', [OnuMapController::class, 'rebootPin'])->name('map.pins.reboot');
     Route::post('/map/pins/{pin}/rename', [OnuMapController::class, 'renamePin'])->name('map.pins.rename');
+    // ODP (Optical Distribution Point) — pin ODP di peta + relasi ONU↔ODP.
+    Route::post('/map/odps', [OdpController::class, 'store'])->name('map.odps.store');
+    Route::put('/map/odps/{odp}', [OdpController::class, 'update'])->name('map.odps.update');
+    Route::delete('/map/odps/{odp}', [OdpController::class, 'destroy'])->name('map.odps.destroy');
+    Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');

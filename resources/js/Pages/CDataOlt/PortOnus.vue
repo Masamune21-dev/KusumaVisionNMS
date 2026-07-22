@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -25,7 +26,11 @@ const props = defineProps({
     focus: { type: [String, Number], default: null },
     q: { type: String, default: '' },
     pinned_onu_ids: { type: Array, default: () => [] },
+    odps: { type: Array, default: () => [] },
+    odp_links: { type: Object, default: () => ({}) },
 });
+
+const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
@@ -239,6 +244,7 @@ const viewOnMap = (onu) => {
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
+                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_odp') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
                                         <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
@@ -255,6 +261,16 @@ const viewOnMap = (onu) => {
                                             <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
                                         </td>
                                         <td class="px-4 py-4 text-sm text-slate-200">{{ o.name || '—' }}</td>
+                                        <td class="px-4 py-4">
+                                            <OnuOdpCell
+                                                :onu="o"
+                                                :odps="odps"
+                                                :current-odp-id="odpIdFor(o)"
+                                                :olt-id="olt.id"
+                                                :slot="slot"
+                                                :port="port"
+                                            />
+                                        </td>
                                         <td class="px-4 py-4">
                                             <span class="inline-flex items-center gap-1.5 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
                                                 <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
@@ -304,6 +320,17 @@ const viewOnMap = (onu) => {
                                 <div class="mt-2 flex items-center justify-between text-xs">
                                     <span class="font-mono text-slate-400">{{ o.serial_number || o.mac || '—' }}</span>
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2 text-xs">
+                                    <span class="shrink-0 text-slate-500">{{ $t('portonus.col_odp') }}</span>
+                                    <OnuOdpCell
+                                        :onu="o"
+                                        :odps="odps"
+                                        :current-odp-id="odpIdFor(o)"
+                                        :olt-id="olt.id"
+                                        :slot="slot"
+                                        :port="port"
+                                    />
                                 </div>
                                 <div v-if="hasActions" class="mt-3 flex gap-2">
                                     <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">

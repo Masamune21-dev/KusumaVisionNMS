@@ -1,5 +1,6 @@
 <script setup>
 import AddPinModal from '@/Components/Map/AddPinModal.vue';
+import OdpDetailCard from '@/Components/Map/OdpDetailCard.vue';
 import PinDetailCard from '@/Components/Map/PinDetailCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, usePage } from '@inertiajs/vue3';
@@ -11,6 +12,7 @@ const OnuMap = defineAsyncComponent(() => import('@/Components/Map/OnuMap.vue'))
 
 const props = defineProps({
     pins: { type: Array, default: () => [] },
+    odps: { type: Array, default: () => [] },
     olts: { type: Array, default: () => [] },
     onus: { type: Array, default: () => [] },
     default_center: { type: Object, default: () => ({ lat: -6.7559, lng: 111.0381, zoom: 11 }) },
@@ -28,8 +30,11 @@ const addModalOpen = ref(false);
 const presetForModal = ref(null);
 const selectedPinId = ref(null);
 const cardPos = ref(null); // posisi piksel pin terpilih (untuk menempel kartu detail di atasnya)
+const selectedOdpId = ref(null);
+const odpCardPos = ref(null);
 
 const selectedPin = computed(() => props.pins.find((p) => p.id === selectedPinId.value) ?? null);
+const selectedOdp = computed(() => props.odps.find((o) => o.id === selectedOdpId.value) ?? null);
 
 // Kartu detail diposisikan absolut di atas pin; ikut bergeser saat peta dipan/zoom.
 const cardStyle = computed(() =>
@@ -37,10 +42,20 @@ const cardStyle = computed(() =>
         ? { left: `${cardPos.value.x}px`, top: `${cardPos.value.y}px` }
         : {},
 );
+const odpCardStyle = computed(() =>
+    odpCardPos.value
+        ? { left: `${odpCardPos.value.x}px`, top: `${odpCardPos.value.y}px` }
+        : {},
+);
 
 const closeDetail = () => {
     selectedPinId.value = null;
     cardPos.value = null;
+};
+
+const closeOdpDetail = () => {
+    selectedOdpId.value = null;
+    odpCardPos.value = null;
 };
 
 const onlineCount = computed(() => props.pins.filter((p) => p.online).length);
@@ -62,7 +77,8 @@ const toggleAddMode = () => {
         presetForModal.value = null;
         draftCoords.value = null;
     }
-    selectedPinId.value = null;
+    closeDetail();
+    closeOdpDetail();
 };
 
 const onMapClick = ({ lat, lng }) => {
@@ -71,9 +87,17 @@ const onMapClick = ({ lat, lng }) => {
 };
 
 const onSelectPin = (id) => {
+    closeOdpDetail();
     selectedPinId.value = id;
     const pin = props.pins.find((p) => p.id === id);
     if (pin && mapRef.value) mapRef.value.flyTo(pin.latitude, pin.longitude);
+};
+
+const onSelectOdp = (id) => {
+    closeDetail();
+    selectedOdpId.value = id;
+    const odp = props.odps.find((o) => o.id === id);
+    if (odp && mapRef.value) mapRef.value.flyTo(odp.latitude, odp.longitude);
 };
 
 const closeModal = () => {
@@ -127,22 +151,36 @@ const onSaved = () => {
                 <OnuMap
                     ref="mapRef"
                     :pins="pins"
+                    :odps="odps"
                     :center="default_center"
                     :add-mode="addMode"
                     :selected-id="selectedPinId"
+                    :selected-odp-id="selectedOdpId"
                     :draft="draftCoords"
                     @map-click="onMapClick"
                     @select-pin="onSelectPin"
+                    @select-odp="onSelectOdp"
                     @pin-position="cardPos = $event"
+                    @odp-position="odpCardPos = $event"
                 />
 
-                <!-- Kartu detail pin — menempel tepat di atas pin -->
+                <!-- Kartu detail pin ONU — menempel tepat di atas pin -->
                 <div
                     v-if="selectedPin && cardPos"
                     class="kv-pin-popup absolute z-[500] w-72"
                     :style="cardStyle"
                 >
                     <PinDetailCard :pin="selectedPin" @close="closeDetail" />
+                    <span class="kv-pin-popup__arrow"></span>
+                </div>
+
+                <!-- Kartu detail pin ODP -->
+                <div
+                    v-if="selectedOdp && odpCardPos"
+                    class="kv-pin-popup absolute z-[500] w-72"
+                    :style="odpCardStyle"
+                >
+                    <OdpDetailCard :odp="selectedOdp" @close="closeOdpDetail" />
                     <span class="kv-pin-popup__arrow"></span>
                 </div>
 

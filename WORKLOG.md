@@ -2,6 +2,37 @@
 
 ## 2026-07-22
 
+### Fitur ODP (Optical Distribution Point) — kolom ODP di tabel ONU + pin & garis animasi di Peta
+
+Created:
+
+- `database/migrations/2026_07_22_000001_create_odps_table.php` + `..._000002_create_onu_odp_links_table.php` — 2 tabel baru. `odps` (nama, lat/lng, notes) di-scope per-OLT; `onu_odp_links` relasi ONU↔ODP ber-key komposit `(snmp_olt_id, slot, port, onu_id)` (ONU tak punya tabel), unik 1 ODP/ONU. Keduanya ikut `PartnerOltScope` via kolom `snmp_olt_id`.
+- `app/Models/Odp.php`, `app/Models/OnuOdpLink.php` — model + PartnerOltScope + relasi.
+- `app/Services/OnuOdpService.php` — dipakai bersama 3 controller port + endpoint assign: `odpsForOlt` (dropdown), `linksForPort` (assignment per port di-key onu_id), `assign` (null odp_id = lepas), `connectedOnus` (ONU terhubung tiap ODP, dienrich online + koordinat pin untuk garis peta & kartu ODP).
+- `app/Http/Controllers/OdpController.php` — `store`/`update`/`destroy` ODP + `assignOnu` family-agnostic. Ownership via `SnmpOlt::findOrFail`/route-model-binding yang kena PartnerOltScope.
+- `resources/js/Components/Map/OdpDetailCard.vue` — kartu detail pin ODP: edit nama (modal), daftar ONU terhubung (badge online), hapus ODP.
+- `resources/js/Components/OnuOdpCell.vue` — sel dropdown ODP per baris ONU (family-agnostic), assign via `onu-odp.assign` + `preserveScroll/State`.
+
+Changed:
+
+- `routes/web.php` — rute `map.odps.store/update/destroy` + `onu-odp.assign` (grup auth, sebelah `map.pins.*`).
+- `app/Http/Controllers/OnuMapController.php` — inject `OnuOdpService`, kirim prop `odps` (list + ONU terhubung terenrich).
+- `app/Http/Controllers/{SmartOlt,CDataOlt,Hioso}OltController.php` — method `portOnus` kirim prop `odps` + `odp_links` (method-injection `OnuOdpService`).
+- `resources/js/Components/Map/OnuMap.vue` — pin ONU disederhanakan **hijau (online)/merah (offline/LOS/dying-gasp)** (buang warna level-RX); pulse offline jadi merah; **pin ODP** teardrop **kuning** (bentuk sama pin ONU, beda warna + badge jumlah ONU); **garis kabel animasi** ODP→ONU (dash mengalir via `stroke-dashoffset`), warna ikut status ONU; legend baru online/offline/ODP; emit `select-odp` + `odp-position`.
+- `resources/js/Pages/Map/Index.vue` — prop `odps`, state `selectedOdpId` + kartu ODP melayang (mirip pola pin ONU, saling clear).
+- `resources/js/Components/Map/AddPinModal.vue` — toggle jenis **ONU/ODP**; mode ODP = OLT + nama + koordinat + notes → `map.odps.store` (preset dari Port ONUs tetap paksa ONU).
+- `resources/js/Pages/{SmartOlt,CDataOlt,Hioso}/PortOnus.vue` — kolom **ODP** (desktop + kartu mobile) pakai `OnuOdpCell`, baca prop `odps`/`odp_links`.
+- `resources/js/lang/{id,en}.json` + `lang/{id,en}/flash.php` — key `portonus.col_odp/odp_none/odp_empty`, `map.type_onu/type_odp/odp_*/legend_online/legend_odp`, flash `odp_*`/`onu_odp_*`.
+- `tests/Unit/OnuMapLinkResolverTest.php` — konstruktor `OnuMapController` kini 2-argumen (tambah mock `OnuOdpService`).
+
+Notes:
+
+- **Keputusan (dikonfirmasi user):** ODP terikat 1 OLT; assign ONU→ODP dari kolom dropdown di tabel ONU. Kartu ODP hanya *melihat* ONU terhubung + edit nama.
+- Garis peta hanya untuk ONU yang **sudah punya pin** (butuh koordinat); ONU ter-assign tanpa pin tetap tampil di kolom tabel & daftar kartu ODP tanpa garis.
+- Pin ODP dibuat setelah revisi = **teardrop sama bentuk pin ONU** (permintaan user; kotak dibatalkan), dibedakan warna kuning + badge.
+- Info level-RX pin peta memang dilepas (permintaan user), tapi tetap ada di badge RX kartu detail ONU.
+- Verifikasi: `npm run build` bersih; tes hijau setelah fix konstruktor (config:clear→test→config:cache, gotcha 419); `migrate --force` prod (2 tabel), `route:cache`, php-fpm reload; alur end-to-end (buat ODP→assign→`connectedOnus`/`linksForPort` benar→cleanup) terverifikasi via tinker di server.
+
 ### Edit deskripsi port PON (ZTE C300/C320/C600) via CLI + tampil di grid GPON Port
 
 Created:

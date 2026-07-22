@@ -20,6 +20,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved']);
 
+// Jenis pin yang dibuat: 'onu' (default) atau 'odp'.
+const pinType = ref('onu');
+
 const form = useForm({
     snmp_olt_id: '',
     slot: '',
@@ -31,6 +34,15 @@ const form = useForm({
     customer_name: '',
     address: '',
     phone: '',
+    notes: '',
+});
+
+// Form ODP terpisah (hanya nama + OLT + koordinat).
+const odpForm = useForm({
+    snmp_olt_id: '',
+    name: '',
+    latitude: '',
+    longitude: '',
     notes: '',
 });
 
@@ -114,10 +126,16 @@ watch(
         if (!open) return;
         form.reset();
         form.clearErrors();
+        odpForm.reset();
+        odpForm.clearErrors();
         search.value = '';
+        // Preset dari Port ONUs = selalu pin ONU; klik peta biasa boleh pilih jenis.
+        pinType.value = 'onu';
         if (props.coords) {
             form.latitude = props.coords.lat.toFixed(7);
             form.longitude = props.coords.lng.toFixed(7);
+            odpForm.latitude = props.coords.lat.toFixed(7);
+            odpForm.longitude = props.coords.lng.toFixed(7);
         }
         if (props.preset) {
             const match = props.onus.find(
@@ -142,6 +160,17 @@ const canSubmit = computed(
     () => form.snmp_olt_id && form.onu_id !== '' && form.latitude !== '' && form.longitude !== '',
 );
 
+const canSubmitOdp = computed(
+    () => odpForm.snmp_olt_id && odpForm.name.trim() !== '' && odpForm.latitude !== '' && odpForm.longitude !== '',
+);
+
+const submitOdp = () => {
+    odpForm.post(route('map.odps.store'), {
+        preserveScroll: true,
+        onSuccess: () => emit('saved'),
+    });
+};
+
 const submit = () => {
     // Kirim slot/port numerik (form.port menyimpan "slot/port" untuk dropdown).
     const onu = selectedOnu.value;
@@ -162,10 +191,32 @@ const submit = () => {
     <Modal :show="show" max-width="2xl" @close="emit('close')">
         <div class="p-6">
             <div class="mb-4 flex items-center gap-2">
-                <MapPin class="h-5 w-5 text-cyan-400" />
-                <h3 class="text-lg font-semibold text-white">{{ $t('map.modal_title') }}</h3>
+                <MapPin class="h-5 w-5" :class="pinType === 'odp' ? 'text-amber-400' : 'text-cyan-400'" />
+                <h3 class="text-lg font-semibold text-white">{{ pinType === 'odp' ? $t('map.odp_modal_title') : $t('map.modal_title') }}</h3>
             </div>
 
+            <!-- Toggle jenis pin (disembunyikan saat preset dari Port ONUs = selalu ONU) -->
+            <div v-if="!preset" class="mb-4 inline-flex rounded-lg border border-white/10 bg-white/5 p-0.5 text-sm">
+                <button
+                    type="button"
+                    class="rounded-md px-4 py-1.5 font-medium transition"
+                    :class="pinType === 'onu' ? 'bg-cyan-500/20 text-cyan-200' : 'text-slate-400 hover:text-slate-200'"
+                    @click="pinType = 'onu'"
+                >
+                    {{ $t('map.type_onu') }}
+                </button>
+                <button
+                    type="button"
+                    class="rounded-md px-4 py-1.5 font-medium transition"
+                    :class="pinType === 'odp' ? 'bg-amber-500/20 text-amber-200' : 'text-slate-400 hover:text-slate-200'"
+                    @click="pinType = 'odp'"
+                >
+                    {{ $t('map.type_odp') }}
+                </button>
+            </div>
+
+            <!-- ===== Mode ONU ===== -->
+            <template v-if="pinType === 'onu'">
             <!-- Search global lintas OLT -->
             <div class="relative mb-4">
                 <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -267,10 +318,49 @@ const submit = () => {
                     <textarea v-model="form.notes" rows="2" class="kv-input mt-1 w-full"></textarea>
                 </div>
             </div>
+            </template>
+
+            <!-- ===== Mode ODP ===== -->
+            <template v-else>
+                <div>
+                    <InputLabel value="OLT" />
+                    <select v-model="odpForm.snmp_olt_id" class="kv-input mt-1 w-full">
+                        <option value="">{{ $t('map.pick_olt') }}</option>
+                        <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
+                    </select>
+                    <InputError :message="odpForm.errors.snmp_olt_id" class="mt-1" />
+                </div>
+
+                <div class="mt-4">
+                    <InputLabel :value="$t('map.odp_name')" />
+                    <TextInput v-model="odpForm.name" type="text" maxlength="128" class="mt-1 w-full" :placeholder="$t('map.odp_name_placeholder')" />
+                    <InputError :message="odpForm.errors.name" class="mt-1" />
+                </div>
+
+                <!-- Koordinat ODP -->
+                <div class="mt-4 grid grid-cols-2 gap-4">
+                    <div>
+                        <InputLabel value="Latitude" />
+                        <TextInput v-model="odpForm.latitude" type="number" step="any" class="mt-1 w-full" />
+                        <InputError :message="odpForm.errors.latitude" class="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel value="Longitude" />
+                        <TextInput v-model="odpForm.longitude" type="number" step="any" class="mt-1 w-full" />
+                        <InputError :message="odpForm.errors.longitude" class="mt-1" />
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <InputLabel :value="$t('map.notes_label')" />
+                    <textarea v-model="odpForm.notes" rows="2" class="kv-input mt-1 w-full"></textarea>
+                </div>
+            </template>
 
             <div class="mt-6 flex justify-end gap-3">
                 <SecondaryButton @click="emit('close')">{{ $t('common.cancel') }}</SecondaryButton>
-                <PrimaryButton :disabled="!canSubmit || form.processing" @click="submit">{{ $t('map.save_pin') }}</PrimaryButton>
+                <PrimaryButton v-if="pinType === 'onu'" :disabled="!canSubmit || form.processing" @click="submit">{{ $t('map.save_pin') }}</PrimaryButton>
+                <PrimaryButton v-else :disabled="!canSubmitOdp || odpForm.processing" @click="submitOdp">{{ $t('map.save_odp') }}</PrimaryButton>
             </div>
         </div>
     </Modal>
