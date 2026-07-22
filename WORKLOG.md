@@ -2,6 +2,16 @@
 
 ## 2026-07-22
 
+### Fix dropdown ODP terpotong di tabel Port ONU
+
+Changed:
+
+- `resources/js/Components/OnuOdpCell.vue` — kelas select diganti `w-full max-w-[11rem]` → `w-auto min-w-[8rem] max-w-full`: `w-full` membuat select ikut lebar kolom tabel yang dikompres auto-layout sehingga nama ODP terpotong ("ODP-MA…"); kini select melebar mengikuti nama ODP terpanjang (min 8rem, `max-w-full` pengaman kartu mobile). Berlaku di ketiga tabel Port ONU (ZTE/C-Data/HiOSO) karena komponen dipakai bersama.
+
+Notes:
+
+- Tabel desktop sudah `overflow-x-auto`, jadi nama ODP sangat panjang tinggal scroll horizontal. Verifikasi: `npm run build` bersih.
+
 ### Fitur ODP (Optical Distribution Point) — kolom ODP di tabel ONU + pin & garis animasi di Peta
 
 Created:

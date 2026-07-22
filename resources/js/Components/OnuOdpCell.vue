@@ -40,7 +40,7 @@ const onChange = (event) => {
 
 <template>
     <select
-        class="kv-input w-full max-w-[11rem] text-xs"
+        class="kv-input w-auto min-w-[8rem] max-w-full text-xs"
         :value="currentOdpId ?? ''"
         :disabled="disabled || busy || odps.length === 0"
         @change="onChange"
