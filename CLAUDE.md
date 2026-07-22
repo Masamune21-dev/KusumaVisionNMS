@@ -4,7 +4,7 @@ KusumaVision NMS — FTTH/GPON Network Management System (Laravel 12 + Vue 3/Ine
 
 The user communicates in Indonesian — respond in Indonesian (bilingual when discussing code/English terms).
 
-**Detailed developer docs live in `docs/handbook/`** (per-topic: overview, architecture, folder map, install/deploy, DB schema, routing, modules, SNMP/polling, CLI/telnet, alarm/Telegram, security/RBAC, frontend, troubleshooting, how-to-add-features). Start there for deep dives, and keep it in sync when structure or conventions change. License is proprietary (`LICENSE`).
+**Detailed developer docs live in `docs/handbook/`** (per-topic: overview, architecture, folder map, install/deploy, DB schema, routing, modules, SNMP/polling, CLI/telnet, alarm/Telegram, security/RBAC, frontend, troubleshooting, how-to-add-features). Start there for deep dives, and keep it in sync when structure or conventions change. License is MIT (`LICENSE`).
 
 ## Commands
 

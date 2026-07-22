@@ -9,6 +9,7 @@
 ![Vue](https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Android-Flutter-02569B?logo=flutter&logoColor=white)
+![Lisensi](https://img.shields.io/badge/Lisensi-MIT-yellow)
 
 [![Star di GitHub](https://img.shields.io/github/stars/Masamune21-dev/KusumaVisionNMS?style=social)](https://github.com/Masamune21-dev/KusumaVisionNMS)
 
@@ -129,4 +130,4 @@ Proyek ini dikembangkan dan diuji langsung di jaringan FTTH produksi. Jika Kusum
 
 ## Lisensi
 
-Proprietary — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).
+MIT — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).

@@ -2,6 +2,20 @@
 
 ## 2026-07-22
 
+### Lisensi proyek diganti ke MIT
+
+Changed:
+
+- `LICENSE` — teks penuh MIT License (Copyright (c) 2026 PT BERKAH MEDIA KUSUMA VISION (BMKV)), menggantikan lisensi proprietary dwibahasa lama.
+- `README.md` — bagian Lisensi → MIT + badge shields.io `Lisensi-MIT` di header.
+- `composer.json` — `"license": "MIT"` (`composer validate` OK).
+- `CLAUDE.md` — catatan lisensi di intro disinkronkan.
+- `docs/handbook/18-docker-appliance.md` — kalimat "cocok lisensi proprietary" pada mode distribusi image prebuilt diganti frasa netral.
+
+Notes:
+
+- Keputusan owner menindaklanjuti email calon pengguna luar (PAKLINK Communications, Pakistan) yang menanyakan demo/harga/vendor: repo GitHub memang sudah publik, kini lisensinya resmi open source MIT sehingga jawaban "silakan deploy & evaluasi sendiri dari GitHub" tak lagi kontradiksi dengan `LICENSE`.
+
 ### Label ramah status ONU (`phase_state`) di ONU Monitoring & Port ONUs
 
 Changed:
