@@ -2,7 +2,20 @@
 
 ## 2026-07-22
 
-### Lisensi proyek diganti ke MIT
+### Fix 419 Page Expired permanen di deployment belakang Cloudflare Flexible — `trustProxies`
+
+Changed:
+
+- `bootstrap/app.php` — `$middleware->trustProxies(at: '*')` + komentar penjelasan: percayai header `X-Forwarded-*` dari reverse proxy (Cloudflare/nginx/LB) supaya Laravel mendeteksi scheme `https` dengan benar.
+- `docs/handbook/13-troubleshooting-maintenance.md` — entry baru "419 Page Expired terus-menerus saat login (di belakang Cloudflare)": gejala, rantai penyebab, cara diagnosa (log nginx `ck=`/`xsrf=`, grep `"url":"http` di HTML), solusi, dan pembeda dari 419 biasa (cookie basi).
+
+Notes:
+
+- **Ditemukan dari laporan user GitHub pertama** (deploy `install.sh` sendiri di `nms.snvr.my.id`, malam 22–23 Jul WIB): login SELALU 419 di semua browser termasuk incognito, padahal server sehat total (jam sinkron NTP, Redis PONG, cookie ter-set, Cloudflare tak men-cache).
+- Rantai bug: Cloudflare mode **Flexible** → origin nginx port 80 (HTTP polos, bawaan `install.sh`) → PHP tak melihat TLS dan `X-Forwarded-Proto` diabaikan (belum ada `trustProxies`) → Ziggy men-generate `route('login')` = `http://…` → halaman `https://` mem-POST ke `http://` → **axios menganggap cross-origin (beda scheme) dan men-skip header `X-XSRF-TOKEN`** (Chrome diam-diam upgrade request-nya, jadi tetap sampai origin) → Laravel 419, deterministik.
+- Bukti kunci: log nginx custom di server pelapor menunjukkan `POST /login` tiba **dengan cookie lengkap tapi `xsrf="-"`**; HTML login-nya berisi `"url":"http://nms.snvr.my.id"`. Simulasi handshake CSRF via curl dari luar lolos 4/4 (422) karena header dipasang manual — hanya jalur browser yang kena.
+- Deployment origin-TLS (certbot, seperti prod utama) tak pernah terdampak — nginx meneruskan `HTTPS=on` ke PHP; verifikasi pasca-fix: HTML prod utama tetap `"url":"https://…"`.
+- `php artisan test`: 388 passed, 1 failed = `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver` (pre-existing yang terdokumentasi, bukan regresi).
 
 Changed:
 
