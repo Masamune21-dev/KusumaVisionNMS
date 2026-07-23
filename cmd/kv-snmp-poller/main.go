@@ -472,6 +472,16 @@ func (c *collector) registeredOnusC600(ports []portRow) ([]onuRow, error) {
 		adminRaw := intPointerFromString(adminStates[joinOID(c600OnuAdmin, suffix)])
 		online := phaseRaw != nil && *phaseRaw == 4 // 4 = Working
 
+		phaseState := decodePhaseStateC600(phaseRaw)
+		lastDownCause := decodeLastDownCause(nil) // "Unknown" — C600 tak punya tabel last-down-cause sendiri
+
+		// phase_state kaya (LOS/DyingGasp/OffLine) sudah membawa alasan turun yang sama seperti
+		// last_down_cause C300/C320 — dipakai fallback HANYA saat ONU offline & phase_state
+		// informatif, supaya ONU yang belum pernah turun tetap jujur "Unknown" (bukan dikarang).
+		if !online && (phaseState == "LOS" || phaseState == "DyingGasp" || phaseState == "OffLine") {
+			lastDownCause = phaseState
+		}
+
 		onus = append(onus, onuRow{
 			IfIndex:           ifIndex,
 			OnuID:             onuID,
@@ -485,10 +495,10 @@ func (c *collector) registeredOnusC600(ports []portRow) ([]onuRow, error) {
 			AdminStateCode:    adminRaw,
 			AdminState:        decodeAdminState(adminRaw),
 			PhaseStateCode:    phaseRaw,
-			PhaseState:        decodePhaseStateC600(phaseRaw),
+			PhaseState:        phaseState,
 			Online:            online,
 			LastDownCauseCode: nil,
-			LastDownCause:     decodeLastDownCause(nil),
+			LastDownCause:     lastDownCause,
 		})
 	}
 

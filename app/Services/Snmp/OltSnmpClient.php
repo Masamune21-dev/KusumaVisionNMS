@@ -499,6 +499,21 @@ class OltSnmpClient
             $adminRaw = $oids['admin_state'] ? $this->intFromWalk($adminStates, $oids['admin_state'], $suffix) : null;
             $lastDownRaw = $oids['last_down'] ? $this->intFromWalk($lastDownCauses, $oids['last_down'], $suffix) : null;
 
+            $phaseState = $this->decodePhaseState($phaseRaw, $isC600);
+            $online = $isC600 ? $phaseRaw === self::C600_PHASE_WORKING : $phaseRaw === 3;
+            $lastDownCause = $this->decodeLastDownCause($lastDownRaw);
+
+            // C600 tak punya tabel last-down-cause SNMP terpisah (lihat C600_ONU_LAST_DOWN_CAUSE = null
+            // di atas, terverifikasi live: 12 kolom tabel state .10.2.3.8.1.* di-probe, tak satu pun
+            // enum penyebab selain phase_state itu sendiri) — tapi phase_state kaya (LOS/DyingGasp/
+            // OffLine) sudah membawa alasan yang persis sama. Pakai sebagai fallback HANYA saat ONU
+            // sedang offline & phase_state informatif, supaya ONU yang belum pernah turun tetap jujur
+            // "Unknown" (bukan dikarang). C300/C320 sudah punya OID last-down-cause sungguhan, tak disentuh.
+            if ($isC600 && $lastDownCause === 'Unknown' && ! $online
+                && in_array($phaseState, ['LOS', 'DyingGasp', 'OffLine'], true)) {
+                $lastDownCause = $phaseState;
+            }
+
             $onus[] = [
                 'if_index' => $ifIndex,
                 'onu_id' => $onuId,
@@ -516,10 +531,10 @@ class OltSnmpClient
                 'admin_state_code' => $adminRaw,
                 'admin_state' => $this->decodeAdminState($adminRaw),
                 'phase_state_code' => $phaseRaw,
-                'phase_state' => $this->decodePhaseState($phaseRaw, $isC600),
-                'online' => $isC600 ? $phaseRaw === self::C600_PHASE_WORKING : $phaseRaw === 3,
+                'phase_state' => $phaseState,
+                'online' => $online,
                 'last_down_cause_code' => $lastDownRaw,
-                'last_down_cause' => $this->decodeLastDownCause($lastDownRaw),
+                'last_down_cause' => $lastDownCause,
             ];
         }
 

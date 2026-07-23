@@ -2,6 +2,21 @@
 
 ## 2026-07-22
 
+### Fix `last_down_cause` = "Unknown" di SELURUH ONU C600 (fallback dari `phase_state`)
+
+Changed:
+
+- `app/Services/Snmp/OltSnmpClient.php` — `registeredOnus()`: fallback `last_down_cause ← phase_state`, di-gate `$isC600` (C300/C320 TIDAK disentuh — sudah punya OID last-down-cause sungguhan). Aktif HANYA saat ONU offline (`!online`) DAN `phase_state` informatif (`LOS`/`DyingGasp`/`OffLine`) — ONU yang belum pernah turun (online, phase `Working`) tetap jujur "Unknown".
+- `cmd/kv-snmp-poller/main.go` — fallback yang sama di `registeredOnusC600()` (fungsi ini sudah eksklusif C600, tak perlu gate tambahan). Binary direbuild: `go build -mod=mod -o bin/kv-snmp-poller ./cmd/kv-snmp-poller`.
+
+Notes:
+
+- **Root cause dikonfirmasi via 4 lapis** (Redis → tak ada key ONU sama sekali, cuma 14 key infrastruktur Laravel/Horizon; Postgres `snmp_olts.last_test_result` → sumber kebenaran asli; poller PHP & Go → keduanya sengaja tak punya `C600_ONU_LAST_DOWN_CAUSE` OID sejak awal, bukan gap Go vs PHP; frontend → menerjemahkan `"Unknown"` yang memang dikirim backend, bukan bug render).
+- **Probe SNMP langsung** ke LAS GALERAS C600 (12 kolom tabel state `.1082.500.10.2.3.8.1.*` di 4 ONU nyata: 1 OffLine, 2 DyingGasp, 1 LOS) — TAK ADA kolom "cause" terpisah selain `phase_state` (kolom `.4`) sendiri. Ditemukan bonus: kolom `.5`/`.6` adalah timestamp SNMP DateAndTime asli (didekode, cocok tanggal live) — kemungkinan last-up/last-down time, TAPI urutan mana-yang-mana terbalik antar sampel & belum diverifikasi CLI, jadi SENGAJA tak dipakai di fix ini.
+- **Diverifikasi live end-to-end, dua jalur, terhadap OLT sungguhan** (LAS GALERAS C600, 1346 ONU) — `registeredOnus()` PHP dan binary Go yang baru dikompilasi keduanya dipanggil langsung (bukan cuma baca cache): hasil identik persis — 143 ONU pindah dari "Unknown" ke penyebab asli (`OffLine`/`DyingGasp`/`LOS`), 1203 tetap "Unknown" dan **100% di antaranya online** (nol ONU online dapat penyebab palsu).
+- `php artisan test` tak bisa jalan di server ini (limitasi lingkungan yang sama sepanjang sesi — `phpunit/phpunit` tak ter-install, `storage/logs` bukan milik user ini); `php -l` + `go test -mod=mod ./cmd/kv-snmp-poller/...` OK; verifikasi utama memakai panggilan langsung ke OLT produksi (lebih meyakinkan daripada unit test untuk kasus ini).
+- **Perlu restart manual**: binary baru sudah di disk tapi proses supervisor yang jalan masih pakai binary lama di memori — `supervisorctl restart kusumavision-worker` (atau nama program scheduler/queue yang sesuai) belum dijalankan sebagai bagian dari perubahan ini.
+
 ### Nama pelanggan sebagai teks utama di kolom ONU (Port ONUs & ONU Monitoring)
 
 Changed:
