@@ -3,6 +3,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import RxTrendCard from '@/Components/SmartOlt/RxTrendCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { lastDownCauseLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router } from '@inertiajs/vue3';
 import {
     Activity, ArrowLeft, ChevronDown, Clock, Fingerprint, Gauge, ListChecks,
@@ -150,12 +151,21 @@ const detailSections = computed(() => [
     { key: 'state', title: t('common.status'), icon: Activity },
     { key: 'last_event', title: t('onudetail.section_last_event'), icon: Clock },
 ]);
+// phase_state/last_down_cause di sini berasal dari scrape teks CLI (ZteOnuDetailService),
+// bukan dari enum SNMP — tapi terverifikasi live (C600, dying-gasp) memakai literal
+// PascalCase yang sama (mis. 'DyingGasp'), jadi helper yang sama aman dipakai di sini.
+// Field lain (admin_state, channel, waktu, dst.) tetap tampil apa adanya.
+const valueFor = (field, value) => {
+    if (field === 'phase_state') return phaseStateLabel(value);
+    if (field === 'last_down_cause') return lastDownCauseLabel(value);
+    return value;
+};
 const rowsFor = (key) => {
     const group = props.groups[key] ?? {};
     const labelMap = labels[key] ?? {};
     return Object.entries(group)
         .filter(([, value]) => value !== null && value !== undefined && value !== '')
-        .map(([field, value]) => [labelMap[field] ?? field, value]);
+        .map(([field, value]) => [labelMap[field] ?? field, valueFor(field, value), value]);
 };
 const allRows = computed(() => Object.entries(props.groups.all ?? {}));
 
@@ -214,7 +224,9 @@ const refresh = () => router.reload({ preserveScroll: true });
                         <p class="mt-3 text-2xl font-bold" :class="online ? 'text-emerald-400' : 'text-slate-400'">
                             {{ online ? $t('common.online') : $t('common.offline') }}
                         </p>
-                        <p class="mt-1 text-xs text-slate-500">{{ state.phase_state || state.state || '—' }}</p>
+                        <p class="mt-1 text-xs text-slate-500" :title="state.phase_state || ''">
+                            {{ state.phase_state ? phaseStateLabel(state.phase_state) : (state.state || '—') }}
+                        </p>
                     </div>
                     <!-- RX power -->
                     <div class="rounded-lg border border-white/10 bg-slate-900/40 p-5 shadow-sm shadow-black/30 backdrop-blur-xl">
@@ -309,9 +321,9 @@ const refresh = () => router.reload({ preserveScroll: true });
                             <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">{{ s.title }}</h3>
                         </header>
                         <dl class="divide-y divide-white/5 px-4 py-2 text-sm sm:px-6">
-                            <div v-for="[label, value] in rowsFor(s.key)" :key="label" class="flex items-start justify-between gap-4 py-2">
+                            <div v-for="[label, value, raw] in rowsFor(s.key)" :key="label" class="flex items-start justify-between gap-4 py-2">
                                 <dt class="text-slate-500">{{ label }}</dt>
-                                <dd class="break-all text-right font-medium text-slate-200">{{ value }}</dd>
+                                <dd class="break-all text-right font-medium text-slate-200" :title="raw">{{ value }}</dd>
                             </div>
                             <p v-if="!rowsFor(s.key).length" class="py-3 text-xs text-slate-500">{{ $t('onudetail.no_data') }}</p>
                         </dl>

@@ -2,6 +2,34 @@
 
 ## 2026-07-22
 
+### Nama pelanggan sebagai teks utama di kolom ONU (Port ONUs & ONU Monitoring)
+
+Changed:
+
+- `resources/js/lib/onu.js` — fungsi baru `onuPrimaryLabel()`/`onuSecondaryLabel()`: baris atas kini nama pelanggan (`onu.customer_name`) bila valid, jatuh ke `interface` bila tidak (tak pernah kosong); baris bawah interface (referensi teknis) bila nama ada, `—` bila tidak — sama seperti perilaku lama untuk kasus tanpa nama. Sengaja TIDAK menduplikasi logika pembersihan nama (`SmartOltSupport::cleanCustomerName`) di JS — pakai field `customer_name` yang backend sudah hitung.
+- `app/Http/Controllers/SmartOltController.php` — `serializePortOnusSnapshot()` kini menyertakan `customer_name` per ONU (dihitung saat serialisasi via `SmartOltSupport::customerNameFromOnu()`, TIDAK disimpan ke cache `last_test_result`), menyamakan Port ONUs dengan ONU Monitoring yang sudah punya field ini lewat `OnuInventoryService::normalize()`.
+- `resources/js/Pages/SmartOlt/PortOnus.vue` — kolom ONU (mobile + desktop) pakai `onuPrimaryLabel()`/`onuSecondaryLabel()`; interface asli dipertahankan sebagai tooltip `:title`.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — idem; kartu mobile mempertahankan prefix nama OLT di baris subtitle (`{olt_name} · {interface|—}`).
+
+Notes:
+
+- Diminta pengguna: balik hierarki kolom ONU — nama pelanggan (mis. "NET LINK") jadi teks utama, interface (mis. `gpon_onu-1/5/16:1`) jadi subtitle kecil.
+- **Diverifikasi**: `SmartOltSupport::customerNameFromOnu()` menolak sentinel (`-`/`n/a`/dst.), nama yang sama dengan serial, dan nama yang cuma echo interface (`gpon-onu_`/`gpon_onu-`) — tapi TIDAK memotong deskripsi mentah gaya SmartOLT (`zone_..[_descr_..]_authd_..`), string itu lolos apa adanya sebagai "nama". Diketahui & didiskusikan dengan pengguna sebelum diterapkan — perbaikan lebih lanjut (mis. wajib ada `_descr_`) akan mengubah perilaku `AlarmEvaluator`/Telegram yang sudah memakai fungsi yang sama, jadi sengaja TIDAK disentuh di sini.
+- **Tidak disentuh**: search/filter (sudah mencari `interface`+`name`+`description` terpisah, tak berubah), sort (tak ada sort interaktif di kolom ini), CDataOlt/Hioso (di luar permintaan pengguna), `GlobalSearch.vue` ⌘K (pola beda: `label` dari serial, dihitung di `GlobalSearchService.php`, dipakai lintas-app bukan cuma SmartOLT).
+- Verifikasi: `npm run build` OK; `graphify update .` OK. `php artisan test` tak bisa jalan di server ini (command `test` tak terdaftar — `phpunit/phpunit` tak ter-install di `vendor/`, sudah beberapa kali terjadi sepanjang sesi); verifikasi manual via skrip PHP ad-hoc yang memanggil `SmartOltSupport::customerNameFromOnu()` langsung dengan beberapa kasus (nama asli, name==serial, name==interface-echo, kosong) — semua sesuai ekspektasi.
+
+### Label ramah `phase_state`/`last_down_cause` di OnuDetail.vue (CLI, terverifikasi live C600 dying-gasp)
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/OnuDetail.vue` — kartu status hero + baris generik grup "state"/"last_event" kini pakai `phaseStateLabel()`/`lastDownCauseLabel()` (fungsi yang sama dipakai ONU Monitoring & Port ONUs) untuk field `phase_state`/`last_down_cause` saja — field lain (admin_state, channel, waktu, dst.) & seksi "All fields" (dump mentah CLI, untuk debug) TIDAK disentuh. Nilai teknis asli dipertahankan sebagai tooltip.
+- `tests/Unit/ZteOnuDetailTest.php` — tes baru `test_parses_c600_dying_gasp_detail_info()` memakai capture CLI nyata (`show gpon onu detail-info` di C600, ONU dying-gasp, ditempel langsung oleh pengguna) — memverifikasi `phase_state`/`last_down_cause` (dari tabel riwayat sesi, C600 tak punya baris "Last down cause:" eksplisit) berformat PascalCase yang SAMA dengan enum SNMP (`DyingGasp`), bukan lowercase seperti fixture C300/C320 lama (`working`) — jadi helper JS yang sama aman dipakai tanpa normalisasi tambahan.
+
+Notes:
+
+- `OnuDetail.vue` sumber datanya BEDA dari SNMP (scrape teks CLI via `ZteOnuDetailService`) — sebelum menyentuhnya, diverifikasi dulu apakah literalnya sama dengan enum SNMP (`Working`/`DyingGasp`/dst.) atau beda kapitalisasi seperti fixture test lama menyiratkan. Capture live dari pengguna (C600, ONU HWTC190A7EB8) mengonfirmasi PascalCase yang sama — jadi TIDAK perlu normalisasi/mapping baru, cukup reuse helper yang sudah ada.
+- `php artisan test` tak bisa jalan (lihat entri di atas); logika parser (`buildAllMap`/`pick`/`applySessionHistory`) ditelusuri manual baris-per-baris terhadap capture nyata untuk memastikan hasil `DyingGasp` di kedua field sebelum menulis tes.
+
 ### Label ramah status ONU (`phase_state`) di ONU Monitoring & Port ONUs
 
 Changed:

@@ -80,4 +80,61 @@ RAW;
         $this->assertSame('2026-05-22 03:11:00', $groups['last_event']['last_down_time']);
         $this->assertSame('LOS', $groups['last_event']['last_down_cause']);
     }
+
+    /**
+     * Captured live from a C600 ONU in dying-gasp (power outage). This format differs from
+     * the C300/C320 fixture above (no "SN"/"Last down cause" lines — uses "Serial number:" and
+     * derives last_down_cause from the Authpass/OfflineTime/Cause history table instead), and
+     * confirms phase_state/last_down_cause use the SAME PascalCase literal ('DyingGasp') as the
+     * SNMP decoder (OltSnmpClient::decodePhaseState/decodeLastDownCause) — so lib/onu.js's
+     * phaseStateLabel()/lastDownCauseLabel() apply here without any extra normalization.
+     */
+    public function test_parses_c600_dying_gasp_detail_info(): void
+    {
+        $raw = <<<'RAW'
+ONU interface:          gpon_onu-1/5/10:30
+  Name:                 ********
+  Splitter:
+  Type:                 EG8021V5
+  Configured speed mode:auto
+  Current speed mode:   GPON
+  Admin state:          enable
+  Phase state:          DyingGasp
+  Config state:         fail
+  Authentication mode:  sn
+  SN Bind:              enable with SN check
+  Serial number:        HWTC190A7EB8
+  Password:
+  Description:          ********
+  Vport mode:           manual
+  DBA Mode:             Hybrid
+  ONU Status:           enable
+  OMCI BW Profile:      704kbps
+  OMCC Encrypt:         disable
+  Line Profile:         N/A
+  Service Profile:      N/A
+  ONU Distance:         2809m
+  Online Duration:      0h 0m 0s
+  FEC:                  disable
+  FEC actual mode:      disable
+  1PPS+ToD:             disable
+  Auto replace:         disable
+  Multicast encryption: disable
+  Multicast encryption current state:N/A
+------------------------------------------
+       Authpass Time          OfflineTime             Cause
+   1   2026-07-22 00:48:58    2026-07-22 07:34:11     DyingGasp
+   2   2026-07-22 07:38:06    2026-07-22 08:28:43     DyingGasp
+   3   0000-00-00 00:00:00    0000-00-00 00:00:00
+RAW;
+
+        $groups = $this->parser()->parse($raw);
+
+        $this->assertSame('HWTC190A7EB8', $groups['identity']['sn']);
+        $this->assertSame('enable', $groups['state']['admin_state']);
+        $this->assertSame('DyingGasp', $groups['state']['phase_state']);
+
+        // No explicit "Last down cause:" line in this format — derived from the history table.
+        $this->assertSame('DyingGasp', $groups['last_event']['last_down_cause']);
+    }
 }
