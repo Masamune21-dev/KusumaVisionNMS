@@ -1979,7 +1979,13 @@ class SmartOltController extends Controller
             'port' => $port,
             'if_index' => data_get($snapshot, 'if_index'),
             'port_row' => data_get($snapshot, 'port_row'),
-            'onus' => data_get($snapshot, 'onus', []),
+            // customer_name dihitung di sini (bukan disimpan di cache) supaya nama pelanggan yang
+            // "bersih" (bukan sentinel/serial/interface eco) konsisten dengan ONU Monitoring, yang
+            // sudah memakai fungsi yang sama lewat OnuInventoryService::normalize().
+            'onus' => array_map(
+                fn (array $onu) => [...$onu, 'customer_name' => SmartOltSupport::customerNameFromOnu($onu)],
+                data_get($snapshot, 'onus', []),
+            ),
             'rx_power' => data_get($snapshot, 'rx_power', []),
             'count' => data_get($snapshot, 'count', 0),
             'latency_ms' => data_get($snapshot, 'latency_ms'),

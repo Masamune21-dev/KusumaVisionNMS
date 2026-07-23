@@ -70,6 +70,30 @@ export function phaseStateLabel(code) {
 }
 
 /**
+ * Teks utama sel identitas ONU (tabel/kartu ONU di SmartOLT): nama pelanggan bila ada
+ * dan valid (sudah difilter backend — bukan sentinel/serial/interface eco, lihat
+ * SmartOltSupport::customerNameFromOnu), jatuh ke interface bila tidak ada — jadi baris
+ * atas TIDAK PERNAH kosong.
+ * @param {{customer_name?: string|null, interface?: string|null}} onu
+ * @returns {string}
+ */
+export function onuPrimaryLabel(onu) {
+    return onu.customer_name || onu.interface || '—';
+}
+
+/**
+ * Teks sekunder pasangan {@link onuPrimaryLabel}: interface (sebagai referensi teknis)
+ * bila baris utama sudah memakai nama pelanggan; '—' bila baris utama sudah jadi
+ * interface itu sendiri (tak ada nama pelanggan) — sama seperti perilaku lama, tak
+ * mengulang interface dua kali.
+ * @param {{customer_name?: string|null, interface?: string|null}} onu
+ * @returns {string}
+ */
+export function onuSecondaryLabel(onu) {
+    return onu.customer_name ? (onu.interface || '—') : '—';
+}
+
+/**
  * Pecah deskripsi ONU gaya SmartOLT menjadi bagian terstruktur. Formatnya
  * `zone_<zona>[_descr_<teks>][_extid_<id>]_authd_<YYYYMMDD>` (delimiter tetap;
  * zona/teks boleh mengandung spasi). Mengembalikan null bila tak cocok (deskripsi

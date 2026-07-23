@@ -15,7 +15,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { formatDateTime } from '@/lib/datetime';
-import { lastDownCauseLabel, phaseStateLabel } from '@/lib/onu';
+import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
@@ -703,8 +703,8 @@ const rxBadgeClass = (value) => {
                                             @change="toggleSelect(onu)"
                                         />
                                         <div class="min-w-0">
-                                            <h4 class="kv-mobile-card-title">{{ onu.interface }}</h4>
-                                            <p class="kv-mobile-card-subtitle">{{ onu.name || onu.description || '—' }}</p>
+                                            <h4 class="kv-mobile-card-title" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</h4>
+                                            <p class="kv-mobile-card-subtitle">{{ onuSecondaryLabel(onu) }}</p>
                                         </div>
                                     </div>
                                     <span
@@ -861,8 +861,8 @@ const rxBadgeClass = (value) => {
                                         />
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="font-semibold text-white">{{ onu.interface }}</div>
-                                        <div class="mt-0.5 text-xs text-slate-500">{{ onu.name || onu.description || '—' }}</div>
+                                        <div class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
+                                        <div class="mt-0.5 text-xs text-slate-500">{{ onuSecondaryLabel(onu) }}</div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || '—' }}</span>
