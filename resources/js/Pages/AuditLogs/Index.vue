@@ -1,6 +1,7 @@
 <script setup>
 import Pagination from '@/Components/Pagination.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
+import { auditDescription } from '@/lib/audit';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
@@ -198,7 +199,7 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="eventMeta(log.event).class">
                                             {{ eventMeta(log.event).label }}
                                         </span>
-                                        <h4 class="mt-3 kv-mobile-card-title">{{ log.description || '—' }}</h4>
+                                        <h4 class="mt-3 kv-mobile-card-title" :title="log.description || ''">{{ auditDescription(log) }}</h4>
                                         <p class="kv-mobile-card-subtitle">{{ formatDate(log.created_at) }}</p>
                                     </div>
                                 </div>
@@ -279,8 +280,8 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
                                                     {{ eventMeta(log.event).label }}
                                                 </span>
                                             </td>
-                                            <td class="px-4 py-4 text-sm text-slate-200">
-                                                {{ log.description || '—' }}
+                                            <td class="px-4 py-4 text-sm text-slate-200" :title="log.description || ''">
+                                                {{ auditDescription(log) }}
                                                 <div v-if="log.subject" class="text-xs text-slate-500">{{ log.subject }}</div>
                                             </td>
                                             <td class="whitespace-nowrap px-4 py-4 text-sm text-slate-400">{{ log.ip_address || '—' }}</td>

@@ -1114,7 +1114,14 @@
         "ev_login": "Login",
         "ev_logout": "Logout",
         "ev_login_failed": "Login Gagal",
-        "ev_telnet_opened": "Telnet"
+        "ev_telnet_opened": "Telnet",
+        "desc_login": "Login ke sistem",
+        "desc_logout": "Logout dari sistem",
+        "desc_login_failed": "Percobaan login gagal",
+        "desc_telnet_opened": "Membuka sesi telnet ke {target}",
+        "verb_created": "Menambahkan",
+        "verb_updated": "Memperbarui",
+        "verb_deleted": "Menghapus"
     },
     "profile": {
         "title": "Profil",

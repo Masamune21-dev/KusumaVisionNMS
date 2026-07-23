@@ -28,7 +28,7 @@ class TelnetSessionController extends Controller
         AuditLogger::log(
             AuditLog::EVENT_TELNET_OPENED,
             $olt,
-            [],
+            ['subject_title' => $olt->name],
             "Membuka sesi telnet ke OLT {$olt->name}",
         );
 

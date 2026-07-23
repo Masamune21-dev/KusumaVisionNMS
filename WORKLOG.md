@@ -2,6 +2,22 @@
 
 ## 2026-07-22
 
+### Audit Logs: deskripsi ikut locale viewer, bukan terkunci bahasa Indonesia
+
+Changed:
+
+- `app/Support/AuditLogger.php` — `model()` (dipakai trait `Auditable` utk SEMUA model created/updated/deleted): sekarang juga menyimpan `subject_label`/`subject_title` terstruktur di `properties`, di samping `description` legacy (tetap dalam bahasa Indonesia, sebagai fallback pencarian LIKE & baris lama).
+- `app/Http/Controllers/TelnetSessionController.php` — `AuditLogger::log(EVENT_TELNET_OPENED, ...)` kini juga menyertakan `subject_title` (nama OLT) di properties.
+- `resources/js/lib/audit.js` (baru) — `auditDescription(log)`: merangkai teks sesuai locale AKTIF saat render (bukan locale penulis saat event terjadi). Event boilerplate tanpa data dinamis (login/logout/login_failed) diterjemahkan murni dari `event`; created/updated/deleted & telnet_opened dirangkai dari verb terjemahan + `properties.subject_label`/`subject_title`; baris LAMA (sebelum fix ini, tak punya `subject_label`/`subject_title`) fallback ke `description` mentah apa adanya.
+- `resources/js/lang/{id,en}.json` — kunci baru namespace `auditlogs`: `desc_login`, `desc_logout`, `desc_login_failed`, `desc_telnet_opened` (dengan `{target}`), `verb_created`, `verb_updated`, `verb_deleted`.
+- `resources/js/Pages/AuditLogs/Index.vue` — kartu mobile & tabel desktop pakai `auditDescription(log)`; `description` mentah dipertahankan sebagai tooltip `:title`.
+
+Notes:
+
+- Ditemukan pengguna: dengan bahasa UI di-set Inggris, kolom Description di Audit Logs tetap tampil Indonesia ("Login ke sistem", "Logout dari sistem") — beda dari badge kolom Event (`auditlogs.ev_*`) yang SUDAH benar diterjemahkan. Akar masalah: `description` ditulis sebagai kalimat FINAL (sudah diterjemahkan ke bahasa penulis) langsung ke DB saat event terjadi, bukan kode yang diterjemahkan ulang tiap kali ditampilkan — pola yang sama dengan pesan alarm Telegram (`AlarmEvaluator`) yang sudah diketahui sebelumnya, tapi kali ini sumbernya `AuditLogger::model()` yang dipakai trait `Auditable` di HAMPIR SEMUA model (OLT, User, dst.) — bukan cuma login/logout.
+- **Baris audit lama (sebelum fix ini) tak bisa diperbaiki retroaktif** tanpa backfill data historis (properties-nya belum punya `subject_label`/`subject_title`) — akan tetap fallback ke `description` mentah (kemungkinan Indonesia). Disepakati dengan pengguna: tak menyentuh data historis, hanya baris BARU ke depan yang benar per-locale.
+- **Verifikasi**: dites langsung memanggil `AuditLogger::model('updated', $oltNyata, [...])` — `properties` berisi `subject_label: "OLT"`, `subject_title: "LAS GALERAS C600"` seperti diharapkan; baris tes dihapus lagi segera setelah supaya tak mengotori audit trail sungguhan. Ditelusuri manual `tests/Feature/AuditLogTest.php::test_model_changes_are_audited_without_secrets` — assertion `description === 'Menambahkan OLT AUDIT-OLT'` tetap valid (description legacy tak diubah sama sekali, cuma `properties` ditambah key baru via operator `+` yang tak menimpa `attributes`/`old`/`new` yang sudah ada). `npm run build` OK. `php artisan test` tetap tak bisa jalan di server ini (limitasi lingkungan yang sama sepanjang sesi).
+
 ### Ganti label kolom "Phase" jadi "Status" di Port ONUs & ONU Monitoring
 
 Changed:

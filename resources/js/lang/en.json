@@ -1114,7 +1114,14 @@
         "ev_login": "Login",
         "ev_logout": "Logout",
         "ev_login_failed": "Login Failed",
-        "ev_telnet_opened": "Telnet"
+        "ev_telnet_opened": "Telnet",
+        "desc_login": "Logged in",
+        "desc_logout": "Logged out",
+        "desc_login_failed": "Failed login attempt",
+        "desc_telnet_opened": "Opened telnet session to {target}",
+        "verb_created": "Added",
+        "verb_updated": "Updated",
+        "verb_deleted": "Deleted"
     },
     "profile": {
         "title": "Profile",

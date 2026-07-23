@@ -55,7 +55,12 @@ class AuditLogger
             AuditLog::EVENT_DELETED => 'Menghapus',
         ][$event] ?? $event;
 
+        // description tetap disimpan dalam bahasa Indonesia (fallback pencarian LIKE & baris lama
+        // sebelum kolom ini ada) — tapi frontend TAK memakainya untuk render bila subject_label/
+        // subject_title tersedia (lihat resources/js/lib/audit.js): frasa dirangkai ulang sesuai
+        // locale VIEWER saat ditampilkan, bukan locale penulis saat event terjadi.
         $description = trim(sprintf('%s %s %s', $verb, $label, $title));
+        $properties = ['subject_label' => $label, 'subject_title' => $title] + $properties;
 
         return static::log($event, $model, $properties, $description);
     }
