@@ -332,7 +332,7 @@
         "odp_empty": "Belum ada ODP",
         "col_type": "Type",
         "col_onu_rx": "ONU RX",
-        "col_phase": "Phase",
+        "col_phase": "Status",
         "col_admin": "Admin",
         "col_last_down": "Last Down",
         "col_actions": "Aksi",

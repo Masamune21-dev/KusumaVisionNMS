@@ -2,6 +2,16 @@
 
 ## 2026-07-22
 
+### Ganti label kolom "Phase" jadi "Status" di Port ONUs & ONU Monitoring
+
+Changed:
+
+- `resources/js/lang/{id,en}.json` — `portonus.col_phase`: "Phase" → "Status" (kunci yang sama dipakai `common.status`, jadi konsisten). Dipakai `PortOnus.vue` & `OnuMonitor.vue` (satu-satunya pemakai, dicek via grep).
+
+Notes:
+
+- Permintaan pengguna langsung, sekadar ganti teks label — kolom itu sendiri (nilainya via `phaseStateLabel()`) tak berubah.
+
 ### Fix hitungan/filter "Offline" = 0 di ONU Monitoring untuk OLT C600
 
 Changed:
