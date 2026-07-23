@@ -8,6 +8,7 @@ use App\Models\FcmDeviceToken;
 use App\Models\FcmSetting;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\Alarm\OdpAlarmGrouper;
 use App\Services\AlarmEvaluator;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
@@ -84,12 +85,21 @@ class FcmAlarmNotifier
 
         $messages = [];
         if ($setting->notify_on_raise) {
+            // Filter dulu (semantik tak berubah), lalu kelompokkan alarm down per-ODP:
+            // >1 ONU 1 ODP → 1 push grup, sisanya per-ONU seperti biasa.
+            $eligible = [];
             foreach ($raised as $alarm) {
                 if ((self::SEVERITY_RANK[$alarm->severity] ?? 1) < $minRank
                     || ! in_array($alarm->type, $types, true)) {
                     continue;
                 }
-                $messages[] = $this->buildMessage($olt, $alarm, 'raised');
+                $eligible[] = $alarm;
+            }
+
+            foreach (app(OdpAlarmGrouper::class)->group($olt, $eligible) as $item) {
+                $messages[] = $item['kind'] === 'odp'
+                    ? $this->buildOdpMessage($olt, $item)
+                    : $this->buildMessage($olt, $item['alarm'], 'raised');
             }
         }
         if ($setting->notify_on_clear) {
@@ -283,6 +293,53 @@ class FcmAlarmNotifier
                 'onu_id' => $alarm->onu_id,
                 'serial_number' => $alarm->serial_number,
                 'customer_name' => $customer,
+            ],
+        );
+
+        return CloudMessage::new()
+            ->withNotification(Notification::create($title, $body))
+            ->withData($data)
+            ->withDefaultSounds()
+            ->withAndroidConfig([
+                'priority' => 'high',
+                'notification' => ['channel_id' => 'alarms'],
+            ]);
+    }
+
+    /**
+     * Satu push untuk sekumpulan ONU down di satu ODP.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function buildOdpMessage(SnmpOlt $olt, array $item): CloudMessage
+    {
+        $emoji = $this->severityEmoji($item['severity']);
+        $name = (string) $item['odp_name'];
+        $count = count($item['members']);
+
+        // Semua ONU 1 ODP down → cukup "ODP ini down (semua)".
+        if ($item['all_down']) {
+            $title = "$emoji ODP DOWN · $name";
+            $body = "ODP $name — semua {$item['total']} pelanggan offline. — {$olt->name}";
+        } else {
+            $title = "$emoji ODP gangguan · $name ($count ONU)";
+            $names = array_map(
+                fn (AlarmEvent $alarm) => OdpAlarmGrouper::memberLabel($alarm),
+                $item['members'],
+            );
+            $body = "ODP $name — $count ONU down: ".implode(', ', $names)." — {$olt->name}";
+        }
+
+        $data = array_map(
+            fn ($v) => (string) ($v ?? ''),
+            [
+                'event' => 'raised',
+                'group' => 'odp',
+                'odp_id' => $item['odp_id'],
+                'odp_name' => $name,
+                'olt_id' => $olt->id,
+                'down_count' => $count,
+                'all_down' => $item['all_down'] ? '1' : '0',
             ],
         );
 

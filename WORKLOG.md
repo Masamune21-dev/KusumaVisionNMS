@@ -2,6 +2,34 @@
 
 ## 2026-07-23
 
+### Alarm dikelompokkan per-ODP untuk Telegram & Push FCM
+
+Created:
+
+- `app/Services/Alarm/OdpAlarmGrouper.php` — kelompokkan alarm "down" ONU (LOS / dying gasp / offline) per-ODP di layer notifikasi. Petakan alarm→ODP via `onu_odp_links` (key komposit slot/port/onu_id), hitung "semua down" dari snapshot poll (`last_test_result.port_onus`). >1 ONU down 1 ODP → 1 item grup; 1 ONU / tanpa ODP / alarm non-down (port/RX/OLT) → tetap per-item. Helper statis `memberLabel()` (nama pelanggan) & `causeLabel()` (LOS/Dying Gasp/Offline) dipakai bersama kedua notifier. Lookup Odp/OnuOdpLink pakai `withoutGlobalScope(PartnerOltScope)` agar deterministik di konteks queue/polling.
+
+Changed:
+
+- `app/Services/Telegram/TelegramNotifier.php` — jalur raise: filter severity/tipe dulu (semantik per-bot tak berubah), lalu `grouper()->group()`; `formatOdpGroup()` render seksi grup (`ODP DOWN · Semua ONU` bila semua offline, atau `ODP GANGGUAN · N ONU down` + daftar pelanggan & sebab).
+- `app/Services/Fcm/FcmAlarmNotifier.php` — jalur raise: filter → group → `buildOdpMessage()` (1 push per grup ODP, judul+body ringkas, payload data `group=odp`/`odp_id`/`all_down` untuk deep-link app). Alarm cleared tetap per-item.
+
+Notes:
+
+- MURNI presentasi notifikasi — tiap ONU tetap punya baris `AlarmEvent` sendiri di UI/riwayat; evaluasi & pencatatan alarm (debounce 2-poll, korelasi port-down) tak diubah.
+- Grup dibentuk dari batch raised satu siklus reconcile — cocok skenario ODP putus (banyak ONU jatuh serempak dalam ~2 poll). "Semua down" dibanding total ONU ODP yang muncul di snapshot (link stale/tak ada di snapshot diabaikan agar tak salah "semua").
+- Verifikasi: suite `AlarmEngine|Telegram|Fcm|SettingsAlarm|OltPolling` = 99 passed (dengan override cache prod — lihat memori); 0 regresi. Prod aman (test sqlite in-memory).
+
+### Peta ONU: dropdown ODP di tabel ONU difilter per-port
+
+Changed:
+
+- `app/Services/OnuOdpService.php` — `odpsForOlt()` terima `$slot`/`$port` opsional: hanya tampilkan ODP di port itu + ODP yang belum punya port (belum ada ONU, akan auto-terisi saat assign pertama). `assign()` tambah guard: tolak assign ONU ke ODP yang portnya beda (jaga integritas, konsisten dgn dropdown terfilter).
+- `app/Http/Controllers/{SmartOlt,CDataOlt,Hioso}Controller.php` — teruskan `$slot, $port` ke `odpsForOlt()` di `portOnus()`.
+
+Notes:
+
+- Tanpa perubahan frontend — `OnuOdpCell.vue` sudah render prop `odps` yang kini difilter server-side. Terverifikasi live (OLT id=2): port 2/1 hanya menampilkan ODP port 2/1, port 2/3 hanya ODP-nya sendiri.
+
 ### Peta ONU: ODP kini punya atribut Port PON (pilih saat add + auto-isi ODP lama)
 
 Created:

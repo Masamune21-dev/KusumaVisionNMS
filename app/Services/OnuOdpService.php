@@ -21,12 +21,21 @@ class OnuOdpService
     /**
      * Daftar ODP satu OLT untuk dropdown kolom tabel ONU.
      *
+     * Bila $slot/$port diberikan, hanya ODP di port itu yang ditampilkan — ODP
+     * terkunci ke satu port (ONU dalam satu ODP pasti se-port). ODP yang belum
+     * punya port (belum ada ONU) tetap muncul di semua port; portnya terisi otomatis
+     * saat ONU pertama di-assign (lihat assign()).
+     *
      * @return array<int, array{id:int, name:string}>
      */
-    public function odpsForOlt(SnmpOlt $olt): array
+    public function odpsForOlt(SnmpOlt $olt, ?int $slot = null, ?int $port = null): array
     {
         return Odp::query()
             ->where('snmp_olt_id', $olt->id)
+            ->when($slot !== null && $port !== null, fn ($query) => $query->where(function ($group) use ($slot, $port) {
+                $group->where(fn ($m) => $m->where('slot', $slot)->where('port', $port))
+                    ->orWhere(fn ($n) => $n->whereNull('slot')->whereNull('port'));
+            }))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Odp $odp) => ['id' => $odp->id, 'name' => $odp->name])
@@ -74,6 +83,12 @@ class OnuOdpService
         $odp = Odp::query()->where('id', $odpId)->where('snmp_olt_id', $olt->id)->first();
         if ($odp === null) {
             throw new RuntimeException('ODP tidak ditemukan untuk OLT ini.');
+        }
+
+        // ODP terkunci ke satu port — tolak assign ONU dari port lain (jaga integritas,
+        // konsisten dgn dropdown yang sudah difilter per-port di odpsForOlt).
+        if ($odp->slot !== null && ($odp->slot !== $slot || $odp->port !== $port)) {
+            throw new RuntimeException("ODP ini berada di port {$odp->slot}/{$odp->port}, tidak bisa dipasang ke ONU di port {$slot}/{$port}.");
         }
 
         // ONU dalam satu ODP pasti di port yang sama → isi port ODP otomatis saat
