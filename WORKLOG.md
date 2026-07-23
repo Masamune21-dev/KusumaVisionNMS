@@ -2,6 +2,22 @@
 
 ## 2026-07-22
 
+### Alarm "Dying Gasp" → "Power Off" di seluruh permukaan (pesan, label web, label backend)
+
+Changed:
+
+- `app/Services/AlarmEvaluator.php` — pesan alarm ONU dying-gasp: `"ONU {iface} dying gasp."` → `"ONU {iface} power off (dying gasp)."` (pola sama dengan cabang LOS: `"loss of signal (LOS)"`).
+- `app/Models/AlarmEvent.php` — `TYPE_LABELS[TYPE_DYING_GASP]`: "Dying Gasp" → "Power Off". Konstanta ini satu sumber untuk checkbox Settings→Telegram (admin & partner), field `type_label` API v1 (dipakai app mobile), dan judul push FCM (`FcmAlarmNotifier`).
+- `resources/js/lang/en.json` — `alarms.type_dying_gasp`: "Dying Gasp" → "Power Off" (badge tipe alarm & filter di halaman Alarms.vue + tabel Recent Alarms Dashboard, keduanya lewat `alarmTypeLabel()`); plus 4 string bantuan/hint lain (`onumonitor.stat_problem`, `guide.port-onu_i0`, `guide.alarm_i0`, `settings.types_hint_admin`) yang juga menyebut "power loss" disamakan ke "power off".
+- `resources/js/lang/id.json` — `alarms.type_dying_gasp`: "Dying Gasp" → "Listrik Mati" (terjemahan asli, bukan sekadar salinan teks Inggris; string bantuan ID sudah konsisten pakai "Listrik Mati" sejak awal, tak perlu disentuh).
+- `tests/Feature/AlarmEngineTest.php` — assertion disesuaikan ke teks baru.
+
+Notes:
+
+- Permintaan pengguna: tampilkan "Power Off"/istilah yang lebih ramah, bukan istilah teknis "Dying Gasp", di alarm (bell notifikasi, Dashboard Recent Alarms, halaman Alarms). Terpisah dari `onu.ldc_dying_gasp`/`onu.phase_dying_gasp` (kolom status ONU di Port ONUs/ONU Monitoring/OnuDetail) yang SUDAH diperbaiki sesi ini sebelumnya — tak disentuh lagi di sini.
+- Kode internal `'dying_gasp'` (dipakai utk perbandingan/filter di `AlarmEvaluator`, `TelegramBotController`, dst.) TAK berubah — cuma label yang dilihat manusia.
+- Verifikasi: `php -l` OK kedua file PHP; `npm run build` OK; JSON kedua file lang valid; ditelusuri `tests/` — tak ada assertion lain yang mereferensikan teks lama "Dying Gasp"/"dying gasp." selain yang sudah disesuaikan di atas. `php artisan test` tetap tak bisa jalan di server ini (limitasi lingkungan yang sama sepanjang sesi).
+
 ### Fix kartu "Online Duration" salah di OnuDetail.vue (regex angka-pertama merusak format "Xh Ym Zs")
 
 Changed:

@@ -327,7 +327,7 @@ class AlarmEvaluator
                 ...$base,
                 'type' => AlarmEvent::TYPE_DYING_GASP,
                 'severity' => AlarmEvent::SEVERITY_MINOR,
-                'message' => "ONU {$iface} power loss (dying gasp).",
+                'message' => "ONU {$iface} power off (dying gasp).",
             ]];
         }
 
