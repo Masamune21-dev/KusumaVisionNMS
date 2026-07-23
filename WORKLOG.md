@@ -2,6 +2,18 @@
 
 ## 2026-07-22
 
+### Fix hitungan/filter "Offline" = 0 di ONU Monitoring untuk OLT C600
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — helper baru `isOfflinePhase()` (cek `'Offline'` MAUPUN `'OffLine'`), dipakai di `matchStatus()` (filter dropdown status) dan `stats.offline` (kartu statistik). Sebelumnya keduanya cuma cek `phase_state === 'Offline'` (ejaan C300/C320) — OLT C600 pakai `'OffLine'` (L besar, sudah diketahui & ditangani di `phaseStateLabel()`), jadi kartu "OFFLINE" OLT C600 SELALU tampil `0` dan filter status "Offline" SELALU kosong, walau ratusan ONU C600 sungguhan sedang offline.
+
+Notes:
+
+- Ditemukan pengguna sambil memverifikasi fix `last_down_cause` sebelumnya (lihat entri di atas) — screenshot tampak "sigue igual" tapi ternyata baris yang terlihat semuanya ONU online (di mana `last_down_cause=Unknown` memang benar), dan pengguna tak bisa memfilter ke ONU offline untuk mengecek fix karena bug ini.
+- `grep` dikonfirmasi ini satu-satunya tempat dengan pola `=== 'Offline'` yang ketat di seluruh `resources/js/`/`app/` — tak ada lagi tempat lain yang perlu disentuh.
+- Verifikasi: `npm run build` OK. `php artisan test` tetap tak bisa jalan di server ini (limitasi lingkungan yang sama sepanjang sesi).
+
 ### Fix `last_down_cause` = "Unknown" di SELURUH ONU C600 (fallback dari `phase_state`)
 
 Changed:

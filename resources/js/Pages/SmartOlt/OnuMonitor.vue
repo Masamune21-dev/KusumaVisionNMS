@@ -69,6 +69,11 @@ const portOptions = computed(() => {
     return [...set.values()].sort((a, b) => a.slot - b.slot || a.port - b.port);
 });
 
+// C300/C320 mengeja 'Offline', C600 mengeja 'OffLine' (huruf L besar) — beda taksonomi yang
+// sama seperti sudah ditangani di phaseStateLabel(); dua pemakaian di bawah (filter & stat card)
+// sebelumnya cuma cek 'Offline' sehingga OLT C600 selalu terhitung 0 offline & filter kosong.
+const isOfflinePhase = (phase) => phase === 'Offline' || phase === 'OffLine';
+
 const matchStatus = (onu) => {
     switch (statusFilter.value) {
         case 'online':
@@ -78,7 +83,7 @@ const matchStatus = (onu) => {
         case 'dying_gasp':
             return onu.phase_state === 'DyingGasp';
         case 'offline':
-            return onu.phase_state === 'Offline';
+            return isOfflinePhase(onu.phase_state);
         default:
             return true;
     }
@@ -110,7 +115,7 @@ const stats = computed(() => {
         total: rows.length,
         online: rows.filter((o) => o.online).length,
         problem: rows.filter((o) => o.phase_state === 'LOS' || o.phase_state === 'DyingGasp').length,
-        offline: rows.filter((o) => o.phase_state === 'Offline').length,
+        offline: rows.filter((o) => isOfflinePhase(o.phase_state)).length,
     };
 });
 
