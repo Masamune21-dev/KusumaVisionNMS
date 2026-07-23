@@ -48,7 +48,6 @@ const txVal = computed(() => num(optical.value.tx_power_dbm ?? optical.value.onu
 const attUp = computed(() => num(optical.value.att_up_db));
 const attDown = computed(() => num(optical.value.att_down_db));
 const distance = computed(() => num(optical.value.distance_m));
-const duration = computed(() => num(state.value.online_duration));
 
 const online = computed(() => {
     const s = `${state.value.phase_state ?? ''} ${state.value.state ?? ''}`.toLowerCase();
@@ -115,18 +114,6 @@ const attMeta = (v) => {
 const attUpMeta = computed(() => attMeta(attUp.value));
 const attDownMeta = computed(() => attMeta(attDown.value));
 
-const formatDuration = (secs) => {
-    if (secs === null) return '—';
-    let s = Math.floor(secs);
-    const d = Math.floor(s / 86400); s %= 86400;
-    const h = Math.floor(s / 3600); s %= 3600;
-    const m = Math.floor(s / 60);
-    const parts = [];
-    if (d) parts.push(`${d}${t('onudetail.dur_d')}`);
-    if (h || d) parts.push(`${h}${t('onudetail.dur_h')}`);
-    parts.push(`${m}${t('onudetail.dur_m')}`);
-    return parts.join(' ');
-};
 const distanceLabel = computed(() => {
     if (distance.value === null) return '—';
     return distance.value >= 1000 ? `${(distance.value / 1000).toFixed(2)} km` : `${distance.value} m`;
@@ -254,7 +241,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                             <p class="text-xs font-medium uppercase tracking-wider text-slate-500">Online Duration</p>
                             <Clock class="h-4 w-4 text-slate-500" />
                         </div>
-                        <p class="mt-3 text-2xl font-bold text-white">{{ formatDuration(duration) }}</p>
+                        <p class="mt-3 text-2xl font-bold text-white">{{ state.online_duration || '—' }}</p>
                         <p class="mt-1 text-xs text-slate-500">{{ identity.name || meta.name || '—' }}</p>
                     </div>
                 </div>

@@ -2,6 +2,19 @@
 
 ## 2026-07-22
 
+### Fix kartu "Online Duration" salah di OnuDetail.vue (regex angka-pertama merusak format "Xh Ym Zs")
+
+Changed:
+
+- `resources/js/Pages/SmartOlt/OnuDetail.vue` — kartu "Online Duration" kini menampilkan `state.online_duration` mentah (string CLI, sudah terformat rapi), bukan `formatDuration(duration)`. Fungsi `formatDuration()` & computed `duration` (keduanya cuma dipakai di sini) dihapus — dead code setelah perubahan ini.
+
+Notes:
+
+- Akar masalah: `ZteOnuDetailService::parse()` mengambil field `Online Duration` dari CLI apa adanya — nilainya SUDAH string terformat (`"196h 09m 26s"`, terverifikasi di 3 capture CLI nyata sepanjang sesi ini, C300/C320 & C600). Tapi `OnuDetail.vue` memakai helper `num()` (regex `/-?\d+(?:\.\d+)?/`, dirancang utk field numerik murni seperti RX/distance) yang cuma mengambil ANGKA PERTAMA dari string itu ("196" dari "196h 09m 26s", atau "0" dari "0h 0m 0s") lalu memperlakukannya sebagai DETIK mentah ke `formatDuration()` — merusak totalnya jadi angka kecil yang salah makna (mis. "0m" utk ONU yang sebenarnya sudah lama online).
+- Field lain yang masih pakai `num()` (RX/TX power, atenuasi, distance) TAK disentuh — itu memang angka murni di CLI, bukan string terformat seperti duration.
+- Kunci i18n `onudetail.dur_d/dur_h/dur_m` (dipakai `formatDuration()` yang sudah dihapus) sengaja DIBIARKAN di `lang/{id,en}.json` — pembersihan kecil, tak mengganggu, di luar cakupan fix ini.
+- Verifikasi: `npm run build` OK.
+
 ### Audit Logs: deskripsi ikut locale viewer, bukan terkunci bahasa Indonesia
 
 Changed:
