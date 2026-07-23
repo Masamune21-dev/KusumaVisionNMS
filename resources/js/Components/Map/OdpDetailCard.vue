@@ -75,7 +75,9 @@ const deleteOdp = async () => {
                     <span class="inline-block h-2.5 w-2.5 rounded-sm bg-amber-500 ring-1 ring-white/40"></span>
                     <h3 class="truncate text-sm font-semibold text-white">{{ odp.name }}</h3>
                 </div>
-                <p class="mt-0.5 truncate text-[11px] text-slate-400">{{ $t('map.odp_label') }} · {{ odp.olt_name }}</p>
+                <p class="mt-0.5 truncate text-[11px] text-slate-400">
+                    {{ $t('map.odp_label') }} · {{ odp.olt_name }}<span v-if="odp.port != null"> · {{ $t('map.odp_port') }} {{ odp.slot }}/{{ odp.port }}</span>
+                </p>
             </div>
             <button type="button" class="-mr-1 -mt-1 rounded-lg p-1 text-slate-400 transition hover:bg-white/10 hover:text-white" :title="$t('common.close')" @click="emit('close')">
                 <X class="h-4 w-4" />

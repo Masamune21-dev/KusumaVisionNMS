@@ -17,6 +17,8 @@ class OdpController extends Controller
         $data = $request->validate([
             'snmp_olt_id' => ['required', 'integer', 'exists:snmp_olts,id'],
             'name' => ['required', 'string', 'max:128'],
+            'slot' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'port' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -28,6 +30,8 @@ class OdpController extends Controller
         Odp::query()->create([
             'snmp_olt_id' => $data['snmp_olt_id'],
             'name' => trim($data['name']),
+            'slot' => $data['slot'] ?? null,
+            'port' => $data['port'] ?? null,
             'latitude' => $data['latitude'],
             'longitude' => $data['longitude'],
             'notes' => $data['notes'] ?? null,
@@ -41,12 +45,21 @@ class OdpController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:128'],
+            'slot' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'port' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $odp->name = trim($data['name']);
+        // slot/port hanya diubah bila field-nya dikirim (edit port opsional).
+        if ($request->has('slot')) {
+            $odp->slot = $data['slot'] ?? null;
+        }
+        if ($request->has('port')) {
+            $odp->port = $data['port'] ?? null;
+        }
         if (($data['latitude'] ?? null) !== null) {
             $odp->latitude = $data['latitude'];
         }

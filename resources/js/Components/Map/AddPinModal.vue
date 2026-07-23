@@ -37,9 +37,11 @@ const form = useForm({
     notes: '',
 });
 
-// Form ODP terpisah (hanya nama + OLT + koordinat).
+// Form ODP terpisah (OLT + port opsional + nama + koordinat).
+// `port` menyimpan "slot/port" untuk dropdown, di-split jadi slot+port saat submit.
 const odpForm = useForm({
     snmp_olt_id: '',
+    port: '',
     name: '',
     latitude: '',
     longitude: '',
@@ -107,6 +109,23 @@ const onOltChange = () => {
     form.onu_id = '';
 };
 
+// --- port ODP (dropdown port PON dari ONU OLT terpilih) ---
+const odpScopedOnus = computed(() =>
+    odpForm.snmp_olt_id ? props.onus.filter((o) => o.olt_id === Number(odpForm.snmp_olt_id)) : [],
+);
+
+const odpPortOptions = computed(() => {
+    const set = new Map();
+    for (const onu of odpScopedOnus.value) {
+        set.set(`${onu.slot}/${onu.port}`, { slot: onu.slot, port: onu.port });
+    }
+    return [...set.values()].sort((a, b) => a.slot - b.slot || a.port - b.port);
+});
+
+const onOdpOltChange = () => {
+    odpForm.port = '';
+};
+
 const onPortChange = () => {
     form.onu_id = '';
 };
@@ -165,10 +184,20 @@ const canSubmitOdp = computed(
 );
 
 const submitOdp = () => {
-    odpForm.post(route('map.odps.store'), {
-        preserveScroll: true,
-        onSuccess: () => emit('saved'),
-    });
+    // form.port menyimpan "slot/port" → split jadi slot+port numerik untuk backend.
+    odpForm
+        .transform((data) => {
+            const [slot, port] = data.port ? String(data.port).split('/') : [null, null];
+            return {
+                ...data,
+                slot: slot !== null ? Number(slot) : null,
+                port: port != null ? Number(port) : null,
+            };
+        })
+        .post(route('map.odps.store'), {
+            preserveScroll: true,
+            onSuccess: () => emit('saved'),
+        });
 };
 
 const submit = () => {
@@ -322,13 +351,24 @@ const submit = () => {
 
             <!-- ===== Mode ODP ===== -->
             <template v-else>
-                <div>
-                    <InputLabel value="OLT" />
-                    <select v-model="odpForm.snmp_olt_id" class="kv-input mt-1 w-full">
-                        <option value="">{{ $t('map.pick_olt') }}</option>
-                        <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
-                    </select>
-                    <InputError :message="odpForm.errors.snmp_olt_id" class="mt-1" />
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                        <InputLabel value="OLT" />
+                        <select v-model="odpForm.snmp_olt_id" class="kv-input mt-1 w-full" @change="onOdpOltChange">
+                            <option value="">{{ $t('map.pick_olt') }}</option>
+                            <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
+                        </select>
+                        <InputError :message="odpForm.errors.snmp_olt_id" class="mt-1" />
+                    </div>
+                    <div>
+                        <InputLabel :value="$t('map.odp_port_label')" />
+                        <select v-model="odpForm.port" class="kv-input mt-1 w-full" :disabled="!odpForm.snmp_olt_id">
+                            <option value="">{{ $t('map.pick_port') }}</option>
+                            <option v-for="p in odpPortOptions" :key="`${p.slot}/${p.port}`" :value="`${p.slot}/${p.port}`">{{ p.slot }}/{{ p.port }}</option>
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('map.odp_port_hint') }}</p>
+                        <InputError :message="odpForm.errors.port" class="mt-1" />
+                    </div>
                 </div>
 
                 <div class="mt-4">

@@ -76,6 +76,12 @@ class OnuOdpService
             throw new RuntimeException('ODP tidak ditemukan untuk OLT ini.');
         }
 
+        // ONU dalam satu ODP pasti di port yang sama → isi port ODP otomatis saat
+        // ONU pertama di-assign (kalau ODP dibuat tanpa port).
+        if ($odp->slot === null && $odp->port === null) {
+            $odp->forceFill(['slot' => $slot, 'port' => $port])->save();
+        }
+
         OnuOdpLink::query()->updateOrCreate($key, [
             'odp_id' => $odp->id,
             'serial_number' => $serial,

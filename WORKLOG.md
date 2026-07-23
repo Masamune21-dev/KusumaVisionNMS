@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-07-23
+
+### Peta ONU: ODP kini punya atribut Port PON (pilih saat add + auto-isi ODP lama)
+
+Created:
+
+- `database/migrations/2026_07_23_000001_add_port_to_odps_table.php` — tambah kolom `slot`/`port` (nullable, unsignedSmallInteger) ke tabel `odps`. Backfill ODP lama otomatis: ambil slot/port dari salah satu link ONU-nya (`onu_odp_links`) — ONU dalam satu ODP pasti di port yang sama.
+
+Changed:
+
+- `app/Models/Odp.php` — `slot`/`port` masuk `$fillable` + cast integer.
+- `app/Http/Controllers/OdpController.php` — `store` memvalidasi + menyimpan `slot`/`port` (nullable); `update` mengubah slot/port hanya bila field-nya dikirim (`$request->has`), agar edit nama tak menghapus port.
+- `app/Services/OnuOdpService.php` — `assign()` mengisi port ODP otomatis dari ONU pertama yang di-assign bila ODP belum punya port (konsistensi ke depan untuk ODP dibuat tanpa port).
+- `app/Http/Controllers/OnuMapController.php` — payload ODP ke frontend kini menyertakan `slot`/`port`.
+- `resources/js/Components/Map/AddPinModal.vue` — mode ODP dapat dropdown "Port PON (opsional)" (opsi port dari ONU OLT terpilih, format `slot/port`), reset saat ganti OLT, di-split jadi slot+port numerik saat submit; hint "ONU dalam satu ODP pasti di port yang sama".
+- `resources/js/Components/Map/OdpDetailCard.vue` — kartu detail ODP menampilkan `Port {slot}/{port}` di sub-header.
+- `resources/js/lang/{id,en}.json` — key `map.odp_port_label`, `map.odp_port_hint`, `map.odp_port`.
+
+Notes:
+
+- Migration sudah dijalankan di DB produksi (`--force`) — backfill terverifikasi: ODP-YUNITA KETANEN (13 ONU) → port 2/1, semua 7 ODP existing terisi port sesuai ONU-nya.
+- Port ODP sengaja **nullable/opsional**: ODP kosong (belum ada ONU) boleh belum diketahui portnya; terisi sendiri begitu ONU pertama di-assign.
+- Test lolos (migration sqlite-compatible, dibooting oleh suite), `npm run build` sukses, `opcache.validate_timestamps=On` → kode PHP terbaca otomatis tanpa reload.
+
 ## 2026-07-22
 
 ### README: section "Dibuat Sepenuhnya dengan AI"
