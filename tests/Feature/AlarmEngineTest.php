@@ -184,7 +184,10 @@ class AlarmEngineTest extends TestCase
         $evaluator->evaluate($olt, $onlineSnap); // online -> dying: raise
         $evaluator->evaluate($olt, $dyingSnap);  // still dying: keep, no duplicate
 
-        $this->assertSame(1, AlarmEvent::where('snmp_olt_id', $olt->id)->where('type', 'dying_gasp')->count());
+        $alarm = AlarmEvent::where('snmp_olt_id', $olt->id)->where('type', 'dying_gasp')->sole();
+
+        $this->assertSame('ONU gpon-onu_1/1/1:5 power loss (dying gasp).', $alarm->message);
+        $this->assertSame('Power Loss', AlarmEvent::typeLabel($alarm->type));
     }
 
     public function test_alarms_disabled_olt_still_records_events(): void

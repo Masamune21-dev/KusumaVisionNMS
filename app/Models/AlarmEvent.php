@@ -48,7 +48,7 @@ class AlarmEvent extends Model
         self::TYPE_OLT_UNREACHABLE => 'OLT tidak terhubung',
         self::TYPE_PORT_DOWN => 'Port PON down',
         self::TYPE_LOS => 'Loss of Signal (LOS)',
-        self::TYPE_DYING_GASP => 'Dying Gasp',
+        self::TYPE_DYING_GASP => 'Power Loss',
         self::TYPE_ONU_OFFLINE => 'ONU offline',
         self::TYPE_HIGH_RX => 'Redaman RX tinggi / di luar rentang',
     ];
