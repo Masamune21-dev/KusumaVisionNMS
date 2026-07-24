@@ -91,9 +91,11 @@ const openNotification = async (notif) => {
         };
         refreshBell();
     } catch (error) {
+        // 403/404 (permiso revocado entre el render y el clic, alarma borrada): igual hay que
+        // dejar una salida — la lista de alarmas — en lugar de un mensaje sin acción.
         notice.value = {
             message: error?.response?.data?.message ?? t('shell.notif_target_unavailable'),
-            fallback: null,
+            fallback: route('alarms.index'),
         };
     } finally {
         openingId.value = null;

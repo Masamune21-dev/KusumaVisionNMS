@@ -5,6 +5,7 @@ namespace App\Services\Alarm;
 use App\Models\AlarmEvent;
 use App\Models\AlarmNotificationRead;
 use App\Models\User;
+use App\Services\AlarmEvaluator;
 
 /**
  * Payload y estado de lectura de la campana de notificaciones.
@@ -103,6 +104,53 @@ class AlarmNotificationService
             ['user_id' => $user->id, 'alarm_event_id' => $alarm->id],
             ['read_at' => now()],
         );
+    }
+
+    /**
+     * "Marcar todas": deja fila individual para CADA alarma activa que el usuario puede ver.
+     *
+     * Antes bastaba con el timestamp global `users.last_notifications_read_at`, pero
+     * {@see AlarmEvaluator} refresca `last_seen_at` de las alarmas que siguen
+     * ACTIVAS en **cada poll** (~5 min). Como "no leída" se evaluaba con
+     * `last_seen_at > last_notifications_read_at`, el badge reaparecía a los pocos minutos
+     * con las mismas alarmas, indefinidamente mientras la avería durara (días, en una ONU
+     * caída). Con fila propia por alarma la lectura es duradera: ya no depende de un
+     * timestamp que el poller mueve.
+     *
+     * @return int cuántas alarmas quedaron marcadas
+     */
+    public function markAllRead(User $user): int
+    {
+        $now = now();
+        $marked = 0;
+
+        // pluck() pasa por PartnerOltScope/DemoScope → solo alarmas que este usuario ve.
+        AlarmEvent::query()
+            ->where('status', AlarmEvent::STATUS_ACTIVE)
+            ->select('id')
+            ->chunkById(500, function ($alarms) use ($user, $now, &$marked) {
+                $rows = $alarms->map(fn (AlarmEvent $alarm) => [
+                    'user_id' => $user->id,
+                    'alarm_event_id' => $alarm->id,
+                    'read_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all();
+
+                AlarmNotificationRead::query()->upsert(
+                    $rows,
+                    ['user_id', 'alarm_event_id'], // índice único alarm_notification_reads_unique
+                    ['read_at', 'updated_at'],
+                );
+
+                $marked += count($rows);
+            });
+
+        // Se conserva el timestamp global: sirve de atajo para alarmas que aún no existen
+        // como fila (y mantiene compatibilidad con el comportamiento anterior).
+        $user->forceFill(['last_notifications_read_at' => $now])->save();
+
+        return $marked;
     }
 
     /**

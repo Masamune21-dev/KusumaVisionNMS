@@ -288,6 +288,49 @@ class AlarmNotificationNavigationTest extends TestCase
         $this->assertSame(12, $payload['unread_count']);
     }
 
+    public function test_mark_all_read_survives_the_poller_refreshing_last_seen_at(): void
+    {
+        // AlarmEvaluator refresca `last_seen_at` de toda alarma que sigue ACTIVA en cada poll
+        // (~5 min). Con solo el timestamp global, el badge reaparecía a los minutos con las
+        // mismas alarmas mientras la avería durara.
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $a = $this->alarm($olt, ['signature' => 'a', 'onu_id' => 1]);
+        $b = $this->alarm($olt, ['signature' => 'b', 'onu_id' => 2]);
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+
+        $this->actingAs($admin)->post(route('notifications.read-all'))->assertRedirect();
+        $this->assertSame(0, $service->unreadCountFor($admin->fresh()));
+
+        // Cada alarma activa quedó con su propia fila (no solo el timestamp).
+        $this->assertDatabaseHas('alarm_notification_reads', ['user_id' => $admin->id, 'alarm_event_id' => $a->id]);
+        $this->assertDatabaseHas('alarm_notification_reads', ['user_id' => $admin->id, 'alarm_event_id' => $b->id]);
+
+        // Simular el siguiente poll: la avería persiste → se refresca last_seen_at.
+        $this->travel(6)->minutes();
+        $a->forceFill(['last_seen_at' => now()])->save();
+        $b->forceFill(['last_seen_at' => now()])->save();
+
+        // Debe SEGUIR en cero: antes volvía a 2.
+        $this->assertSame(0, $service->unreadCountFor($admin->fresh()));
+
+        $payload = $service->payloadFor($admin->fresh());
+        $this->assertSame(0, $payload['unread_count']);
+        $this->assertTrue(collect($payload['items'])->every(fn ($i) => $i['is_read'] === true));
+    }
+
+    public function test_mark_all_read_only_covers_alarms_the_user_can_see(): void
+    {
+        // El upsert masivo no debe filtrar alarmas de OLT ajenos a un partner.
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $this->alarm($olt, ['signature' => 'ajena', 'onu_id' => 1]);
+        $partner = User::factory()->partner()->create();
+
+        $this->actingAs($partner)->post(route('notifications.read-all'))->assertRedirect();
+
+        $this->assertSame(0, AlarmNotificationRead::count());
+    }
+
     public function test_individual_read_decrements_count_and_read_all_still_works(): void
     {
         $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');

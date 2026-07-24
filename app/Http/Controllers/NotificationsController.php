@@ -12,12 +12,12 @@ use Illuminate\Http\Request;
 class NotificationsController extends Controller
 {
     /**
-     * Acción masiva histórica: un único timestamp en el usuario. Se conserva.
+     * Acción masiva: deja fila individual por alarma activa (además del timestamp global),
+     * para que la lectura NO se deshaga cuando el poller refresque `last_seen_at`.
      */
-    public function markAllRead(Request $request): RedirectResponse
+    public function markAllRead(Request $request, AlarmNotificationService $notifications): RedirectResponse
     {
-        $user = $request->user();
-        $user->forceFill(['last_notifications_read_at' => now()])->save();
+        $notifications->markAllRead($request->user());
 
         return back();
     }
