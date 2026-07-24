@@ -18,6 +18,11 @@
         </include>
     </source>
     <php>
+        <!-- Arahkan cache config ke path khusus test yang TAK PERNAH ditulis `config:cache`
+             (yang selalu menulis ke bootstrap/cache/config.php). File ini tak ada → config
+             dibaca segar dari config/*.php + <env> di bawah. Tanpa ini, cache config
+             produksi MENANG atas seluruh blok <env> ini dan test menabrak DB produksi. -->
+        <env name="APP_CONFIG_CACHE" value="bootstrap/cache/config-testing.php"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
@@ -26,6 +31,9 @@
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
+        <!-- Test tak boleh menulis ke storage/logs/laravel.log milik produksi (juga tak
+             selalu writable oleh user yang menjalankan test). -->
+        <env name="LOG_CHANNEL" value="null"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

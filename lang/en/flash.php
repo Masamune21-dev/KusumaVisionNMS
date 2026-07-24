@@ -42,6 +42,7 @@ return [
     'zone_name_taken' => 'This zone name is already in use.',
     'onu_zone_assigned' => 'ONU zone updated.',
     'onu_zone_cleared' => 'ONU zone cleared.',
+    'onu_zone_link_failed' => ' (NOTE: the ONU is registered on the OLT, but linking the zone FAILED — set it manually from the ONU page. Reason: ',
     'prov_generated_advanced' => 'Provisioning script (advanced mode) generated and stored in the audit log.',
     'prov_generated' => 'Provisioning script generated and stored in the audit log.',
     'prov_deleted' => 'Provisioning script deleted.',

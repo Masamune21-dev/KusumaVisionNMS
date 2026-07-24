@@ -136,7 +136,7 @@ class OnuRegistrationService
      * Simpan audit + (opsional) eksekusi ke OLT.
      *
      * @param  array<string, mixed>  $validated
-     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string}
+     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string, zone_error?:?string}
      */
     public function register(SnmpOlt $olt, array $validated, bool $execute, ?int $userId): array
     {
@@ -168,6 +168,10 @@ class OnuRegistrationService
             ];
         }
 
+        // Blok try ini HANYA membungkus eksekusi Telnet + penulisan baris audit. Assign zona
+        // sengaja di LUAR (lihat di bawah) supaya kegagalan menyimpan zona tak pernah
+        // ter-catch di sini dan menghasilkan baris 'failed' kedua untuk ONU yang sebenarnya
+        // sudah teregister di OLT.
         try {
             $result = $this->executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -181,29 +185,6 @@ class OnuRegistrationService
                 'executed_at' => now(),
                 'executed_by' => $userId,
             ]);
-
-            // Kaitkan zona HANYA setelah CLI benar-benar sukses — kalau di-assign lebih awal,
-            // preview/generate atau eksekusi gagal bisa menimpa zona ONU lain yang kebetulan
-            // sudah menempati slot/port/onu_id yang sama, atau meninggalkan link "hantu".
-            if ($result['ok']) {
-                $this->zones->assign(
-                    $olt,
-                    (int) $data['slot'],
-                    (int) $data['port'],
-                    (int) $data['onu_id'],
-                    (string) $data['serial_number'],
-                    (int) $data['zone_id'],
-                    $userId,
-                );
-            }
-
-            return [
-                'status' => $result['ok'] ? 'executed' : 'failed',
-                'registration_id' => $registration->id,
-                'script' => $script,
-                'output' => $output,
-                'error' => $error,
-            ];
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
             $registration = SmartOltOnuRegistration::create([
@@ -222,6 +203,32 @@ class OnuRegistrationService
                 'error' => $error,
             ];
         }
+
+        // Kaitkan zona HANYA setelah CLI benar-benar sukses — kalau di-assign lebih awal,
+        // preview/generate atau eksekusi gagal bisa menimpa zona ONU lain yang kebetulan
+        // sudah menempati slot/port/onu_id yang sama, atau meninggalkan link "hantu".
+        // Kegagalan di sini TIDAK membatalkan registrasi: ONU sudah nyata ada di OLT, jadi
+        // status tetap 'executed' dan operator cuma diberi peringatan untuk set zona manual.
+        $zoneError = $result['ok']
+            ? $this->zones->assignQuietly(
+                $olt,
+                (int) $data['slot'],
+                (int) $data['port'],
+                (int) $data['onu_id'],
+                (string) $data['serial_number'],
+                (int) $data['zone_id'],
+                $userId,
+            )
+            : null;
+
+        return [
+            'status' => $result['ok'] ? 'executed' : 'failed',
+            'registration_id' => $registration->id,
+            'script' => $script,
+            'output' => $output,
+            'error' => $error,
+            'zone_error' => $zoneError,
+        ];
     }
 
     /**

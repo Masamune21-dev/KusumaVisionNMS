@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\OnuZoneLink;
 use App\Models\SnmpOlt;
 use App\Models\Zone;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -101,6 +102,37 @@ class ZoneService
             'serial_number' => $serial,
             'created_by' => $userId,
         ]);
+    }
+
+    /**
+     * Varian {@see assign()} yang TIDAK PERNAH melempar exception.
+     *
+     * Dipakai di jalur provisioning: begitu CLI sukses, ONU sudah nyata teregister di OLT —
+     * kegagalan menyimpan link zona (DB down, zona keburu dihapus user lain, dsb.) tak boleh
+     * membatalkan/menandai-gagal registrasi itu, apalagi memicu penulisan baris audit 'failed'
+     * kedua. Kembalikan pesan errornya saja supaya pemanggil bisa memperingatkan operator
+     * untuk menyetel zona manual.
+     *
+     * @return string|null pesan error bila gagal, null bila sukses
+     */
+    public function assignQuietly(SnmpOlt $olt, int $slot, int $port, int $onuId, ?string $serial, ?int $zoneId, ?int $userId): ?string
+    {
+        try {
+            $this->assign($olt, $slot, $port, $onuId, $serial, $zoneId, $userId);
+
+            return null;
+        } catch (\Throwable $exception) {
+            Log::error('Gagal mengaitkan zona setelah registrasi ONU sukses di OLT', [
+                'olt_id' => $olt->id,
+                'slot' => $slot,
+                'port' => $port,
+                'onu_id' => $onuId,
+                'zone_id' => $zoneId,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return $exception->getMessage();
+        }
     }
 
     /**

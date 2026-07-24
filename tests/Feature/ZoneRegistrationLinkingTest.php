@@ -8,8 +8,10 @@ use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Models\Zone;
+use App\Services\ZoneService;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -74,6 +76,22 @@ class ZoneRegistrationLinkingTest extends TestCase
             public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
             {
                 return ['ok' => $this->ok, 'error' => $this->error, 'output' => 'BMKV-C320#'];
+            }
+        });
+    }
+
+    /**
+     * ZoneService yang assign()-nya selalu melempar — mensimulasikan DB down / zona keburu
+     * dihapus user lain tepat setelah CLI sukses. assignQuietly() (yang dipakai jalur
+     * provisioning) tetap versi asli, jadi ia yang harus menelan exception ini.
+     */
+    private function mockFailingZoneService(): void
+    {
+        $this->app->instance(ZoneService::class, new class extends ZoneService
+        {
+            public function assign(SnmpOlt $olt, int $slot, int $port, int $onuId, ?string $serial, ?int $zoneId, ?int $userId): void
+            {
+                throw new RuntimeException('DB zona tidak bisa ditulis');
             }
         });
     }
@@ -294,6 +312,88 @@ class ZoneRegistrationLinkingTest extends TestCase
         $this->assertDatabaseHas('onu_zone_links', [
             'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1, 'onu_id' => 6, 'zone_id' => $zone->id,
         ]);
+    }
+
+    // --- Kegagalan simpan zona TIDAK boleh membatalkan registrasi yang sudah sukses di OLT ---
+    //
+    // ONU sudah nyata teregister lewat Telnet; error saat menyimpan link zona tak boleh
+    // menghasilkan baris audit 'failed' kedua (atau menurunkan status yang sudah 'executed'),
+    // karena itu akan memberi tahu operator bahwa provisioning gagal padahal tidak.
+
+    public function test_zone_failure_keeps_simple_registration_executed(): void
+    {
+        $olt = $this->makeC300Olt();
+        $zone = $this->zone();
+        $admin = User::factory()->admin()->create();
+        $this->mockExecutor(true);
+        $this->mockFailingZoneService();
+
+        $this->actingAs($admin)
+            ->post(route('smartolt.register.store', $olt), [...$this->simplePayload($zone), 'execute' => true])
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, SmartOltOnuRegistration::withoutGlobalScopes()->count());
+        $this->assertSame('executed', SmartOltOnuRegistration::withoutGlobalScopes()->firstOrFail()->status);
+        $this->assertSame(0, OnuZoneLink::count());
+    }
+
+    public function test_zone_failure_keeps_advanced_registration_executed(): void
+    {
+        $olt = $this->makeC300Olt();
+        $zone = $this->zone();
+        $admin = User::factory()->admin()->create();
+        $this->mockExecutor(true);
+        $this->mockFailingZoneService();
+
+        $this->actingAs($admin)
+            ->post(route('smartolt.register.advanced.store', $olt), [...$this->advancedPayload($zone), 'execute' => true])
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, SmartOltOnuRegistration::withoutGlobalScopes()->count());
+        $this->assertSame('executed', SmartOltOnuRegistration::withoutGlobalScopes()->firstOrFail()->status);
+        $this->assertSame(0, OnuZoneLink::count());
+    }
+
+    public function test_zone_failure_keeps_c600_registration_executed(): void
+    {
+        $olt = $this->makeC600Olt();
+        $zone = $this->zone();
+        $admin = User::factory()->admin()->create();
+        $this->mockExecutor(true);
+        $this->mockFailingZoneService();
+
+        $this->actingAs($admin)
+            ->post(route('smartolt.register.store', $olt), [...$this->c600Payload($zone), 'execute' => true])
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, SmartOltOnuRegistration::withoutGlobalScopes()->count());
+        $this->assertSame('executed', SmartOltOnuRegistration::withoutGlobalScopes()->firstOrFail()->status);
+        $this->assertSame(0, OnuZoneLink::count());
+    }
+
+    public function test_zone_failure_keeps_deferred_registration_executed(): void
+    {
+        $olt = $this->makeC300Olt();
+        $zone = $this->zone();
+        $admin = User::factory()->admin()->create();
+
+        // Generate dulu (zona belum dikaitkan, hanya tersimpan di baris registrasi).
+        $this->actingAs($admin)
+            ->post(route('smartolt.register.store', $olt), [...$this->simplePayload($zone), 'execute' => false]);
+
+        $registration = SmartOltOnuRegistration::withoutGlobalScopes()->firstOrFail();
+
+        // Eksekusi nanti: CLI sukses tapi simpan zona gagal — status harus TETAP executed
+        // (di jalur ini baris di-update, jadi kalau tak dijaga record sukses justru hilang).
+        $this->mockExecutor(true);
+        $this->mockFailingZoneService();
+        $this->actingAs($admin)
+            ->post(route('smartolt.registrations.execute', [$olt, $registration]))
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, SmartOltOnuRegistration::withoutGlobalScopes()->count());
+        $this->assertSame('executed', $registration->fresh()->status);
+        $this->assertSame(0, OnuZoneLink::count());
     }
 
     public function test_deferred_execute_failure_creates_no_zone_link(): void

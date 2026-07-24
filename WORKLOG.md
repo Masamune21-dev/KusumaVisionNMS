@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-07-24 (lanjutan) — hasil code review zonas: 2 temuan tinggi
+
+### 1. Kegagalan simpan zona bisa mengubah provisioning SUKSES jadi "failed"
+
+Changed:
+
+- `app/Services/ZoneService.php` — **baru** `assignQuietly()`: varian `assign()` yang tak pernah melempar; log error + kembalikan pesannya. Satu implementasi dipakai keempat jalur provisioning.
+- `app/Services/Zte/OnuRegistrationService.php` + `app/Http/Controllers/SmartOltController.php` (`storeOnu`, `storeOnuAdvanced`, `executeRegistration`) — assign zona **dikeluarkan dari blok try/catch Telnet**. Sebelumnya `zones->assign()` ada DI DALAM try: kalau ia melempar (DB down, zona keburu dihapus user lain) setelah CLI sukses, catch Telnet ikut menangkapnya lalu menulis baris audit **`failed` kedua** — operator diberi tahu provisioning GAGAL padahal ONU sudah nyata teregister di OLT. Di `executeRegistration()` lebih parah: baris di-*update*, jadi status yang sudah `executed` **turun** jadi `failed` (record sukses hilang). Sekarang status hasil Telnet final; gagal-zona hanya menempelkan peringatan ke pesan sukses (`flash.onu_zone_link_failed`, ID/EN) + `Log::error`.
+- `resources`/`lang` — key flash baru `onu_zone_link_failed` (dwibahasa).
+
+Notes:
+
+- 4 test baru di `tests/Feature/ZoneRegistrationLinkingTest.php` (satu per jalur: sederhana, Lanjutan, C600, deferred) memakai `ZoneService` palsu yang `assign()`-nya selalu melempar; asersi: **tepat 1** baris registrasi, status `executed`, 0 link zona. **Diverifikasi benar-benar menangkap bug**: dengan struktur lama (assign di dalam try) test gagal — "Session is missing expected key [success]" — dan lulus setelah perbaikan.
+
+### 2. PHPUnit bisa tersambung ke DB PRODUKSI
+
+Changed:
+
+- `phpunit.xml` — `<env name="APP_CONFIG_CACHE" value="bootstrap/cache/config-testing.php"/>` (path yang tak pernah ditulis `config:cache`, jadi config dibaca segar) + `LOG_CHANNEL=null` (test tak lagi menulis ke `storage/logs/laravel.log` prod, yang juga tak writable oleh user dev).
+- `tests/TestCase.php` — guard `setUp()`: abort dengan pesan jelas bila `environment()≠testing` / connection≠`sqlite` / database≠`:memory:`.
+
+Notes:
+
+- **Terbukti empiris**: dengan `bootstrap/cache/config.php` ada, `./vendor/bin/phpunit` polos melaporkan `default=pgsql db=kusumavision_nms env=production` — cache config menang atas seluruh blok `<env>` phpunit.xml. Ini yang bikin run pertama `ZoneTest` menabrak tabel `zones` produksi di sesi sebelumnya (selamat hanya karena transaksi `RefreshDatabase`). Sesudah perbaikan: `default=sqlite db=:memory: env=testing` **walau `config.php` prod tetap ada**.
+- Guard lapis-2 juga diverifikasi: dengan baris `APP_CONFIG_CACHE` sengaja dihapus, suite berhenti dengan pesan ABORT yang menyebut nilai produksi persis; dikembalikan → hijau lagi.
+- Suite penuh: **422/422 hijau** (418 + 4 test baru), Pint bersih.
+
 ## 2026-07-24
 
 ### Zonas (etiqueta geográfica por ONU, replica el concepto de SmartOLT)

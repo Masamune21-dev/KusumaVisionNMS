@@ -42,6 +42,7 @@ return [
     'zone_name_taken' => 'Nama zona ini sudah dipakai.',
     'onu_zone_assigned' => 'Zona ONU diperbarui.',
     'onu_zone_cleared' => 'Zona ONU dihapus.',
+    'onu_zone_link_failed' => ' (CATATAN: ONU sudah teregister di OLT, tetapi zona GAGAL dikaitkan — set manual dari halaman ONU. Sebab: ',
     'prov_generated_advanced' => 'Provisioning script (mode lanjutan) berhasil digenerate dan disimpan ke audit log.',
     'prov_generated' => 'Provisioning script berhasil digenerate dan disimpan ke audit log.',
     'prov_deleted' => 'Provisioning script berhasil dihapus.',
