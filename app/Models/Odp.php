@@ -17,6 +17,8 @@ class Odp extends Model
     protected $fillable = [
         'snmp_olt_id',
         'name',
+        'slot',
+        'port',
         'latitude',
         'longitude',
         'notes',
@@ -26,6 +28,8 @@ class Odp extends Model
     protected function casts(): array
     {
         return [
+            'slot' => 'integer',
+            'port' => 'integer',
             'latitude' => 'float',
             'longitude' => 'float',
         ];

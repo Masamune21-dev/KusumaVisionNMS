@@ -68,6 +68,8 @@ class OnuMapController extends Controller
                 'snmp_olt_id' => $odp->snmp_olt_id,
                 'olt_name' => $oltMeta[$odp->snmp_olt_id]['olt']->name ?? null,
                 'name' => $odp->name,
+                'slot' => $odp->slot,
+                'port' => $odp->port,
                 'latitude' => (float) $odp->latitude,
                 'longitude' => (float) $odp->longitude,
                 'notes' => $odp->notes,

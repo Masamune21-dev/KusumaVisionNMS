@@ -173,7 +173,7 @@ class CDataOltController extends Controller
                 ->where('port', $port)
                 ->pluck('onu_id')
                 ->all(),
-            'odps' => $odpService->odpsForOlt($olt),
+            'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
         ]);
     }

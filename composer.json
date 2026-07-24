@@ -4,7 +4,7 @@
     "type": "project",
     "description": "KusumaVision NMS — FTTH/GPON Network Management System for ZTE OLTs (PT Berkah Media Kusuma Vision).",
     "keywords": ["nms", "ftth", "gpon", "zte", "olt", "laravel"],
-    "license": "proprietary",
+    "license": "MIT",
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",

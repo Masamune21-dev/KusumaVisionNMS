@@ -9,6 +9,7 @@
 ![Vue](https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![Flutter](https://img.shields.io/badge/Android-Flutter-02569B?logo=flutter&logoColor=white)
+![Lisensi](https://img.shields.io/badge/Lisensi-MIT-yellow)
 
 [![Star di GitHub](https://img.shields.io/github/stars/Masamune21-dev/KusumaVisionNMS?style=social)](https://github.com/Masamune21-dev/KusumaVisionNMS)
 
@@ -127,6 +128,12 @@ Proyek ini dikembangkan dan diuji langsung di jaringan FTTH produksi. Jika Kusum
 
 ---
 
+## 🤖 Dibuat Sepenuhnya dengan AI
+
+Seluruh kode proyek ini ditulis **100% oleh AI** ([Claude Code](https://claude.com/claude-code)) — dipandu oleh pemilik proyek yang menyediakan **dokumentasi lengkap** (referensi OID/CLI per-vendor, output asli perangkat, panduan arsitektur) dan melakukan **pengujian langsung di server & jaringan FTTH produksi** dengan OLT nyata. Setiap fitur diverifikasi terhadap perangkat asli sebelum masuk kode — bukti bahwa kolaborasi manusia + AI mampu menghasilkan sistem NMS skala produksi.
+
+---
+
 ## Lisensi
 
-Proprietary — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).
+MIT — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).

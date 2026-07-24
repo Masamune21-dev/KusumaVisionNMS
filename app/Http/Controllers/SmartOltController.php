@@ -328,7 +328,7 @@ class SmartOltController extends Controller
                 ->pluck('onu_id')
                 ->all(),
             // Kolom ODP di tabel ONU.
-            'odps' => $odpService->odpsForOlt($olt),
+            'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
         ]);
     }

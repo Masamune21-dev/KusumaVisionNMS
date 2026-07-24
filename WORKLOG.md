@@ -1,5 +1,57 @@
 # Worklog
 
+## 2026-07-23
+
+### Alarm dikelompokkan per-ODP untuk Telegram & Push FCM
+
+Created:
+
+- `app/Services/Alarm/OdpAlarmGrouper.php` — kelompokkan alarm "down" ONU (LOS / dying gasp / offline) per-ODP di layer notifikasi. Petakan alarm→ODP via `onu_odp_links` (key komposit slot/port/onu_id), hitung "semua down" dari snapshot poll (`last_test_result.port_onus`). >1 ONU down 1 ODP → 1 item grup; 1 ONU / tanpa ODP / alarm non-down (port/RX/OLT) → tetap per-item. Helper statis `memberLabel()` (nama pelanggan) & `causeLabel()` (LOS/Dying Gasp/Offline) dipakai bersama kedua notifier. Lookup Odp/OnuOdpLink pakai `withoutGlobalScope(PartnerOltScope)` agar deterministik di konteks queue/polling.
+
+Changed:
+
+- `app/Services/Telegram/TelegramNotifier.php` — jalur raise: filter severity/tipe dulu (semantik per-bot tak berubah), lalu `grouper()->group()`; `formatOdpGroup()` render seksi grup (`ODP DOWN · Semua ONU` bila semua offline, atau `ODP GANGGUAN · N ONU down` + daftar pelanggan & sebab).
+- `app/Services/Fcm/FcmAlarmNotifier.php` — jalur raise: filter → group → `buildOdpMessage()` (1 push per grup ODP, judul+body ringkas, payload data `group=odp`/`odp_id`/`all_down` untuk deep-link app). Alarm cleared tetap per-item.
+
+Notes:
+
+- MURNI presentasi notifikasi — tiap ONU tetap punya baris `AlarmEvent` sendiri di UI/riwayat; evaluasi & pencatatan alarm (debounce 2-poll, korelasi port-down) tak diubah.
+- Grup dibentuk dari batch raised satu siklus reconcile — cocok skenario ODP putus (banyak ONU jatuh serempak dalam ~2 poll). "Semua down" dibanding total ONU ODP yang muncul di snapshot (link stale/tak ada di snapshot diabaikan agar tak salah "semua").
+- Verifikasi: suite `AlarmEngine|Telegram|Fcm|SettingsAlarm|OltPolling` = 99 passed (dengan override cache prod — lihat memori); 0 regresi. Prod aman (test sqlite in-memory).
+
+### Peta ONU: dropdown ODP di tabel ONU difilter per-port
+
+Changed:
+
+- `app/Services/OnuOdpService.php` — `odpsForOlt()` terima `$slot`/`$port` opsional: hanya tampilkan ODP di port itu + ODP yang belum punya port (belum ada ONU, akan auto-terisi saat assign pertama). `assign()` tambah guard: tolak assign ONU ke ODP yang portnya beda (jaga integritas, konsisten dgn dropdown terfilter).
+- `app/Http/Controllers/{SmartOlt,CDataOlt,Hioso}Controller.php` — teruskan `$slot, $port` ke `odpsForOlt()` di `portOnus()`.
+
+Notes:
+
+- Tanpa perubahan frontend — `OnuOdpCell.vue` sudah render prop `odps` yang kini difilter server-side. Terverifikasi live (OLT id=2): port 2/1 hanya menampilkan ODP port 2/1, port 2/3 hanya ODP-nya sendiri.
+
+### Peta ONU: ODP kini punya atribut Port PON (pilih saat add + auto-isi ODP lama)
+
+Created:
+
+- `database/migrations/2026_07_23_000001_add_port_to_odps_table.php` — tambah kolom `slot`/`port` (nullable, unsignedSmallInteger) ke tabel `odps`. Backfill ODP lama otomatis: ambil slot/port dari salah satu link ONU-nya (`onu_odp_links`) — ONU dalam satu ODP pasti di port yang sama.
+
+Changed:
+
+- `app/Models/Odp.php` — `slot`/`port` masuk `$fillable` + cast integer.
+- `app/Http/Controllers/OdpController.php` — `store` memvalidasi + menyimpan `slot`/`port` (nullable); `update` mengubah slot/port hanya bila field-nya dikirim (`$request->has`), agar edit nama tak menghapus port.
+- `app/Services/OnuOdpService.php` — `assign()` mengisi port ODP otomatis dari ONU pertama yang di-assign bila ODP belum punya port (konsistensi ke depan untuk ODP dibuat tanpa port).
+- `app/Http/Controllers/OnuMapController.php` — payload ODP ke frontend kini menyertakan `slot`/`port`.
+- `resources/js/Components/Map/AddPinModal.vue` — mode ODP dapat dropdown "Port PON (opsional)" (opsi port dari ONU OLT terpilih, format `slot/port`), reset saat ganti OLT, di-split jadi slot+port numerik saat submit; hint "ONU dalam satu ODP pasti di port yang sama".
+- `resources/js/Components/Map/OdpDetailCard.vue` — kartu detail ODP menampilkan `Port {slot}/{port}` di sub-header.
+- `resources/js/lang/{id,en}.json` — key `map.odp_port_label`, `map.odp_port_hint`, `map.odp_port`.
+
+Notes:
+
+- Migration sudah dijalankan di DB produksi (`--force`) — backfill terverifikasi: ODP-YUNITA KETANEN (13 ONU) → port 2/1, semua 7 ODP existing terisi port sesuai ONU-nya.
+- Port ODP sengaja **nullable/opsional**: ODP kosong (belum ada ONU) boleh belum diketahui portnya; terisi sendiri begitu ONU pertama di-assign.
+- Test lolos (migration sqlite-compatible, dibooting oleh suite), `npm run build` sukses, `opcache.validate_timestamps=On` → kode PHP terbaca otomatis tanpa reload.
+
 ## 2026-07-22
 
 ### Alarm "Dying Gasp" → "Power Off" di seluruh permukaan (pesan, label web, label backend)
@@ -111,6 +163,43 @@ Notes:
 
 - `OnuDetail.vue` sumber datanya BEDA dari SNMP (scrape teks CLI via `ZteOnuDetailService`) — sebelum menyentuhnya, diverifikasi dulu apakah literalnya sama dengan enum SNMP (`Working`/`DyingGasp`/dst.) atau beda kapitalisasi seperti fixture test lama menyiratkan. Capture live dari pengguna (C600, ONU HWTC190A7EB8) mengonfirmasi PascalCase yang sama — jadi TIDAK perlu normalisasi/mapping baru, cukup reuse helper yang sudah ada.
 - `php artisan test` tak bisa jalan (lihat entri di atas); logika parser (`buildAllMap`/`pick`/`applySessionHistory`) ditelusuri manual baris-per-baris terhadap capture nyata untuk memastikan hasil `DyingGasp` di kedua field sebelum menulis tes.
+
+### README: section "Dibuat Sepenuhnya dengan AI"
+
+Changed:
+
+- `README.md` — section baru `## 🤖 Dibuat Sepenuhnya dengan AI` di atas section Lisensi: menginformasikan seluruh kode ditulis 100% oleh AI (Claude Code), dipandu dokumentasi lengkap dari pemilik proyek (referensi OID/CLI per-vendor, output asli perangkat) dan diuji langsung di server & jaringan FTTH produksi dengan OLT nyata.
+
+Notes:
+
+- Permintaan owner untuk transparansi asal-usul proyek pasca-relicense MIT; konsisten dengan aturan repo "OID/CLI hanya masuk kode setelah terverifikasi di perangkat asli".
+
+### Fix 419 Page Expired permanen di deployment belakang Cloudflare Flexible — `trustProxies`
+
+Changed:
+
+- `bootstrap/app.php` — `$middleware->trustProxies(at: '*')` + komentar penjelasan: percayai header `X-Forwarded-*` dari reverse proxy (Cloudflare/nginx/LB) supaya Laravel mendeteksi scheme `https` dengan benar.
+- `docs/handbook/13-troubleshooting-maintenance.md` — entry baru "419 Page Expired terus-menerus saat login (di belakang Cloudflare)": gejala, rantai penyebab, cara diagnosa (log nginx `ck=`/`xsrf=`, grep `"url":"http` di HTML), solusi, dan pembeda dari 419 biasa (cookie basi).
+
+Notes:
+
+- **Ditemukan dari laporan user GitHub pertama** (deploy `install.sh` sendiri di `nms.snvr.my.id`, malam 22–23 Jul WIB): login SELALU 419 di semua browser termasuk incognito, padahal server sehat total (jam sinkron NTP, Redis PONG, cookie ter-set, Cloudflare tak men-cache).
+- Rantai bug: Cloudflare mode **Flexible** → origin nginx port 80 (HTTP polos, bawaan `install.sh`) → PHP tak melihat TLS dan `X-Forwarded-Proto` diabaikan (belum ada `trustProxies`) → Ziggy men-generate `route('login')` = `http://…` → halaman `https://` mem-POST ke `http://` → **axios menganggap cross-origin (beda scheme) dan men-skip header `X-XSRF-TOKEN`** (Chrome diam-diam upgrade request-nya, jadi tetap sampai origin) → Laravel 419, deterministik.
+- Bukti kunci: log nginx custom di server pelapor menunjukkan `POST /login` tiba **dengan cookie lengkap tapi `xsrf="-"`**; HTML login-nya berisi `"url":"http://nms.snvr.my.id"`. Simulasi handshake CSRF via curl dari luar lolos 4/4 (422) karena header dipasang manual — hanya jalur browser yang kena.
+- Deployment origin-TLS (certbot, seperti prod utama) tak pernah terdampak — nginx meneruskan `HTTPS=on` ke PHP; verifikasi pasca-fix: HTML prod utama tetap `"url":"https://…"`.
+- `php artisan test`: 388 passed, 1 failed = `ApiV1WriteTest::test_refresh_port_non_zte_queries_driver` (pre-existing yang terdokumentasi, bukan regresi).
+
+Changed:
+
+- `LICENSE` — teks penuh MIT License (Copyright (c) 2026 PT BERKAH MEDIA KUSUMA VISION (BMKV)), menggantikan lisensi proprietary dwibahasa lama.
+- `README.md` — bagian Lisensi → MIT + badge shields.io `Lisensi-MIT` di header.
+- `composer.json` — `"license": "MIT"` (`composer validate` OK).
+- `CLAUDE.md` — catatan lisensi di intro disinkronkan.
+- `docs/handbook/18-docker-appliance.md` — kalimat "cocok lisensi proprietary" pada mode distribusi image prebuilt diganti frasa netral.
+
+Notes:
+
+- Keputusan owner menindaklanjuti email calon pengguna luar (PAKLINK Communications, Pakistan) yang menanyakan demo/harga/vendor: repo GitHub memang sudah publik, kini lisensinya resmi open source MIT sehingga jawaban "silakan deploy & evaluasi sendiri dari GitHub" tak lagi kontradiksi dengan `LICENSE`.
 
 ### Label ramah status ONU (`phase_state`) di ONU Monitoring & Port ONUs
 

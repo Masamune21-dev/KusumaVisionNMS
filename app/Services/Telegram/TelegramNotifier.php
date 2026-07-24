@@ -7,6 +7,7 @@ use App\Models\AlarmEvent;
 use App\Models\PartnerTelegramBot;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
+use App\Services\Alarm\OdpAlarmGrouper;
 use App\Support\DisplayTime;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +18,8 @@ class TelegramNotifier
     private const API_BASE = 'https://api.telegram.org';
 
     private const MAX_ITEMS_PER_MESSAGE = 10;
+
+    private ?OdpAlarmGrouper $grouper = null;
 
     public const SEVERITY_EMOJI = [
         AlarmEvent::SEVERITY_CRITICAL => '🔴',
@@ -92,14 +95,17 @@ class TelegramNotifier
         $sections = [];
 
         if ($config->notifyOnRaise()) {
-            $eligible = $this->filterBySeverity($raised, $config->minSeverityRank());
+            // Filter severity/tipe dulu (semantik per-bot tak berubah), lalu kelompokkan
+            // alarm down yang lolos per-ODP: >1 ONU 1 ODP → 1 seksi grup, sisanya per-ONU.
+            $eligible = array_values(array_filter(
+                $this->filterBySeverity($raised, $config->minSeverityRank()),
+                fn (AlarmEvent $alarm) => $config->shouldNotifyType($alarm->type),
+            ));
 
-            foreach ($eligible as $alarm) {
-                if (! $config->shouldNotifyType($alarm->type)) {
-                    continue;
-                }
-
-                $sections[] = $this->formatAlarm($alarm, raised: true);
+            foreach ($this->grouper()->group($olt, $eligible) as $item) {
+                $sections[] = $item['kind'] === 'odp'
+                    ? $this->formatOdpGroup($item)
+                    : $this->formatAlarm($item['alarm'], raised: true);
             }
         }
 
@@ -351,6 +357,42 @@ class TelegramNotifier
         }
 
         return $line;
+    }
+
+    private function grouper(): OdpAlarmGrouper
+    {
+        return $this->grouper ??= app(OdpAlarmGrouper::class);
+    }
+
+    /**
+     * Format satu seksi grup ODP: banyak ONU down di 1 ODP.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private function formatOdpGroup(array $item): string
+    {
+        $emoji = self::SEVERITY_EMOJI[$item['severity']] ?? '🟠';
+        $name = $this->escape((string) $item['odp_name']);
+
+        // Semua ONU 1 ODP down → cukup satu baris "ODP ini down".
+        if ($item['all_down']) {
+            return $emoji.' <b>ODP DOWN</b> · Semua ONU'
+                ."\n".'🟧 ODP <b>'.$name.'</b> — semua '.$item['total'].' pelanggan offline.';
+        }
+
+        // Sebagian → daftar pelanggan yang down + sebabnya.
+        $lines = [];
+        foreach ($item['members'] as $alarm) {
+            $lines[] = '• '.$this->escape(OdpAlarmGrouper::memberLabel($alarm))
+                .' — '.$this->escape(OdpAlarmGrouper::causeLabel($alarm->type));
+        }
+
+        $count = count($item['members']);
+        $suffix = $item['total'] > 0 ? ' dari '.$item['total'] : '';
+
+        return $emoji.' <b>ODP GANGGUAN</b> · '.$count.' ONU down'
+            ."\n".'🟧 ODP <b>'.$name.'</b>'.$suffix.':'
+            ."\n".implode("\n", $lines);
     }
 
     private function escape(string $value): string

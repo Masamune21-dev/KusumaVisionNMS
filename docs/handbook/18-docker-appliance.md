@@ -96,7 +96,7 @@ sekaligus upgrade.
 2. **Image prebuilt** — `docker build` → `docker save | gzip` → kirim tar + `docker-compose.yml` +
    `.env.docker.example`. Di tujuan `docker load` lalu `docker compose up -d` (tanpa `--build`):
    compose memakai image `kusumavision/nms:latest` yang sudah ada (bagian `build:` diabaikan karena
-   image tersedia & rebuild tidak diminta). Menyembunyikan source → cocok lisensi proprietary.
+   image tersedia & rebuild tidak diminta). Praktis bila penerima tak perlu source-nya.
 
 ---
 

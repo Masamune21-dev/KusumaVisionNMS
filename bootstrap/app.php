@@ -20,6 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Percayai header X-Forwarded-* dari reverse proxy (Cloudflare, nginx, LB).
+        // Tanpa ini, deployment di belakang Cloudflare "Flexible" (origin HTTP :80)
+        // membuat Laravel/Ziggy men-generate URL http:// padahal halaman diakses
+        // https:// -> axios menganggap POST login cross-origin dan TIDAK memasang
+        // header X-XSRF-TOKEN -> 419 Page Expired permanen di semua browser.
+        $middleware->trustProxies(at: '*');
+
         $middleware->web(append: [
             ContentSecurityPolicy::class,
             SetLocale::class,

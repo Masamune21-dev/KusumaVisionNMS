@@ -41,6 +41,23 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Penyebab**: memakai fitur PostgreSQL-only; test pakai SQLite in-memory.
 - **Solusi**: jaga migrasi tetap **SQLite-compatible** (hindari tipe/constraint pgsql-only).
 
+### 419 Page Expired terus-menerus saat login (di belakang Cloudflare)
+- **Gejala**: login SELALU 419 di semua browser (incognito juga), padahal server sehat —
+  cookie ter-set, jam sinkron, Redis `PONG`. Di log nginx, `POST /login` datang **dengan**
+  cookie lengkap tapi **tanpa** header `X-XSRF-TOKEN` (log format debug: `xsrf="-"`).
+- **Penyebab**: Cloudflare mode **Flexible** → origin dilayani HTTP port 80 → PHP tidak
+  melihat TLS → Laravel/Ziggy men-generate URL `http://` (cek: `curl -s https://situs/login |
+  grep -o '"url":"[^"]*"'`). Halaman `https://` mem-POST ke `route('login')` yang `http://`
+  → axios menganggap **cross-origin** (beda scheme) dan men-skip header `X-XSRF-TOKEN` → 419.
+- **Solusi**: sudah dibereskan di `bootstrap/app.php` (`$middleware->trustProxies(at: '*')`)
+  sejak Jul 2026 — `git pull`, lalu `php artisan optimize` + reload php-fpm. Kalau belum bisa
+  pull: pasang certbot di origin dan naikkan Cloudflare ke **Full (strict)** (origin melihat
+  TLS sendiri). Disarankan tetap Full (strict) untuk produksi; Flexible kini juga jalan.
+- **Catatan diagnosa**: bedakan dengan 419 biasa (tab lama/cookie basi — cukup hard refresh).
+  Simulasi handshake dari server lain lolos (422) karena curl memasang header manual — hanya
+  browser yang kena, itu ciri khas kasus ini. Origin `521/522` selang-seling = masalah
+  terpisah (SSL mode Full tanpa cert origin, atau firewall memblok sebagian IP Cloudflare).
+
 ---
 
 ## Frontend / Vite
