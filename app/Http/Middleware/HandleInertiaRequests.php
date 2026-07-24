@@ -2,8 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\AlarmEvent;
 use App\Models\GeneralSetting;
+use App\Services\Alarm\AlarmNotificationService;
 use App\Support\Locale;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,31 +60,7 @@ class HandleInertiaRequests extends Middleware
             return ['items' => [], 'unread_count' => 0];
         }
 
-        $items = AlarmEvent::query()
-            ->with('olt:id,name')
-            ->where('status', AlarmEvent::STATUS_ACTIVE)
-            ->orderByDesc('last_seen_at')
-            ->limit(8)
-            ->get()
-            ->map(fn (AlarmEvent $a) => [
-                'id' => $a->id,
-                'olt_name' => $a->olt?->name,
-                'severity' => $a->severity,
-                'message' => $a->message,
-                'created_at' => $a->last_seen_at?->toIso8601String(),
-                'read_at' => $user->last_notifications_read_at
-                    && $a->last_seen_at <= $user->last_notifications_read_at
-                        ? $user->last_notifications_read_at->toIso8601String()
-                        : null,
-            ])
-            ->all();
-
-        $unreadCount = collect($items)->whereNull('read_at')->count();
-
-        return [
-            'items' => $items,
-            'unread_count' => $unreadCount,
-        ];
+        return app(AlarmNotificationService::class)->payloadFor($user);
     }
 
     /**

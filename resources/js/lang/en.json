@@ -90,7 +90,16 @@
         "sys_time": "Time",
         "sys_uptime": "Uptime",
         "sys_online": "Online",
-        "sys_user_suffix": "user"
+        "sys_user_suffix": "user",
+        "notifications_title": "Notifications",
+        "mark_all_read": "Mark all as read",
+        "mark_read": "Mark as read",
+        "open_notification": "Open this alarm's details",
+        "just_now": "just now",
+        "minutes_ago": "{n} min ago",
+        "hours_ago": "{n} h ago",
+        "days_ago": "{n} d ago",
+        "notif_target_unavailable": "This alarm has no page to open."
     },
     "language": {
         "label": "Language"

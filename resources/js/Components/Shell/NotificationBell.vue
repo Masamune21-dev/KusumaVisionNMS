@@ -1,11 +1,19 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { BellRing, CheckCheck } from '@lucide/vue';
+import { AlertTriangle, BellRing, Check, CheckCheck, Loader2 } from '@lucide/vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const page = usePage();
 const open = ref(false);
 const dropdownRef = ref(null);
+
+// Id de la alarma que se está abriendo (bloquea doble clic y muestra spinner en su fila).
+const openingId = ref(null);
+// Aviso cuando el servidor no pudo resolver un destino (ONU borrada, posición reusada, etc.).
+const notice = ref(null);
 
 const notifications = computed(() => page.props.notifications?.items ?? []);
 const unreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
@@ -20,10 +28,62 @@ const severityClass = (severity) => ({
 const formatRelative = (iso) => {
     if (!iso) return '';
     const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (diff < 60) return 'baru saja';
-    if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
-    return `${Math.floor(diff / 86400)} hari lalu`;
+    if (diff < 60) return t('shell.just_now');
+    if (diff < 3600) return t('shell.minutes_ago', { n: Math.floor(diff / 60) });
+    if (diff < 86400) return t('shell.hours_ago', { n: Math.floor(diff / 3600) });
+    return t('shell.days_ago', { n: Math.floor(diff / 86400) });
+};
+
+const refreshBell = () => router.reload({ only: ['notifications'] });
+
+/**
+ * El DESTINO lo decide el servidor: comprueba permiso en este instante, sigue la ONU si
+ * cambió de puerto y se niega a abrir otra ONU que haya reutilizado slot/port/onu_id.
+ * Aquí nunca se construye una ruta a partir del texto del mensaje.
+ */
+const openNotification = async (notif) => {
+    if (openingId.value !== null) return;
+
+    openingId.value = notif.id;
+    notice.value = null;
+
+    try {
+        const { data } = await window.axios.post(
+            route('notifications.alarms.open', notif.alarm_id ?? notif.id),
+        );
+
+        const target = data?.data?.target_url;
+
+        if (target) {
+            open.value = false;
+            router.visit(target);
+            return;
+        }
+
+        // Sin destino: dejamos el panel abierto con el motivo, en lugar de llevar al
+        // operador a una pantalla que no esperaba sin explicación.
+        notice.value = {
+            message: data?.data?.message ?? t('shell.notif_target_unavailable'),
+            fallback: data?.data?.fallback_url ?? null,
+        };
+        refreshBell();
+    } catch (error) {
+        notice.value = {
+            message: error?.response?.data?.message ?? t('shell.notif_target_unavailable'),
+            fallback: null,
+        };
+    } finally {
+        openingId.value = null;
+    }
+};
+
+const markRead = async (notif) => {
+    try {
+        await window.axios.post(route('notifications.alarms.read', notif.alarm_id ?? notif.id));
+        refreshBell();
+    } catch {
+        // Silencioso: no navega ni cambia nada; el badge se recalcula al siguiente render.
+    }
 };
 
 const markAllRead = () => {
@@ -34,9 +94,16 @@ const markAllRead = () => {
     });
 };
 
+const goFallback = (url) => {
+    open.value = false;
+    notice.value = null;
+    router.visit(url);
+};
+
 const onClickOutside = (e) => {
     if (open.value && dropdownRef.value && !dropdownRef.value.contains(e.target)) {
         open.value = false;
+        notice.value = null;
     }
 };
 onMounted(() => document.addEventListener('click', onClickOutside));
@@ -48,7 +115,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
         <button
             type="button"
             class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900/60 text-slate-300 transition-colors hover:border-cyan-500/30 hover:bg-slate-900/80 hover:text-white"
-            aria-label="Notifikasi"
+            :aria-label="$t('shell.notifications_title')"
             @click.stop="open = !open"
         >
             <BellRing class="h-5 w-5" />
@@ -73,7 +140,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                 class="absolute right-0 z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
             >
                 <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                    <h3 class="text-sm font-semibold text-white">Notifikasi</h3>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('shell.notifications_title') }}</h3>
                     <button
                         v-if="unreadCount > 0"
                         type="button"
@@ -81,33 +148,79 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
                         @click="markAllRead"
                     >
                         <CheckCheck class="h-3.5 w-3.5" />
-                        Tandai semua dibaca
+                        {{ $t('shell.mark_all_read') }}
                     </button>
                 </div>
+
+                <div
+                    v-if="notice"
+                    class="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-200"
+                >
+                    <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div class="min-w-0 flex-1">
+                        <p>{{ notice.message }}</p>
+                        <button
+                            v-if="notice.fallback"
+                            type="button"
+                            class="mt-1.5 font-medium text-cyan-300 underline hover:text-cyan-200"
+                            @click="goFallback(notice.fallback)"
+                        >
+                            {{ $t('shell.view_all_alarms') }} &rarr;
+                        </button>
+                    </div>
+                </div>
+
                 <div class="max-h-[400px] overflow-y-auto">
                     <ul v-if="notifications.length > 0" class="divide-y divide-white/5">
                         <li
                             v-for="notif in notifications"
                             :key="notif.id"
-                            class="group px-4 py-3 transition-colors hover:bg-white/5"
-                            :class="{ 'bg-cyan-500/5': !notif.read_at }"
+                            class="group relative transition-colors hover:bg-white/5"
+                            :class="{ 'bg-cyan-500/5': !notif.is_read }"
                         >
-                            <div class="flex items-start gap-3">
-                                <span :class="severityClass(notif.severity)">{{ notif.severity }}</span>
-                                <div class="min-w-0 flex-1">
-                                    <p class="text-sm text-slate-100">{{ notif.message }}</p>
-                                    <p class="mt-0.5 text-xs text-slate-500">
-                                        {{ notif.olt_name }} &middot; {{ formatRelative(notif.created_at) }}
-                                    </p>
+                            <!-- Toda la tarjeta es la superficie de navegación. El control
+                                 secundario es un botón HERMANO (nunca anidado). -->
+                            <button
+                                type="button"
+                                class="w-full px-4 py-3 pr-11 text-left disabled:opacity-60"
+                                :disabled="openingId !== null"
+                                :aria-label="$t('shell.open_notification')"
+                                @click="openNotification(notif)"
+                            >
+                                <div class="flex items-start gap-3">
+                                    <span :class="severityClass(notif.severity)">{{ notif.severity }}</span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm text-slate-100">{{ notif.message }}</p>
+                                        <p class="mt-0.5 text-xs text-slate-500">
+                                            {{ notif.olt_name }} &middot; {{ formatRelative(notif.created_at) }}
+                                        </p>
+                                    </div>
                                 </div>
-                                <span v-if="!notif.read_at" class="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-cyan-400" />
-                            </div>
+                            </button>
+
+                            <span
+                                v-if="openingId === notif.id"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400"
+                            >
+                                <Loader2 class="h-4 w-4 animate-spin" />
+                            </span>
+                            <button
+                                v-else-if="!notif.is_read"
+                                type="button"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-500 transition hover:bg-white/10 hover:text-cyan-300"
+                                :title="$t('shell.mark_read')"
+                                :aria-label="$t('shell.mark_read')"
+                                @click.stop="markRead(notif)"
+                            >
+                                <Check class="h-3.5 w-3.5" />
+                            </button>
                         </li>
                     </ul>
                     <div v-else class="px-4 py-10 text-center text-sm text-slate-500">
                         {{ $t('shell.no_notifications') }}
                     </div>
                 </div>
+
                 <div class="border-t border-white/10 px-4 py-2.5">
                     <Link
                         :href="route('alarms.index')"

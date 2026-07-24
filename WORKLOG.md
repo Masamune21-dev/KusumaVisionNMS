@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-07-24 (lanjutan 2) — navigasi kontekstual dari bel notifikasi
+
+### Klik notifikasi alarm → langsung ke ONU/port/OLT-nya
+
+Created:
+
+- `app/Services/Alarm/AlarmNotificationTargetResolver.php` — menentukan tujuan dari kolom **terstruktur** `alarm_events` (`snmp_olt_id/scope/slot/port/onu_id/serial_number`), **tak pernah** mem-parse `message` (teks terlokalisasi). Hanya membaca snapshot cache `last_test_result` — **tak ada SNMP/Telnet** saat klik. Aturan ONU: cari `serial_number` di snapshot OLT dulu (jangkar stabil) → kalau ketemu di posisi lain, buka posisi **sekarang** (`onu_moved`); kalau serial tak ketemu, cek posisi historis dan **tolak** bila kini ditempati serial lain (`position_reused`) supaya tak membuka ONU pelanggan yang salah; ONU hilang → `onu_not_found`. Tujuan per-scope: `onu` → `smartolt.onu.detail` **bila capability `supports_cli_onu_detail` true** (dipakai capability, bukan nama family — kalau nanti C600 dimatikan, resolver ikut menyesuaikan), selain itu `{prefix}.port-onus?focus={onuId}`; `port` → `{prefix}.port-onus`; `olt` → `{prefix}.detail`. Fallback selalu `alarms.index` ter-filter (olt_id+scope).
+- `app/Services/Alarm/AlarmNotificationService.php` — payload bel + status baca. Alarm dianggap terbaca bila ada baris di `alarm_notification_reads` (per-alarma) **atau** `users.last_notifications_read_at` ≥ `last_seen_at` (aksi massal lama, tetap kompatibel).
+- `database/migrations/2026_07_24_000005_create_alarm_notification_reads_table.php` + `app/Models/AlarmNotificationRead.php` — tabel pivot `user_id`/`alarm_event_id`/`read_at`, unik per pasangan, cascade. Sebelumnya cuma ada timestamp global → **mustahil** menandai satu notifikasi tanpa menandai semua yang lebih lama.
+- `tests/Feature/AlarmNotificationNavigationTest.php` — 18 test: ZTE C320/C600 → detail; C-Data/HiOSO/unknown → port+focus; scope port & olt; ONU pindah (resolve by serial); posisi dipakai ulang (tolak); ONU hilang; partner OLT asing → 404; baca individual tak menandai yang lain; `read-all` tetap jalan; hitungan mencakup SEMUA aktif (12 alarm, bel menampilkan 8 → counter 12).
+
+Changed:
+
+- `app/Http/Controllers/NotificationsController.php` — endpoint `notifications.alarms.open` (resolve + tandai baca + balas `target_url`/`fallback_url`/`reason`/`message`) & `notifications.alarms.read`; `read-all` dipertahankan. Route-model binding `{alarm}` kena `PartnerOltScope`/`DemoScope` → **404** untuk OLT yang bukan haknya, tanpa membocorkan keberadaannya.
+- `app/Http/Middleware/HandleInertiaRequests.php` — `notificationsPayload()` delegasi ke service; kini mengirim ID terstruktur (`resource_type`, `smartolt_id`, `board_id`, `port_id`, `resource_id`, `serial_number`, `is_read`). **Sengaja TANPA `target_url`**: menghitungnya berarti men-decode snapshot 8 OLT (satu OLT ~1400 ONU) di **setiap** request Inertia; endpoint klik cuma resolve satu. `unread_count` kini `COUNT` atas semua alarm aktif belum dibaca (dulu cuma menghitung di antara 8 baris yang dimuat, jadi mentok di 8).
+- `resources/js/Components/Shell/NotificationBell.vue` — seluruh kartu jadi `<button>` selebar baris (aksesibel, Enter/Space bawaan); tombol "tandai baca" jadi **saudara** (bukan nested button) + `@click.stop`; spinner per-baris + kunci `openingId` anti double-click; panel ditutup sebelum `router.visit()`. Semua string keras bahasa Indonesia ("Notifikasi", "baru saja", "menit lalu", dst.) **dipindah ke i18n** (9 key `shell.*` di id/en) — sebelumnya melanggar konvensi dwibahasa.
+- `lang/{id,en}/flash.php` — 6 pesan alasan (onu_not_found, position_reused, onu_moved, incomplete_location, olt_unavailable, target_unavailable).
+
+Notes:
+
+- **Modul C-Data/HiOSO TIDAK disentuh** (sesuai aturan baru di CLAUDE.md): halaman port kedua family **sudah** mendukung prop `focus` + `isFocus()`, jadi cukup membuat URL ke rute yang sudah ada. Langkah "tambah foco visual" di rencana review jadi tak perlu.
+- Tanpa toast global di proyek ini (flash dirender per-halaman), maka bila tujuan **tak** bisa di-resolve panel dibiarkan **terbuka** dengan banner kuning + tombol ke fallback — lebih jujur daripada melempar operator ke halaman lain tanpa penjelasan.
+- Guard `position_reused` diverifikasi lewat mutation test: dengan guard dihapus, test gagal karena mengembalikan `/smartolt/1/ports/1/1/onus/5/detail` (ONU pelanggan yang salah); dikembalikan → lulus.
+- Suite penuh **440/440 hijau** (422 + 18 baru), Pint bersih, `npm run build` bersih, `route:cache` sudah di-regenerate (rute baru 404 tanpa itu).
+
 ## 2026-07-24 (lanjutan) — hasil code review zonas: 2 temuan tinggi
 
 ### 1. Kegagalan simpan zona bisa mengubah provisioning SUKSES jadi "failed"

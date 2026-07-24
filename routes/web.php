@@ -53,6 +53,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard/search', DashboardSearchController::class)->name('dashboard.search');
     Route::post('/notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('notifications.read-all');
+    // Navegación contextual de la campana: el SERVIDOR resuelve el destino (permiso al clic,
+    // ONU movida/eliminada, familia del OLT). {alarm} pasa por los scopes de AlarmEvent → 404.
+    Route::post('/notifications/alarms/{alarm}/open', [NotificationsController::class, 'open'])->whereNumber('alarm')->name('notifications.alarms.open');
+    Route::post('/notifications/alarms/{alarm}/read', [NotificationsController::class, 'markRead'])->whereNumber('alarm')->name('notifications.alarms.read');
 
     Route::get('/alarms', [AlarmController::class, 'index'])->name('alarms.index');
 

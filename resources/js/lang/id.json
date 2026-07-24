@@ -90,7 +90,16 @@
         "sys_time": "Waktu",
         "sys_uptime": "Uptime",
         "sys_online": "Online",
-        "sys_user_suffix": "user"
+        "sys_user_suffix": "user",
+        "notifications_title": "Notifikasi",
+        "mark_all_read": "Tandai semua dibaca",
+        "mark_read": "Tandai dibaca",
+        "open_notification": "Buka detail alarm ini",
+        "just_now": "baru saja",
+        "minutes_ago": "{n} menit lalu",
+        "hours_ago": "{n} jam lalu",
+        "days_ago": "{n} hari lalu",
+        "notif_target_unavailable": "Tujuan alarm ini tak bisa dibuka."
     },
     "language": {
         "label": "Bahasa"
