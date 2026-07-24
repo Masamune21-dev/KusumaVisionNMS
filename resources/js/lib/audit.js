@@ -35,6 +35,12 @@ export function auditDescription(log) {
         return t('auditlogs.desc_telnet_opened', { target: props.subject_title });
     }
 
+    if (log.event === 'onu_zone_assigned' && props.subject_title) {
+        return props.zone_name
+            ? t('auditlogs.desc_onu_zone_assigned', { zone: props.zone_name, target: props.subject_title })
+            : t('auditlogs.desc_onu_zone_cleared', { target: props.subject_title });
+    }
+
     if (log.event in VERB_KEYS && props.subject_label && props.subject_title) {
         return `${t(VERB_KEYS[log.event])} ${props.subject_label} ${props.subject_title}`;
     }

@@ -26,6 +26,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    zones: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -37,6 +41,7 @@ const portFilter = ref('all');
 const statusFilter = ref('all');
 const adminFilter = ref('all');
 const rxFilter = ref('all');
+const zoneFilter = ref('all');
 const scanning = ref(false);
 
 const hasOlt = computed(() => oltFilter.value !== '');
@@ -97,8 +102,10 @@ const filteredOnus = computed(() => {
         if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
         if (rxFilter.value !== 'all' && rxLevel(onu.rx_power_dbm) !== rxFilter.value) return false;
+        if (zoneFilter.value === 'none' && onu.zone_id !== null) return false;
+        if (zoneFilter.value !== 'all' && zoneFilter.value !== 'none' && onu.zone_id !== Number(zoneFilter.value)) return false;
         if (!term) return true;
-        const hay = [onu.interface, onu.serial_number, onu.mac, onu.name, onu.description, onu.type_name, onu.olt_name]
+        const hay = [onu.interface, onu.serial_number, onu.mac, onu.name, onu.description, onu.type_name, onu.olt_name, onu.zone_name]
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
@@ -127,7 +134,8 @@ const hasFilter = computed(
         portFilter.value !== 'all' ||
         statusFilter.value !== 'all' ||
         adminFilter.value !== 'all' ||
-        rxFilter.value !== 'all',
+        rxFilter.value !== 'all' ||
+        zoneFilter.value !== 'all',
 );
 
 const clearFilters = () => {
@@ -136,6 +144,7 @@ const clearFilters = () => {
     statusFilter.value = 'all';
     adminFilter.value = 'all';
     rxFilter.value = 'all';
+    zoneFilter.value = 'all';
 };
 
 const scanOlt = () => {
@@ -256,6 +265,11 @@ const phaseDotClass = (onu) => {
                             <option value="critical">{{ $t('onumonitor.rx_critical') }}</option>
                             <option value="none">{{ $t('onumonitor.rx_none') }}</option>
                         </select>
+                        <select v-model="zoneFilter" :disabled="!hasOlt" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">{{ $t('onumonitor.all_zone') }}</option>
+                            <option value="none">{{ $t('onumonitor.zone_none') }}</option>
+                            <option v-for="zone in zones" :key="zone.id" :value="String(zone.id)">{{ zone.name }}</option>
+                        </select>
                     </div>
                 </FilterCard>
 
@@ -356,6 +370,10 @@ const phaseDotClass = (onu) => {
 
                                     <div class="kv-mobile-fields">
                                         <div class="kv-mobile-field">
+                                            <span class="kv-mobile-label">{{ $t('onumonitor.col_zone') }}</span>
+                                            <span class="kv-mobile-value">{{ onu.zone_name || '—' }}</span>
+                                        </div>
+                                        <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">{{ $t('onumonitor.serial_mac') }}</span>
                                             <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || onu.mac || '—' }}</span>
                                         </div>
@@ -399,6 +417,7 @@ const phaseDotClass = (onu) => {
                                         <tr class="border-b border-white/10 bg-slate-950/40">
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('smartolt.th_olt') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
+                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('onumonitor.col_zone') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
@@ -419,6 +438,7 @@ const phaseDotClass = (onu) => {
                                                 <div class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
                                                 <div class="mt-0.5 text-xs text-slate-500">{{ onuSecondaryLabel(onu) }}</div>
                                             </td>
+                                            <td class="px-6 py-4 text-sm text-slate-300">{{ onu.zone_name || '—' }}</td>
                                             <td class="px-6 py-4">
                                                 <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || onu.mac || '—' }}</span>
                                             </td>

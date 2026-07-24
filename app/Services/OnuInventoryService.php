@@ -15,6 +15,8 @@ use Illuminate\Support\Collection;
  */
 class OnuInventoryService
 {
+    public function __construct(private readonly ZoneService $zones) {}
+
     /**
      * Kumpulkan seluruh ONU dari semua OLT (atau koleksi OLT yang diberikan).
      *
@@ -27,6 +29,8 @@ class OnuInventoryService
 
         $onus = [];
         $refreshedAt = [];
+        // Satu query untuk SEMUA zona ONU sekaligus — hindari N+1 di loop ratusan/ribuan ONU.
+        $zoneMap = $this->zones->lookupMap();
 
         foreach ($olts as $olt) {
             $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
@@ -43,7 +47,7 @@ class OnuInventoryService
                 }
 
                 foreach (data_get($entry, 'onus', []) as $onu) {
-                    $onus[] = $this->normalize($olt, $routePrefix, $onu);
+                    $onus[] = $this->normalize($olt, $routePrefix, $onu, $zoneMap);
                 }
             }
         }
@@ -66,10 +70,13 @@ class OnuInventoryService
     {
         $routePrefix = $this->routePrefix($olt);
         $entry = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+        $zoneByOnuId = $this->zones->lookupMapForPort($olt, $slot, $port);
 
         $onus = [];
         foreach (data_get($entry, 'onus', []) as $onu) {
-            $onus[] = $this->normalize($olt, $routePrefix, $onu);
+            $onuId = (int) ($onu['onu_id'] ?? 0);
+            $zoneMap = isset($zoneByOnuId[$onuId]) ? ["{$olt->id}.{$slot}.{$port}.{$onuId}" => $zoneByOnuId[$onuId]] : [];
+            $onus[] = $this->normalize($olt, $routePrefix, $onu, $zoneMap);
         }
 
         usort($onus, fn (array $a, array $b) => $a['onu_id'] <=> $b['onu_id']);
@@ -94,7 +101,10 @@ class OnuInventoryService
 
         foreach ($onus as $onu) {
             if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
-                return $this->normalize($olt, $routePrefix, $onu);
+                $zone = $this->zones->forOnu($olt, $slot, $port, $onuId);
+                $zoneMap = $zone !== null ? ["{$olt->id}.{$slot}.{$port}.{$onuId}" => $zone] : [];
+
+                return $this->normalize($olt, $routePrefix, $onu, $zoneMap);
             }
         }
 
@@ -116,19 +126,25 @@ class OnuInventoryService
 
     /**
      * @param  array<string, mixed>  $onu
+     * @param  array<string, array{zone_id:int, zone_name:string}>  $zoneMap  key "oltId.slot.port.onuId"
      * @return array<string, mixed>
      */
-    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu): array
+    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu, array $zoneMap = []): array
     {
+        $slot = (int) ($onu['slot'] ?? 0);
+        $port = (int) ($onu['port'] ?? 0);
+        $onuId = (int) ($onu['onu_id'] ?? 0);
+        $zone = $zoneMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
+
         return [
             'olt_id' => $olt->id,
             'olt_name' => $olt->name,
             // Nama rute halaman ONU per port (per family) — dipakai frontend membangun link langsung.
             'port_route' => $routePrefix.'.port-onus',
             'olt_cdata' => $routePrefix !== 'smartolt',
-            'slot' => (int) ($onu['slot'] ?? 0),
-            'port' => (int) ($onu['port'] ?? 0),
-            'onu_id' => (int) ($onu['onu_id'] ?? 0),
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
             'if_index' => isset($onu['if_index']) ? (int) $onu['if_index'] : null,
             'interface' => $onu['interface'] ?? null,
             'serial_number' => $onu['serial_number'] ?? null,
@@ -143,6 +159,8 @@ class OnuInventoryService
             'last_down_cause' => $onu['last_down_cause'] ?? null,
             'rx_power_dbm' => $onu['rx_power_dbm'] ?? null,
             'rx_power_label' => $onu['rx_power_label'] ?? null,
+            'zone_id' => $zone['zone_id'] ?? null,
+            'zone_name' => $zone['zone_name'] ?? null,
         ];
     }
 }

@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\PublicStatusController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\SummaryController;
 use App\Http\Controllers\Api\V1\UnconfiguredOnuController;
+use App\Http\Controllers\Api\V1\ZoneController;
 use App\Http\Middleware\BlockDemoWrites;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +76,8 @@ Route::prefix('v1')->group(function () {
             ->name('api.olts.register.options');
 
         Route::get('onus', [OnuController::class, 'index'])->name('api.onus.index');
+
+        Route::get('zones', [ZoneController::class, 'index'])->name('api.zones.index');
 
         Route::get('alarms', [AlarmController::class, 'index'])->name('api.alarms.index');
 

@@ -17,6 +17,7 @@ use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\OnuInventoryService;
+use App\Services\ZoneService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
@@ -333,7 +334,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function onuMonitor(OnuInventoryService $inventory): Response
+    public function onuMonitor(OnuInventoryService $inventory, ZoneService $zones): Response
     {
         $olts = SnmpOlt::query()->orderBy('name')->get();
         $aggregated = $inventory->collect($olts);
@@ -346,6 +347,7 @@ class SmartOltController extends Controller
             ])->values(),
             'onus' => $aggregated['onus'],
             'refreshed_at' => $aggregated['refreshed_at'],
+            'zones' => $zones->options(),
         ]);
     }
 
@@ -480,7 +482,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt, ZoneService $zones): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
@@ -495,6 +497,7 @@ class SmartOltController extends Controller
             'port' => $port ?: null,
             'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
             'oid_index' => (string) $request->query('oid_index', ''),
+            'zone_id' => null,
         ];
 
         // Hanya blok default milik family OLT ini yang dibangun penuh — form family
@@ -502,6 +505,7 @@ class SmartOltController extends Controller
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
             'profiles' => SmartOltProfileController::profileOptions($olt),
+            'zones' => $zones->options(),
             'defaults' => $isC600 ? $identity : [
                 ...$identity,
                 'customer_name' => '',
@@ -532,7 +536,6 @@ class SmartOltController extends Controller
                 ...$identity,
                 'customer_name' => '',
                 'onu_type' => (string) $request->query('model', ''),
-                'zone' => '',
                 'internet_vlan' => 200,
                 'internet_tcont_profile' => $this->firstProfileName($olt, 'tcont', '10MB'),
                 'mgmt_vlan' => 601,
@@ -885,11 +888,12 @@ class SmartOltController extends Controller
         }
     }
 
-    public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
+    public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service, ZoneService $zones): Response
     {
         $this->assertCapability($olt, 'supports_cli_onu_detail');
 
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
+        $zone = $zones->forOnu($olt, $slot, $port, $onuId);
 
         $range = $this->rxRange($request->query('range'));
         $rxHistory = OnuRxSample::seriesFor($olt->id, $slot, $port, $onuId, $range['since']);
@@ -911,6 +915,11 @@ class SmartOltController extends Controller
                 'sn' => $cached['serial_number'] ?? null,
                 'name' => $cached['name'] ?? null,
             ],
+            'zone' => [
+                'zone_id' => $zone['zone_id'] ?? null,
+                'zone_name' => $zone['zone_name'] ?? null,
+            ],
+            'zones' => $zones->options(),
             'groups' => fn () => $resolveLive()['groups'],
             'raw' => fn () => $resolveLive()['raw'],
             'fetch_ok' => fn () => $resolveLive()['ok'],
@@ -1360,12 +1369,24 @@ class SmartOltController extends Controller
      * {@see storeOnu} but the CLI script comes from the granular editor instead
      * of the fixed single-service template.
      */
-    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZoneService $zones): RedirectResponse
     {
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
         $context = $this->advancedRegistrationContext($olt, $header);
         $script = $builder->buildForRegistration($config, $context);
         $execute = $request->boolean('execute');
+
+        // Kaitkan zona SEBELUM eksekusi CLI — identitas ONU (slot/port/onu_id/serial) sudah
+        // stabil di titik ini terlepas hasil eksekusi ke OLT nanti berhasil/gagal.
+        $zones->assign(
+            $olt,
+            $header['slot'],
+            $header['port'],
+            $header['onu_id'],
+            $header['serial_number'],
+            $header['zone_id'],
+            $request->user()?->id,
+        );
 
         $primaryWan = is_array($config['wan_ips'][0] ?? null) ? $config['wan_ips'][0] : [];
         $base = [
@@ -1746,6 +1767,7 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
+            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             ...$this->reconfigureConfigRules(),
         ]);
 
@@ -1757,6 +1779,7 @@ class SmartOltController extends Controller
                 'onu_id' => (int) $validated['onu_id'],
                 'oid_index' => $validated['oid_index'] ?? null,
                 'onu_type' => $validated['onu_type'],
+                'zone_id' => (int) $validated['zone_id'],
             ],
             $validated['config'],
         ];

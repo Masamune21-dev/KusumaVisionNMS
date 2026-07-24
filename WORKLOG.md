@@ -1,6 +1,40 @@
 # Worklog
 
-## 2026-07-23
+## 2026-07-24
+
+### Zonas (etiqueta geográfica por ONU, replica el concepto de SmartOLT)
+
+Created:
+
+- `database/migrations/2026_07_24_000001_create_zones_table.php` — tabel `zones` (id, `name` unik MAYUSKUL, timestamps). Global (bukan per-OLT), dikelola admin lewat Settings.
+- `database/migrations/2026_07_24_000002_create_onu_zone_links_table.php` — tabel `onu_zone_links` (mirip `onu_odp_links`): `zone_id` (FK nullOnDelete) + key komposit `snmp_olt_id/slot/port/onu_id` (unik) + `serial_number` (jangkar stabilitas) + `created_by`. ONU tetap tanpa tabel sendiri — link inilah satu-satunya jejak persisten.
+- `app/Models/Zone.php`, `app/Models/OnuZoneLink.php` — model + relasi; `OnuZoneLink` pakai `PartnerOltScope` (scoped ke OLT partner, sama seperti `OnuOdpLink`).
+- `app/Services/ZoneService.php` — CRUD, `options()` (dropdown terurut alfabet), `destroy()` (opsional reassign ONU ke zona lain sebelum hapus), `assign()`, dan lookup bulk (`lookupMap()`/`lookupMapForPort()`/`forOnu()`) anti-N+1 untuk enrich ratusan/ribuan ONU sekaligus.
+- `app/Http/Controllers/ZoneController.php` (web, admin-only CRUD + `assignOnu()` dipakai edit inline) dan `app/Http/Controllers/Api/V1/ZoneController.php` (`GET /api/v1/zones`).
+- `resources/js/Pages/Zones/Index.vue` — halaman Settings → Zones (CRUD, contador ONU per zona, modal hapus dgn pilihan reassign).
+- `resources/js/Components/SmartOlt/ZoneInlineEditor.vue` — edit inline (lápiz → select → guardar) dipakai di Detail ONU.
+- `database/seeders/ZoneSeeder.php` — 11 zona awal (idempotent).
+- `tests/Feature/ZoneTest.php` — CRUD, uniqueness case-insensitive, delete con/sin reassign, assign/clear zona ONU, filtro+columna en ONU Monitoring.
+
+Changed:
+
+- `app/Services/OnuInventoryService.php` — `collect()/forPort()/findOne()` kini enrich tiap ONU dgn `zone_id`/`zone_name` (lookup bulk, bukan per-ONU) — otomatis mengalir ke ONU Monitoring, Peta ONU, **dan API v1** (`OnuController` berbagi service yang sama).
+- `app/Services/Zte/OnuRegistrationService.php` — `zone_id` kini wajib di validasi registrasi (mode dasar & C600); `register()` mengaitkan zona sebelum eksekusi CLI. Untuk C600, `zone_id` diterjemahkan ke nama zona demi konvensi deskripsi CLI `zone_<NAMA>_authd_<tanggal>` yang sudah ada (builder C600 tak diubah).
+- `app/Http/Controllers/SmartOltController.php` — `registerOnuForm()` kirim prop `zones`; `validatedAdvancedProvisioning()`/`storeOnuAdvanced()` (mode Lanjutan) ikut wajib `zone_id` + assign; `onuDetail()` kirim `zone`/`zones` untuk editor inline.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — select Zone wajib di ketiga form (C600, sederhana, Lanjutan), terurut alfabet.
+- `resources/js/Pages/SmartOlt/OnuDetail.vue` — baris "Zone" di kartu Identitas dgn editor inline.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — kolom "Zone" + filter (client-side, konsisten dgn filter lain di halaman ini yang juga client-side) + opsi "Sin zona".
+- `routes/web.php` (`zones.*` admin-only, `onu-zone.assign`), `routes/api.php` (`api.zones.index`) — rute baru.
+- `lang/{id,en}/flash.php`, `resources/js/lang/{id,en}.json` — string dwibahasa (namespace `zones`, kolom/filter `onumonitor.*`, deskripsi audit `onu_zone_assigned`).
+- `app/Models/AuditLog.php` — event `onu_zone_assigned`.
+
+Notes:
+
+- Arsitektur murni replikasi pola ODP yang sudah teruji: taksonomi global (`zones`) + link komposit-key (`onu_zone_links`), tanpa menyentuh poller/alarm engine/telnet proxy/SNMP-CLI.
+- Migrasi + seeder sudah dijalankan (`php artisan migrate --force` + `db:seed --class=ZoneSeeder`), 11 zona terverifikasi via tinker. `npm run build` bersih.
+- **Blocker lingkungan**: `bootstrap/cache/routes-v7.php` (dimiliki `www-data`, tertanggal sebelum sesi ini) basi — `php artisan route:list` tak menampilkan rute `zones.*`/`onu-zone.assign`/`api.zones.index` sama sekali sampai dijalankan ulang `sudo php artisan route:cache` di server (agent dev tak punya akses tulis ke `bootstrap/cache/` maupun sudo non-interaktif). Sampai itu dijalankan, endpoint-endpoint baru 404 walau kode sudah benar.
+- `php artisan test`/phpunit tak tersedia di environment dev ini (paket tak ter-install + `storage/logs` tak writable oleh user dev) — keterbatasan lama yang sudah dicatat sebelumnya di worklog ini. `tests/Feature/ZoneTest.php` ditulis mengikuti pola test yang ada (`AlarmEngineTest`, `OnuRxHistoryTest`, `SettingsAlarmTest`) tapi belum tereksekusi di sini; jalankan `php artisan test --filter=ZoneTest` di server/CI setelah route cache diperbaiki.
+
 
 ### Alarm dikelompokkan per-ODP untuk Telegram & Push FCM
 

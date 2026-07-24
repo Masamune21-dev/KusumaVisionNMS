@@ -5,6 +5,8 @@ namespace App\Services\Zte;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
+use App\Models\Zone;
+use App\Services\ZoneService;
 use App\Services\ZteC600ProvisioningScriptBuilder;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
@@ -24,6 +26,7 @@ class OnuRegistrationService
         private readonly ZteProvisioningScriptBuilder $builder,
         private readonly ZteC600ProvisioningScriptBuilder $c600Builder,
         private readonly ZteCliProvisioningExecutor $executor,
+        private readonly ZoneService $zones,
     ) {}
 
     /**
@@ -46,6 +49,7 @@ class OnuRegistrationService
             'oid_index' => ['nullable', 'string', 'max:191'],
             // Blokir CR/LF & karakter kontrol (anti-injeksi CLI); spasi/karakter cetak lain sah utk nama.
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
@@ -86,7 +90,7 @@ class OnuRegistrationService
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
-            'zone' => ['nullable', 'string', 'max:120', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             'description' => ['nullable', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'authd_date' => ['nullable', 'string', 'max:16', 'regex:/^\d{8}$/'],
             'internet_vlan' => ['required', 'integer', 'between:1,4094'],
@@ -138,6 +142,18 @@ class OnuRegistrationService
     {
         $data = $this->prepare($olt, $validated);
         $script = $this->buildFor($olt, $data);
+
+        // Kaitkan zona SEBELUM eksekusi CLI — identitas ONU (slot/port/onu_id/serial) sudah
+        // stabil di titik ini terlepas hasil eksekusi ke OLT nanti berhasil/gagal.
+        $this->zones->assign(
+            $olt,
+            (int) $data['slot'],
+            (int) $data['port'],
+            (int) $data['onu_id'],
+            (string) $data['serial_number'],
+            (int) $data['zone_id'],
+            $userId,
+        );
 
         $base = [
             ...$data,
@@ -220,6 +236,11 @@ class OnuRegistrationService
             $data['service_name'] = 'vlan'.(int) ($data['internet_vlan'] ?? 0);
             $data['wan_mode'] = 'tr069';
             $data['tr069_enabled'] = true;
+            // ZteC600ProvisioningScriptBuilder membaca 'zone' (nama, string) — bukan zone_id —
+            // untuk merangkai description CLI `zone_<NAMA>_authd_<tanggal>` (konvensi SmartOLT,
+            // tetap dipertahankan). Sumber kebenaran zona tetap zone_id/tabel zones; ini cuma
+            // menerjemahkannya ke nama untuk builder yang sudah ada, tanpa mengubah builder itu.
+            $data['zone'] = Zone::query()->find($data['zone_id'])?->name;
 
             return $data;
         }
