@@ -247,7 +247,9 @@ class ApiV1WriteTest extends TestCase
 
     public function test_refresh_port_non_zte_queries_driver(): void
     {
-        $olt = $this->seedOlt();
+        // Non-ZTE wajib — controller cabang ZTE/non-ZTE via SmartOltSupport::isNonZte()
+        // (static, dari sys_descr), bukan lewat resolver mock manapun.
+        $olt = $this->seedOlt(name: 'OLT-CD-TEST', vendor: 'C-Data FD1208S', sysDescr: 'EPON OLT');
         $operator = User::factory()->create();
 
         $driver = Mockery::mock(SmartOltSnmpDriver::class);
@@ -255,7 +257,6 @@ class ApiV1WriteTest extends TestCase
             ->andReturn([['onu_id' => 9, 'slot' => 1, 'port' => 1, 'online' => true]]);
 
         $resolver = Mockery::mock(SmartOltSnmpServiceResolver::class);
-        $resolver->shouldReceive('isNonZte')->andReturn(true);
         $resolver->shouldReceive('resolve')->andReturn($driver);
         $this->app->instance(SmartOltSnmpServiceResolver::class, $resolver);
 
