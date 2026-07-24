@@ -9,7 +9,6 @@ use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OdpController;
-use App\Http\Controllers\ZoneController;
 use App\Http\Controllers\OltConfigBackupController;
 use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\PanduanController;
@@ -22,6 +21,7 @@ use App\Http\Controllers\SmartOltProfileController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\TelnetSessionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ZoneController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 

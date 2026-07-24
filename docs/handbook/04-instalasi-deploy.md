@@ -66,6 +66,7 @@ php artisan key:generate          # mengisi APP_KEY (WAJIB — dipakai enkripsi 
 # 4. Database
 php artisan migrate
 php artisan db:seed                # DatabaseSeeder → 1 admin test@example.com
+php artisan db:seed --class=ZoneSeeder   # katalog zona awal (PALMARITO, RINCON, dst.) — idempotent
 #   (opsional, HANYA untuk instance demo:) php artisan db:seed --class=DemoSeeder
 
 # 5. Buat user admin nyata (registrasi publik dimatikan)

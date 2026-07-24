@@ -39,6 +39,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _tcont = '';
   String? _vlanProfile;
   String _wanMode = 'pppoe';
+  int? _zoneId;
   bool _busy = false;
   bool _initialized = false;
 
@@ -72,6 +73,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _tcont = defaults['tcont_profile']?.toString() ?? '';
     _vlanProfile = defaults['vlan_profile']?.toString();
     _wanMode = defaults['wan_mode']?.toString() ?? 'pppoe';
+    _zoneId = defaults['zone_id'] is int ? defaults['zone_id'] as int : null;
   }
 
   Map<String, dynamic> _buildForm() => {
@@ -80,6 +82,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'port': int.tryParse(_ctrl('port').text) ?? 0,
         'onu_id': int.tryParse(_ctrl('onu_id').text) ?? 0,
         'customer_name': _ctrl('customer_name').text.trim(),
+        'zone_id': _zoneId,
         'onu_type': _onuType,
         'tcont_profile': _tcont,
         'vlan': int.tryParse(_ctrl('vlan').text) ?? 100,
@@ -191,6 +194,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           }
           _initFrom((data['defaults'] ?? {}) as Map<String, dynamic>);
           final profiles = (data['profiles'] ?? {}) as Map<String, dynamic>;
+          final zones = ((data['zones'] ?? []) as List)
+              .map((e) => (id: e['id'] as int, name: e['name'].toString()))
+              .toList();
 
           return Form(
             key: _formKey,
@@ -210,6 +216,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         Expanded(child: _text('onu_id', 'ONU ID', number: true, required: true)),
                       ]),
                       _text('customer_name', 'Nama pelanggan', required: true),
+                      _zoneDropdown(zones),
                     ],
                   ),
                 ),
@@ -315,6 +322,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           inputFormatters: number ? [FilteringTextInputFormatter.digitsOnly] : null,
           decoration: InputDecoration(labelText: label, isDense: true),
           validator: required ? (v) => (v == null || v.trim().isEmpty) ? '$label wajib diisi' : null : null,
+        ),
+      );
+
+  Widget _zoneDropdown(List<({int id, String name})> zones) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: DropdownButtonFormField<int>(
+          initialValue: zones.any((z) => z.id == _zoneId) ? _zoneId : null,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Zona', isDense: true),
+          items: zones.map((z) => DropdownMenuItem(value: z.id, child: Text(z.name))).toList(),
+          onChanged: (v) => setState(() => _zoneId = v),
+          validator: (v) => v == null ? 'Zona wajib dipilih' : null,
         ),
       );
 

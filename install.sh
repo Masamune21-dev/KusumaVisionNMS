@@ -300,6 +300,10 @@ step "Menjalankan migrasi database"
 run_artisan migrate --force
 ok "Migrasi selesai"
 
+# Katalog zona awal (PALMARITO, RINCON, dst.) — idempotent (firstOrCreate), aman diulang.
+run_artisan db:seed --class=ZoneSeeder --force
+ok "Zona awal ter-seed"
+
 # ---------------------------------------------------------------------------
 # 8. Permission
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SmartOltProfileController;
 use App\Models\SnmpOlt;
+use App\Services\ZoneService;
 use App\Services\Zte\OnuRegistrationFormDefaults;
 use App\Services\Zte\OnuRegistrationService;
 use App\Support\SmartOltSupport;
@@ -24,6 +25,7 @@ class OnuRegistrationController extends Controller
     public function __construct(
         private readonly OnuRegistrationFormDefaults $defaults,
         private readonly OnuRegistrationService $registration,
+        private readonly ZoneService $zones,
     ) {}
 
     public function options(Request $request, SnmpOlt $olt): JsonResponse
@@ -41,6 +43,7 @@ class OnuRegistrationController extends Controller
             'data' => [
                 'capabilities' => SmartOltSupport::capabilities($driver, $olt),
                 'profiles' => SmartOltProfileController::profileOptions($olt),
+                'zones' => $this->zones->options(),
                 'defaults' => $this->defaults->build(
                     $olt,
                     $slot,

@@ -10,7 +10,7 @@ use RuntimeException;
 /**
  * Zona geografis global (mis. "PALMARITO", "RINCON") diasosiasikan ke ONU. ONU tak
  * punya tabel — identitas = komposit (snmp_olt_id, slot, port, onu_id), disimpan di
- * `onu_zone_links` (pola sama {@see \App\Services\OnuOdpService}). Beda dengan ODP:
+ * `onu_zone_links` (pola sama {@see OnuOdpService}). Beda dengan ODP:
  * zona bersifat GLOBAL (bukan per-OLT) — daftar zona dikelola admin saja lewat Settings.
  */
 class ZoneService

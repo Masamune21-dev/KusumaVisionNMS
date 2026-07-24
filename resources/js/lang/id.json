@@ -331,6 +331,8 @@
         "col_odp": "ODP",
         "odp_none": "— tanpa ODP —",
         "odp_empty": "Belum ada ODP",
+        "col_zone": "Zona",
+        "zone_none": "— tanpa zona —",
         "col_type": "Type",
         "col_onu_rx": "ONU RX",
         "col_phase": "Status",

@@ -143,18 +143,6 @@ class OnuRegistrationService
         $data = $this->prepare($olt, $validated);
         $script = $this->buildFor($olt, $data);
 
-        // Kaitkan zona SEBELUM eksekusi CLI — identitas ONU (slot/port/onu_id/serial) sudah
-        // stabil di titik ini terlepas hasil eksekusi ke OLT nanti berhasil/gagal.
-        $this->zones->assign(
-            $olt,
-            (int) $data['slot'],
-            (int) $data['port'],
-            (int) $data['onu_id'],
-            (string) $data['serial_number'],
-            (int) $data['zone_id'],
-            $userId,
-        );
-
         $base = [
             ...$data,
             'snmp_olt_id' => $olt->id,
@@ -193,6 +181,21 @@ class OnuRegistrationService
                 'executed_at' => now(),
                 'executed_by' => $userId,
             ]);
+
+            // Kaitkan zona HANYA setelah CLI benar-benar sukses — kalau di-assign lebih awal,
+            // preview/generate atau eksekusi gagal bisa menimpa zona ONU lain yang kebetulan
+            // sudah menempati slot/port/onu_id yang sama, atau meninggalkan link "hantu".
+            if ($result['ok']) {
+                $this->zones->assign(
+                    $olt,
+                    (int) $data['slot'],
+                    (int) $data['port'],
+                    (int) $data['onu_id'],
+                    (string) $data['serial_number'],
+                    (int) $data['zone_id'],
+                    $userId,
+                );
+            }
 
             return [
                 'status' => $result['ok'] ? 'executed' : 'failed',

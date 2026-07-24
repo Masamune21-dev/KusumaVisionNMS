@@ -2,9 +2,9 @@
 
 [← Indeks](README.md) · [← 05 Database & Model](05-database-model.md) · [07 Modul & Fitur →](07-modul-fitur.md)
 
-Semua route ada di `routes/web.php` (aplikasi) dan `routes/auth.php` (Breeze). Frontend memanggil
-route via helper Ziggy `route('nama')`. Tidak ada `routes/api.php` terpisah — semua lewat web +
-Inertia/JSON.
+Route halaman/aksi web ada di `routes/web.php` (aplikasi) dan `routes/auth.php` (Breeze). Frontend
+memanggil route via helper Ziggy `route('nama')`. **REST API v1** (Bearer token, dipakai aplikasi
+Android/eksternal) punya `routes/api.php` terpisah — lihat [docs/API.md](../API.md).
 
 ## Middleware global (urutan)
 
@@ -48,6 +48,8 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 > **Peta ONU & ODP** (`map.*`, `map.odps.*`, `onu-odp.assign`) punya tabel rute sendiri di
 > [16 — Peta ONU & ODP](16-peta-onu.md#rute).
 
+| POST | `/onu-zone` | `ZoneController@assignOnu` | `onu-zone.assign` | auth (bukan admin-only — dipakai edit inline Detail ONU & kolom Zone di tabel Port ONU ZTE/C-Data/HiOSO) |
+
 ### Admin only — `middleware('role:admin')`
 | Method | URI | Aksi | Nama |
 |--------|-----|------|------|
@@ -56,6 +58,10 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 | PUT | `/users/{user}` | `UserController@update` | `users.update` |
 | DELETE | `/users/{user}` | `UserController@destroy` | `users.destroy` |
 | GET | `/audit-logs` | `AuditLogController@index` | `audit-logs.index` |
+| GET | `/zones` | `ZoneController@index` | `zones.index` |
+| POST | `/zones` | `ZoneController@store` | `zones.store` |
+| PUT | `/zones/{zone}` | `ZoneController@update` | `zones.update` |
+| DELETE | `/zones/{zone}` | `ZoneController@destroy` | `zones.destroy` |
 | GET | `/settings` | `SettingsController@edit` | `settings.edit` |
 | POST | `/settings/general` | `SettingsController@updateGeneral` | `settings.general.update` |
 | PUT | `/settings/telegram` | `SettingsController@updateTelegram` | `settings.telegram.update` |

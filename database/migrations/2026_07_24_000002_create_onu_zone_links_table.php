@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('onu_zone_links', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('zone_id')->constrained('zones')->nullOnDelete();
+            $table->foreignId('zone_id')->nullable()->constrained('zones')->nullOnDelete();
             // ONU tak punya tabel sendiri — identitas = komposit (snmp_olt_id, slot, port,
             // onu_id), pola sama onu_odp_links/onu_map_pins.
             $table->foreignId('snmp_olt_id')->constrained('snmp_olts')->cascadeOnDelete();

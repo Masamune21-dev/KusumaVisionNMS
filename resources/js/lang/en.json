@@ -331,6 +331,8 @@
         "col_odp": "ODP",
         "odp_none": "— no ODP —",
         "odp_empty": "No ODP yet",
+        "col_zone": "Zone",
+        "zone_none": "— no zone —",
         "col_type": "Type",
         "col_onu_rx": "ONU RX",
         "col_phase": "Status",

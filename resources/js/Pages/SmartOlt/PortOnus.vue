@@ -8,6 +8,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
+import OnuZoneCell from '@/Components/OnuZoneCell.vue';
 import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
 import ClientPagination from '@/Components/Shell/ClientPagination.vue';
 import ListSkeleton from '@/Components/Shell/ListSkeleton.vue';
@@ -64,9 +65,18 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    zones: {
+        type: Array,
+        default: () => [],
+    },
+    zone_links: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
+const zoneIdFor = (onu) => props.zone_links?.[onu.onu_id]?.zone_id ?? null;
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
@@ -732,6 +742,17 @@ const rxBadgeClass = (value) => {
                                         />
                                     </div>
                                     <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_zone') }}</span>
+                                        <OnuZoneCell
+                                            :onu="onu"
+                                            :zones="zones"
+                                            :current-zone-id="zoneIdFor(onu)"
+                                            :olt-id="olt.id"
+                                            :slot="slot"
+                                            :port="port"
+                                        />
+                                    </div>
+                                    <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('portonus.col_type') }}</span>
                                         <span class="kv-mobile-value">{{ onu.type_name || '—' }}</span>
                                     </div>
@@ -836,6 +857,7 @@ const rxBadgeClass = (value) => {
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
+                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_zone') }}</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
                                     <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
@@ -872,6 +894,16 @@ const rxBadgeClass = (value) => {
                                             :onu="onu"
                                             :odps="odps"
                                             :current-odp-id="odpIdFor(onu)"
+                                            :olt-id="olt.id"
+                                            :slot="slot"
+                                            :port="port"
+                                        />
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <OnuZoneCell
+                                            :onu="onu"
+                                            :zones="zones"
+                                            :current-zone-id="zoneIdFor(onu)"
                                             :olt-id="olt.id"
                                             :slot="slot"
                                             :port="port"

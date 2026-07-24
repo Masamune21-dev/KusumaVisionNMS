@@ -21,6 +21,8 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `onu_map_pins` | `OnuMapPin` | Pin ONU di Peta (referensi OLT/slot/port/onu + koordinat + field pelanggan) |
 | `odps` | `Odp` | Pin ODP/splitter lapangan di Peta (per-OLT: nama, koordinat, notes) |
 | `onu_odp_links` | `OnuOdpLink` | Relasi ONU↔ODP (kunci komposit ONU, unik 1 ODP/ONU) |
+| `zones` | `Zone` | Katalog zona geografis global (nama unik MAYUSKUL), dikelola admin via Settings |
+| `onu_zone_links` | `OnuZoneLink` | Relasi ONU↔Zone (kunci komposit ONU, unik 1 zona/ONU; `zone_id` nullable — FK `nullOnDelete`) |
 | `olt_config_backups` | `OltConfigBackup` | Riwayat backup running-config OLT (content terenkripsi, sha256 dedup) |
 | `copy_onu_tasks` | `CopyOnuTask` | Progres batch job salin konfigurasi ONU antar port |
 | `tr069_bulk_tasks` | `Tr069BulkTask` | Progres batch job TR069 massal per-port |

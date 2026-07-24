@@ -226,6 +226,7 @@ Ringkasan:
 | GET    | `/olts/{olt}/ports/{slot}/{port}/onus`             | Daftar ONU 1 PON port (aplikasi mobile) |
 | GET    | `/olts/{olt}/unconfigured`                          | ONU unconfigured (autofind, ZTE)        |
 | GET    | `/olts/{olt}/register/options`                      | Profil + default form registrasi ONU    |
+| GET    | `/zones`                                            | Katalog zona geografis (global)         |
 | GET    | `/search?q=`                                        | Pencarian global OLT + ONU              |
 | GET    | `/alarms`                                          | Daftar alarm                            |
 | POST   | `/devices`                                          | Daftarkan token FCM (push Android)      |
@@ -259,6 +260,9 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 > refresh live **ZTE-only** (mode dasar); reboot/rename/delete **bercabang per-family**
 > (ZTE, C-Data EPON/GPON, HiOSO) — perintah CLI menyesuaikan vendor OLT-nya.
 > Aksi write mengeksekusi Telnet/SNMP sinkron (timeout klien ~120 dtk). Push FCM: lihat §7.
+> `zone_id` **wajib** di payload `/register/preview` & `/register` (lihat `defaults.zone_id` dan
+> daftar `zones` pada respons `/register/options`) — zona baru terkait ke ONU (`onu_zone_links`)
+> hanya setelah eksekusi CLI benar-benar sukses (`status: "executed"`), bukan saat `execute=false`.
 
 ### Push notifikasi FCM (Firebase)
 
@@ -397,12 +401,17 @@ curl "https://nms.bmkv.net/api/v1/onus?status=offline&per_page=20" \
       "online": true,
       "last_down_cause": null,
       "rx_power_dbm": -21.5,
-      "rx_power_label": "-21.5 dBm"
+      "rx_power_label": "-21.5 dBm",
+      "zone_id": 3,
+      "zone_name": "PALMARITO"
     }
   ],
   "meta": { "total": 8, "per_page": 20, "current_page": 1, "last_page": 1, "count": 8 }
 }
 ```
+
+`zone_id`/`zone_name` bernilai `null` bila ONU belum diasosiasikan ke zona. Daftar zona yang
+tersedia: `GET /zones` (§3.7).
 
 ### 3.5. `GET /olts/{olt}/onus/{slot}/{port}/{onuId}` — detail 1 ONU
 
@@ -451,6 +460,19 @@ di dalam `{"data": {...}}`. Tidak ditemukan → `404`.
   ],
   "meta": { "total": 3, "per_page": 50, "current_page": 1, "last_page": 1, "count": 3 }
 }
+```
+
+### 3.7. `GET /zones` — katalog zona geografis
+
+Zona bersifat global (bukan per-OLT), terurut alfabetis. Dipakai untuk dropdown filter/registrasi.
+
+```bash
+curl "https://nms.bmkv.net/api/v1/zones" \
+  -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
+```
+
+```json
+{ "data": [ { "id": 3, "name": "PALMARITO" }, { "id": 7, "name": "RINCON" } ] }
 ```
 
 ---
