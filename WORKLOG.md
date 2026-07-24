@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-07-24 (lanjutan 3) — 2 sisa dari navigasi notifikasi
+
+### 1. Deep-link aplikasi Android ternyata SALAH sejak awal (bukan "belum ada")
+
+Saat menyambungkan resolver ke API, ketemu bug nyata di `mobile/lib/features/alarms/alarm_list_screen.dart`: kartu alarm SUDAH bisa di-tap, tapi memakai posisi **historis** dari event —
+`context.push('/olts/${alarm.oltId}/ports/${alarm.slot}/${alarm.port}/onus/${alarm.onuId}')` —
+persis pola yang ditolak di sisi web. Kalau ONU sudah dipindah port, atau posisinya kini dipakai ONU lain, aplikasi **membuka ONU pelanggan yang salah**. Jadi tugasnya bukan "menambah deep-link", tapi **memperbaiki deep-link yang sudah ada dan keliru**.
+
+Changed:
+
+- `app/Services/Alarm/AlarmNotificationTargetResolver.php` — dipecah jadi dua: `resolveLocation()` mengembalikan **lokasi terstruktur** yang sudah diresolusi (`resource_type` + slot/port/onu_id **sekarang** + `openable` + `reason`), dan `resolve()` (web) membangun URL di atasnya. URL web tak berguna untuk `go_router`, dan `openable` **tidak** memakai capability web `supports_cli_onu_detail` karena aplikasi punya layar detail ONU sendiri (via API) yang jalan untuk semua family.
+- Idem — indeks `serial → posisi` kini **dimemoisasi per-OLT** (`serialIndexFor()`): daftar alarm API bisa memuat sampai 200 alarm yang umumnya dari OLT yang sama; sebelumnya tiap alarm men-scan ulang snapshot. Satu recorrido per OLT, bukan per alarm.
+- `app/Http/Controllers/Api/V1/AlarmController.php` — tiap alarm kini menyertakan blok `target` (lokasi teresolusi). Eager load ditambah `last_test_result` (dibutuhkan resolver); kolomnya besar tapi eager load memberi satu instance per OLT unik + indeks termemoisasi.
+- `mobile/lib/models/alarm.dart` — model `AlarmTarget` + field `target` (nullable, jadi server lama tetap aman).
+- `mobile/lib/features/alarms/alarm_list_screen.dart` — `onTap` kini memakai `target` yang diresolusi server; bila `openable=false` (posisi dipakai ONU lain / ONU hilang) **tak membuka ONU**, paling jauh detail OLT. Terverifikasi kedua rute tujuan memang ada di `mobile/lib/router.dart` (`/olts/:id/ports/:slot/:port` dan `.../onus/:onuId`).
+- `docs/API.md` — tabel `target` + peringatan eksplisit agar TIDAK menavigasi dengan slot/port/onu_id tingkat-atas.
+
+### 2. Tandai-dibaca kini optimistis dan reversible
+
+Changed:
+
+- `resources/js/Components/Shell/NotificationBell.vue` — tombol check dulu tak memberi umpan balik sampai round-trip selesai **dan menelan error diam-diam** (operator berpikir tersimpan padahal gagal). Sekarang: baris langsung terlihat terbaca + badge turun seketika (set `optimisticRead` lokal di-merge dengan props server), **di-revert** bila POST gagal dan alasannya ditampilkan di banner. Override dibersihkan lewat `onSuccess` reload — bukan sebelum props baru tiba — supaya baris tak berkedip terbaca→belum→terbaca.
+- `resources/js/lang/{id,en}.json` — key `shell.mark_read_failed`.
+
+Notes:
+
+- 4 test API baru (total file jadi 22): `target` membawa posisi **sekarang** untuk ONU pindah (`onu_moved`) sementara field tingkat-atas tetap historis; posisi dipakai ulang → `openable=false` + `onu_id=null`; non-ZTE tetap `openable=true` (tak bergantung capability web); dan 30 alarm satu OLT resolve konsisten lewat indeks termemoisasi.
+- Perubahan Flutter **tak bisa dikompilasi/diverifikasi di server ini** (tak ada toolchain Flutter/Dart, cek ulang: `which flutter dart` kosong, `/opt/flutter` tak ada). Diverifikasi manual sebatas: rute tujuan ada di router, tak ada lagi referensi `alarm.slot/port/onuId` untuk navigasi, dan tak ada pemanggil lain konstruktor `Alarm` yang patah karena field baru. **Perlu `flutter analyze` + build APK di mesin yang punya toolchain sebelum rilis.**
+- Suite penuh **444/444 hijau**, Pint bersih, `npm run build` bersih.
+
 ## 2026-07-24 (lanjutan 2) — navigasi kontekstual dari bel notifikasi
 
 ### Klik notifikasi alarm → langsung ke ONU/port/OLT-nya

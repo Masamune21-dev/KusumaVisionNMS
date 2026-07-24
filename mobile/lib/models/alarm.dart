@@ -1,5 +1,42 @@
 import '../core/json.dart';
 
+/// Ubicación RESUELTA por el servidor para navegar (no la histórica del evento).
+///
+/// El servidor sigue el `serial_number` en el snapshot actual del OLT: si la ONU se
+/// movió de puerto devuelve su posición de AHORA, y si esa posición la ocupa otra ONU
+/// pone [openable] en false. Nunca navegar con `alarm.slot/port/onuId` directamente:
+/// son los valores del momento en que se registró la alarma y pueden apuntar a la ONU
+/// de otro cliente.
+class AlarmTarget {
+  const AlarmTarget({
+    required this.resourceType,
+    required this.oltId,
+    required this.slot,
+    required this.port,
+    required this.onuId,
+    required this.openable,
+    required this.reason,
+  });
+
+  final String? resourceType; // onu | port | olt
+  final int? oltId, slot, port, onuId;
+  final bool openable;
+  final String? reason;
+
+  bool get isOnu => resourceType == 'onu';
+  bool get isPort => resourceType == 'port';
+
+  factory AlarmTarget.fromJson(Map<String, dynamic> j) => AlarmTarget(
+        resourceType: J.asStrN(j['resource_type']),
+        oltId: J.asIntN(j['olt_id']),
+        slot: J.asIntN(j['slot']),
+        port: J.asIntN(j['port']),
+        onuId: J.asIntN(j['onu_id']),
+        openable: J.asBool(j['openable']),
+        reason: J.asStrN(j['reason']),
+      );
+}
+
 class Alarm {
   const Alarm({
     required this.id,
@@ -19,6 +56,7 @@ class Alarm {
     required this.firstSeenAt,
     required this.lastSeenAt,
     required this.clearedAt,
+    required this.target,
   });
 
   final int id;
@@ -28,6 +66,9 @@ class Alarm {
   final String? scope;
   final int? slot, port, onuId;
   final String? serialNumber, customerName, message, firstSeenAt, lastSeenAt, clearedAt;
+
+  /// null si el servidor es anterior a este campo (entonces no se hace deep-link a la ONU).
+  final AlarmTarget? target;
 
   bool get active => status == 'active';
 
@@ -49,5 +90,8 @@ class Alarm {
         firstSeenAt: J.asStrN(j['first_seen_at']),
         lastSeenAt: J.asStrN(j['last_seen_at']),
         clearedAt: J.asStrN(j['cleared_at']),
+        target: j['target'] is Map<String, dynamic>
+            ? AlarmTarget.fromJson(j['target'] as Map<String, dynamic>)
+            : null,
       );
 }

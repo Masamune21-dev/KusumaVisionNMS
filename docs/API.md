@@ -455,12 +455,40 @@ di dalam `{"data": {...}}`. Tidak ditemukan → `404`.
       "message": "ONU offline (dying gasp)",
       "first_seen_at": "2026-06-28T09:00:00+07:00",
       "last_seen_at": "2026-06-28T10:14:00+07:00",
-      "cleared_at": null
+      "cleared_at": null,
+      "target": {
+        "resource_type": "onu",
+        "olt_id": 1,
+        "slot": 1,
+        "port": 1,
+        "onu_id": 5,
+        "openable": true,
+        "reason": null
+      }
     }
   ],
   "meta": { "total": 3, "per_page": 50, "current_page": 1, "last_page": 1, "count": 3 }
 }
 ```
+
+#### `target` — a dónde navegar (deep-link)
+
+`slot`/`port`/`onu_id` de primer nivel son los del **momento en que se registró la alarma**.
+**No navegues con ellos**: si la ONU fue reprovisionada, otra ONU puede ocupar hoy esa
+posición y abrirías el cliente equivocado.
+
+Usa `target`, que el servidor resuelve siguiendo `serial_number` en el inventario actual:
+
+| Campo | Significado |
+|-------|-------------|
+| `resource_type` | `onu` \| `port` \| `olt` — qué pantalla corresponde |
+| `slot`/`port`/`onu_id` | Posición **actual** (puede diferir de la histórica) |
+| `openable` | `false` ⇒ **no** abrir el recurso; como máximo el OLT |
+| `reason` | `null` si todo limpio; si no: `onu_moved` (se siguió el serial), `position_reused` (la ocupa otra ONU), `onu_not_found`, `incomplete_location`, `olt_unavailable` |
+
+`openable` **no** depende de la capability web `supports_cli_onu_detail`: la app móvil tiene
+su propia pantalla de detalle de ONU (alimentada por esta API) y funciona para todas las
+familias. Se resuelve sin SNMP/Telnet — solo con el snapshot cacheado.
 
 ### 3.7. `GET /zones` — katalog zona geografis
 

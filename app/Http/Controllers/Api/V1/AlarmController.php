@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AlarmEvent;
+use App\Services\Alarm\AlarmNotificationTargetResolver;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ class AlarmController extends Controller
      * Query: status (active|cleared|all, default active), severity (critical|major|minor|warning),
      *        olt_id, type, page, per_page (default 50, maks 200).
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, AlarmNotificationTargetResolver $resolver): JsonResponse
     {
         $status = in_array($request->query('status'), ['active', 'cleared', 'all'], true)
             ? $request->query('status')
@@ -35,7 +36,10 @@ class AlarmController extends Controller
         $perPage = min(max((int) $request->integer('per_page', 50), 1), 200);
 
         $page = AlarmEvent::query()
-            ->with('olt:id,name,vendor')
+            // `last_test_result` hace falta para resolver la ubicación ACTUAL de la ONU. Es una
+            // columna grande, pero el eager load entrega una instancia por OLT distinto y el
+            // resolver memoiza el índice serial→posición por OLT: un recorrido por OLT, no por alarma.
+            ->with('olt:id,name,vendor,last_test_result')
             ->orderByDesc('last_seen_at')
             // Kecualikan alarm PENDING (menunggu konfirmasi poll ke-2) — internal, tak untuk dikonsumsi.
             ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_CLEARED])
@@ -68,6 +72,11 @@ class AlarmController extends Controller
                 'first_seen_at' => $a->first_seen_at?->toIso8601String(),
                 'last_seen_at' => $a->last_seen_at?->toIso8601String(),
                 'cleared_at' => $a->cleared_at?->toIso8601String(),
+                // Ubicación RESUELTA para deep-link: slot/port/onu_id de AHORA (sigue el serial
+                // si la ONU se movió) y `openable=false` cuando no se puede garantizar que sea
+                // la misma ONU — el cliente NO debe navegar con los IDs históricos de arriba,
+                // porque otra ONU puede haber heredado esa posición.
+                'target' => $resolver->resolveLocation($a),
             ])->all(),
             'meta' => [
                 'total' => $page->total(),

@@ -14,9 +14,32 @@ const dropdownRef = ref(null);
 const openingId = ref(null);
 // Aviso cuando el servidor no pudo resolver un destino (ONU borrada, posición reusada, etc.).
 const notice = ref(null);
+// Ids marcados como leídos LOCALMENTE mientras el servidor confirma. Se revierten si el
+// POST falla: en enlaces lentos (típico de campo) el operador necesita respuesta inmediata,
+// pero nunca debe quedarse creyendo que se guardó algo que falló.
+const optimisticRead = ref(new Set());
 
-const notifications = computed(() => page.props.notifications?.items ?? []);
-const unreadCount = computed(() => page.props.notifications?.unread_count ?? 0);
+const serverItems = computed(() => page.props.notifications?.items ?? []);
+
+const notifications = computed(() => serverItems.value.map(
+    (n) => (optimisticRead.value.has(n.id) ? { ...n, is_read: true } : n),
+));
+
+const unreadCount = computed(() => {
+    const base = page.props.notifications?.unread_count ?? 0;
+    // Descontar los que marcamos localmente y el servidor todavía reportaba sin leer.
+    const pending = serverItems.value.filter(
+        (n) => !n.is_read && optimisticRead.value.has(n.id),
+    ).length;
+
+    return Math.max(0, base - pending);
+});
+
+const setOptimistic = (id, on) => {
+    const next = new Set(optimisticRead.value);
+    on ? next.add(id) : next.delete(id);
+    optimisticRead.value = next;
+};
 
 const severityClass = (severity) => ({
     critical: 'kv-pill-critical',
@@ -78,11 +101,25 @@ const openNotification = async (notif) => {
 };
 
 const markRead = async (notif) => {
+    if (notif.is_read) return;
+
+    setOptimistic(notif.id, true);
+    notice.value = null;
+
     try {
         await window.axios.post(route('notifications.alarms.read', notif.alarm_id ?? notif.id));
-        refreshBell();
-    } catch {
-        // Silencioso: no navega ni cambia nada; el badge se recalcula al siguiente render.
+        // Limpiar el override solo DESPUÉS de que lleguen las props nuevas, para que la fila
+        // no parpadee de leída a no-leída y otra vez.
+        router.reload({
+            only: ['notifications'],
+            onSuccess: () => setOptimistic(notif.id, false),
+        });
+    } catch (error) {
+        setOptimistic(notif.id, false); // revertir: no se guardó
+        notice.value = {
+            message: error?.response?.data?.message ?? t('shell.mark_read_failed'),
+            fallback: null,
+        };
     }
 };
 

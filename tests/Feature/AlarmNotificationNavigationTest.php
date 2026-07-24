@@ -307,6 +307,79 @@ class AlarmNotificationNavigationTest extends TestCase
         $this->assertSame(0, $service->unreadCountFor($admin->fresh()));
     }
 
+    // ---------- API v1: ubicación resuelta para deep-link móvil ----------
+
+    public function test_api_alarms_expose_resolved_target_location(): void
+    {
+        // La ONU se movió: la alarma quedó en 1/1/5, hoy vive en 2/4/9.
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320', [$this->onu(2, 4, 9, 'ZTEGC0001')], '2_4');
+        $this->alarm($olt);
+        $operator = User::factory()->create();
+
+        $this->actingAs($operator, 'sanctum')
+            ->getJson('/api/v1/alarms')
+            ->assertOk()
+            // Los IDs planos siguen siendo los HISTÓRICOS (registro del evento)…
+            ->assertJsonPath('data.0.slot', 1)
+            ->assertJsonPath('data.0.onu_id', 5)
+            // …y `target` trae la posición ACTUAL, que es la que el móvil debe usar.
+            ->assertJsonPath('data.0.target.resource_type', 'onu')
+            ->assertJsonPath('data.0.target.slot', 2)
+            ->assertJsonPath('data.0.target.port', 4)
+            ->assertJsonPath('data.0.target.onu_id', 9)
+            ->assertJsonPath('data.0.target.openable', true)
+            ->assertJsonPath('data.0.target.reason', AlarmNotificationTargetResolver::REASON_ONU_MOVED);
+    }
+
+    public function test_api_alarms_mark_reused_position_as_not_openable(): void
+    {
+        // Otra ONU heredó 1/1/5 → el móvil no debe abrirla (mostraría otro cliente).
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320', [$this->onu(1, 1, 5, 'OTRA-9999')]);
+        $this->alarm($olt, ['serial_number' => 'ZTEGC0001']);
+        $operator = User::factory()->create();
+
+        $this->actingAs($operator, 'sanctum')
+            ->getJson('/api/v1/alarms')
+            ->assertOk()
+            ->assertJsonPath('data.0.target.openable', false)
+            ->assertJsonPath('data.0.target.reason', AlarmNotificationTargetResolver::REASON_POSITION_REUSED)
+            ->assertJsonPath('data.0.target.onu_id', null);
+    }
+
+    public function test_api_alarms_target_for_non_zte_is_openable_without_web_detail_capability(): void
+    {
+        // El móvil tiene su propia pantalla de detalle (vía API) para todas las familias,
+        // así que `openable` no depende de la capability web `supports_cli_onu_detail`.
+        $olt = $this->makeOlt('HIOSO HA7304', 'HIOSO OLT HA7304', [$this->onu(1, 1, 5, 'HS0001')]);
+        $this->alarm($olt, ['serial_number' => 'HS0001']);
+        $operator = User::factory()->create();
+
+        $this->actingAs($operator, 'sanctum')
+            ->getJson('/api/v1/alarms')
+            ->assertOk()
+            ->assertJsonPath('data.0.target.openable', true)
+            ->assertJsonPath('data.0.target.onu_id', 5);
+    }
+
+    public function test_resolver_reuses_one_snapshot_scan_per_olt(): void
+    {
+        // Muchas alarmas del mismo OLT en una sola petición deben compartir el índice
+        // serial→posición (memoizado), no re-escanear el snapshot por cada alarma.
+        $onus = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $onus[] = $this->onu(1, 1, $i, "SN{$i}");
+        }
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320', $onus);
+
+        $resolver = $this->resolver();
+        for ($i = 1; $i <= 30; $i++) {
+            $alarm = $this->alarm($olt, ['signature' => "s{$i}", 'onu_id' => $i, 'serial_number' => "SN{$i}"]);
+            $location = $resolver->resolveLocation($alarm);
+            $this->assertTrue($location['openable']);
+            $this->assertSame($i, $location['onu_id']);
+        }
+    }
+
     public function test_payload_exposes_structured_ids_not_parsed_from_message(): void
     {
         $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320', [$this->onu(1, 1, 5, 'ZTEGC0001')]);

@@ -99,7 +99,8 @@
         "minutes_ago": "{n} menit lalu",
         "hours_ago": "{n} jam lalu",
         "days_ago": "{n} hari lalu",
-        "notif_target_unavailable": "Tujuan alarm ini tak bisa dibuka."
+        "notif_target_unavailable": "Tujuan alarm ini tak bisa dibuka.",
+        "mark_read_failed": "Gagal menandai notifikasi ini dibaca — coba lagi."
     },
     "language": {
         "label": "Bahasa"

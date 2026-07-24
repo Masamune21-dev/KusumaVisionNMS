@@ -99,7 +99,8 @@
         "minutes_ago": "{n} min ago",
         "hours_ago": "{n} h ago",
         "days_ago": "{n} d ago",
-        "notif_target_unavailable": "This alarm has no page to open."
+        "notif_target_unavailable": "This alarm has no page to open.",
+        "mark_read_failed": "Could not mark this notification as read — please try again."
     },
     "language": {
         "label": "Language"

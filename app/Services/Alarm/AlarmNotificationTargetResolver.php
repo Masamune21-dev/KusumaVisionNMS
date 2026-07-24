@@ -34,18 +34,30 @@ class AlarmNotificationTargetResolver
     public const REASON_OLT_UNAVAILABLE = 'olt_unavailable';
 
     /**
+     * Índice serial → posición actual, memoizado por OLT: varias alarmas del mismo OLT
+     * (caso normal en la lista de alarmas de la API) reutilizan un único recorrido del
+     * snapshot en lugar de re-escanearlo por cada alarma.
+     *
+     * @var array<int, array<string, array{0:int,1:int,2:int}>>
+     */
+    private array $serialIndex = [];
+
+    /**
+     * Destino WEB (ruta interna de Inertia).
+     *
      * @return array{url:?string, fallback_url:string, reason:?string}
      */
     public function resolve(AlarmEvent $alarm): array
     {
-        // $alarm->olt pasa por PartnerOltScope/DemoScope → null si el usuario no lo ve.
-        $olt = $alarm->olt;
         $fallback = $this->fallbackUrl($alarm);
+        $location = $this->resolveLocation($alarm);
 
-        if ($olt === null) {
-            return $this->miss(self::REASON_OLT_UNAVAILABLE, $fallback);
+        if (! $location['openable']) {
+            return $this->miss($location['reason'] ?? self::REASON_OLT_UNAVAILABLE, $fallback);
         }
 
+        // $alarm->olt pasa por PartnerOltScope/DemoScope → null si el usuario no lo ve.
+        $olt = $alarm->olt;
         $driver = SmartOltSupport::driverKey(
             $olt,
             data_get($olt->last_test_result, 'system.sys_descr'),
@@ -53,52 +65,91 @@ class AlarmNotificationTargetResolver
         );
         $prefix = SmartOltSupport::inventoryRoutePrefix($driver);
 
-        return match ($alarm->scope) {
-            'onu' => $this->resolveOnu($alarm, $olt, $driver, $prefix, $fallback),
-            'port' => $this->resolvePort($alarm, $olt, $prefix, $fallback),
-            // scope 'olt' (y cualquier valor inesperado) → detalle del OLT de su familia.
-            default => $this->hit(route("{$prefix}.detail", $olt, absolute: false), $fallback),
-        };
+        if ($location['resource_type'] === 'onu') {
+            // La página de detalle individual solo existe donde la capability lo permite
+            // (hoy: ZTE C300/C320/C600). En el resto se abre el puerto resaltando la ONU
+            // con el parámetro `focus` que esas páginas ya soportan.
+            $supportsDetail = (bool) (SmartOltSupport::capabilities($driver, $olt)['supports_cli_onu_detail'] ?? false);
+
+            $url = $supportsDetail
+                ? route("{$prefix}.onu.detail", [$olt, $location['slot'], $location['port'], $location['onu_id']], absolute: false)
+                : route("{$prefix}.port-onus", [
+                    'olt' => $olt,
+                    'slot' => $location['slot'],
+                    'port' => $location['port'],
+                    'focus' => $location['onu_id'],
+                ], absolute: false);
+
+            return $this->hit($url, $fallback, $location['reason']);
+        }
+
+        if ($location['resource_type'] === 'port') {
+            return $this->hit(
+                route("{$prefix}.port-onus", [$olt, $location['slot'], $location['port']], absolute: false),
+                $fallback,
+                $location['reason'],
+            );
+        }
+
+        return $this->hit(route("{$prefix}.detail", $olt, absolute: false), $fallback, $location['reason']);
     }
 
     /**
-     * @return array{url:?string, fallback_url:string, reason:?string}
+     * Ubicación ESTRUCTURADA ya resuelta (posición actual tras seguir el serial), sin URLs.
+     *
+     * Es lo que consume la API/aplicación móvil: una ruta web no le sirve a `go_router`, y
+     * además el móvil tiene su propia pantalla de detalle de ONU que funciona para todas las
+     * familias (lee el snapshot vía API), así que aquí NO se aplica la capability web
+     * `supports_cli_onu_detail`.
+     *
+     * @return array{resource_type:?string, olt_id:?int, slot:?int, port:?int, onu_id:?int, openable:bool, reason:?string}
      */
-    private function resolveOnu(AlarmEvent $alarm, SnmpOlt $olt, string $driver, string $prefix, string $fallback): array
+    public function resolveLocation(AlarmEvent $alarm): array
     {
-        $located = $this->locateOnu($alarm, $olt);
+        $olt = $alarm->olt;
 
-        if ($located['reason'] !== null && $located['position'] === null) {
-            return $this->miss($located['reason'], $fallback);
+        if ($olt === null) {
+            return $this->location(null, null, null, null, null, false, self::REASON_OLT_UNAVAILABLE);
         }
 
-        [$slot, $port, $onuId] = $located['position'];
+        if ($alarm->scope === 'onu') {
+            $located = $this->locateOnu($alarm, $olt);
 
-        // La página de detalle individual solo existe donde la capability lo permite
-        // (hoy: ZTE C300/C320/C600). En el resto se abre el puerto resaltando la ONU
-        // con el parámetro `focus` que esas páginas ya soportan.
-        $supportsDetail = (bool) (SmartOltSupport::capabilities($driver, $olt)['supports_cli_onu_detail'] ?? false);
+            if ($located['position'] === null) {
+                return $this->location('onu', $olt->id, null, null, null, false, $located['reason']);
+            }
 
-        $url = $supportsDetail
-            ? route("{$prefix}.onu.detail", [$olt, $slot, $port, $onuId], absolute: false)
-            : route("{$prefix}.port-onus", ['olt' => $olt, 'slot' => $slot, 'port' => $port, 'focus' => $onuId], absolute: false);
+            [$slot, $port, $onuId] = $located['position'];
 
-        return $this->hit($url, $fallback, $located['reason']);
+            return $this->location('onu', $olt->id, $slot, $port, $onuId, true, $located['reason']);
+        }
+
+        if ($alarm->scope === 'port') {
+            if ($alarm->slot === null || $alarm->port === null) {
+                return $this->location('port', $olt->id, null, null, null, false, self::REASON_INCOMPLETE_LOCATION);
+            }
+
+            return $this->location('port', $olt->id, (int) $alarm->slot, (int) $alarm->port, null, true, null);
+        }
+
+        // scope 'olt' (y cualquier valor inesperado) → el OLT en sí.
+        return $this->location('olt', $olt->id, null, null, null, true, null);
     }
 
     /**
-     * @return array{url:?string, fallback_url:string, reason:?string}
+     * @return array{resource_type:?string, olt_id:?int, slot:?int, port:?int, onu_id:?int, openable:bool, reason:?string}
      */
-    private function resolvePort(AlarmEvent $alarm, SnmpOlt $olt, string $prefix, string $fallback): array
+    private function location(?string $type, ?int $oltId, ?int $slot, ?int $port, ?int $onuId, bool $openable, ?string $reason): array
     {
-        if ($alarm->slot === null || $alarm->port === null) {
-            return $this->miss(self::REASON_INCOMPLETE_LOCATION, $fallback);
-        }
-
-        return $this->hit(
-            route("{$prefix}.port-onus", [$olt, $alarm->slot, $alarm->port], absolute: false),
-            $fallback,
-        );
+        return [
+            'resource_type' => $type,
+            'olt_id' => $oltId,
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'openable' => $openable,
+            'reason' => $reason,
+        ];
     }
 
     /**
@@ -156,19 +207,40 @@ class AlarmNotificationTargetResolver
      */
     private function findBySerial(SnmpOlt $olt, string $serial): ?array
     {
+        return $this->serialIndexFor($olt)[$serial] ?? null;
+    }
+
+    /**
+     * Recorre el snapshot UNA vez por OLT y memoiza serial → posición: la lista de alarmas
+     * de la API resuelve muchas alarmas del mismo OLT en una sola petición.
+     *
+     * @return array<string, array{0:int,1:int,2:int}>
+     */
+    private function serialIndexFor(SnmpOlt $olt): array
+    {
+        if (isset($this->serialIndex[$olt->id])) {
+            return $this->serialIndex[$olt->id];
+        }
+
+        $index = [];
+
         foreach ($this->portOnusEntries($olt) as $entry) {
             foreach (data_get($entry, 'onus', []) as $onu) {
-                if ((string) ($onu['serial_number'] ?? '') === $serial) {
-                    return [
-                        (int) ($onu['slot'] ?? 0),
-                        (int) ($onu['port'] ?? 0),
-                        (int) ($onu['onu_id'] ?? 0),
-                    ];
+                $serial = (string) ($onu['serial_number'] ?? '');
+
+                if ($serial === '') {
+                    continue;
                 }
+
+                $index[$serial] = [
+                    (int) ($onu['slot'] ?? 0),
+                    (int) ($onu['port'] ?? 0),
+                    (int) ($onu['onu_id'] ?? 0),
+                ];
             }
         }
 
-        return null;
+        return $this->serialIndex[$olt->id] = $index;
     }
 
     /**

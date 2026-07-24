@@ -129,19 +129,36 @@ class _AlarmCard extends StatelessWidget {
         _ => LucideIcons.bellRing,
       };
 
+  /// Navegación basada en la ubicación que RESOLVIÓ el servidor, no en los IDs históricos
+  /// del evento: si la ONU se movió abre su posición actual, y si esa posición la ocupa
+  /// ahora otra ONU (serial distinto) no se abre para no mostrar el cliente equivocado.
+  VoidCallback? _onTap(BuildContext context) {
+    final target = alarm.target;
+
+    if (target != null && target.openable) {
+      if (target.isOnu) {
+        return () => context.push(
+            '/olts/${target.oltId}/ports/${target.slot}/${target.port}/onus/${target.onuId}');
+      }
+      if (target.isPort) {
+        return () => context.push('/olts/${target.oltId}/ports/${target.slot}/${target.port}');
+      }
+    }
+
+    // Sin destino fiable (o servidor sin `target`): como máximo el OLT.
+    final oltId = target?.oltId ?? alarm.oltId;
+
+    return oltId != null ? () => context.push('/olts/$oltId') : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = AppColors.severity(alarm.severity);
     final t = Theme.of(context).textTheme;
-    final canOpen =
-        alarm.oltId != null && alarm.slot != null && alarm.port != null && alarm.onuId != null;
 
     return GlassCard(
       accent: alarm.severity == 'critical' ? color : null,
-      onTap: canOpen
-          ? () => context.push(
-              '/olts/${alarm.oltId}/ports/${alarm.slot}/${alarm.port}/onus/${alarm.onuId}')
-          : (alarm.oltId != null ? () => context.push('/olts/${alarm.oltId}') : null),
+      onTap: _onTap(context),
       padding: const EdgeInsets.all(14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
