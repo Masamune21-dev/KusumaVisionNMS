@@ -168,6 +168,18 @@ describe('NotificationBell — navegación', () => {
 });
 
 describe('NotificationBell — marcar leída optimista', () => {
+    it('desaparece al instante cuando marcar leída se confirma', async () => {
+        window.axios.post.mockResolvedValue({ data: { data: { unread_count: 0 } } });
+
+        const wrapper = await openBell();
+        const checkBtn = wrapper.findAll('li button')[1];
+        await checkBtn.trigger('click');
+        await flushPromises();
+
+        expect(wrapper.findAll('li')).toHaveLength(0);
+        expect(reload).toHaveBeenCalled();
+    });
+
     it('marca al instante y revierte si el POST falla', async () => {
         window.axios.post.mockRejectedValue({ response: { status: 500, data: {} } });
 

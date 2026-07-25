@@ -6,6 +6,7 @@ use App\Models\AlarmEvent;
 use App\Models\AlarmNotificationRead;
 use App\Models\User;
 use App\Services\AlarmEvaluator;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Payload y estado de lectura de la campana de notificaciones.
@@ -25,22 +26,11 @@ class AlarmNotificationService
      */
     public function payloadFor(User $user): array
     {
-        $alarms = AlarmEvent::query()
+        $alarms = $this->unreadQueryFor($user)
             ->with('olt:id,name')
-            ->where('status', AlarmEvent::STATUS_ACTIVE)
             ->orderByDesc('last_seen_at')
             ->limit(self::BELL_LIMIT)
             ->get();
-
-        // Una sola consulta para las lecturas individuales de las alarmas mostradas.
-        $readIds = $alarms->isEmpty()
-            ? []
-            : AlarmNotificationRead::query()
-                ->where('user_id', $user->id)
-                ->whereIn('alarm_event_id', $alarms->pluck('id'))
-                ->pluck('alarm_event_id')
-                ->all();
-        $readIds = array_flip($readIds);
 
         $items = $alarms
             ->map(fn (AlarmEvent $a) => [
@@ -61,10 +51,8 @@ class AlarmNotificationService
                 // El destino NO se precalcula aquí a propósito: resolverlo exige leer el
                 // snapshot del OLT (miles de ONU) y esto corre en CADA request Inertia.
                 // Lo resuelve el endpoint `notifications.alarms.open` para una sola alarma.
-                'is_read' => $this->isRead($a, $user, $readIds),
-                'read_at' => $this->isRead($a, $user, $readIds)
-                    ? ($a->last_seen_at?->toIso8601String())
-                    : null,
+                'is_read' => false,
+                'read_at' => null,
             ])
             ->all();
 
@@ -80,19 +68,7 @@ class AlarmNotificationService
      */
     public function unreadCountFor(User $user): int
     {
-        return AlarmEvent::query()
-            ->where('status', AlarmEvent::STATUS_ACTIVE)
-            ->when(
-                $user->last_notifications_read_at !== null,
-                fn ($query) => $query->where('last_seen_at', '>', $user->last_notifications_read_at),
-            )
-            ->whereNotExists(
-                fn ($query) => $query->selectRaw('1')
-                    ->from('alarm_notification_reads')
-                    ->whereColumn('alarm_notification_reads.alarm_event_id', 'alarm_events.id')
-                    ->where('alarm_notification_reads.user_id', $user->id),
-            )
-            ->count();
+        return $this->unreadQueryFor($user)->count();
     }
 
     /**
@@ -153,17 +129,19 @@ class AlarmNotificationService
         return $marked;
     }
 
-    /**
-     * @param  array<int, int>  $readIds  mapa id-alarma => posición (array_flip)
-     */
-    private function isRead(AlarmEvent $alarm, User $user, array $readIds): bool
+    private function unreadQueryFor(User $user): Builder
     {
-        if (isset($readIds[$alarm->id])) {
-            return true;
-        }
-
-        return $user->last_notifications_read_at !== null
-            && $alarm->last_seen_at !== null
-            && $alarm->last_seen_at <= $user->last_notifications_read_at;
+        return AlarmEvent::query()
+            ->where('status', AlarmEvent::STATUS_ACTIVE)
+            ->when(
+                $user->last_notifications_read_at !== null,
+                fn ($query) => $query->where('last_seen_at', '>', $user->last_notifications_read_at),
+            )
+            ->whereNotExists(
+                fn ($query) => $query->selectRaw('1')
+                    ->from('alarm_notification_reads')
+                    ->whereColumn('alarm_notification_reads.alarm_event_id', 'alarm_events.id')
+                    ->where('alarm_notification_reads.user_id', $user->id),
+            );
     }
 }

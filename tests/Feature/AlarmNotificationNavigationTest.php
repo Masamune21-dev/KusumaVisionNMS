@@ -423,6 +423,48 @@ class AlarmNotificationNavigationTest extends TestCase
         }
     }
 
+    public function test_read_notifications_disappear_and_the_bell_refills_to_its_limit(): void
+    {
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+        $alarms = collect();
+
+        for ($i = 1; $i <= 9; $i++) {
+            $alarms->push($this->alarm($olt, [
+                'signature' => "bell-{$i}",
+                'onu_id' => $i,
+                'last_seen_at' => now()->subSeconds(10 - $i),
+            ]));
+        }
+
+        $newest = $alarms->last();
+        $service->markRead($newest, $admin);
+        $payload = $service->payloadFor($admin->fresh());
+
+        $this->assertCount(8, $payload['items']);
+        $this->assertSame(8, $payload['unread_count']);
+        $this->assertNotContains($newest->id, collect($payload['items'])->pluck('id'));
+        $this->assertTrue(collect($payload['items'])->every(fn ($item) => $item['is_read'] === false));
+    }
+
+    public function test_mark_all_read_keeps_the_bell_empty_after_a_poll(): void
+    {
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $alarm = $this->alarm($olt);
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+
+        $this->actingAs($admin)->post(route('notifications.read-all'))->assertRedirect();
+        $this->travel(6)->minutes();
+        $alarm->forceFill(['last_seen_at' => now()])->save();
+
+        $payload = $service->payloadFor($admin->fresh());
+
+        $this->assertSame([], $payload['items']);
+        $this->assertSame(0, $payload['unread_count']);
+    }
+
     public function test_payload_exposes_structured_ids_not_parsed_from_message(): void
     {
         $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320', [$this->onu(1, 1, 5, 'ZTEGC0001')]);

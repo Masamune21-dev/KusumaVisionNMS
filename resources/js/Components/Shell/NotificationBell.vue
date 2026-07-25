@@ -21,8 +21,8 @@ const optimisticRead = ref(new Set());
 
 const serverItems = computed(() => page.props.notifications?.items ?? []);
 
-const notifications = computed(() => serverItems.value.map(
-    (n) => (optimisticRead.value.has(n.id) ? { ...n, is_read: true } : n),
+const notifications = computed(() => serverItems.value.filter(
+    (n) => !optimisticRead.value.has(n.id),
 ));
 
 const unreadCount = computed(() => {
