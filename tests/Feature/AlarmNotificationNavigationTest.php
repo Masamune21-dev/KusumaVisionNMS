@@ -423,6 +423,88 @@ class AlarmNotificationNavigationTest extends TestCase
         }
     }
 
+    public function test_power_off_disappears_when_read(): void
+    {
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $powerOff = $this->alarm($olt, [
+            'type' => AlarmEvent::TYPE_DYING_GASP,
+            'signature' => 'power-off',
+        ]);
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+
+        $service->markRead($powerOff, $admin);
+        $payload = $service->payloadFor($admin->fresh());
+
+        $this->assertSame([], $payload['items']);
+        $this->assertSame(0, $payload['unread_count']);
+    }
+
+    public function test_operational_alarms_remain_visible_when_read_until_recovery(): void
+    {
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+        $persistent = collect([
+            [AlarmEvent::TYPE_HIGH_RX, 'high-rx', 'onu'],
+            [AlarmEvent::TYPE_PORT_DOWN, 'port-down', 'port'],
+            [AlarmEvent::TYPE_LOS, 'los', 'onu'],
+            [AlarmEvent::TYPE_OLT_UNREACHABLE, 'olt-down', 'olt'],
+        ])->map(fn ($definition, $index) => $this->alarm($olt, [
+            'type' => $definition[0],
+            'signature' => $definition[1],
+            'scope' => $definition[2],
+            'last_seen_at' => now()->subSeconds($index),
+        ]));
+
+        $this->actingAs($admin)->post(route('notifications.read-all'))->assertRedirect();
+        $payload = $service->payloadFor($admin->fresh());
+
+        $this->assertSame(0, $payload['unread_count']);
+        $this->assertEqualsCanonicalizing(
+            $persistent->pluck('id')->all(),
+            collect($payload['items'])->pluck('id')->all(),
+        );
+        $this->assertTrue(collect($payload['items'])->every(
+            fn ($item) => $item['is_read'] === true
+                && $item['persistent_until_recovery'] === true
+                && $item['dismiss_on_read'] === false
+        ));
+
+        AlarmEvent::query()->whereIn('id', $persistent->pluck('id'))->update([
+            'status' => AlarmEvent::STATUS_CLEARED,
+            'cleared_at' => now(),
+        ]);
+
+        $this->assertSame([], $service->payloadFor($admin->fresh())['items']);
+    }
+
+    public function test_unread_alarms_have_priority_over_read_persistent_alarms(): void
+    {
+        $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');
+        $admin = User::factory()->admin()->create();
+        $service = app(AlarmNotificationService::class);
+        $persistent = $this->alarm($olt, [
+            'type' => AlarmEvent::TYPE_LOS,
+            'signature' => 'read-los',
+        ]);
+        $service->markRead($persistent, $admin);
+
+        for ($i = 1; $i <= 8; $i++) {
+            $this->alarm($olt, [
+                'signature' => "unread-{$i}",
+                'onu_id' => $i,
+                'last_seen_at' => now()->addSeconds($i),
+            ]);
+        }
+
+        $payload = $service->payloadFor($admin->fresh());
+
+        $this->assertCount(8, $payload['items']);
+        $this->assertNotContains($persistent->id, collect($payload['items'])->pluck('id'));
+        $this->assertTrue(collect($payload['items'])->every(fn ($item) => $item['is_read'] === false));
+    }
+
     public function test_read_notifications_disappear_and_the_bell_refills_to_its_limit(): void
     {
         $olt = $this->makeOlt('ZTE C320', 'ZTE ZXA10 C320');

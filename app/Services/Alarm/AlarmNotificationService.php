@@ -21,16 +21,41 @@ class AlarmNotificationService
     /** Cuántas alarmas se muestran en el desplegable. */
     private const BELL_LIMIT = 8;
 
+    /** Alarmas operativas que deben seguir visibles hasta que AlarmEvaluator las resuelva. */
+    private const PERSISTENT_UNTIL_RECOVERY = [
+        AlarmEvent::TYPE_HIGH_RX,
+        AlarmEvent::TYPE_PORT_DOWN,
+        AlarmEvent::TYPE_LOS,
+        AlarmEvent::TYPE_OLT_UNREACHABLE,
+    ];
+
     /**
      * @return array{items:array<int,array<string,mixed>>, unread_count:int}
      */
     public function payloadFor(User $user): array
     {
-        $alarms = $this->unreadQueryFor($user)
+        // Las no leídas siempre tienen prioridad. Solo si quedan espacios se completan
+        // con alarmas persistentes ya leídas que continúan físicamente activas.
+        $unreadAlarms = $this->unreadQueryFor($user)
             ->with('olt:id,name')
             ->orderByDesc('last_seen_at')
             ->limit(self::BELL_LIMIT)
             ->get();
+        $unreadIds = array_flip($unreadAlarms->pluck('id')->all());
+        $alarms = $unreadAlarms;
+        $remaining = self::BELL_LIMIT - $alarms->count();
+
+        if ($remaining > 0) {
+            $persistentRead = AlarmEvent::query()
+                ->with('olt:id,name')
+                ->where('status', AlarmEvent::STATUS_ACTIVE)
+                ->whereIn('type', self::PERSISTENT_UNTIL_RECOVERY)
+                ->whereNotIn('id', $unreadAlarms->pluck('id'))
+                ->orderByDesc('last_seen_at')
+                ->limit($remaining)
+                ->get();
+            $alarms = $alarms->concat($persistentRead);
+        }
 
         $items = $alarms
             ->map(fn (AlarmEvent $a) => [
@@ -51,8 +76,12 @@ class AlarmNotificationService
                 // El destino NO se precalcula aquí a propósito: resolverlo exige leer el
                 // snapshot del OLT (miles de ONU) y esto corre en CADA request Inertia.
                 // Lo resuelve el endpoint `notifications.alarms.open` para una sola alarma.
-                'is_read' => false,
-                'read_at' => null,
+                'is_read' => ! isset($unreadIds[$a->id]),
+                'read_at' => ! isset($unreadIds[$a->id])
+                    ? $user->last_notifications_read_at?->toIso8601String()
+                    : null,
+                'persistent_until_recovery' => $this->persistsUntilRecovery($a),
+                'dismiss_on_read' => ! $this->persistsUntilRecovery($a),
             ])
             ->all();
 
@@ -127,6 +156,11 @@ class AlarmNotificationService
         $user->forceFill(['last_notifications_read_at' => $now])->save();
 
         return $marked;
+    }
+
+    private function persistsUntilRecovery(AlarmEvent $alarm): bool
+    {
+        return in_array($alarm->type, self::PERSISTENT_UNTIL_RECOVERY, true);
     }
 
     private function unreadQueryFor(User $user): Builder

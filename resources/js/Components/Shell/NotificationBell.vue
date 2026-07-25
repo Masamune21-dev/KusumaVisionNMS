@@ -21,9 +21,14 @@ const optimisticRead = ref(new Set());
 
 const serverItems = computed(() => page.props.notifications?.items ?? []);
 
-const notifications = computed(() => serverItems.value.filter(
-    (n) => !optimisticRead.value.has(n.id),
-));
+const notifications = computed(() => serverItems.value
+    .map((notification) => {
+        if (!optimisticRead.value.has(notification.id)) return notification;
+        if (notification.dismiss_on_read) return null;
+
+        return { ...notification, is_read: true };
+    })
+    .filter(Boolean));
 
 const unreadCount = computed(() => {
     const base = page.props.notifications?.unread_count ?? 0;
@@ -58,6 +63,13 @@ const formatRelative = (iso) => {
 };
 
 const refreshBell = () => router.reload({ only: ['notifications'] });
+
+const toggleBell = () => {
+    open.value = !open.value;
+    notice.value = null;
+
+    if (open.value) refreshBell();
+};
 
 /**
  * El DESTINO lo decide el servidor: comprueba permiso en este instante, sigue la ONU si
@@ -145,8 +157,20 @@ const onClickOutside = (e) => {
         notice.value = null;
     }
 };
-onMounted(() => document.addEventListener('click', onClickOutside));
-onUnmounted(() => document.removeEventListener('click', onClickOutside));
+let refreshTimer;
+
+onMounted(() => {
+    document.addEventListener('click', onClickOutside);
+    refreshTimer = window.setInterval(() => {
+        if (open.value && document.visibilityState === 'visible' && openingId.value === null) {
+            refreshBell();
+        }
+    }, 60_000);
+});
+onUnmounted(() => {
+    document.removeEventListener('click', onClickOutside);
+    window.clearInterval(refreshTimer);
+});
 </script>
 
 <template>
@@ -155,7 +179,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
             type="button"
             class="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900/60 text-slate-300 transition-colors hover:border-cyan-500/30 hover:bg-slate-900/80 hover:text-white"
             :aria-label="$t('shell.notifications_title')"
-            @click.stop="open = !open"
+            @click.stop="toggleBell"
         >
             <BellRing class="h-5 w-5" />
             <span

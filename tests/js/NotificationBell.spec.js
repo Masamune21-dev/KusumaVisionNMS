@@ -38,6 +38,8 @@ const alarm = {
     resource_id: 37,
     serial_number: 'ZTEGC1F9E618',
     is_read: false,
+    persistent_until_recovery: false,
+    dismiss_on_read: true,
 };
 
 /** Monta la campana con el desplegable ya abierto. */
@@ -178,6 +180,32 @@ describe('NotificationBell — marcar leída optimista', () => {
 
         expect(wrapper.findAll('li')).toHaveLength(0);
         expect(reload).toHaveBeenCalled();
+    });
+
+    it('mantiene visible una alarma persistente al leerla, pero sin indicador pendiente', async () => {
+        pageProps = {
+            notifications: {
+                items: [{
+                    ...alarm,
+                    id: 6503,
+                    alarm_id: 6503,
+                    type: 'los',
+                    persistent_until_recovery: true,
+                    dismiss_on_read: false,
+                }],
+                unread_count: 1,
+            },
+        };
+        window.axios.post.mockResolvedValue({ data: { data: { unread_count: 0 } } });
+
+        const wrapper = await openBell();
+        const checkBtn = wrapper.findAll('li button')[1];
+        await checkBtn.trigger('click');
+        await flushPromises();
+
+        expect(wrapper.findAll('li')).toHaveLength(1);
+        expect(wrapper.findAll('li button')).toHaveLength(1);
+        expect(wrapper.text()).not.toContain('1');
     });
 
     it('marca al instante y revierte si el POST falla', async () => {
