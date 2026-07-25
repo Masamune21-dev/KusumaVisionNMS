@@ -158,18 +158,37 @@ class AlarmNotificationService
         return $marked;
     }
 
-    private function persistsUntilRecovery(AlarmEvent $alarm): bool
+    public function persistsUntilRecovery(AlarmEvent $alarm): bool
     {
         return in_array($alarm->type, self::PERSISTENT_UNTIL_RECOVERY, true);
     }
 
+    /** Limita alarmas activas a no leídas o persistentes hasta recuperación. */
+    public function applyActiveVisibility(Builder $query, User $user): void
+    {
+        $query->where(function (Builder $query) use ($user) {
+            $query
+                ->whereIn('type', self::PERSISTENT_UNTIL_RECOVERY)
+                ->orWhere(function (Builder $query) use ($user) {
+                    $this->applyUnreadConstraints($query, $user);
+                });
+        });
+    }
+
     private function unreadQueryFor(User $user): Builder
     {
-        return AlarmEvent::query()
-            ->where('status', AlarmEvent::STATUS_ACTIVE)
+        $query = AlarmEvent::query()->where('status', AlarmEvent::STATUS_ACTIVE);
+        $this->applyUnreadConstraints($query, $user);
+
+        return $query;
+    }
+
+    private function applyUnreadConstraints(Builder $query, User $user): void
+    {
+        $query
             ->when(
                 $user->last_notifications_read_at !== null,
-                fn ($query) => $query->where('last_seen_at', '>', $user->last_notifications_read_at),
+                fn (Builder $query) => $query->where('last_seen_at', '>', $user->last_notifications_read_at),
             )
             ->whereNotExists(
                 fn ($query) => $query->selectRaw('1')

@@ -27,6 +27,7 @@ const makeAlarm = (id, contextualNavigation) => ({
     message: "ONU offline", first_seen_at: "2026-07-24T12:00:00Z",
     last_seen_at: "2026-07-24T12:05:00Z", cleared_at: null,
     contextual_navigation: contextualNavigation,
+    dismiss_on_read: true,
 });
 
 const mountPage = () => mount(AlarmsPage, {
@@ -101,6 +102,7 @@ describe("Alarms contextual navigation limited to ZTE", () => {
         await wrapper.findAll("tbody tr")[0].trigger("click");
         await flushPromises();
         expect(wrapper.text()).toContain("ONU no encontrada");
+        expect(wrapper.findAll("tbody tr")).toHaveLength(1);
         await wrapper.find("[role=\"alert\"] button").trigger("click");
         expect(visit).toHaveBeenCalledWith("/alarms?olt_id=2&scope=onu");
     });

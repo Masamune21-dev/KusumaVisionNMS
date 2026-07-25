@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AlarmEvent;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SnmpOlt;
+use App\Services\Alarm\AlarmNotificationService;
 use App\Support\SmartOltSupport;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -13,7 +15,7 @@ use Inertia\Response;
 
 class AlarmController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, AlarmNotificationService $notifications): Response
     {
         $status = in_array($request->query('status'), ['active', 'cleared', 'all'], true)
             ? $request->query('status')
@@ -43,6 +45,19 @@ class AlarmController extends Controller
             ->when($oltId !== null, fn ($query) => $query->where('snmp_olt_id', $oltId))
             ->when($search !== '', fn ($query) => $this->applySearch($query, $search));
 
+        if ($status === AlarmEvent::STATUS_ACTIVE) {
+            $notifications->applyActiveVisibility($query, $request->user());
+        } elseif ($status === 'all') {
+            $query->where(function (Builder $query) use ($notifications, $request) {
+                $query
+                    ->where('status', AlarmEvent::STATUS_CLEARED)
+                    ->orWhere(function (Builder $query) use ($notifications, $request) {
+                        $query->where('status', AlarmEvent::STATUS_ACTIVE);
+                        $notifications->applyActiveVisibility($query, $request->user());
+                    });
+            });
+        }
+
         $alarmPage = $query->paginate(20)->withQueryString();
         $customerNames = $this->customerNamesFor($alarmPage->getCollection());
 
@@ -65,6 +80,7 @@ class AlarmController extends Controller
             'first_seen_at' => $alarm->first_seen_at?->toIso8601String(),
             'last_seen_at' => $alarm->last_seen_at?->toIso8601String(),
             'cleared_at' => $alarm->cleared_at?->toIso8601String(),
+            'dismiss_on_read' => ! $notifications->persistsUntilRecovery($alarm),
             // La navegación contextual web se limita al alcance solicitado: ZTE.
             // Vue recibe una decisión del servidor y no intenta inferir el fabricante.
             'contextual_navigation' => SmartOltSupport::driverKey(

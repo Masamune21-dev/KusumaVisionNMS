@@ -226,6 +226,12 @@ class AlarmNotificationNavigationTest extends TestCase
         $this->assertDatabaseMissing('alarm_notification_reads', [
             'user_id' => $admin->id, 'alarm_event_id' => $other->id,
         ]);
+
+        // La alarma leída desaparece de /alarms; la otra permanece.
+        $this->actingAs($admin)->get(route('alarms.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('alarms.total', 1)
+                ->where('alarms.data.0.id', $other->id));
     }
 
     public function test_open_endpoint_reports_message_when_target_missing(): void

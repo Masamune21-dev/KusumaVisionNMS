@@ -30,7 +30,8 @@ const props = defineProps({
     },
 });
 
-const rows = computed(() => props.alarms.data ?? []);
+const dismissedIds = ref(new Set());
+const rows = computed(() => (props.alarms.data ?? []).filter((alarm) => !dismissedIds.value.has(alarm.id)));
 const openingId = ref(null);
 const notice = ref(null);
 
@@ -155,6 +156,10 @@ const openAlarm = async (alarm) => {
             route('notifications.alarms.open', alarm.id),
         );
         const target = data?.data?.target_url;
+
+        if (alarm.dismiss_on_read) {
+            dismissedIds.value = new Set([...dismissedIds.value, alarm.id]);
+        }
 
         if (target) {
             router.visit(target);
