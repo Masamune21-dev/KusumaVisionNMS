@@ -29,7 +29,7 @@ class AlarmController extends Controller
         $search = trim((string) $request->query('q', ''));
 
         $query = AlarmEvent::query()
-            ->with('olt:id,name')
+            ->with('olt:id,name,vendor,last_test_result')
             ->orderByDesc('last_seen_at');
 
         $query
@@ -65,6 +65,13 @@ class AlarmController extends Controller
             'first_seen_at' => $alarm->first_seen_at?->toIso8601String(),
             'last_seen_at' => $alarm->last_seen_at?->toIso8601String(),
             'cleared_at' => $alarm->cleared_at?->toIso8601String(),
+            // La navegación contextual web se limita al alcance solicitado: ZTE.
+            // Vue recibe una decisión del servidor y no intenta inferir el fabricante.
+            'contextual_navigation' => SmartOltSupport::driverKey(
+                $alarm->olt,
+                data_get($alarm->olt?->last_test_result, 'system.sys_descr'),
+                data_get($alarm->olt?->last_test_result, 'system.sys_object_id'),
+            ) === SmartOltSupport::DRIVER_ZTE,
         ]);
 
         $summary = AlarmEvent::query()

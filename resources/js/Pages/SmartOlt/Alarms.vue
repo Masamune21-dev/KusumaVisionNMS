@@ -6,8 +6,8 @@ import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellRing, Filter, RotateCcw, Search, ShieldCheck } from '@lucide/vue';
-import { computed, reactive, watch } from 'vue';
+import { AlertTriangle, BellRing, Filter, Loader2, RotateCcw, Search, ShieldCheck } from '@lucide/vue';
+import { computed, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -31,6 +31,8 @@ const props = defineProps({
 });
 
 const rows = computed(() => props.alarms.data ?? []);
+const openingId = ref(null);
+const notice = ref(null);
 
 const cards = computed(() => [
     { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-400' },
@@ -142,6 +144,49 @@ const formatDate = (value) => {
 
     return formatDateTime(value);
 };
+const openAlarm = async (alarm) => {
+    if (!alarm.contextual_navigation || openingId.value !== null) return;
+
+    openingId.value = alarm.id;
+    notice.value = null;
+
+    try {
+        const { data } = await window.axios.post(
+            route('notifications.alarms.open', alarm.id),
+        );
+        const target = data?.data?.target_url;
+
+        if (target) {
+            router.visit(target);
+            return;
+        }
+
+        notice.value = {
+            message: data?.data?.message ?? t('shell.notif_target_unavailable'),
+            fallback: data?.data?.fallback_url ?? route('alarms.index'),
+        };
+    } catch (error) {
+        notice.value = {
+            message: error?.response?.data?.message ?? t('shell.notif_target_unavailable'),
+            fallback: route('alarms.index'),
+        };
+    } finally {
+        openingId.value = null;
+    }
+};
+
+const openAlarmFromKeyboard = (event, alarm) => {
+    if (event.target !== event.currentTarget) return;
+
+    event.preventDefault();
+    openAlarm(alarm);
+};
+
+const goFallback = () => {
+    if (!notice.value?.fallback) return;
+
+    router.visit(notice.value.fallback);
+};
 </script>
 
 <template>
@@ -247,6 +292,16 @@ const formatDate = (value) => {
                         </div>
                     </div>
 
+                    <div v-if="notice" role="alert" class="flex items-start gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 sm:px-6">
+                        <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        <div class="min-w-0 flex-1">
+                            <p>{{ notice.message }}</p>
+                            <button v-if="notice.fallback" type="button" class="mt-1.5 font-medium text-cyan-300 underline hover:text-cyan-200" @click="goFallback">
+                                {{ $t('shell.view_all_alarms') }} &rarr;
+                            </button>
+                        </div>
+                    </div>
+
                     <div v-if="rows.length === 0" class="px-6 py-12 text-center">
                         <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
                             <ShieldCheck class="h-7 w-7 text-slate-400" />
@@ -259,7 +314,20 @@ const formatDate = (value) => {
 
                     <template v-else>
                         <div class="kv-mobile-list">
-                            <article v-for="alarm in rows" :key="alarm.id" class="kv-mobile-card">
+                            <article
+                                v-for="alarm in rows"
+                                :key="alarm.id"
+                                class="kv-mobile-card relative"
+                                :class="alarm.contextual_navigation ? 'cursor-pointer transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500' : ''"
+                                :role="alarm.contextual_navigation ? 'button' : undefined"
+                                :tabindex="alarm.contextual_navigation ? 0 : undefined"
+                                :aria-label="alarm.contextual_navigation ? $t('shell.open_notification') : undefined"
+                                :aria-busy="openingId === alarm.id"
+                                @click="openAlarm(alarm)"
+                                @keydown.enter="openAlarmFromKeyboard($event, alarm)"
+                                @keydown.space="openAlarmFromKeyboard($event, alarm)"
+                            >
+                                <Loader2 v-if="openingId === alarm.id" class="absolute right-4 top-4 h-5 w-5 animate-spin text-cyan-400" />
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
@@ -277,7 +345,12 @@ const formatDate = (value) => {
                                 <div class="kv-mobile-fields">
                                     <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">OLT</span>
-                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="kv-mobile-value font-medium text-cyan-400 hover:text-cyan-300">
+                                        <Link
+                                            :href="route('smartolt.detail', alarm.olt.id)"
+                                            class="kv-mobile-value font-medium text-cyan-400 hover:text-cyan-300"
+                                            @click.stop
+                                            @keydown.stop
+                                        >
                                             {{ alarm.olt.name }}
                                         </Link>
                                     </div>
@@ -314,7 +387,19 @@ const formatDate = (value) => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
-                                <tr v-for="alarm in rows" :key="alarm.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
+                                <tr
+                                    v-for="alarm in rows"
+                                    :key="alarm.id"
+                                    class="transition-colors duration-150 hover:bg-white/[0.03]"
+                                    :class="alarm.contextual_navigation ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-500' : ''"
+                                    :role="alarm.contextual_navigation ? 'button' : undefined"
+                                    :tabindex="alarm.contextual_navigation ? 0 : undefined"
+                                    :aria-label="alarm.contextual_navigation ? $t('shell.open_notification') : undefined"
+                                    :aria-busy="openingId === alarm.id"
+                                    @click="openAlarm(alarm)"
+                                    @keydown.enter="openAlarmFromKeyboard($event, alarm)"
+                                    @keydown.space="openAlarmFromKeyboard($event, alarm)"
+                                >
                                     <td class="px-4 py-4">
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
                                             {{ alarm.severity }}
@@ -322,7 +407,12 @@ const formatDate = (value) => {
                                     </td>
                                     <td class="px-4 py-4 text-sm font-medium text-white">{{ alarmTypeLabel(t, alarm.type) }}</td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
-                                        <Link :href="route('smartolt.detail', alarm.olt.id)" class="font-medium text-cyan-400 hover:text-cyan-400">
+                                        <Link
+                                            :href="route('smartolt.detail', alarm.olt.id)"
+                                            class="font-medium text-cyan-400 hover:text-cyan-400"
+                                            @click.stop
+                                            @keydown.stop
+                                        >
                                             {{ alarm.olt.name }}
                                         </Link>
                                         <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-white">
@@ -337,7 +427,10 @@ const formatDate = (value) => {
                                         </span>
                                     </td>
                                     <td class="px-4 py-4 text-sm text-slate-200">
-                                        <div>{{ formatDate(alarm.last_seen_at) }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <span>{{ formatDate(alarm.last_seen_at) }}</span>
+                                            <Loader2 v-if="openingId === alarm.id" class="h-4 w-4 animate-spin text-cyan-400" />
+                                        </div>
                                         <div class="text-xs text-slate-500">{{ $t('alarms.since_prefix', { date: formatDate(alarm.first_seen_at) }) }}</div>
                                     </td>
                                 </tr>

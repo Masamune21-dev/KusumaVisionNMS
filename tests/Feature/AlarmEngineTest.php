@@ -420,6 +420,35 @@ class AlarmEngineTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_alarms_page_enables_contextual_navigation_only_for_zte(): void
+    {
+        $user = User::factory()->create();
+        $zte = $this->makeOlt(['ok' => true]);
+        $other = $this->makeOlt(['ok' => true]);
+        $other->update(['name' => 'OTHER-OLT', 'vendor' => 'Unknown vendor']);
+
+        foreach ([[$zte, 'zte'], [$other, 'other']] as [$olt, $signature]) {
+            AlarmEvent::create([
+                'snmp_olt_id' => $olt->id,
+                'signature' => $signature,
+                'type' => 'olt_unreachable',
+                'severity' => 'critical',
+                'status' => 'active',
+                'scope' => 'olt',
+                'message' => $signature,
+                'first_seen_at' => now(),
+                'last_seen_at' => $signature === 'other' ? now() : now()->subMinute(),
+            ]);
+        }
+
+        $response = $this->actingAs($user)->get(route('alarms.index', ['status' => 'all']));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('alarms.data.0.contextual_navigation', false)
+            ->where('alarms.data.1.contextual_navigation', true)
+        );
+    }
+
     public function test_alarms_page_filters_results(): void
     {
         $user = User::factory()->create();
