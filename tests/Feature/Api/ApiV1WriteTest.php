@@ -7,7 +7,6 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\ZteCliProvisioningExecutor;
@@ -69,7 +68,6 @@ class ApiV1WriteTest extends TestCase
             'vlan' => 100,
             'service_name' => 'ServiceName',
             'wan_mode' => 'pppoe',
-            'zone_id' => Zone::query()->firstOrCreate(['name' => 'RINCON'])->id,
         ];
     }
 

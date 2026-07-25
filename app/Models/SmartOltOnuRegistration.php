@@ -47,7 +47,6 @@ class SmartOltOnuRegistration extends Model
         'pon_port',
         'oid_index',
         'customer_name',
-        'zone_id',
         'onu_type',
         'tcont_profile',
         'vlan',
@@ -113,10 +112,5 @@ class SmartOltOnuRegistration extends Model
     public function executor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executed_by');
-    }
-
-    public function zone(): BelongsTo
-    {
-        return $this->belongsTo(Zone::class);
     }
 }

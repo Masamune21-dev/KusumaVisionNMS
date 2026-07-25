@@ -6,7 +6,6 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuRxPowerService;
@@ -477,7 +476,6 @@ OUT,
             'port' => 1,
             'onu_id' => 3,
             'customer_name' => 'Customer A',
-            'zone_id' => Zone::query()->firstOrCreate(['name' => 'RINCON'])->id,
             'onu_type' => 'ALL-ONT',
             'tcont_profile' => 'SERVER',
             'vlan' => 100,
@@ -523,7 +521,6 @@ OUT,
             'port' => 2,
             'onu_id' => 1,
             'customer_name' => 'Static Customer',
-            'zone_id' => Zone::query()->firstOrCreate(['name' => 'RINCON'])->id,
             'onu_type' => 'ALL-ONT',
             'tcont_profile' => 'SERVER',
             'vlan' => 999,
@@ -566,7 +563,6 @@ OUT,
             'port' => 2,
             'onu_id' => 2,
             'customer_name' => 'TR069 Customer',
-            'zone_id' => Zone::query()->firstOrCreate(['name' => 'RINCON'])->id,
             'onu_type' => 'ALL-ONT',
             'tcont_profile' => 'SERVER',
             'vlan' => 100,

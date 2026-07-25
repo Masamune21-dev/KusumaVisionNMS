@@ -24,10 +24,6 @@ const props = defineProps({
         type: Object,
         required: true,
     },
-    zones: {
-        type: Array,
-        default: () => [],
-    },
     // Null bila OLT C600 — form Lanjutan C300/C320 tak dirender di sana.
     advanced_defaults: {
         type: Object,
@@ -93,7 +89,6 @@ const advForm = useForm({
     onu_id: props.defaults.onu_id,
     oid_index: props.defaults.oid_index,
     onu_type: props.defaults.onu_type,
-    zone_id: props.defaults.zone_id,
     config: clone(props.advanced_defaults),
 });
 
@@ -349,11 +344,8 @@ const submitC600 = async (execute) => {
                                 </div>
                                 <div>
                                     <InputLabel :value="$t('registeronu.c600_zone')" />
-                                    <select v-model="c600Form.zone_id" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500" required>
-                                        <option :value="null" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                        <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name }}</option>
-                                    </select>
-                                    <InputError class="mt-1.5" :message="c600Form.errors.zone_id" />
+                                    <TextInput v-model="c600Form.zone" class="mt-1 w-full" placeholder="ARROYO AL CABO" />
+                                    <InputError class="mt-1.5" :message="c600Form.errors.zone" />
                                 </div>
                             </div>
                         </div>
@@ -552,18 +544,10 @@ const submitC600 = async (execute) => {
                                 <TextInput id="onu_id" v-model="form.onu_id" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.onu_id" />
                             </div>
-                            <div class="md:col-span-2">
+                            <div class="md:col-span-3">
                                 <InputLabel for="customer_name" :value="$t('registeronu.customer_name')" />
                                 <TextInput id="customer_name" v-model="form.customer_name" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.customer_name" />
-                            </div>
-                            <div>
-                                <InputLabel :value="$t('registeronu.c600_zone')" />
-                                <select v-model="form.zone_id" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500" required>
-                                    <option :value="null" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                    <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name }}</option>
-                                </select>
-                                <InputError class="mt-1.5" :message="form.errors.zone_id" />
                             </div>
                         </div>
                     </div>
@@ -888,14 +872,6 @@ const submitC600 = async (execute) => {
                                         <option v-for="profile in onuTypeProfiles" :key="profile.id" :value="profile.name">{{ profile.name }}</option>
                                     </select>
                                     <InputError class="mt-1.5" :message="advForm.errors.onu_type" />
-                                </div>
-                                <div>
-                                    <InputLabel :value="$t('registeronu.c600_zone')" />
-                                    <select v-model="advForm.zone_id" class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500" required>
-                                        <option :value="null" disabled>{{ $t('registeronu.c600_select') }}</option>
-                                        <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name }}</option>
-                                    </select>
-                                    <InputError class="mt-1.5" :message="advForm.errors.zone_id" />
                                 </div>
                             </div>
                         </div>

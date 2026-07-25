@@ -21,7 +21,6 @@ use App\Http\Controllers\SmartOltProfileController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\TelnetSessionController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ZoneController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -73,12 +72,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
-
-        // Zona geografis (mis. "PALMARITO") — katalog global dikelola admin saja via Settings.
-        Route::get('/zones', [ZoneController::class, 'index'])->name('zones.index');
-        Route::post('/zones', [ZoneController::class, 'store'])->name('zones.store');
-        Route::put('/zones/{zone}', [ZoneController::class, 'update'])->name('zones.update');
-        Route::delete('/zones/{zone}', [ZoneController::class, 'destroy'])->name('zones.destroy');
 
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
         Route::post('/settings/api-tokens', [SettingsController::class, 'createApiToken'])->name('settings.api-tokens.store');
@@ -164,8 +157,6 @@ Route::middleware('auth')->group(function () {
     Route::put('/map/odps/{odp}', [OdpController::class, 'update'])->name('map.odps.update');
     Route::delete('/map/odps/{odp}', [OdpController::class, 'destroy'])->name('map.odps.destroy');
     Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
-    // Zona geografis (mis. "PALMARITO") diasosiasikan ke ONU — assign dari provisioning/detail ONU.
-    Route::post('/onu-zone', [ZoneController::class, 'assignOnu'])->name('onu-zone.assign');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');

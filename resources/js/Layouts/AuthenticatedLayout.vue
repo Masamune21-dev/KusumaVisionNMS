@@ -11,7 +11,7 @@ import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, Tag, User, Users, WifiOff } from '@lucide/vue';
+import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, WifiOff } from '@lucide/vue';
 
 // Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
 // Chunk async (lihat catatan di Welcome.vue) agar key manifest tidak hilang saat build.
@@ -62,7 +62,6 @@ const navLinks = computed(() => {
     if (can.value.manage_users) {
         links.push({ name: t('nav.users'), icon: Users, href: route('users.index'), match: 'users.*' });
         links.push({ name: t('nav.audit_logs'), icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
-        links.push({ name: t('nav.zones'), icon: Tag, href: route('zones.index'), match: 'zones.*' });
         links.push({ name: t('nav.settings'), icon: Settings, href: route('settings.edit'), match: 'settings.*' });
     }
 

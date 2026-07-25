@@ -87,9 +87,6 @@ fi
 log "Menjalankan migrasi"
 php artisan migrate --force
 
-# Katalog zona awal (PALMARITO, RINCON, dst.) — idempotent (firstOrCreate), aman diulang.
-php artisan db:seed --class=ZoneSeeder --force
-
 # ---------------------------------------------------------------------------
 # 5. Admin opsional (hanya saat instalasi pertama / tabel users kosong)
 # ---------------------------------------------------------------------------

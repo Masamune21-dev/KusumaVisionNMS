@@ -21,7 +21,6 @@ use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
-use App\Services\ZoneService;
 use App\Services\Zte\C600MgmtPoolService;
 use App\Services\Zte\OnuRegistrationService;
 use App\Services\ZteCardUplinkService;
@@ -311,7 +310,7 @@ class SmartOltController extends Controller
         }
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService, ZoneService $zones): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService): Response
     {
         return Inertia::render('SmartOlt/PortOnus', [
             'olt' => $this->serializeOlt($olt),
@@ -331,13 +330,10 @@ class SmartOltController extends Controller
             // Kolom ODP di tabel ONU.
             'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
-            // Kolom Zone di tabel ONU (katalog global, tak per-port seperti ODP).
-            'zones' => $zones->options(),
-            'zone_links' => $zones->lookupMapForPort($olt, $slot, $port),
         ]);
     }
 
-    public function onuMonitor(OnuInventoryService $inventory, ZoneService $zones): Response
+    public function onuMonitor(OnuInventoryService $inventory): Response
     {
         $olts = SnmpOlt::query()->orderBy('name')->get();
         $aggregated = $inventory->collect($olts);
@@ -350,7 +346,6 @@ class SmartOltController extends Controller
             ])->values(),
             'onus' => $aggregated['onus'],
             'refreshed_at' => $aggregated['refreshed_at'],
-            'zones' => $zones->options(),
         ]);
     }
 
@@ -485,7 +480,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt, ZoneService $zones): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
@@ -500,7 +495,6 @@ class SmartOltController extends Controller
             'port' => $port ?: null,
             'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
             'oid_index' => (string) $request->query('oid_index', ''),
-            'zone_id' => null,
         ];
 
         // Hanya blok default milik family OLT ini yang dibangun penuh — form family
@@ -508,7 +502,6 @@ class SmartOltController extends Controller
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
             'profiles' => SmartOltProfileController::profileOptions($olt),
-            'zones' => $zones->options(),
             'defaults' => $isC600 ? $identity : [
                 ...$identity,
                 'customer_name' => '',
@@ -539,6 +532,7 @@ class SmartOltController extends Controller
                 ...$identity,
                 'customer_name' => '',
                 'onu_type' => (string) $request->query('model', ''),
+                'zone' => '',
                 'internet_vlan' => 200,
                 'internet_tcont_profile' => $this->firstProfileName($olt, 'tcont', '10MB'),
                 'mgmt_vlan' => 601,
@@ -891,12 +885,11 @@ class SmartOltController extends Controller
         }
     }
 
-    public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service, ZoneService $zones): Response
+    public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
     {
         $this->assertCapability($olt, 'supports_cli_onu_detail');
 
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
-        $zone = $zones->forOnu($olt, $slot, $port, $onuId);
 
         $range = $this->rxRange($request->query('range'));
         $rxHistory = OnuRxSample::seriesFor($olt->id, $slot, $port, $onuId, $range['since']);
@@ -918,11 +911,6 @@ class SmartOltController extends Controller
                 'sn' => $cached['serial_number'] ?? null,
                 'name' => $cached['name'] ?? null,
             ],
-            'zone' => [
-                'zone_id' => $zone['zone_id'] ?? null,
-                'zone_name' => $zone['zone_name'] ?? null,
-            ],
-            'zones' => $zones->options(),
             'groups' => fn () => $resolveLive()['groups'],
             'raw' => fn () => $resolveLive()['raw'],
             'fetch_ok' => fn () => $resolveLive()['ok'],
@@ -1257,7 +1245,7 @@ class SmartOltController extends Controller
         return response()->json(['script' => $builder->build($data)]);
     }
 
-    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, ZoneService $zones): RedirectResponse
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration): RedirectResponse
     {
         // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
         if (SmartOltSupport::isC600($olt)) {
@@ -1269,14 +1257,8 @@ class SmartOltController extends Controller
             $validated = $request->validate($registration->rules($olt));
             $result = $registration->register($olt, $validated, $execute, $request->user()?->id);
 
-            // Zona gagal dikaitkan TIDAK membatalkan registrasi (ONU sudah ada di OLT) —
-            // cuma ditempel sebagai peringatan di pesan sukses.
-            $zoneNote = ($result['zone_error'] ?? null) !== null
-                ? __('flash.onu_zone_link_failed').$result['zone_error'].')'
-                : '';
-
             $flash = match ($result['status']) {
-                'executed' => ['success', __('flash.registered_ok').$zoneNote],
+                'executed' => ['success', __('flash.registered_ok')],
                 'generated' => ['success', __('flash.prov_generated')],
                 default => ['error', __('flash.register_rejected').($result['error'] ?? '')],
             };
@@ -1316,9 +1298,6 @@ class SmartOltController extends Controller
         // Eksekusi langsung ke OLT via Telnet.
         $this->assertCapability($olt, 'supports_cli_onu_configure');
 
-        // try HANYA membungkus Telnet + tulis baris audit; assign zona sengaja di luar supaya
-        // kegagalannya tak ter-catch di sini & bikin baris 'failed' kedua (lihat catatan sama
-        // di OnuRegistrationService::register()).
         try {
             $result = $executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -1332,6 +1311,15 @@ class SmartOltController extends Controller
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? __('flash.registered_ok')
+                        : __('flash.register_rejected').$error,
+                );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
 
@@ -1347,37 +1335,6 @@ class SmartOltController extends Controller
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.register_exec_failed').$error);
         }
-
-        // Zona hanya dikaitkan saat CLI sukses; gagalnya TIDAK membatalkan registrasi.
-        $zoneNote = $result['ok']
-            ? $this->zoneWarningNote($zones->assignQuietly(
-                $olt,
-                (int) $data['slot'],
-                (int) $data['port'],
-                (int) $data['onu_id'],
-                (string) $data['serial_number'],
-                (int) $data['zone_id'],
-                $request->user()?->id,
-            ))
-            : '';
-
-        return redirect()
-            ->route('smartolt.registrations', $olt)
-            ->with(
-                $result['ok'] ? 'success' : 'error',
-                $result['ok']
-                    ? __('flash.registered_ok').$zoneNote
-                    : __('flash.register_rejected').$error,
-            );
-    }
-
-    /**
-     * Ubah error assign-zona jadi catatan tempelan untuk pesan sukses registrasi
-     * (string kosong bila zona berhasil dikaitkan).
-     */
-    private function zoneWarningNote(?string $zoneError): string
-    {
-        return $zoneError === null ? '' : __('flash.onu_zone_link_failed').$zoneError.')';
     }
 
     /**
@@ -1403,7 +1360,7 @@ class SmartOltController extends Controller
      * {@see storeOnu} but the CLI script comes from the granular editor instead
      * of the fixed single-service template.
      */
-    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZoneService $zones): RedirectResponse
+    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
     {
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
         $context = $this->advancedRegistrationContext($olt, $header);
@@ -1420,7 +1377,6 @@ class SmartOltController extends Controller
             'pon_port' => $context['onu_iface'],
             'onu_type' => (string) $header['onu_type'],
             'customer_name' => (string) ($config['name'] ?? ''),
-            'zone_id' => (int) $header['zone_id'],
             'vlan' => $this->resolvePrimaryVlan($config),
             'vlan_profile' => $primaryWan['vlan_profile'] ?? null,
             'wan_mode' => in_array($primaryWan['mode'] ?? '', ['pppoe', 'dhcp', 'static'], true) ? $primaryWan['mode'] : 'pppoe',
@@ -1451,8 +1407,6 @@ class SmartOltController extends Controller
         // Eksekusi langsung ke OLT via Telnet — script granular gaya C300 (gate capability tulis).
         $this->assertCapability($olt, 'supports_onu_config_write');
 
-        // try HANYA membungkus Telnet + tulis baris audit; assign zona sengaja di luar supaya
-        // kegagalannya tak ter-catch di sini & bikin baris 'failed' kedua.
         try {
             $result = $executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -1466,6 +1420,15 @@ class SmartOltController extends Controller
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? __('flash.registered_ok')
+                        : __('flash.register_rejected').$error,
+                );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
 
@@ -1481,29 +1444,6 @@ class SmartOltController extends Controller
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.register_exec_failed').$error);
         }
-
-        // Kaitkan zona HANYA setelah CLI benar-benar sukses (lihat catatan yang sama di
-        // OnuRegistrationService::register() untuk mode dasar/C600).
-        $zoneNote = $result['ok']
-            ? $this->zoneWarningNote($zones->assignQuietly(
-                $olt,
-                (int) $header['slot'],
-                (int) $header['port'],
-                (int) $header['onu_id'],
-                (string) $header['serial_number'],
-                (int) $header['zone_id'],
-                $request->user()?->id,
-            ))
-            : '';
-
-        return redirect()
-            ->route('smartolt.registrations', $olt)
-            ->with(
-                $result['ok'] ? 'success' : 'error',
-                $result['ok']
-                    ? __('flash.registered_ok').$zoneNote
-                    : __('flash.register_rejected').$error,
-            );
     }
 
     /**
@@ -1578,7 +1518,6 @@ class SmartOltController extends Controller
         SnmpOlt $olt,
         SmartOltOnuRegistration $registration,
         ZteCliProvisioningExecutor $executor,
-        ZoneService $zones,
     ): RedirectResponse {
         abort_unless($registration->snmp_olt_id === $olt->id, 404);
 
@@ -1588,10 +1527,6 @@ class SmartOltController extends Controller
                 ->with('success', __('flash.prov_already_registered'));
         }
 
-        // try HANYA membungkus Telnet + update baris audit; assign zona sengaja di luar supaya
-        // kegagalannya tak ter-catch di sini & MENURUNKAN status yang sudah 'executed' jadi
-        // 'failed' (di jalur ini baris audit di-update, bukan dibuat baru — jadi record
-        // keberhasilan justru hilang).
         try {
             $result = $executor->execute($olt, $registration->cli_script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -1604,6 +1539,15 @@ class SmartOltController extends Controller
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with(
+                    $result['ok'] ? 'success' : 'error',
+                    $result['ok']
+                        ? __('flash.prov_executed')
+                        : __('flash.prov_rejected').$error,
+                );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
 
@@ -1618,29 +1562,6 @@ class SmartOltController extends Controller
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.prov_exec_failed').$error);
         }
-
-        // Alur "generate sekarang, eksekusi nanti" — zona yang dipilih saat generate
-        // (registration->zone_id) baru dikaitkan sekarang, hanya kalau eksekusi sukses.
-        $zoneNote = $result['ok'] && $registration->zone_id !== null
-            ? $this->zoneWarningNote($zones->assignQuietly(
-                $olt,
-                $registration->slot,
-                $registration->port,
-                $registration->onu_id,
-                $registration->serial_number,
-                $registration->zone_id,
-                $request->user()?->id,
-            ))
-            : '';
-
-        return redirect()
-            ->route('smartolt.registrations', $olt)
-            ->with(
-                $result['ok'] ? 'success' : 'error',
-                $result['ok']
-                    ? __('flash.prov_executed').$zoneNote
-                    : __('flash.prov_rejected').$error,
-            );
     }
 
     public function destroyRegistration(
@@ -1705,7 +1626,6 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191'],
-            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
@@ -1826,7 +1746,6 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
-            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             ...$this->reconfigureConfigRules(),
         ]);
 
@@ -1838,7 +1757,6 @@ class SmartOltController extends Controller
                 'onu_id' => (int) $validated['onu_id'],
                 'oid_index' => $validated['oid_index'] ?? null,
                 'onu_type' => $validated['onu_type'],
-                'zone_id' => (int) $validated['zone_id'],
             ],
             $validated['config'],
         ];

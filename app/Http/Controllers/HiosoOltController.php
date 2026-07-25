@@ -12,7 +12,6 @@ use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
-use App\Services\ZoneService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -140,7 +139,7 @@ class HiosoOltController extends Controller
         ]);
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService, ZoneService $zones): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService): Response
     {
         $this->ensureFreshScan($olt, $scanner);
 
@@ -159,8 +158,6 @@ class HiosoOltController extends Controller
                 ->all(),
             'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
-            'zones' => $zones->options(),
-            'zone_links' => $zones->lookupMapForPort($olt, $slot, $port),
         ]);
     }
 

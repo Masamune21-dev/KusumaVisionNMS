@@ -6,7 +6,6 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -94,7 +93,6 @@ class SmartOltAdvancedRegisterTest extends TestCase
             'port' => 2,
             'onu_id' => 7,
             'onu_type' => 'ALL-ONT',
-            'zone_id' => Zone::query()->firstOrCreate(['name' => 'RINCON'])->id,
             'config' => [
                 'name' => 'Pelanggan Hotspot',
                 'tconts' => [['id' => 1, 'name' => '1', 'profile' => 'SERVER', 'gap' => 'mode0']],

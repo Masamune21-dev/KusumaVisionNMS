@@ -28,8 +28,6 @@ class AuditLog extends Model
 
     public const EVENT_TELNET_OPENED = 'telnet_opened';
 
-    public const EVENT_ONU_ZONE_ASSIGNED = 'onu_zone_assigned';
-
     protected $fillable = [
         'user_id',
         'user_name',

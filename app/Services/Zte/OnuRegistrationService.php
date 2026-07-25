@@ -5,8 +5,6 @@ namespace App\Services\Zte;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
-use App\Models\Zone;
-use App\Services\ZoneService;
 use App\Services\ZteC600ProvisioningScriptBuilder;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
@@ -26,7 +24,6 @@ class OnuRegistrationService
         private readonly ZteProvisioningScriptBuilder $builder,
         private readonly ZteC600ProvisioningScriptBuilder $c600Builder,
         private readonly ZteCliProvisioningExecutor $executor,
-        private readonly ZoneService $zones,
     ) {}
 
     /**
@@ -49,7 +46,6 @@ class OnuRegistrationService
             'oid_index' => ['nullable', 'string', 'max:191'],
             // Blokir CR/LF & karakter kontrol (anti-injeksi CLI); spasi/karakter cetak lain sah utk nama.
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
-            'zone_id' => ['required', 'integer', 'exists:zones,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
@@ -90,7 +86,7 @@ class OnuRegistrationService
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
-            'zone_id' => ['required', 'integer', 'exists:zones,id'],
+            'zone' => ['nullable', 'string', 'max:120', 'not_regex:/[\x00-\x1F\x7F]/'],
             'description' => ['nullable', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'authd_date' => ['nullable', 'string', 'max:16', 'regex:/^\d{8}$/'],
             'internet_vlan' => ['required', 'integer', 'between:1,4094'],
@@ -136,7 +132,7 @@ class OnuRegistrationService
      * Simpan audit + (opsional) eksekusi ke OLT.
      *
      * @param  array<string, mixed>  $validated
-     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string, zone_error?:?string}
+     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string}
      */
     public function register(SnmpOlt $olt, array $validated, bool $execute, ?int $userId): array
     {
@@ -168,10 +164,6 @@ class OnuRegistrationService
             ];
         }
 
-        // Blok try ini HANYA membungkus eksekusi Telnet + penulisan baris audit. Assign zona
-        // sengaja di LUAR (lihat di bawah) supaya kegagalan menyimpan zona tak pernah
-        // ter-catch di sini dan menghasilkan baris 'failed' kedua untuk ONU yang sebenarnya
-        // sudah teregister di OLT.
         try {
             $result = $this->executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -185,6 +177,14 @@ class OnuRegistrationService
                 'executed_at' => now(),
                 'executed_by' => $userId,
             ]);
+
+            return [
+                'status' => $result['ok'] ? 'executed' : 'failed',
+                'registration_id' => $registration->id,
+                'script' => $script,
+                'output' => $output,
+                'error' => $error,
+            ];
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
             $registration = SmartOltOnuRegistration::create([
@@ -203,32 +203,6 @@ class OnuRegistrationService
                 'error' => $error,
             ];
         }
-
-        // Kaitkan zona HANYA setelah CLI benar-benar sukses — kalau di-assign lebih awal,
-        // preview/generate atau eksekusi gagal bisa menimpa zona ONU lain yang kebetulan
-        // sudah menempati slot/port/onu_id yang sama, atau meninggalkan link "hantu".
-        // Kegagalan di sini TIDAK membatalkan registrasi: ONU sudah nyata ada di OLT, jadi
-        // status tetap 'executed' dan operator cuma diberi peringatan untuk set zona manual.
-        $zoneError = $result['ok']
-            ? $this->zones->assignQuietly(
-                $olt,
-                (int) $data['slot'],
-                (int) $data['port'],
-                (int) $data['onu_id'],
-                (string) $data['serial_number'],
-                (int) $data['zone_id'],
-                $userId,
-            )
-            : null;
-
-        return [
-            'status' => $result['ok'] ? 'executed' : 'failed',
-            'registration_id' => $registration->id,
-            'script' => $script,
-            'output' => $output,
-            'error' => $error,
-            'zone_error' => $zoneError,
-        ];
     }
 
     /**
@@ -246,11 +220,6 @@ class OnuRegistrationService
             $data['service_name'] = 'vlan'.(int) ($data['internet_vlan'] ?? 0);
             $data['wan_mode'] = 'tr069';
             $data['tr069_enabled'] = true;
-            // ZteC600ProvisioningScriptBuilder membaca 'zone' (nama, string) — bukan zone_id —
-            // untuk merangkai description CLI `zone_<NAMA>_authd_<tanggal>` (konvensi SmartOLT,
-            // tetap dipertahankan). Sumber kebenaran zona tetap zone_id/tabel zones; ini cuma
-            // menerjemahkannya ke nama untuk builder yang sudah ada, tanpa mengubah builder itu.
-            $data['zone'] = Zone::query()->find($data['zone_id'])?->name;
 
             return $data;
         }

@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\User;
-use App\Models\Zone;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -108,7 +107,6 @@ class ApiV1ReadExtrasTest extends TestCase
         SmartOltProfile::create([
             'snmp_olt_id' => $olt->id, 'profile_type' => 'onu_type', 'name' => 'ALL-ONT', 'is_active' => true,
         ]);
-        Zone::create(['name' => 'RINCON']);
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum')->getJson("/api/v1/olts/{$olt->id}/register/options?slot=1&port=1")
@@ -117,9 +115,7 @@ class ApiV1ReadExtrasTest extends TestCase
             ->assertJsonPath('data.defaults.slot', 1)
             // ONU 1 & 2 dipakai → saran berikutnya = 3.
             ->assertJsonPath('data.defaults.onu_id', 3)
-            ->assertJsonPath('data.defaults.zone_id', null)
-            ->assertJsonPath('data.profiles.onu_type.0.name', 'ALL-ONT')
-            ->assertJsonPath('data.zones.0.name', 'RINCON');
+            ->assertJsonPath('data.profiles.onu_type.0.name', 'ALL-ONT');
     }
 
     public function test_olt_detail_includes_capabilities(): void

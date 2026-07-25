@@ -2,7 +2,6 @@
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import RxTrendCard from '@/Components/SmartOlt/RxTrendCard.vue';
-import ZoneInlineEditor from '@/Components/SmartOlt/ZoneInlineEditor.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { lastDownCauseLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -23,8 +22,6 @@ const props = defineProps({
     onu_id: { type: Number, required: true },
     interface: { type: String, required: true },
     meta: { type: Object, required: true },
-    zone: { type: Object, default: () => ({ zone_id: null, zone_name: null }) },
-    zones: { type: Array, default: () => [] },
     groups: { type: Object, required: true },
     raw: { type: String, default: '' },
     fetch_ok: { type: Boolean, default: false },
@@ -311,26 +308,11 @@ const refresh = () => router.reload({ preserveScroll: true });
                             <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">{{ s.title }}</h3>
                         </header>
                         <dl class="divide-y divide-white/5 px-4 py-2 text-sm sm:px-6">
-                            <div v-if="s.key === 'identity'" class="flex items-start justify-between gap-4 py-2">
-                                <dt class="pt-1 text-slate-500">{{ $t('zones.title') }}</dt>
-                                <dd class="text-right">
-                                    <ZoneInlineEditor
-                                        :zones="zones"
-                                        :current-zone-id="zone.zone_id"
-                                        :current-zone-name="zone.zone_name"
-                                        :olt-id="olt.id"
-                                        :slot="slot"
-                                        :port="port"
-                                        :onu-id="onu_id"
-                                        :serial-number="meta.sn"
-                                    />
-                                </dd>
-                            </div>
                             <div v-for="[label, value, raw] in rowsFor(s.key)" :key="label" class="flex items-start justify-between gap-4 py-2">
                                 <dt class="text-slate-500">{{ label }}</dt>
                                 <dd class="break-all text-right font-medium text-slate-200" :title="raw">{{ value }}</dd>
                             </div>
-                            <p v-if="!rowsFor(s.key).length && s.key !== 'identity'" class="py-3 text-xs text-slate-500">{{ $t('onudetail.no_data') }}</p>
+                            <p v-if="!rowsFor(s.key).length" class="py-3 text-xs text-slate-500">{{ $t('onudetail.no_data') }}</p>
                         </dl>
                     </section>
                 </div>

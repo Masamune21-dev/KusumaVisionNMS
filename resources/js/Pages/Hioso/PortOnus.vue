@@ -3,7 +3,6 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
-import OnuZoneCell from '@/Components/OnuZoneCell.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
@@ -29,12 +28,9 @@ const props = defineProps({
     pinned_onu_ids: { type: Array, default: () => [] },
     odps: { type: Array, default: () => [] },
     odp_links: { type: Object, default: () => ({}) },
-    zones: { type: Array, default: () => [] },
-    zone_links: { type: Object, default: () => ({}) },
 });
 
 const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
-const zoneIdFor = (onu) => props.zone_links?.[onu.onu_id]?.zone_id ?? null;
 
 const page = usePage();
 const search = ref(props.q ?? '');
@@ -248,7 +244,6 @@ const viewOnMap = (onu) => {
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_odp') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_zone') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
                                         <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
                                         <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
@@ -270,16 +265,6 @@ const viewOnMap = (onu) => {
                                                 :onu="o"
                                                 :odps="odps"
                                                 :current-odp-id="odpIdFor(o)"
-                                                :olt-id="olt.id"
-                                                :slot="slot"
-                                                :port="port"
-                                            />
-                                        </td>
-                                        <td class="px-4 py-4">
-                                            <OnuZoneCell
-                                                :onu="o"
-                                                :zones="zones"
-                                                :current-zone-id="zoneIdFor(o)"
                                                 :olt-id="olt.id"
                                                 :slot="slot"
                                                 :port="port"
@@ -341,17 +326,6 @@ const viewOnMap = (onu) => {
                                         :onu="o"
                                         :odps="odps"
                                         :current-odp-id="odpIdFor(o)"
-                                        :olt-id="olt.id"
-                                        :slot="slot"
-                                        :port="port"
-                                    />
-                                </div>
-                                <div class="mt-2 flex items-center gap-2 text-xs">
-                                    <span class="shrink-0 text-slate-500">{{ $t('portonus.col_zone') }}</span>
-                                    <OnuZoneCell
-                                        :onu="o"
-                                        :zones="zones"
-                                        :current-zone-id="zoneIdFor(o)"
                                         :olt-id="olt.id"
                                         :slot="slot"
                                         :port="port"

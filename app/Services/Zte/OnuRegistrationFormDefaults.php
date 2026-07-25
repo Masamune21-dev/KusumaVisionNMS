@@ -28,7 +28,6 @@ class OnuRegistrationFormDefaults
             'port' => $port ?: null,
             'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, $suggestedOnuId),
             'customer_name' => '',
-            'zone_id' => null,
             'onu_type' => $this->firstProfileName($olt, 'onu_type', 'ALL-ONT'),
             'tcont_profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'),
             'vlan' => 100,
