@@ -13,6 +13,7 @@ composer dev        # serve + queue + pail logs + vite (concurrently)
 php artisan serve --host=0.0.0.0 --port=8000
 npm run dev         # vite
 php artisan test    # PHPUnit (uses in-memory sqlite, see phpunit.xml)
+npm test            # Vitest (tests komponen Vue di tests/js/*.spec.js; config vitest.config.js)
 ./vendor/bin/pint   # code style
 php artisan telnet:proxy           # WebSocket<->telnet proxy daemon (browser terminal)
 go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller   # rebuild Go SNMP poller

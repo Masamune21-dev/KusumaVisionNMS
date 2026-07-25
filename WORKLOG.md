@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-07-24 (lanjutan 4) — "tandai semua" batal sendiri + fallback 403/404 + Vitest
+
+### 1. "Tandai semua dibaca" hidup lagi tiap poll (bug nyata)
+
+`AlarmEvaluator` (`AlarmEvaluator.php:504-512`) me-refresh `last_seen_at` setiap alarm yang MASIH aktif di **tiap poll** (~5 mnt). Karena "belum dibaca" dievaluasi sebagai `last_seen_at > users.last_notifications_read_at`, badge muncul lagi beberapa menit setelah "tandai semua" **dengan alarm yang sama**, dan terus begitu selama gangguan berlangsung (ONU mati = berhari-hari).
+
+Changed:
+
+- `app/Services/Alarm/AlarmNotificationService.php` — `markAllRead()` baru: upsert satu baris per alarm aktif yang boleh dilihat user ke `alarm_notification_reads` (di-`chunkById(500)`; query kena `PartnerOltScope`/`DemoScope` sehingga partner tak pernah menandai alarm OLT orang lain). Timestamp global tetap ditulis sebagai atajo untuk alarm yang belum punya baris.
+- `app/Http/Controllers/NotificationsController.php` — `markAllRead` memakai service itu, bukan menulis timestamp saja.
+
+### 2. Fallback 403/404 di campana
+
+- `resources/js/Components/Shell/NotificationBell.vue` — `catch` di `openNotification` dulu `fallback: null` → 403/404 (izin dicabut antara render & klik, alarm terhapus) memberi pesan tanpa jalan keluar. Kini menawarkan daftar alarm. **`catch` di `markRead` sengaja tetap `fallback: null`**: tombol itu bukan navigasi, menawarkan "ke daftar alarm" di situ cuma bising.
+
+### 3. Vitest (runner JS pertama di proyek ini)
+
+Created:
+
+- `vitest.config.js` — sengaja terpisah dari `vite.config.js`: plugin `laravel-vite-plugin` mengharapkan konteks dev-server Laravel (manifest/hot file) dan tak berguna di test, jadi di sini hanya plugin Vue + alias `@` (yang biasanya diinjeksi plugin itu).
+- `tests/js/NotificationBell.spec.js` — 5 test: navigasi ke target server + panel tertutup; **403** dan **404** menampilkan aviso DAN tombol ke daftar alarm; `target_url` null memakai `fallback_url` server; marcado optimista ter-revert saat POST gagal.
+- `package.json` — script `test` (`vitest run`) & `test:watch`; devDeps `vitest`/`@vue/test-utils`/`jsdom`.
+
+Notes:
+
+- **Diverifikasi dengan mutation test, dan menangkap kesalahan saya sendiri:** saat `fallback` dikembalikan ke `null`, awalnya cuma test 403 yang gagal — test 404 LULUS palsu karena saya assert teks `shell.view_all_alarms` yang **juga** dirender enlace kaki desplegable (`<Link>` → `<a>`). Diperbaiki dengan helper `fallbackButton()` yang mencari di antara `<button>` saja; sesudah itu 403 **dan** 404 sama-sama gagal tanpa fix. Pelajaran: assert elemen spesifik, bukan teks yang muncul lebih dari sekali.
+- `markAllRead` juga diverifikasi mutation: dengan kode lama, contador kembali ke **2** sesudah poll disimulasikan (`travel(6)->minutes()` + refresh `last_seen_at`) — "Failed asserting that 2 is identical to 0".
+- Total: **446 test PHP** (2 baru) + **5 test JS**, Pint bersih, `npm run build` bersih.
+- `route()` di test komponen harus di-mock DUA kali: `global.route` (dipakai `<script setup>`) dan `global.mocks.route` (template — di app nyata disuplai plugin `ZiggyVue` sebagai global property). `<Transition>` dibiarkan pakai stub default test-utils; dengan transisi asli, event keluar tak pernah menyala di jsdom sehingga panel dianggap masih terbuka.
+
 ## 2026-07-24 (lanjutan 3) — 2 sisa dari navigasi notifikasi
 
 ### 1. Deep-link aplikasi Android ternyata SALAH sejak awal (bukan "belum ada")
