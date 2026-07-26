@@ -128,6 +128,23 @@ Proyek ini dikembangkan dan diuji langsung di jaringan FTTH produksi. Jika Kusum
 
 ---
 
+## Tentang Pengembangan
+
+Proyek ini dikembangkan dengan bantuan AI coding assistant (Claude Code) secara
+intensif. Yang perlu dijelaskan terbuka: implementasi kode banyak dibantu AI,
+tetapi keputusan domain tetap di maintainer — pemilihan OID per-vendor, riset
+perilaku CLI per-firmware, desain alarm engine, dan **seluruh verifikasi
+terhadap perangkat OLT asli di jaringan produksi**.
+
+Aturan yang berlaku sejak awal: tidak ada OID atau perintah CLI yang masuk ke
+kode sebelum diuji pada perangkat nyata. AI dipakai untuk kecepatan
+implementasi, bukan untuk menebak perilaku perangkat.
+
+Maintainer bekerja sebagai NOC engineer di ISP FTTH; proyek ini lahir dari
+kebutuhan operasional harian, bukan dari eksperimen.
+
+---
+
 ## Lisensi
 
 MIT — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).
