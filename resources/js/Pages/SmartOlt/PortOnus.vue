@@ -110,6 +110,7 @@ const onPortSelect = (event) => {
 const search = ref(props.initial_search ?? '');
 const phaseFilter = ref('all');
 const adminFilter = ref('all');
+const odpFilter = ref('all'); // 'all' | 'none' | <odp id>
 const focusId = ref(props.focus_onu_id);
 
 const filteredOnus = computed(() => {
@@ -119,6 +120,8 @@ const filteredOnus = computed(() => {
         if (phaseFilter.value === 'offline' && onu.online) return false;
         if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
+        if (odpFilter.value === 'none' && odpIdFor(onu) !== null) return false;
+        if (odpFilter.value !== 'all' && odpFilter.value !== 'none' && odpIdFor(onu) !== Number(odpFilter.value)) return false;
         if (!term) return true;
         const hay = [onu.interface, onu.serial_number, onu.name, onu.description, onu.type_name]
             .filter(Boolean).join(' ').toLowerCase();
@@ -126,8 +129,8 @@ const filteredOnus = computed(() => {
     });
 });
 
-const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || adminFilter.value !== 'all');
-const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; adminFilter.value = 'all'; };
+const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || adminFilter.value !== 'all' || odpFilter.value !== 'all');
+const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; adminFilter.value = 'all'; odpFilter.value = 'all'; };
 
 // Paginasi sisi-klien daftar ONU terfilter (data sudah dimuat penuh ke props).
 const { page: onuPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOnus, rangeStart, rangeEnd } = usePagination(filteredOnus);
@@ -632,6 +635,11 @@ const rxBadgeClass = (value) => {
                                 <option value="all">{{ $t('portonus.filter_all_admin') }}</option>
                                 <option value="active">{{ $t('portonus.filter_active') }}</option>
                                 <option value="disabled">{{ $t('portonus.filter_disabled') }}</option>
+                            </select>
+                            <select v-if="odps.length" v-model="odpFilter" :title="$t('portonus.filter_odp')" class="min-h-11 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500">
+                                <option value="all">{{ $t('portonus.odp_all') }}</option>
+                                <option value="none">{{ $t('portonus.odp_unassigned') }}</option>
+                                <option v-for="odp in odps" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
                             </select>
                             <button v-if="hasFilter" type="button" class="kv-filter-reset" @click="clearFilters">{{ $t('common.reset') }}</button>
                         </div>

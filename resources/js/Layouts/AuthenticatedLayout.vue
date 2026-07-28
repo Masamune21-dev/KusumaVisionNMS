@@ -11,7 +11,7 @@ import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, WifiOff } from '@lucide/vue';
+import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, Waypoints, WifiOff } from '@lucide/vue';
 
 // Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
 // Chunk async (lihat catatan di Welcome.vue) agar key manifest tidak hilang saat build.
@@ -53,6 +53,7 @@ const navLinks = computed(() => {
         { name: t('nav.smartolt'), icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*'], except: 'smartolt.unconfigured-all' },
         { name: t('nav.monitoring'), icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
         { name: t('nav.map'), icon: MapPin, href: route('map.index'), match: 'map.*' },
+        { name: t('nav.odp'), icon: Waypoints, href: route('odp.index'), match: 'odp.*' },
         { name: t('nav.unconfigured'), icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
         { name: t('nav.alarms'), icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
         { name: t('nav.report'), icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },

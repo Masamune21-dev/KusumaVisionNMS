@@ -26,6 +26,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    odps: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -37,6 +41,7 @@ const portFilter = ref('all');
 const statusFilter = ref('all');
 const adminFilter = ref('all');
 const rxFilter = ref('all');
+const odpFilter = ref('all'); // 'all' | 'none' | <odp id>
 const scanning = ref(false);
 
 const hasOlt = computed(() => oltFilter.value !== '');
@@ -52,8 +57,10 @@ onMounted(() => {
 });
 
 // Reset port filter whenever the OLT selection changes, since port labels are OLT-specific.
+// ODP juga per-OLT, jadi ikut direset.
 const onOltChange = () => {
     portFilter.value = 'all';
+    odpFilter.value = 'all';
 };
 
 const oltScopedOnus = computed(() =>
@@ -67,6 +74,17 @@ const portOptions = computed(() => {
         set.set(key, { slot: onu.slot, port: onu.port });
     }
     return [...set.values()].sort((a, b) => a.slot - b.slot || a.port - b.port);
+});
+
+// Opsi ODP dibatasi ke OLT terpilih (dan ke port terpilih, bila ada) supaya daftar tetap pendek.
+const odpOptions = computed(() => {
+    if (!hasOlt.value) return [];
+    return props.odps.filter((odp) => {
+        if (odp.snmp_olt_id !== oltFilter.value) return false;
+        if (portFilter.value === 'all') return true;
+        if (odp.slot === null || odp.port === null) return true;
+        return `${odp.slot}/${odp.port}` === portFilter.value;
+    });
 });
 
 // C300/C320 mengeja 'Offline', C600 mengeja 'OffLine' (huruf L besar) — beda taksonomi yang
@@ -97,8 +115,10 @@ const filteredOnus = computed(() => {
         if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
         if (rxFilter.value !== 'all' && rxLevel(onu.rx_power_dbm) !== rxFilter.value) return false;
+        if (odpFilter.value === 'none' && onu.odp_id !== null) return false;
+        if (odpFilter.value !== 'all' && odpFilter.value !== 'none' && onu.odp_id !== Number(odpFilter.value)) return false;
         if (!term) return true;
-        const hay = [onu.interface, onu.serial_number, onu.mac, onu.name, onu.description, onu.type_name, onu.olt_name]
+        const hay = [onu.interface, onu.serial_number, onu.mac, onu.name, onu.description, onu.type_name, onu.olt_name, onu.odp_name]
             .filter(Boolean)
             .join(' ')
             .toLowerCase();
@@ -127,7 +147,8 @@ const hasFilter = computed(
         portFilter.value !== 'all' ||
         statusFilter.value !== 'all' ||
         adminFilter.value !== 'all' ||
-        rxFilter.value !== 'all',
+        rxFilter.value !== 'all' ||
+        odpFilter.value !== 'all',
 );
 
 const clearFilters = () => {
@@ -136,6 +157,7 @@ const clearFilters = () => {
     statusFilter.value = 'all';
     adminFilter.value = 'all';
     rxFilter.value = 'all';
+    odpFilter.value = 'all';
 };
 
 const scanOlt = () => {
@@ -255,6 +277,11 @@ const phaseDotClass = (onu) => {
                             <option value="warning">{{ $t('onumonitor.rx_warning') }}</option>
                             <option value="critical">{{ $t('onumonitor.rx_critical') }}</option>
                             <option value="none">{{ $t('onumonitor.rx_none') }}</option>
+                        </select>
+                        <select v-model="odpFilter" :disabled="!hasOlt" :title="$t('onumonitor.odp_filter_title')" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">{{ $t('onumonitor.odp_all') }}</option>
+                            <option value="none">{{ $t('onumonitor.odp_none') }}</option>
+                            <option v-for="odp in odpOptions" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
                         </select>
                     </div>
                 </FilterCard>
@@ -382,6 +409,10 @@ const phaseDotClass = (onu) => {
                                             <span class="kv-mobile-label">{{ $t('portonus.col_last_down') }}</span>
                                             <span class="kv-mobile-value" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                         </div>
+                                        <div class="kv-mobile-field">
+                                            <span class="kv-mobile-label">{{ $t('portonus.col_odp') }}</span>
+                                            <span class="kv-mobile-value">{{ onu.odp_name || '—' }}</span>
+                                        </div>
                                     </div>
 
                                     <div class="mt-4 flex flex-wrap gap-2">
@@ -405,6 +436,7 @@ const phaseDotClass = (onu) => {
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
                                             <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
+                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
                                             <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                         </tr>
                                     </thead>
@@ -445,6 +477,7 @@ const phaseDotClass = (onu) => {
                                                 </span>
                                             </td>
                                             <td class="px-6 py-4 text-sm text-slate-500" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</td>
+                                            <td class="px-6 py-4 text-sm text-slate-300">{{ onu.odp_name || '—' }}</td>
                                             <td class="px-6 py-4">
                                                 <div class="flex items-center justify-center gap-1.5">
                                                     <IconButton :href="portOnuHref(onu)" variant="primary" :title="$t('onumonitor.open_in_port')">

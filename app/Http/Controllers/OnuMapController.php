@@ -72,6 +72,7 @@ class OnuMapController extends Controller
                 'port' => $odp->port,
                 'latitude' => (float) $odp->latitude,
                 'longitude' => (float) $odp->longitude,
+                'locked' => (bool) $odp->locked,
                 'notes' => $odp->notes,
                 'onus' => $connected[$odp->id] ?? [],
             ])
@@ -86,6 +87,12 @@ class OnuMapController extends Controller
                 && $p['onu_id'] === $focus['onu_id'])
             : null;
 
+        // Fokus ke pin ODP tertentu (link "koordinat" dari halaman ODP).
+        $focusOdpId = (int) request()->query('focus_odp', 0);
+        $focusOdp = $focusOdpId > 0
+            ? $odpsPayload->first(fn (array $o) => $o['id'] === $focusOdpId)
+            : null;
+
         return Inertia::render('Map/Index', [
             'pins' => $pins,
             'odps' => $odpsPayload,
@@ -95,11 +102,14 @@ class OnuMapController extends Controller
                 'ip' => $olt->ip,
             ])->values(),
             'onus' => $aggregated['onus'],
-            'default_center' => $focusPin
-                ? ['lat' => $focusPin['latitude'], 'lng' => $focusPin['longitude'], 'zoom' => 17]
-                : $this->defaultCenter($pins->all()),
+            'default_center' => match (true) {
+                $focusPin !== null => ['lat' => $focusPin['latitude'], 'lng' => $focusPin['longitude'], 'zoom' => 17],
+                $focusOdp !== null => ['lat' => $focusOdp['latitude'], 'lng' => $focusOdp['longitude'], 'zoom' => 17],
+                default => $this->defaultCenter($pins->all()),
+            },
             'placement' => $this->placementFromRequest(),
             'focus_pin_id' => $focusPin['id'] ?? null,
+            'focus_odp_id' => $focusOdp['id'] ?? null,
         ]);
     }
 
@@ -136,6 +146,7 @@ class OnuMapController extends Controller
         $data = $request->validate([
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'locked' => ['nullable', 'boolean'],
             'customer_name' => ['nullable', 'string', 'max:191'],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:32'],
@@ -144,14 +155,25 @@ class OnuMapController extends Controller
 
         $pin->fill(array_filter(
             $data,
-            fn ($value, $key) => in_array($key, ['latitude', 'longitude'], true) ? $value !== null : true,
+            fn ($value, $key) => in_array($key, ['latitude', 'longitude', 'locked'], true) ? $value !== null : true,
             ARRAY_FILTER_USE_BOTH,
         ));
+        // 'locked' lewat array_filter di atas hanya kalau dikirim non-null; false pun ikut
+        // (filter membandingkan terhadap null, bukan falsy) — perlu supaya Unlock tersimpan.
         $pin->save();
 
-        return redirect()
-            ->route('map.index')
-            ->with('success', __('flash.pin_updated'));
+        // Geser pin (payload koordinat saja) sengaja TIDAK memunculkan flash: tiap kali marker
+        // dilepas akan menyimpan otomatis, dan toast tiap geser cuma jadi kebisingan.
+        if (! $request->hasAny(['locked', 'customer_name', 'address', 'phone', 'notes'])) {
+            return back();
+        }
+
+        return back()->with(
+            'success',
+            $request->has('locked')
+                ? ($pin->locked ? __('flash.pin_locked') : __('flash.pin_unlocked'))
+                : __('flash.pin_updated'),
+        );
     }
 
     public function destroy(OnuMapPin $pin): RedirectResponse
@@ -406,6 +428,7 @@ class OnuMapController extends Controller
             'serial_number' => $pin->serial_number ?? ($live['serial_number'] ?? null),
             'latitude' => (float) $pin->latitude,
             'longitude' => (float) $pin->longitude,
+            'locked' => (bool) $pin->locked,
             // Nama tampil: override pin → nama ONU live.
             'customer_name' => $pin->customer_name ?: $liveName,
             'customer_name_override' => $pin->customer_name,

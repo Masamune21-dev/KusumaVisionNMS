@@ -21,6 +21,7 @@ class Odp extends Model
         'port',
         'latitude',
         'longitude',
+        'locked',
         'notes',
         'created_by',
     ];
@@ -32,6 +33,7 @@ class Odp extends Model
             'port' => 'integer',
             'latitude' => 'float',
             'longitude' => 'float',
+            'locked' => 'boolean',
         ];
     }
 

@@ -26,7 +26,7 @@ class OnuOdpService
      * punya port (belum ada ONU) tetap muncul di semua port; portnya terisi otomatis
      * saat ONU pertama di-assign (lihat assign()).
      *
-     * @return array<int, array{id:int, name:string}>
+     * @return array<int, array{id:int, name:string, slot:?int, port:?int}>
      */
     public function odpsForOlt(SnmpOlt $olt, ?int $slot = null, ?int $port = null): array
     {
@@ -37,8 +37,36 @@ class OnuOdpService
                     ->orWhere(fn ($n) => $n->whereNull('slot')->whereNull('port'));
             }))
             ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Odp $odp) => ['id' => $odp->id, 'name' => $odp->name])
+            ->get(['id', 'name', 'slot', 'port'])
+            ->map(fn (Odp $odp) => [
+                'id' => $odp->id,
+                'name' => $odp->name,
+                // slot/port ikut supaya form registrasi bisa menyaring dropdown per-port di klien.
+                'slot' => $odp->slot,
+                'port' => $odp->port,
+            ])
+            ->all();
+    }
+
+    /**
+     * Opsi ODP lintas-OLT untuk dropdown filter (halaman Monitoring ONU).
+     *
+     * @param  Collection<int, SnmpOlt>|null  $olts  null = seluruh OLT dalam scope
+     * @return array<int, array{id:int, snmp_olt_id:int, name:string, slot:?int, port:?int}>
+     */
+    public function optionsForOlts(?Collection $olts = null): array
+    {
+        return Odp::query()
+            ->when($olts !== null, fn ($query) => $query->whereIn('snmp_olt_id', $olts->pluck('id')->all()))
+            ->orderBy('name')
+            ->get(['id', 'snmp_olt_id', 'name', 'slot', 'port'])
+            ->map(fn (Odp $odp) => [
+                'id' => $odp->id,
+                'snmp_olt_id' => $odp->snmp_olt_id,
+                'name' => $odp->name,
+                'slot' => $odp->slot,
+                'port' => $odp->port,
+            ])
             ->all();
     }
 
@@ -102,6 +130,23 @@ class OnuOdpService
             'serial_number' => $serial,
             'created_by' => $userId,
         ]);
+    }
+
+    /**
+     * assign() versi "tidak melempar" — mengembalikan pesan error, atau null bila sukses.
+     *
+     * Dipakai jalur provisioning: ONU sudah nyata teregister di OLT saat ini dipanggil, jadi
+     * gagal mengaitkan ODP tak boleh menggagalkan/merollback registrasi — cukup jadi peringatan.
+     */
+    public function assignQuietly(SnmpOlt $olt, int $slot, int $port, int $onuId, ?string $serial, ?int $odpId, ?int $userId): ?string
+    {
+        try {
+            $this->assign($olt, $slot, $port, $onuId, $serial, $odpId, $userId);
+
+            return null;
+        } catch (\Throwable $e) {
+            return $e->getMessage();
+        }
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Services\Zte;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
+use App\Services\OnuOdpService;
 use App\Services\ZteC600ProvisioningScriptBuilder;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
@@ -24,6 +25,7 @@ class OnuRegistrationService
         private readonly ZteProvisioningScriptBuilder $builder,
         private readonly ZteC600ProvisioningScriptBuilder $c600Builder,
         private readonly ZteCliProvisioningExecutor $executor,
+        private readonly OnuOdpService $odps,
     ) {}
 
     /**
@@ -46,6 +48,9 @@ class OnuRegistrationService
             'oid_index' => ['nullable', 'string', 'max:191'],
             // Blokir CR/LF & karakter kontrol (anti-injeksi CLI); spasi/karakter cetak lain sah utk nama.
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
+            // ODP opsional. 'exists' tak melewati PartnerOltScope, tapi aman: OnuOdpService::assign()
+            // memverifikasi ulang ODP milik OLT ini (di bawah scope) dan menolak bila bukan.
+            'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
@@ -87,6 +92,7 @@ class OnuRegistrationService
             'customer_name' => ['required', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/'],
             'zone' => ['nullable', 'string', 'max:120', 'not_regex:/[\x00-\x1F\x7F]/'],
+            'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             'description' => ['nullable', 'string', 'max:191', 'not_regex:/[\x00-\x1F\x7F]/'],
             'authd_date' => ['nullable', 'string', 'max:16', 'regex:/^\d{8}$/'],
             'internet_vlan' => ['required', 'integer', 'between:1,4094'],
@@ -132,7 +138,7 @@ class OnuRegistrationService
      * Simpan audit + (opsional) eksekusi ke OLT.
      *
      * @param  array<string, mixed>  $validated
-     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string}
+     * @return array{status:string, registration_id:int, script:string, output:?string, error:?string, odp_error?:?string}
      */
     public function register(SnmpOlt $olt, array $validated, bool $execute, ?int $userId): array
     {
@@ -164,6 +170,10 @@ class OnuRegistrationService
             ];
         }
 
+        // Blok try ini HANYA membungkus eksekusi Telnet + penulisan baris audit. Assign ODP
+        // sengaja di LUAR (lihat di bawah) supaya kegagalan menyimpan kaitan tak pernah
+        // ter-catch di sini dan menghasilkan baris 'failed' kedua untuk ONU yang sebenarnya
+        // sudah teregister di OLT.
         try {
             $result = $this->executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -177,14 +187,6 @@ class OnuRegistrationService
                 'executed_at' => now(),
                 'executed_by' => $userId,
             ]);
-
-            return [
-                'status' => $result['ok'] ? 'executed' : 'failed',
-                'registration_id' => $registration->id,
-                'script' => $script,
-                'output' => $output,
-                'error' => $error,
-            ];
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
             $registration = SmartOltOnuRegistration::create([
@@ -203,6 +205,32 @@ class OnuRegistrationService
                 'error' => $error,
             ];
         }
+
+        // Kaitkan ODP HANYA setelah CLI benar-benar sukses — kalau di-assign lebih awal,
+        // preview/generate atau eksekusi gagal bisa menimpa kaitan ODP milik ONU lain yang
+        // kebetulan sudah menempati slot/port/onu_id yang sama. Kegagalan di sini TIDAK
+        // membatalkan registrasi: ONU sudah nyata ada di OLT, jadi status tetap 'executed'
+        // dan operator cuma diberi peringatan untuk memasang ODP manual.
+        $odpError = $result['ok'] && ($data['odp_id'] ?? null) !== null
+            ? $this->odps->assignQuietly(
+                $olt,
+                (int) $data['slot'],
+                (int) $data['port'],
+                (int) $data['onu_id'],
+                (string) $data['serial_number'],
+                (int) $data['odp_id'],
+                $userId,
+            )
+            : null;
+
+        return [
+            'status' => $result['ok'] ? 'executed' : 'failed',
+            'registration_id' => $registration->id,
+            'script' => $script,
+            'output' => $output,
+            'error' => $error,
+            'odp_error' => $odpError,
+        ];
     }
 
     /**

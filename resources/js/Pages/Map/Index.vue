@@ -3,7 +3,7 @@ import AddPinModal from '@/Components/Map/AddPinModal.vue';
 import OdpDetailCard from '@/Components/Map/OdpDetailCard.vue';
 import PinDetailCard from '@/Components/Map/PinDetailCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import { Crosshair, MapPin, X } from '@lucide/vue';
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
 
@@ -18,6 +18,7 @@ const props = defineProps({
     default_center: { type: Object, default: () => ({ lat: -6.7559, lng: 111.0381, zoom: 11 }) },
     placement: { type: Object, default: null },
     focus_pin_id: { type: [Number, null], default: null },
+    focus_odp_id: { type: [Number, null], default: null },
 });
 
 const page = usePage();
@@ -68,6 +69,8 @@ onMounted(() => {
         addMode.value = true;
     } else if (props.focus_pin_id && props.pins.some((p) => p.id === props.focus_pin_id)) {
         selectedPinId.value = props.focus_pin_id;
+    } else if (props.focus_odp_id && props.odps.some((o) => o.id === props.focus_odp_id)) {
+        selectedOdpId.value = props.focus_odp_id;
     }
 });
 
@@ -110,6 +113,24 @@ const onSaved = () => {
     addMode.value = false;
     draftCoords.value = null;
     presetForModal.value = null;
+};
+
+// Pin yang sedang terbuka (unlocked) langsung menyimpan koordinat begitu dilepas, supaya
+// posisi tak hilang bila halaman ditutup sebelum sempat dikunci. Tombol Lock hanya mengunci.
+const onPinMoved = ({ id, latitude, longitude }) => {
+    router.put(
+        route('map.pins.update', id),
+        { latitude, longitude },
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const onOdpMoved = ({ id, latitude, longitude }) => {
+    router.put(
+        route('map.odps.update', id),
+        { latitude, longitude },
+        { preserveScroll: true, preserveState: true },
+    );
 };
 </script>
 
@@ -162,6 +183,8 @@ const onSaved = () => {
                     @select-odp="onSelectOdp"
                     @pin-position="cardPos = $event"
                     @odp-position="odpCardPos = $event"
+                    @pin-moved="onPinMoved"
+                    @odp-moved="onOdpMoved"
                 />
 
                 <!-- Kartu detail pin ONU — menempel tepat di atas pin -->
@@ -185,7 +208,7 @@ const onSaved = () => {
                 </div>
 
                 <!-- Empty hint -->
-                <div v-if="!pins.length && !addMode" class="pointer-events-none absolute inset-x-0 bottom-6 z-[400] flex justify-center">
+                <div v-if="!pins.length && !odps.length && !addMode" class="pointer-events-none absolute inset-x-0 bottom-6 z-[400] flex justify-center">
                     <div class="pointer-events-auto flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/85 px-4 py-2 text-sm text-slate-300 backdrop-blur">
                         <MapPin class="h-4 w-4 text-cyan-400" />
                         {{ $t('map.empty_before') }} <button type="button" class="font-semibold text-cyan-300 underline" @click="toggleAddMode">{{ $t('map.add_pin') }}</button> {{ $t('map.empty_after') }}

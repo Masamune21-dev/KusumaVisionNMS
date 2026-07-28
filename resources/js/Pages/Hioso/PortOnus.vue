@@ -35,13 +35,17 @@ const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
 const page = usePage();
 const search = ref(props.q ?? '');
 
+const odpFilter = ref('all'); // 'all' | 'none' | <odp id>
+
 const onus = computed(() => props.snapshot?.onus ?? []);
 const filtered = computed(() => {
     const needle = search.value.trim().toLowerCase();
-    if (!needle) return onus.value;
-    return onus.value.filter((o) =>
-        [o.serial_number, o.name, o.interface, o.mac].some((v) => String(v ?? '').toLowerCase().includes(needle)),
-    );
+    return onus.value.filter((o) => {
+        if (odpFilter.value === 'none' && odpIdFor(o) !== null) return false;
+        if (odpFilter.value !== 'all' && odpFilter.value !== 'none' && odpIdFor(o) !== Number(odpFilter.value)) return false;
+        if (!needle) return true;
+        return [o.serial_number, o.name, o.interface, o.mac].some((v) => String(v ?? '').toLowerCase().includes(needle));
+    });
 });
 
 const rxClass = (dbm) => {
@@ -219,14 +223,26 @@ const viewOnMap = (onu) => {
                                 <span v-if="snapshot?.refreshed_at">{{ $t('cdataportonus.updated_suffix', { date: fmt(snapshot.refreshed_at) }) }}</span>
                             </p>
                         </div>
-                        <div class="relative sm:w-64">
-                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                            <input
-                                v-model="search"
-                                type="text"
-                                :placeholder="$t('cdataportonus.search_placeholder')"
-                                class="w-full rounded-lg border-white/10 bg-slate-950/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
-                            />
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <select
+                                v-if="odps.length"
+                                v-model="odpFilter"
+                                :title="$t('portonus.filter_odp')"
+                                class="w-full rounded-lg border-white/10 bg-slate-950/40 text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500 sm:w-auto"
+                            >
+                                <option value="all">{{ $t('portonus.odp_all') }}</option>
+                                <option value="none">{{ $t('portonus.odp_unassigned') }}</option>
+                                <option v-for="odp in odps" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
+                            </select>
+                            <div class="relative sm:w-64">
+                                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                <input
+                                    v-model="search"
+                                    type="text"
+                                    :placeholder="$t('cdataportonus.search_placeholder')"
+                                    class="w-full rounded-lg border-white/10 bg-slate-950/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
+                                />
+                            </div>
                         </div>
                     </div>
 

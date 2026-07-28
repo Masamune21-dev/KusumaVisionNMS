@@ -23,6 +23,22 @@ dari detail pin. Route: `map.index` (`/map`), nav **Peta ONU**.
 - Marker ONU = `L.divIcon` teardrop berwarna **status saja**: hijau = online, merah =
   offline/LOS/dying-gasp (offline diberi animasi pulsa). Info RX tetap tampil di kartu detail pin,
   tapi **tidak lagi** menentukan warna pin. Legenda (hijau/merah/ODP kuning) di pojok kanan-bawah.
+- Hint "belum ada pin" hanya muncul bila pin ONU **dan** pin ODP sama-sama kosong.
+
+## Kunci / buka posisi pin (ONU & ODP)
+
+Kolom `locked` (boolean, **default true**) di `onu_map_pins` dan `odps` — migrasi
+`2026_07_28_000001`. Pin baru selalu terkunci; posisi hanya bisa digeser setelah dibuka.
+
+- Tombol **Buka Kunci / Kunci** ada di `PinDetailCard.vue` & `OdpDetailCard.vue`, keduanya
+  `PUT map.pins.update` / `map.odps.update` dengan `{ locked }`.
+- Saat `locked=false`, marker Leaflet dibuat `draggable` dan diberi cincin cyan putus-putus
+  (`.kv-pin--unlocked`). Event `drag` menggeser kartu detail agar tetap menempel; event `dragend`
+  **langsung menyimpan** koordinat baru (`pin-moved`/`odp-moved` → PUT lat/lng) supaya posisi tak
+  hilang bila halaman ter-refresh sebelum dikunci. Tombol Kunci hanya mengubah `locked` jadi true.
+- PUT yang berisi **hanya koordinat** sengaja tak memberi flash (kalau tidak, tiap geser
+  memunculkan toast). Rule `name` di `OdpController::update` memakai `sometimes` supaya PUT
+  koordinat-saja tak perlu mengirim ulang nama, dan `notes` hanya ditimpa bila field-nya dikirim.
 
 ## Data & penyimpanan
 
@@ -97,9 +113,47 @@ kunci komposit yang sama dengan pin.
 
 **Di tabel ONU (ketiga family):** kolom **ODP** di `Pages/{SmartOlt,CDataOlt,Hioso}/PortOnus.vue` via
 komponen bersama `Components/OnuOdpCell.vue` — dropdown pilih ODP (lebar mengikuti nama terpanjang)
-yang submit ke `onu-odp.assign`.
+yang submit ke `onu-odp.assign`. Ketiga halaman itu juga punya **filter ODP** (`semua` / `tanpa ODP`
+/ ODP tertentu) di bar filter masing-masing.
 
-Scope v1: web saja (mobile/API belum). CRUD ODP via `OdpController` (`map.odps.*`).
+**Di Monitoring ONU** (`monitoring.onu`): dropdown filter ODP + kolom ODP. Datanya ikut baris ONU —
+`OnuInventoryService::normalize()` menambahkan `odp_id`/`odp_name` dari peta lookup `OnuOdpLink`
+yang dibangun **sekali** per request di `collect()`/`forPort()` (hindari N+1 di ribuan ONU).
+`findOne()` sengaja TIDAK melakukan lookup ODP karena dipanggil di dalam loop
+`OnuOdpService::connectedOnus()`. Query `OnuOdpLink` dilakukan langsung di `OnuInventoryService`,
+**bukan** lewat `OnuOdpService` — servis itu sudah bergantung pada `OnuInventoryService`, jadi
+meng-inject balik akan membuat dependensi melingkar di container.
+
+**Saat registrasi ONU (ZTE):** field **ODP (opsional)** di ketiga form `Pages/SmartOlt/RegisterOnu.vue`
+(C600 / Dasar / Lanjutan). Dropdown disaring di klien ke slot/port yang sedang dipilih (plus ODP yang
+belum punya port). Rule `odp_id` nullable ada di `OnuRegistrationService::rules()`/`c600Rules()` dan
+`SmartOltController::validatedProvisioning()`/`validatedAdvancedProvisioning()`.
+
+> ⚠️ Aturan pengaitan: ODP dikaitkan **hanya setelah CLI benar-benar sukses**, dan pemanggilannya
+> berada **di luar blok `try`** eksekusi Telnet. Kalau dikaitkan lebih awal, generate-script atau
+> eksekusi gagal bisa menimpa kaitan ODP milik ONU lain yang kebetulan menempati slot/port/onu_id
+> yang sama; kalau berada di dalam `try`, kegagalan menyimpan kaitan akan ter-`catch` dan menulis
+> baris audit `failed` kedua untuk ONU yang sebenarnya sudah teregister. Kegagalan mengaitkan tidak
+> membatalkan registrasi — hanya ditempel sebagai peringatan (`flash.onu_odp_link_failed`) lewat
+> `OnuOdpService::assignQuietly()`.
+
+## Halaman ODP (`odp.index`)
+
+Pusat pengelolaan ODP di luar peta — nav **ODP**, tepat di bawah Peta ONU. Terbuka untuk semua user
+login, dibatasi `PartnerOltScope` (partner hanya lihat ODP di OLT miliknya); tak ada policy khusus.
+
+- `Pages/Odp/Index.vue`: filter (cari nama, OLT, port/PON) + tabel (Nama · OLT · Port · Jumlah ONU ·
+  Koordinat) dengan paginasi sisi-klien (`usePagination` + `ClientPagination`).
+- **Tambah/Edit**: satu modal; koordinat bisa diisi manual atau lewat **tempel link Google Maps**
+  yang memakai ulang endpoint `POST map.resolve-link`.
+- **Kelola ONU**: modal dua daftar (ONU di ODP ini / kandidat) yang dimuat dari
+  `GET odp.onus` (JSON). Penambahan & pelepasan memakai ulang `onu-odp.assign` (`odp_id: null` =
+  lepas) — **tak ada endpoint tulis baru**.
+- Prefix rute sengaja `odp.*`, bukan `map.odps.index`, supaya penanda menu aktif `map.*` milik Peta
+  ONU tidak ikut menyala. `OdpController::store/update/destroy` memakai `back()` agar bisa dipanggil
+  dari peta maupun halaman ODP.
+
+Scope v1: web saja (mobile/API belum).
 
 ## Rute
 
@@ -113,6 +167,11 @@ Scope v1: web saja (mobile/API belum). CRUD ODP via `OdpController` (`map.odps.*
 | POST | `/map/pins/{pin}/rename` | `map.pins.rename` | Ganti nama ONU dari pin |
 | POST | `/map/resolve-link` | `map.resolve-link` | Ekstrak koordinat link Google Maps |
 | POST | `/map/odps` | `map.odps.store` | Tambah ODP |
-| PUT | `/map/odps/{odp}` | `map.odps.update` | Ubah nama/notes/koordinat ODP |
+| PUT | `/map/odps/{odp}` | `map.odps.update` | Ubah nama/notes/koordinat/kunci ODP |
 | DELETE | `/map/odps/{odp}` | `map.odps.destroy` | Hapus ODP (link ONU ikut terhapus) |
 | POST | `/onu-odp` | `onu-odp.assign` | Pasang/pindah/lepas ODP sebuah ONU |
+| GET | `/odp` | `odp.index` | Halaman pengelolaan ODP |
+| GET | `/odp/{odp}/onus` | `odp.onus` | JSON ONU terhubung + kandidat (modal Kelola ONU) |
+
+`map.pins.update` juga menerima `locked` (dan payload koordinat-saja dari geser pin).
+`map.index` menerima query `?focus_odp={id}` untuk membuka kartu detail sebuah ODP langsung.

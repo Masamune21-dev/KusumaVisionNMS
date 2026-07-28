@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { router, useForm } from '@inertiajs/vue3';
-import { MapPin, Pencil, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
+import { Lock, LockOpen, MapPin, Pencil, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -46,6 +46,17 @@ const submitEdit = () => {
             editOpen.value = false;
         },
     });
+};
+
+// --- kunci / buka posisi pin ODP ---
+// Sama seperti pin ONU: unlock → marker bisa digeser & koordinat tersimpan tiap dilepas.
+const toggleLock = () => {
+    busy.value = true;
+    router.put(
+        route('map.odps.update', props.odp.id),
+        { locked: props.odp.locked === false },
+        { preserveScroll: true, preserveState: true, onFinish: () => (busy.value = false) },
+    );
 };
 
 // --- hapus ODP ---
@@ -124,7 +135,20 @@ const deleteOdp = async () => {
 
         <!-- Aksi -->
         <div class="mt-1 space-y-2 border-t border-white/10 pt-3">
+            <p v-if="odp.locked === false" class="rounded-lg bg-cyan-500/10 px-2.5 py-1.5 text-[11px] text-cyan-200">
+                {{ $t('map.unlocked_hint') }}
+            </p>
             <div class="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    class="kv-action-btn"
+                    :class="odp.locked === false ? 'kv-action-btn--active' : ''"
+                    :disabled="busy"
+                    @click="toggleLock"
+                >
+                    <component :is="odp.locked === false ? LockOpen : Lock" class="h-4 w-4" />
+                    {{ odp.locked === false ? $t('map.lock') : $t('map.unlock') }}
+                </button>
                 <button type="button" class="kv-action-btn" :disabled="busy" @click="openEdit">
                     <Pencil class="h-4 w-4" /> {{ $t('map.edit_odp_name') }}
                 </button>
@@ -187,6 +211,13 @@ const deleteOdp = async () => {
 .kv-action-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Tombol Lock saat pin ODP sedang terbuka. */
+.kv-action-btn--active {
+    border-color: rgba(34, 211, 238, 0.4);
+    background: rgba(34, 211, 238, 0.12);
+    color: #67e8f9;
 }
 
 .kv-action-btn--danger {

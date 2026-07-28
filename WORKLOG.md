@@ -1,5 +1,102 @@
 # Worklog
 
+## 2026-07-28 — halaman ODP, lock/unlock pin peta, filter & registrasi ber-ODP
+
+Enam permintaan owner untuk modul ODP & Peta ONU. Basis data lama dipakai apa adanya (`odps`,
+`onu_odp_links`) — yang ditambah cuma satu kolom `locked`; sisanya UI + endpoint baca.
+
+### 1. Hint "belum ada pin" muncul walau sudah ada pin ODP
+
+Changed:
+
+- `resources/js/Pages/Map/Index.vue` — kondisi hint jadi `!pins.length && !odps.length && !addMode`. Prop `odps` sudah ada, tak perlu payload baru.
+
+### 2. Lock/Unlock posisi pin (ONU & ODP)
+
+Sebelumnya posisi pin terkunci permanen: satu-satunya cara memperbaiki titik yang salah adalah hapus lalu buat ulang.
+
+Created:
+
+- `database/migrations/2026_07_28_000001_add_locked_to_map_pins_and_odps.php` — `boolean('locked')->default(true)` di `onu_map_pins` **dan** `odps`. Default true supaya baris lama mempertahankan perilaku lama.
+
+Changed:
+
+- `app/Models/OnuMapPin.php`, `app/Models/Odp.php` — `locked` masuk `$fillable` + cast boolean.
+- `app/Http/Controllers/OnuMapController.php` — `locked` di payload pin & ODP; `update()` menerima rule `locked`. Filter mass-assign membandingkan terhadap **null** (bukan falsy) supaya `locked=false` tetap tersimpan.
+- `app/Http/Controllers/OdpController.php` — idem; rule `name` dilonggarkan jadi `sometimes` dan `notes` hanya ditimpa bila field-nya dikirim, supaya PUT koordinat-saja (hasil geser) tak menghapus nama/catatan.
+- `resources/js/Components/Map/OnuMap.vue` — marker `draggable: locked === false`; `dragend` → emit `pin-moved`/`odp-moved`, `drag` → emit ulang posisi piksel supaya kartu detail ikut menempel selama digeser. `emitPinPosition/emitOdpPosition` menerima override latlng. Kelas `.kv-pin--unlocked` (cincin cyan putus-putus + kursor move).
+- `resources/js/Pages/Map/Index.vue` — handler `pin-moved`/`odp-moved` → PUT koordinat.
+- `resources/js/Components/Map/{PinDetailCard,OdpDetailCard}.vue` — tombol Kunci/Buka Kunci + hint saat terbuka.
+
+Notes:
+
+- **Koordinat disimpan tiap `dragend`, bukan menunggu tombol Kunci** (dipilih owner): kalau menunggu, satu refresh sebelum dikunci membuang hasil geser. Tombol Kunci tinggal mengubah `locked`.
+- PUT yang isinya **hanya** koordinat sengaja balik tanpa flash — kalau tidak, tiap kali marker dilepas muncul toast.
+
+### 3. Halaman ODP (`odp.index`)
+
+Created:
+
+- `resources/js/Pages/Odp/Index.vue` — filter (nama/OLT/port) + tabel desktop & kartu mobile + paginasi klien; modal tambah/edit (koordinat manual **atau** tempel link Google Maps lewat endpoint lama `map.resolve-link`); modal **Kelola ONU** dua daftar.
+
+Changed:
+
+- `app/Http/Controllers/OdpController.php` — `index()` (Inertia, `withCount('links')`) + `onus()` (JSON: `connected` dari `connectedOnus()`, `available` dari `OnuInventoryService::forPort()`/`collect()` + kaitan ODP lain sebagai penanda "akan dipindah"). `store/update/destroy` diganti ke `back()`.
+- `routes/web.php` — `odp.index`, `odp.onus`.
+- `resources/js/Layouts/AuthenticatedLayout.vue` — nav "ODP" (ikon `Waypoints`) di bawah Peta ONU.
+- `app/Http/Controllers/OnuMapController.php` — query `?focus_odp={id}` (link koordinat dari halaman ODP membuka kartu ODP-nya langsung).
+
+Notes:
+
+- Prefix rute **`odp.*`**, bukan `map.odps.index` — penanda menu aktif Peta ONU memakai `match: 'map.*'` yang akan ikut menyala.
+- **Tak ada endpoint tulis baru**: tambah/lepas ONU memakai ulang `onu-odp.assign` (`odp_id: null` = lepas). Karena itu `map.odps.*` harus `back()`, bukan `redirect()->route('map.index')`, supaya bisa dipanggil dari dua halaman.
+- Akses: semua user login, dibatasi `PartnerOltScope` (keputusan owner) — bukan admin-only seperti halaman Zona dulu.
+
+### 4. Filter ODP di semua halaman ONU
+
+Changed:
+
+- `app/Services/OnuInventoryService.php` — `odp_id`/`odp_name` di `normalize()`, dari peta lookup `OnuOdpLink` yang dibangun **sekali** di `collect()`/`forPort()`.
+- `app/Services/OnuOdpService.php` — `optionsForOlts()` (dropdown lintas-OLT), `odpsForOlt()` kini ikut mengembalikan `slot`/`port`, `assignQuietly()`.
+- `app/Http/Controllers/SmartOltController.php` — `onuMonitor()` kirim prop `odps`.
+- `resources/js/Pages/SmartOlt/OnuMonitor.vue` — `odpFilter` (`all`/`none`/id), opsi disaring per OLT+port terpilih, `odp_name` masuk haystack pencarian, kolom ODP di tabel & kartu mobile.
+- `resources/js/Pages/{SmartOlt,CDataOlt,Hioso}/PortOnus.vue` — dropdown filter ODP + 2 baris di computed filter. Ketiganya sudah menerima prop `odps`/`odp_links`, jadi tak ada perubahan backend.
+
+Notes:
+
+- **Query `OnuOdpLink` dilakukan langsung di `OnuInventoryService`, bukan lewat `OnuOdpService`** — servis itu sudah meng-inject `OnuInventoryService`, jadi arah sebaliknya bikin container melingkar.
+- `findOne()` sengaja TIDAK melakukan lookup ODP: dipanggil di dalam loop `OnuOdpService::connectedOnus()`, satu query per panggilan justru jadi N+1.
+- Menyentuh `Pages/{CDataOlt,Hioso}/PortOnus.vue` **atas permintaan eksplisit owner** (ditanya duluan; opsi "ZTE saja" ditolak). Perubahan dibatasi 1 dropdown + 2 baris filter per halaman, tak ada servis C-Data/HiOSO yang disentuh.
+
+### 5. Field ODP opsional saat registrasi ONU (ZTE)
+
+Changed:
+
+- `app/Services/Zte/OnuRegistrationService.php` — rule `odp_id` nullable di `rules()` & `c600Rules()`; `register()` mengembalikan `odp_error`.
+- `app/Http/Controllers/SmartOltController.php` — `registerOnuForm()` kirim prop `odps` + default `odp_id`; rule di `validatedProvisioning()`/`validatedAdvancedProvisioning()`; pengaitan di `storeOnu()` (C600 & non-C600) dan `storeOnuAdvanced()`; helper `odpWarningNote()`.
+- `resources/js/Pages/SmartOlt/RegisterOnu.vue` — dropdown "ODP (opsional)" di ketiga form (C600 / Dasar / Lanjutan), opsi disaring di klien ke slot/port yang sedang dipilih plus ODP yang belum punya port.
+
+Notes:
+
+- Pola diambil dari fitur Zones yang dulu di-revert, termasuk dua jebakannya: **assign hanya setelah CLI sukses** (kalau lebih awal, generate/gagal bisa menimpa kaitan ODP milik ONU lain yang menempati slot/port/onu_id sama) dan **assign di LUAR blok `try`** (kalau di dalam, gagal menyimpan kaitan ter-`catch` lalu menulis baris audit `failed` kedua untuk ONU yang sudah nyata teregister). Keduanya dikunci test.
+- `odp_id` kosong = **jangan sentuh kaitan apa pun** — `assign(null)` justru menghapus link yang sudah ada.
+- Tanpa perubahan skema: kaitan cukup di `onu_odp_links` (beda dari Zones yang dulu menambah kolom `zone_id` ke `smartolt_onu_registrations`). `odp_id` yang ikut ter-spread ke `SmartOltOnuRegistration::create()` aman karena bukan `$fillable`.
+- `exists:odps,id` tak melewati global scope, tapi aman: `OnuOdpService::assign()` memverifikasi ulang ODP milik OLT tsb di bawah `PartnerOltScope` (ada testnya — registrasi tetap sukses, hanya muncul peringatan).
+- API v1 ikut menerima `odp_id` gratis (memakai `rules()` yang sama, nullable → tak memutus klien lama). UI Flutter **di luar cakupan** kali ini.
+
+### 6. Test & verifikasi
+
+Created:
+
+- `tests/Feature/OdpTest.php` — 8 test: `odp.index` + hitungan ONU, isolasi partner (ODP OLT lain 404), `odp.onus` memisah connected/available, assign & lepas ONU, `back()` CRUD, siklus unlock→geser→lock (koordinat tersimpan, nama tak hilang, geser tak mengunci sendiri), pin baru default terkunci + geser tak menghapus field pelanggan, kolom ODP di Monitoring ONU.
+- `tests/Feature/OdpRegistrationLinkTest.php` — 6 test: generate-only tak membuat link, eksekusi sukses membuat link, eksekusi gagal = tanpa link & **satu** baris audit, `odp_id` kosong tak menyentuh link lama, ODP OLT lain hanya memberi peringatan, jalur Lanjutan ikut mengaitkan.
+
+Notes:
+
+- Ini **test map/ODP pertama** di proyek ini (sebelumnya cuma `tests/Unit/OnuMapLinkResolverTest.php`).
+- Suite penuh **434/434 hijau** + **12 test JS**, Pint bersih (3 temuan tersisa ada di `routes/auth.php`, `bootstrap/providers.php`, `ZteProfileCatalogService.php` — berkas yang tak disentuh perubahan ini), `npm run build` bersih & `Pages/Odp/Index.vue` masuk manifest, paritas key i18n id/en 1443 = 1443.
+- Di server ini sudah dijalankan `php artisan migrate --force`, `route:cache`, dan `queue:restart` (rute baru tak terlihat sampai route cache diperbarui).
+
 ## 2026-07-24 (lanjutan 4) — "tandai semua" batal sendiri + fallback 403/404 + Vitest
 
 ### 1. "Tandai semua dibaca" hidup lagi tiap poll (bug nyata)

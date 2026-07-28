@@ -333,7 +333,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function onuMonitor(OnuInventoryService $inventory): Response
+    public function onuMonitor(OnuInventoryService $inventory, OnuOdpService $odpService): Response
     {
         $olts = SnmpOlt::query()->orderBy('name')->get();
         $aggregated = $inventory->collect($olts);
@@ -346,6 +346,8 @@ class SmartOltController extends Controller
             ])->values(),
             'onus' => $aggregated['onus'],
             'refreshed_at' => $aggregated['refreshed_at'],
+            // Opsi dropdown filter ODP (disaring per OLT terpilih di frontend).
+            'odps' => $odpService->optionsForOlts($olts),
         ]);
     }
 
@@ -480,7 +482,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt, OnuOdpService $odpService): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
@@ -495,6 +497,8 @@ class SmartOltController extends Controller
             'port' => $port ?: null,
             'onu_id' => $this->suggestNextOnuId($olt, $slot, $port, (int) $request->query('suggested_onu_id')),
             'oid_index' => (string) $request->query('oid_index', ''),
+            // ODP opsional — dikaitkan setelah registrasi berhasil dieksekusi ke OLT.
+            'odp_id' => null,
         ];
 
         // Hanya blok default milik family OLT ini yang dibangun penuh — form family
@@ -502,6 +506,9 @@ class SmartOltController extends Controller
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
             'profiles' => SmartOltProfileController::profileOptions($olt),
+            // Semua ODP OLT ini (lengkap slot/port) — dropdown disaring per port di frontend,
+            // karena slot/port masih bisa diubah di form.
+            'odps' => $odpService->odpsForOlt($olt),
             'defaults' => $isC600 ? $identity : [
                 ...$identity,
                 'customer_name' => '',
@@ -1245,7 +1252,7 @@ class SmartOltController extends Controller
         return response()->json(['script' => $builder->build($data)]);
     }
 
-    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration): RedirectResponse
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, OnuOdpService $odps): RedirectResponse
     {
         // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
         if (SmartOltSupport::isC600($olt)) {
@@ -1258,7 +1265,7 @@ class SmartOltController extends Controller
             $result = $registration->register($olt, $validated, $execute, $request->user()?->id);
 
             $flash = match ($result['status']) {
-                'executed' => ['success', __('flash.registered_ok')],
+                'executed' => ['success', __('flash.registered_ok').$this->odpWarningNote($result['odp_error'] ?? null)],
                 'generated' => ['success', __('flash.prov_generated')],
                 default => ['error', __('flash.register_rejected').($result['error'] ?? '')],
             };
@@ -1298,6 +1305,9 @@ class SmartOltController extends Controller
         // Eksekusi langsung ke OLT via Telnet.
         $this->assertCapability($olt, 'supports_cli_onu_configure');
 
+        // try HANYA membungkus Telnet + tulis baris audit; assign ODP sengaja di luar supaya
+        // kegagalannya tak ter-catch di sini & bikin baris 'failed' kedua (catatan sama di
+        // OnuRegistrationService::register()).
         try {
             $result = $executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -1311,15 +1321,6 @@ class SmartOltController extends Controller
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
-
-            return redirect()
-                ->route('smartolt.registrations', $olt)
-                ->with(
-                    $result['ok'] ? 'success' : 'error',
-                    $result['ok']
-                        ? __('flash.registered_ok')
-                        : __('flash.register_rejected').$error,
-                );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
 
@@ -1335,6 +1336,37 @@ class SmartOltController extends Controller
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.register_exec_failed').$error);
         }
+
+        // ODP dikaitkan hanya saat CLI sukses; gagalnya TIDAK membatalkan registrasi.
+        // ODP kosong = jangan sentuh kaitan apa pun (assign(null) justru MENGHAPUS link).
+        $odpNote = $result['ok'] && ($data['odp_id'] ?? null) !== null
+            ? $this->odpWarningNote($odps->assignQuietly(
+                $olt,
+                (int) $data['slot'],
+                (int) $data['port'],
+                (int) $data['onu_id'],
+                (string) $data['serial_number'],
+                (int) $data['odp_id'],
+                $request->user()?->id,
+            ))
+            : '';
+
+        return redirect()
+            ->route('smartolt.registrations', $olt)
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? __('flash.registered_ok').$odpNote
+                    : __('flash.register_rejected').$error,
+            );
+    }
+
+    /**
+     * Peringatan yang ditempel ke flash sukses saat ONU sudah teregister tapi kaitan ODP gagal.
+     */
+    private function odpWarningNote(?string $error): string
+    {
+        return $error === null ? '' : __('flash.onu_odp_link_failed').$error.')';
     }
 
     /**
@@ -1360,7 +1392,7 @@ class SmartOltController extends Controller
      * {@see storeOnu} but the CLI script comes from the granular editor instead
      * of the fixed single-service template.
      */
-    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuOdpService $odps): RedirectResponse
     {
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
         $context = $this->advancedRegistrationContext($olt, $header);
@@ -1407,6 +1439,7 @@ class SmartOltController extends Controller
         // Eksekusi langsung ke OLT via Telnet — script granular gaya C300 (gate capability tulis).
         $this->assertCapability($olt, 'supports_onu_config_write');
 
+        // Assign ODP sengaja di luar try — lihat catatan sama di storeOnu().
         try {
             $result = $executor->execute($olt, $script);
             $output = CliOutputSanitizer::clean($result['output']);
@@ -1420,15 +1453,6 @@ class SmartOltController extends Controller
                 'executed_at' => now(),
                 'executed_by' => $request->user()?->id,
             ]);
-
-            return redirect()
-                ->route('smartolt.registrations', $olt)
-                ->with(
-                    $result['ok'] ? 'success' : 'error',
-                    $result['ok']
-                        ? __('flash.registered_ok')
-                        : __('flash.register_rejected').$error,
-                );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
 
@@ -1444,6 +1468,27 @@ class SmartOltController extends Controller
                 ->route('smartolt.registrations', $olt)
                 ->with('error', __('flash.register_exec_failed').$error);
         }
+
+        $odpNote = $result['ok'] && $header['odp_id'] !== null
+            ? $this->odpWarningNote($odps->assignQuietly(
+                $olt,
+                (int) $header['slot'],
+                (int) $header['port'],
+                (int) $header['onu_id'],
+                (string) $header['serial_number'],
+                (int) $header['odp_id'],
+                $request->user()?->id,
+            ))
+            : '';
+
+        return redirect()
+            ->route('smartolt.registrations', $olt)
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? __('flash.registered_ok').$odpNote
+                    : __('flash.register_rejected').$error,
+            );
     }
 
     /**
@@ -1626,6 +1671,8 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191'],
+            // ODP opsional — dikaitkan setelah CLI sukses (lihat storeOnu()).
+            'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'tcont_profile' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'tcont')],
             'vlan' => ['required', 'integer', 'between:1,4094'],
@@ -1746,6 +1793,7 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
+            'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             ...$this->reconfigureConfigRules(),
         ]);
 
@@ -1757,6 +1805,7 @@ class SmartOltController extends Controller
                 'onu_id' => (int) $validated['onu_id'],
                 'oid_index' => $validated['oid_index'] ?? null,
                 'onu_type' => $validated['onu_type'],
+                'odp_id' => isset($validated['odp_id']) ? (int) $validated['odp_id'] : null,
             ],
             $validated['config'],
         ];

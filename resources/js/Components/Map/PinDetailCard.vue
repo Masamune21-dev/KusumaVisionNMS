@@ -8,7 +8,7 @@ import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { rxBadgeClass } from '@/Composables/useRxLevel';
 import { Link, router, useForm } from '@inertiajs/vue3';
-import { ExternalLink, Info, MapPin, Pencil, Power, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
+import { ExternalLink, Info, Lock, LockOpen, MapPin, Pencil, Power, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -49,6 +49,18 @@ const submitRename = () => {
             renameOpen.value = false;
         },
     });
+};
+
+// --- kunci / buka posisi pin ---
+// Unlock membuat marker bisa digeser di peta; koordinat baru tersimpan otomatis tiap kali
+// marker dilepas (lihat onPinMoved di Pages/Map/Index.vue), Lock mengunci kembali.
+const toggleLock = () => {
+    busy.value = true;
+    router.put(
+        route('map.pins.update', props.pin.id),
+        { locked: props.pin.locked === false },
+        { preserveScroll: true, preserveState: true, onFinish: () => (busy.value = false) },
+    );
 };
 
 // --- reboot ---
@@ -135,7 +147,20 @@ const deletePin = async () => {
 
         <!-- Aksi -->
         <div class="mt-1 space-y-2 border-t border-white/10 pt-3">
+            <p v-if="pin.locked === false" class="rounded-lg bg-cyan-500/10 px-2.5 py-1.5 text-[11px] text-cyan-200">
+                {{ $t('map.unlocked_hint') }}
+            </p>
             <div class="grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    class="kv-action-btn"
+                    :class="pin.locked === false ? 'kv-action-btn--active' : ''"
+                    :disabled="busy"
+                    @click="toggleLock"
+                >
+                    <component :is="pin.locked === false ? LockOpen : Lock" class="h-4 w-4" />
+                    {{ pin.locked === false ? $t('map.lock') : $t('map.unlock') }}
+                </button>
                 <button
                     v-if="caps.supports_onu_info_write"
                     type="button"
@@ -215,6 +240,13 @@ const deletePin = async () => {
 .kv-action-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     color: #fff;
+}
+
+/* Tombol Lock saat pin sedang terbuka — senada cincin cyan pin di peta. */
+.kv-action-btn--active {
+    border-color: rgba(34, 211, 238, 0.4);
+    background: rgba(34, 211, 238, 0.12);
+    color: #67e8f9;
 }
 
 .kv-action-btn:disabled {

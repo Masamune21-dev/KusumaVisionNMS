@@ -157,6 +157,10 @@ Route::middleware('auth')->group(function () {
     Route::put('/map/odps/{odp}', [OdpController::class, 'update'])->name('map.odps.update');
     Route::delete('/map/odps/{odp}', [OdpController::class, 'destroy'])->name('map.odps.destroy');
     Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
+    // Halaman pengelolaan ODP — prefix rute sengaja `odp.*` (bukan `map.odps.index`) supaya
+    // penanda menu aktif `map.*` milik Peta ONU tidak ikut menyala.
+    Route::get('/odp', [OdpController::class, 'index'])->name('odp.index');
+    Route::get('/odp/{odp}/onus', [OdpController::class, 'onus'])->name('odp.onus');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');

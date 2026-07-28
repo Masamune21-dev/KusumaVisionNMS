@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Collection;
@@ -27,6 +28,8 @@ class OnuInventoryService
 
         $onus = [];
         $refreshedAt = [];
+        // Satu query untuk SEMUA kaitan ODP sekaligus — hindari N+1 di loop ribuan ONU.
+        $odpMap = $this->odpLookupMap($olts->pluck('id')->all());
 
         foreach ($olts as $olt) {
             $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
@@ -43,7 +46,7 @@ class OnuInventoryService
                 }
 
                 foreach (data_get($entry, 'onus', []) as $onu) {
-                    $onus[] = $this->normalize($olt, $routePrefix, $onu);
+                    $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap);
                 }
             }
         }
@@ -66,10 +69,11 @@ class OnuInventoryService
     {
         $routePrefix = $this->routePrefix($olt);
         $entry = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+        $odpMap = $this->odpLookupMap([$olt->id], $slot, $port);
 
         $onus = [];
         foreach (data_get($entry, 'onus', []) as $onu) {
-            $onus[] = $this->normalize($olt, $routePrefix, $onu);
+            $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap);
         }
 
         usort($onus, fn (array $a, array $b) => $a['onu_id'] <=> $b['onu_id']);
@@ -83,6 +87,10 @@ class OnuInventoryService
 
     /**
      * Cari satu ONU di cache OLT dan kembalikan bentuk ter-normalisasi (untuk enrich pin peta).
+     *
+     * Sengaja TIDAK melakukan lookup ODP: `OnuOdpService::connectedOnus()` memanggil metode ini
+     * di dalam loop, jadi satu query per panggilan justru akan menjadi N+1. Pemakai yang butuh
+     * kolom ODP memakai collect()/forPort().
      *
      * @return array<string, mixed>|null
      */
@@ -115,20 +123,55 @@ class OnuInventoryService
     }
 
     /**
+     * Peta kaitan ONU↔ODP di-key "oltId.slot.port.onuId", satu query untuk banyak OLT sekaligus.
+     *
+     * Query model `OnuOdpLink` langsung (bukan lewat `OnuOdpService`) karena servis itu sudah
+     * bergantung pada kelas ini — meng-inject balik akan membuat dependensi melingkar.
+     *
+     * @param  array<int, int>  $oltIds
+     * @return array<string, array{odp_id:int, odp_name:?string}>
+     */
+    private function odpLookupMap(array $oltIds, ?int $slot = null, ?int $port = null): array
+    {
+        if ($oltIds === []) {
+            return [];
+        }
+
+        return OnuOdpLink::query()
+            ->whereIn('snmp_olt_id', $oltIds)
+            ->when($slot !== null, fn ($query) => $query->where('slot', $slot)->where('port', $port))
+            ->with('odp:id,name')
+            ->get()
+            ->mapWithKeys(fn (OnuOdpLink $link) => [
+                "{$link->snmp_olt_id}.{$link->slot}.{$link->port}.{$link->onu_id}" => [
+                    'odp_id' => $link->odp_id,
+                    'odp_name' => $link->odp?->name,
+                ],
+            ])
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $onu
+     * @param  array<string, array{odp_id:int, odp_name:?string}>  $odpMap  key "oltId.slot.port.onuId"
      * @return array<string, mixed>
      */
-    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu): array
+    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu, array $odpMap = []): array
     {
+        $slot = (int) ($onu['slot'] ?? 0);
+        $port = (int) ($onu['port'] ?? 0);
+        $onuId = (int) ($onu['onu_id'] ?? 0);
+        $odp = $odpMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
+
         return [
             'olt_id' => $olt->id,
             'olt_name' => $olt->name,
             // Nama rute halaman ONU per port (per family) — dipakai frontend membangun link langsung.
             'port_route' => $routePrefix.'.port-onus',
             'olt_cdata' => $routePrefix !== 'smartolt',
-            'slot' => (int) ($onu['slot'] ?? 0),
-            'port' => (int) ($onu['port'] ?? 0),
-            'onu_id' => (int) ($onu['onu_id'] ?? 0),
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
             'if_index' => isset($onu['if_index']) ? (int) $onu['if_index'] : null,
             'interface' => $onu['interface'] ?? null,
             'serial_number' => $onu['serial_number'] ?? null,
@@ -143,6 +186,8 @@ class OnuInventoryService
             'last_down_cause' => $onu['last_down_cause'] ?? null,
             'rx_power_dbm' => $onu['rx_power_dbm'] ?? null,
             'rx_power_label' => $onu['rx_power_label'] ?? null,
+            'odp_id' => $odp['odp_id'] ?? null,
+            'odp_name' => $odp['odp_name'] ?? null,
         ];
     }
 }

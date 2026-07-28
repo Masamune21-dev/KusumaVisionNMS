@@ -21,7 +21,15 @@ const props = defineProps({
     draft: { type: Object, default: null },
 });
 
-const emit = defineEmits(['map-click', 'select-pin', 'select-odp', 'pin-position', 'odp-position']);
+const emit = defineEmits([
+    'map-click',
+    'select-pin',
+    'select-odp',
+    'pin-position',
+    'odp-position',
+    'pin-moved',
+    'odp-moved',
+]);
 
 const mapEl = ref(null);
 let map = null;
@@ -44,6 +52,8 @@ const buildIcon = (pin, selected) => {
     const cls = ['kv-pin'];
     if (selected) cls.push('kv-pin--selected');
     if (!pin.online) cls.push('kv-pin--offline');
+    // Pin terbuka (locked=false) ditandai supaya jelas mana yang bisa digeser.
+    if (pin.locked === false) cls.push('kv-pin--unlocked');
     return L.divIcon({
         className: '',
         html: `<div class="${cls.join(' ')}">
@@ -64,6 +74,7 @@ const buildOdpIcon = (odp, selected) => {
     const count = (odp.onus ?? []).length;
     const cls = ['kv-odp-pin'];
     if (selected) cls.push('kv-odp-pin--selected');
+    if (odp.locked === false) cls.push('kv-pin--unlocked');
     return L.divIcon({
         className: '',
         html: `<div class="${cls.join(' ')}">
@@ -116,33 +127,41 @@ const renderOdps = () => {
             title: odp.name,
             riseOnHover: true,
             zIndexOffset: 500,
+            draggable: odp.locked === false,
         });
         marker.on('click', () => emit('select-odp', odp.id));
+        // Selama digeser, kartu detail ikut menempel; koordinat disimpan saat dilepas.
+        marker.on('drag', () => emitOdpPosition(marker.getLatLng()));
+        marker.on('dragend', () => {
+            const { lat, lng } = marker.getLatLng();
+            emit('odp-moved', { id: odp.id, latitude: lat, longitude: lng });
+        });
         marker.addTo(odpLayer);
     }
 };
 
 // Posisi piksel pin terpilih (relatif container) — dipakai induk untuk menempel kartu detail di atas pin.
-const emitPinPosition = () => {
+// $latLng = override koordinat (dipakai saat marker sedang digeser, karena prop belum berubah).
+const emitPinPosition = (latLng = null) => {
     if (!map) return;
     const pin = props.pins.find((p) => p.id === props.selectedId);
     if (!pin || pin.latitude == null || pin.longitude == null) {
         emit('pin-position', null);
         return;
     }
-    const pt = map.latLngToContainerPoint([pin.latitude, pin.longitude]);
+    const pt = map.latLngToContainerPoint(latLng ?? [pin.latitude, pin.longitude]);
     emit('pin-position', { id: pin.id, x: pt.x, y: pt.y });
 };
 
 // Posisi piksel pin ODP terpilih — untuk menempel kartu detail ODP di atasnya.
-const emitOdpPosition = () => {
+const emitOdpPosition = (latLng = null) => {
     if (!map) return;
     const odp = props.odps.find((o) => o.id === props.selectedOdpId);
     if (!odp || odp.latitude == null || odp.longitude == null) {
         emit('odp-position', null);
         return;
     }
-    const pt = map.latLngToContainerPoint([odp.latitude, odp.longitude]);
+    const pt = map.latLngToContainerPoint(latLng ?? [odp.latitude, odp.longitude]);
     emit('odp-position', { id: odp.id, x: pt.x, y: pt.y });
 };
 
@@ -157,8 +176,14 @@ const renderPins = () => {
             icon: buildIcon(pin, pin.id === props.selectedId),
             title: pin.customer_name || pin.interface || `ONU #${pin.onu_id}`,
             riseOnHover: true,
+            draggable: pin.locked === false,
         });
         marker.on('click', () => emit('select-pin', pin.id));
+        marker.on('drag', () => emitPinPosition(marker.getLatLng()));
+        marker.on('dragend', () => {
+            const { lat, lng } = marker.getLatLng();
+            emit('pin-moved', { id: pin.id, latitude: lat, longitude: lng });
+        });
         marker.addTo(markerLayer);
         markers.set(pin.id, marker);
     }
@@ -335,6 +360,32 @@ defineExpose({
 .kv-pin--selected svg {
     transform: scale(1.18);
     filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* Pin terbuka (bisa digeser) — cincin cyan putus-putus + kursor pindah. Dipakai
+   pin ONU maupun pin ODP. */
+.kv-pin--unlocked {
+    cursor: move;
+}
+
+.kv-pin--unlocked::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 11px;
+    width: 26px;
+    height: 26px;
+    margin-left: -13px;
+    margin-top: -13px;
+    border-radius: 9999px;
+    border: 2px dashed rgba(34, 211, 238, 0.9);
+    animation: kv-pin-spin 6s linear infinite;
+}
+
+@keyframes kv-pin-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Cincin pulsa merah di kepala pin untuk ONU offline. */

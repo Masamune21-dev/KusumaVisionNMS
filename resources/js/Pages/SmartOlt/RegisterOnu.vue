@@ -38,6 +38,11 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    // Seluruh ODP OLT ini (dgn slot/port) — disaring per port terpilih di bawah.
+    odps: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const clone = (value) => JSON.parse(JSON.stringify(value ?? null));
@@ -89,8 +94,22 @@ const advForm = useForm({
     onu_id: props.defaults.onu_id,
     oid_index: props.defaults.oid_index,
     onu_type: props.defaults.onu_type,
+    odp_id: props.defaults.odp_id,
     config: clone(props.advanced_defaults),
 });
+
+// ODP terkunci ke satu PON port; tampilkan hanya ODP di port yang sedang dipilih
+// (plus ODP yang belum punya port — portnya terisi otomatis saat ONU pertama dikaitkan).
+const odpOptionsFor = (slot, port) =>
+    props.odps.filter(
+        (odp) =>
+            (odp.slot === null && odp.port === null) ||
+            (Number(odp.slot) === Number(slot) && Number(odp.port) === Number(port)),
+    );
+
+const c600OdpOptions = computed(() => odpOptionsFor(c600Form.slot, c600Form.port));
+const simpleOdpOptions = computed(() => odpOptionsFor(form.slot, form.port));
+const advOdpOptions = computed(() => odpOptionsFor(advForm.slot, advForm.port));
 
 const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
@@ -347,6 +366,15 @@ const submitC600 = async (execute) => {
                                     <TextInput v-model="c600Form.zone" class="mt-1 w-full" placeholder="ARROYO AL CABO" />
                                     <InputError class="mt-1.5" :message="c600Form.errors.zone" />
                                 </div>
+                                <div>
+                                    <InputLabel :value="$t('registeronu.odp')" />
+                                    <select v-model="c600Form.odp_id" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                        <option :value="null">{{ $t('registeronu.odp_none') }}</option>
+                                        <option v-for="odp in c600OdpOptions" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.odp_hint') }}</p>
+                                    <InputError class="mt-1.5" :message="c600Form.errors.odp_id" />
+                                </div>
                             </div>
                         </div>
 
@@ -544,10 +572,19 @@ const submitC600 = async (execute) => {
                                 <TextInput id="onu_id" v-model="form.onu_id" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.onu_id" />
                             </div>
-                            <div class="md:col-span-3">
+                            <div class="md:col-span-2">
                                 <InputLabel for="customer_name" :value="$t('registeronu.customer_name')" />
                                 <TextInput id="customer_name" v-model="form.customer_name" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.customer_name" />
+                            </div>
+                            <div>
+                                <InputLabel for="odp_id" :value="$t('registeronu.odp')" />
+                                <select id="odp_id" v-model="form.odp_id" class="mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                    <option :value="null">{{ $t('registeronu.odp_none') }}</option>
+                                    <option v-for="odp in simpleOdpOptions" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
+                                </select>
+                                <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.odp_hint') }}</p>
+                                <InputError class="mt-1.5" :message="form.errors.odp_id" />
                             </div>
                         </div>
                     </div>
@@ -872,6 +909,15 @@ const submitC600 = async (execute) => {
                                         <option v-for="profile in onuTypeProfiles" :key="profile.id" :value="profile.name">{{ profile.name }}</option>
                                     </select>
                                     <InputError class="mt-1.5" :message="advForm.errors.onu_type" />
+                                </div>
+                                <div>
+                                    <InputLabel for="adv_odp_id" :value="$t('registeronu.odp')" />
+                                    <select id="adv_odp_id" v-model="advForm.odp_id" class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+                                        <option :value="null">{{ $t('registeronu.odp_none') }}</option>
+                                        <option v-for="odp in advOdpOptions" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
+                                    </select>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.odp_hint') }}</p>
+                                    <InputError class="mt-1.5" :message="advForm.errors.odp_id" />
                                 </div>
                             </div>
                         </div>

@@ -21,6 +21,7 @@ class OnuMapPin extends Model
         'serial_number',
         'latitude',
         'longitude',
+        'locked',
         'customer_name',
         'address',
         'phone',
@@ -36,6 +37,7 @@ class OnuMapPin extends Model
             'onu_id' => 'integer',
             'latitude' => 'float',
             'longitude' => 'float',
+            'locked' => 'boolean',
         ];
     }
 
