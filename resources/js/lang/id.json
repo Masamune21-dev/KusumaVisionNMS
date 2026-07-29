@@ -857,6 +857,7 @@
         "lock": "Kunci",
         "unlock": "Buka Kunci",
         "unlocked_hint": "Pin terbuka — geser di peta, lalu tekan Kunci.",
+        "loading_onus": "Memuat daftar ONU…",
         "layer_satellite": "Google Satelit",
         "modal_title": "Tambah Pin ONU",
         "search_placeholder": "Cari ONU: interface, serial, nama pelanggan, atau OLT...",

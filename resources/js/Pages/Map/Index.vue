@@ -61,12 +61,22 @@ const closeOdpDetail = () => {
 
 const onlineCount = computed(() => props.pins.filter((p) => p.online).length);
 
+// Daftar ONU (prop optional di server, ±4.500 baris) tidak ikut saat peta dibuka — baru
+// diambil begitu pengguna masuk mode tambah pin, supaya halaman peta ringan.
+const onusLoading = ref(false);
+const ensureOnus = () => {
+    if (props.onus.length || onusLoading.value) return;
+    onusLoading.value = true;
+    router.reload({ only: ['onus'], onFinish: () => (onusLoading.value = false) });
+};
+
 // Mode placement dari Port ONUs ("klik langsung di map") — buka peta siap tempel pin ONU tsb.
 // Atau fokus ke pin tertentu ("Lihat di Peta") — langsung buka kartu detailnya.
 onMounted(() => {
     if (props.placement) {
         presetForModal.value = props.placement;
         addMode.value = true;
+        ensureOnus();
     } else if (props.focus_pin_id && props.pins.some((p) => p.id === props.focus_pin_id)) {
         selectedPinId.value = props.focus_pin_id;
     } else if (props.focus_odp_id && props.odps.some((o) => o.id === props.focus_odp_id)) {
@@ -76,6 +86,7 @@ onMounted(() => {
 
 const toggleAddMode = () => {
     addMode.value = !addMode.value;
+    if (addMode.value) ensureOnus();
     if (!addMode.value) {
         presetForModal.value = null;
         draftCoords.value = null;
@@ -86,6 +97,7 @@ const toggleAddMode = () => {
 
 const onMapClick = ({ lat, lng }) => {
     draftCoords.value = { lat, lng };
+    ensureOnus();
     addModalOpen.value = true;
 };
 
@@ -117,11 +129,13 @@ const onSaved = () => {
 
 // Pin yang sedang terbuka (unlocked) langsung menyimpan koordinat begitu dilepas, supaya
 // posisi tak hilang bila halaman ditutup sebelum sempat dikunci. Tombol Lock hanya mengunci.
+// `only` menahan server agar hanya menghitung prop yang berubah — tanpa itu tiap geser pin
+// membangun ulang seluruh payload peta (ODP + ONU semua OLT) dan terasa seperti reload.
 const onPinMoved = ({ id, latitude, longitude }) => {
     router.put(
         route('map.pins.update', id),
         { latitude, longitude },
-        { preserveScroll: true, preserveState: true },
+        { preserveScroll: true, preserveState: true, only: ['pins'] },
     );
 };
 
@@ -129,7 +143,7 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
     router.put(
         route('map.odps.update', id),
         { latitude, longitude },
-        { preserveScroll: true, preserveState: true },
+        { preserveScroll: true, preserveState: true, only: ['odps'] },
     );
 };
 </script>
@@ -223,6 +237,7 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
             :onus="onus"
             :coords="draftCoords"
             :preset="presetForModal"
+            :loading="onusLoading"
             @close="closeModal"
             @saved="onSaved"
         />

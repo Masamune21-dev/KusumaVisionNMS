@@ -17,6 +17,20 @@ use Illuminate\Support\Collection;
 class OnuInventoryService
 {
     /**
+     * Snapshot `last_test_result` yang sudah ter-decode, di-memo per instance (= per request).
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    private array $snapshots = [];
+
+    /**
+     * Prefix rute inventori per OLT, di-memo (driverKey membaca snapshot 2x tiap panggilan).
+     *
+     * @var array<int, string>
+     */
+    private array $routePrefixes = [];
+
+    /**
      * Kumpulkan seluruh ONU dari semua OLT (atau koleksi OLT yang diberikan).
      *
      * @param  Collection<int, SnmpOlt>|null  $olts
@@ -32,7 +46,7 @@ class OnuInventoryService
         $odpMap = $this->odpLookupMap($olts->pluck('id')->all());
 
         foreach ($olts as $olt) {
-            $portOnus = data_get($olt->last_test_result ?? [], 'port_onus', []);
+            $portOnus = data_get($this->snapshot($olt), 'port_onus', []);
             if (! is_array($portOnus)) {
                 continue;
             }
@@ -68,7 +82,7 @@ class OnuInventoryService
     public function forPort(SnmpOlt $olt, int $slot, int $port): array
     {
         $routePrefix = $this->routePrefix($olt);
-        $entry = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+        $entry = data_get($this->snapshot($olt), "port_onus.{$slot}_{$port}", []);
         $odpMap = $this->odpLookupMap([$olt->id], $slot, $port);
 
         $onus = [];
@@ -98,7 +112,7 @@ class OnuInventoryService
     {
         $routePrefix = $this->routePrefix($olt);
 
-        $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+        $onus = data_get($this->snapshot($olt), "port_onus.{$slot}_{$port}.onus", []);
 
         foreach ($onus as $onu) {
             if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
@@ -115,11 +129,31 @@ class OnuInventoryService
      */
     private function routePrefix(SnmpOlt $olt): string
     {
-        return SmartOltSupport::inventoryRoutePrefix(SmartOltSupport::driverKey(
+        return $this->routePrefixes[$olt->id] ??= SmartOltSupport::inventoryRoutePrefix(SmartOltSupport::driverKey(
             $olt,
-            data_get($olt->last_test_result, 'system.sys_descr'),
-            data_get($olt->last_test_result, 'system.sys_object_id'),
+            data_get($this->snapshot($olt), 'system.sys_descr'),
+            data_get($this->snapshot($olt), 'system.sys_object_id'),
         ));
+    }
+
+    /**
+     * Snapshot `last_test_result` OLT, di-decode SEKALI per request.
+     *
+     * Cast `array` Eloquent menjalankan json_decode ulang di SETIAP akses atribut, sementara
+     * findOne() dipanggil ratusan kali per request halaman peta (sekali per pin + sekali per
+     * ONU-ODP) dan tiap panggilan menyentuh snapshot 3x (port_onus + 2x driverKey). Pada OLT
+     * C300 (snapshot ~1 MB) itu berarti puluhan MB json_decode untuk satu halaman.
+     *
+     * @return array<string, mixed>
+     */
+    private function snapshot(SnmpOlt $olt): array
+    {
+        if (! array_key_exists($olt->id, $this->snapshots)) {
+            $snapshot = $olt->last_test_result;
+            $this->snapshots[$olt->id] = is_array($snapshot) ? $snapshot : [];
+        }
+
+        return $this->snapshots[$olt->id];
     }
 
     /**

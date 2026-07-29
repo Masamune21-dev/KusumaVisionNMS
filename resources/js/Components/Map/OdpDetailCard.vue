@@ -55,7 +55,13 @@ const toggleLock = () => {
     router.put(
         route('map.odps.update', props.odp.id),
         { locked: props.odp.locked === false },
-        { preserveScroll: true, preserveState: true, onFinish: () => (busy.value = false) },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            // Cukup prop odps (+ flash toast) — lihat catatan yang sama di PinDetailCard.
+            only: ['odps', 'flash'],
+            onFinish: () => (busy.value = false),
+        },
     );
 };
 

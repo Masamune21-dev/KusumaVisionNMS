@@ -9,6 +9,7 @@ use App\Models\Scopes\PartnerOltScope;
 use App\Models\SnmpOlt;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Inertia;
 use Tests\TestCase;
 
 /**
@@ -234,6 +235,41 @@ class OdpTest extends TestCase
         $moved = $pin->fresh();
         $this->assertSame(-7.2, (float) $moved->latitude);
         $this->assertSame('PELANGGAN A', $moved->customer_name);
+    }
+
+    /**
+     * Peta memuat ~4.500 ONU lintas-OLT hanya untuk dropdown modal "Tambah Pin", jadi prop
+     * `onus` sengaja optional: absen saat peta dibuka, baru dikirim ketika frontend memintanya
+     * (partial reload `only: ['onus']`). Bila suatu saat dibuat eager lagi, tiap kunjungan —
+     * termasuk tiap geser/kunci pin — akan menyeret ulang payload megabyte-an itu.
+     */
+    public function test_map_defers_onu_list_until_requested(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $this->makeOdp($olt);
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->get(route('map.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('pins')
+                ->has('odps', 1)
+                ->missing('onus'));
+
+        // Partial reload menjawab JSON (bukan view), jadi diperiksa langsung pada payload-nya.
+        $this->actingAs($admin)
+            ->get(route('map.index'), [
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => (string) Inertia::getVersion(),
+                'X-Inertia-Partial-Component' => 'Map/Index',
+                'X-Inertia-Partial-Data' => 'onus',
+            ])
+            ->assertOk()
+            ->assertJsonCount(2, 'props.onus')
+            ->assertJsonPath('props.onus.0.onu_id', 5)
+            ->assertJsonPath('props.onus.0.serial_number', 'ZTEG00000005')
+            ->assertJsonMissingPath('props.odps');
     }
 
     public function test_onu_monitoring_carries_odp_columns(): void

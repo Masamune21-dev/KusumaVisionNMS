@@ -857,6 +857,7 @@
         "lock": "Lock",
         "unlock": "Unlock",
         "unlocked_hint": "Pin unlocked — drag it on the map, then press Lock.",
+        "loading_onus": "Loading ONU list…",
         "layer_satellite": "Google Satellite",
         "modal_title": "Add ONU Pin",
         "search_placeholder": "Search ONU: interface, serial, customer name, or OLT...",

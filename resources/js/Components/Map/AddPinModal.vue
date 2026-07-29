@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { rxBadgeClass } from '@/Composables/useRxLevel';
 import { useForm } from '@inertiajs/vue3';
-import { MapPin, Search, Wifi, WifiOff } from '@lucide/vue';
+import { Loader2, MapPin, Search, Wifi, WifiOff } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -16,6 +16,7 @@ const props = defineProps({
     onus: { type: Array, default: () => [] },
     coords: { type: Object, default: null }, // {lat,lng} dari klik peta
     preset: { type: Object, default: null }, // {snmp_olt_id,slot,port,onu_id} dari Port ONUs
+    loading: { type: Boolean, default: false }, // daftar ONU masih diambil (prop optional)
 });
 
 const emit = defineEmits(['close', 'saved']);
@@ -138,6 +139,37 @@ watch(
     },
 );
 
+// Cocokkan preset ke ONU asli (untuk mengisi serial otomatis). Bisa gagal saat modal dibuka
+// sebelum daftar ONU tiba — dicoba ulang oleh watcher props.onus di bawah.
+const applyPreset = (preset) => {
+    const match = props.onus.find(
+        (o) =>
+            o.olt_id === preset.snmp_olt_id &&
+            o.slot === preset.slot &&
+            o.port === preset.port &&
+            o.onu_id === preset.onu_id,
+    );
+
+    if (match) {
+        applyOnu(match);
+
+        return;
+    }
+
+    form.snmp_olt_id = preset.snmp_olt_id;
+    form.slot = preset.slot;
+    form.port = `${preset.slot}/${preset.port}`;
+    form.onu_id = preset.onu_id;
+};
+
+// Daftar ONU tiba setelah modal terbuka → ulangi pencocokan preset.
+watch(
+    () => props.onus,
+    () => {
+        if (props.show && props.preset && form.serial_number === '') applyPreset(props.preset);
+    },
+);
+
 // Inisialisasi saat modal dibuka: isi koordinat + preset ONU (mode placement).
 watch(
     () => props.show,
@@ -156,22 +188,7 @@ watch(
             odpForm.latitude = props.coords.lat.toFixed(7);
             odpForm.longitude = props.coords.lng.toFixed(7);
         }
-        if (props.preset) {
-            const match = props.onus.find(
-                (o) =>
-                    o.olt_id === props.preset.snmp_olt_id &&
-                    o.slot === props.preset.slot &&
-                    o.port === props.preset.port &&
-                    o.onu_id === props.preset.onu_id,
-            );
-            if (match) applyOnu(match);
-            else {
-                form.snmp_olt_id = props.preset.snmp_olt_id;
-                form.slot = props.preset.slot;
-                form.port = `${props.preset.slot}/${props.preset.port}`;
-                form.onu_id = props.preset.onu_id;
-            }
-        }
+        if (props.preset) applyPreset(props.preset);
     },
 );
 
@@ -243,6 +260,12 @@ const submit = () => {
                     {{ $t('map.type_odp') }}
                 </button>
             </div>
+
+            <!-- Daftar ONU diambil terpisah (prop optional) — beri tanda selagi dimuat. -->
+            <p v-if="loading && !onus.length" class="mb-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+                <Loader2 class="h-3.5 w-3.5 animate-spin text-cyan-400" />
+                {{ $t('map.loading_onus') }}
+            </p>
 
             <!-- ===== Mode ONU ===== -->
             <template v-if="pinType === 'onu'">

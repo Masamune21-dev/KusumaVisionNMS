@@ -52,6 +52,30 @@ Kolom `locked` (boolean, **default true**) di `onu_map_pins` dan `odps` — migr
 - `OnuMapController::index()` mengirim tiap pin sudah di-enrich data ONU **live** (nama, RX, online,
   interface, `if_index`) + `capabilities` OLT-nya, sehingga tombol aksi tahu apakah didukung.
 
+## Kinerja halaman peta (aturan yang harus dijaga)
+
+Peta menyentuh cache SEMUA OLT sekaligus, jadi pola yang di halaman lain tak terasa di sini
+langsung jadi detik-detikan. Tiga aturan berikut hasil perbaikan 29 Jul 2026 (5,2 s → 0,09 s):
+
+1. **Jangan akses `$olt->last_test_result` berulang.** Cast `array` Eloquent men-`json_decode`
+   ULANG di tiap akses atribut — snapshot C300 ±1 MB. `OnuInventoryService` memo hasil decode
+   per-OLT (`snapshot()` + `$routePrefixes`, per instance = per request); `OnuMapController::index()`
+   mengambilnya sekali ke variabel lokal di loop `$oltMeta`. Kalau menulis kode baru yang memanggil
+   `findOne()` di dalam loop (mis. per ONU-ODP), lewati servis itu — jangan baca atribut langsung.
+2. **Prop berat dibungkus closure**, supaya partial reload melewatinya: `odps` (butuh
+   `connectedOnus()` yang membaca snapshot semua OLT) closure biasa, `onus` (±4.500 baris ≈ 1 MB
+   walau sudah dipangkas ke 12 kolom lewat `onuOptions()`) `Inertia::optional()` — hanya dikirim
+   saat frontend meminta `only: ['onus']`, yaitu ketika pengguna masuk mode tambah pin.
+   Menambah prop baru? Ikuti pola ini, jangan eager.
+3. **Aksi pin memakai partial reload**: geser pin → `only: ['pins']`, geser ODP → `only: ['odps']`,
+   lock/unlock → `only: ['pins'|'odps', 'flash']`. **`flash` wajib ikut** saat ada toast — `only`
+   menyaring shared prop juga, jadi tanpa itu toast "Pin dikunci" tak pernah muncul.
+
+Di sisi klien, `OnuMap.vue` **men-diff marker** (`markers`/`odpMarkers` menyimpan `{ marker, sig }`,
+`syncMarker()` hanya `setLatLng`/`setIcon`/toggle draggable saat `sig` berubah) — jangan kembali ke
+pola `clearLayers()` + bikin ulang semua marker: itulah yang dulu membuat tiap aksi terlihat seperti
+reload halaman. Marker yang sedang diseret (`draggingPinId`/`draggingOdpId`) tak boleh ditimpa prop.
+
 ## Menambah pin
 
 Tiga jalur (semua bermuara ke `POST map.pins.store`, `updateOrCreate` per kunci ONU):

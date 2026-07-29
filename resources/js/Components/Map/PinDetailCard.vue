@@ -59,7 +59,14 @@ const toggleLock = () => {
     router.put(
         route('map.pins.update', props.pin.id),
         { locked: props.pin.locked === false },
-        { preserveScroll: true, preserveState: true, onFinish: () => (busy.value = false) },
+        {
+            preserveScroll: true,
+            preserveState: true,
+            // Hanya prop pin (+ flash toast) yang perlu dihitung ulang server — tanpa ini
+            // seluruh payload peta (ODP + ONU semua OLT) dibangun ulang tiap klik kunci.
+            only: ['pins', 'flash'],
+            onFinish: () => (busy.value = false),
+        },
     );
 };
 

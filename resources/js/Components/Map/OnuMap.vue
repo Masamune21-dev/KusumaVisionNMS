@@ -37,7 +37,13 @@ let markerLayer = null;
 let odpLayer = null;
 let lineLayer = null;
 let draftMarker = null;
-const markers = new Map(); // pin.id -> L.marker
+// pin.id / odp.id -> { marker, sig }. Marker di-update di tempat (bukan dibuat ulang) supaya
+// perubahan prop — mis. setelah pin digeser atau dikunci — tidak mengedipkan seluruh peta.
+const markers = new Map();
+const odpMarkers = new Map();
+// id marker yang sedang diseret pengguna — posisinya jangan ditimpa oleh prop.
+let draggingPinId = null;
+let draggingOdpId = null;
 
 // Tile Google keyless (tidak resmi, gratis, cocok untuk NMS internal) + OSM fallback.
 const googleLayer = (lyrs) =>
@@ -92,18 +98,34 @@ const buildOdpIcon = (odp, selected) => {
 };
 
 // Garis animasi ODP→ONU: warna ikut status ONU (hijau/merah), aliran via stroke-dashoffset (CSS).
+// Koordinat ujung ONU diambil dari prop `pins` (sumber kebenaran yang ikut ter-update saat pin
+// digeser); nilai bawaan di `odp.onus` cuma cadangan bila pin-nya tak ada di prop.
 const renderLines = () => {
     if (!lineLayer) return;
     lineLayer.clearLayers();
 
+    const onuKey = (o) => `${o.snmp_olt_id}/${o.slot}/${o.port}/${o.onu_id}`;
+    // Posisi marker hidup dipakai lebih dulu agar garis ikut bergerak selagi pin/ODP diseret.
+    const liveCoords = (entry, fallback) => {
+        const ll = entry?.marker.getLatLng();
+
+        return ll ? [ll.lat, ll.lng] : fallback;
+    };
+    const pinCoords = new Map(
+        props.pins.map((p) => [onuKey(p), liveCoords(markers.get(p.id), [p.latitude, p.longitude])]),
+    );
+
     for (const odp of props.odps) {
         if (odp.latitude == null || odp.longitude == null) continue;
+        const start = liveCoords(odpMarkers.get(odp.id), [odp.latitude, odp.longitude]);
         for (const onu of odp.onus ?? []) {
-            if (onu.latitude == null || onu.longitude == null) continue;
+            const coords = pinCoords.get(onuKey(onu))
+                ?? (onu.latitude != null && onu.longitude != null ? [onu.latitude, onu.longitude] : null);
+            if (!coords) continue;
             L.polyline(
                 [
-                    [odp.latitude, odp.longitude],
-                    [onu.latitude, onu.longitude],
+                    start,
+                    coords,
                 ],
                 {
                     color: onu.online ? ONLINE_COLOR : OFFLINE_COLOR,
@@ -116,27 +138,90 @@ const renderLines = () => {
     }
 };
 
+// Sinkronkan posisi/tampilan/draggable marker yang sudah ada dengan data terbaru.
+// `sig` merangkum semua yang mempengaruhi ikon, jadi setIcon (bikin ulang elemen DOM)
+// hanya dijalankan saat benar-benar berubah.
+const syncMarker = (entry, sig, coords, unlocked, buildNextIcon, isDragging) => {
+    const { marker } = entry;
+    const pos = marker.getLatLng();
+    if (!isDragging && (pos.lat !== coords[0] || pos.lng !== coords[1])) {
+        marker.setLatLng(coords);
+    }
+
+    if (entry.sig !== sig) {
+        marker.setIcon(buildNextIcon());
+        entry.sig = sig;
+    }
+
+    marker.options.draggable = unlocked;
+    if (unlocked) marker.dragging?.enable();
+    else marker.dragging?.disable();
+};
+
+// Selama marker diseret, gambar ulang garis paling sering sekali per frame.
+let lineFrame = null;
+const scheduleLines = () => {
+    if (lineFrame) return;
+    lineFrame = requestAnimationFrame(() => {
+        lineFrame = null;
+        renderLines();
+    });
+};
+
 const renderOdps = () => {
     if (!odpLayer) return;
-    odpLayer.clearLayers();
+
+    const seen = new Set();
 
     for (const odp of props.odps) {
         if (odp.latitude == null || odp.longitude == null) continue;
+        seen.add(odp.id);
+
+        const selected = odp.id === props.selectedOdpId;
+        const unlocked = odp.locked === false;
+        const sig = `${selected}|${unlocked}|${odp.name}|${(odp.onus ?? []).length}`;
+        const entry = odpMarkers.get(odp.id);
+
+        if (entry) {
+            entry.marker.options.title = odp.name;
+            syncMarker(
+                entry,
+                sig,
+                [odp.latitude, odp.longitude],
+                unlocked,
+                () => buildOdpIcon(odp, selected),
+                draggingOdpId === odp.id,
+            );
+            continue;
+        }
+
         const marker = L.marker([odp.latitude, odp.longitude], {
-            icon: buildOdpIcon(odp, odp.id === props.selectedOdpId),
+            icon: buildOdpIcon(odp, selected),
             title: odp.name,
             riseOnHover: true,
             zIndexOffset: 500,
-            draggable: odp.locked === false,
+            draggable: unlocked,
         });
         marker.on('click', () => emit('select-odp', odp.id));
         // Selama digeser, kartu detail ikut menempel; koordinat disimpan saat dilepas.
-        marker.on('drag', () => emitOdpPosition(marker.getLatLng()));
+        marker.on('dragstart', () => (draggingOdpId = odp.id));
+        marker.on('drag', () => {
+            emitOdpPosition(marker.getLatLng());
+            scheduleLines();
+        });
         marker.on('dragend', () => {
+            draggingOdpId = null;
             const { lat, lng } = marker.getLatLng();
             emit('odp-moved', { id: odp.id, latitude: lat, longitude: lng });
         });
         marker.addTo(odpLayer);
+        odpMarkers.set(odp.id, { marker, sig });
+    }
+
+    for (const [id, entry] of odpMarkers) {
+        if (seen.has(id)) continue;
+        odpLayer.removeLayer(entry.marker);
+        odpMarkers.delete(id);
     }
 };
 
@@ -167,25 +252,57 @@ const emitOdpPosition = (latLng = null) => {
 
 const renderPins = () => {
     if (!markerLayer) return;
-    markerLayer.clearLayers();
-    markers.clear();
+
+    const seen = new Set();
 
     for (const pin of props.pins) {
         if (pin.latitude == null || pin.longitude == null) continue;
+        seen.add(pin.id);
+
+        const selected = pin.id === props.selectedId;
+        const unlocked = pin.locked === false;
+        const title = pin.customer_name || pin.interface || `ONU #${pin.onu_id}`;
+        const sig = `${selected}|${unlocked}|${pin.online}|${title}`;
+        const entry = markers.get(pin.id);
+
+        if (entry) {
+            entry.marker.options.title = title;
+            syncMarker(
+                entry,
+                sig,
+                [pin.latitude, pin.longitude],
+                unlocked,
+                () => buildIcon(pin, selected),
+                draggingPinId === pin.id,
+            );
+            continue;
+        }
+
         const marker = L.marker([pin.latitude, pin.longitude], {
-            icon: buildIcon(pin, pin.id === props.selectedId),
-            title: pin.customer_name || pin.interface || `ONU #${pin.onu_id}`,
+            icon: buildIcon(pin, selected),
+            title,
             riseOnHover: true,
-            draggable: pin.locked === false,
+            draggable: unlocked,
         });
         marker.on('click', () => emit('select-pin', pin.id));
-        marker.on('drag', () => emitPinPosition(marker.getLatLng()));
+        marker.on('dragstart', () => (draggingPinId = pin.id));
+        marker.on('drag', () => {
+            emitPinPosition(marker.getLatLng());
+            scheduleLines();
+        });
         marker.on('dragend', () => {
+            draggingPinId = null;
             const { lat, lng } = marker.getLatLng();
             emit('pin-moved', { id: pin.id, latitude: lat, longitude: lng });
         });
         marker.addTo(markerLayer);
-        markers.set(pin.id, marker);
+        markers.set(pin.id, { marker, sig });
+    }
+
+    for (const [id, entry] of markers) {
+        if (seen.has(id)) continue;
+        markerLayer.removeLayer(entry.marker);
+        markers.delete(id);
     }
 };
 
@@ -298,6 +415,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    if (lineFrame) {
+        cancelAnimationFrame(lineFrame);
+        lineFrame = null;
+    }
     if (map) {
         map.remove();
         map = null;

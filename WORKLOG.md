@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-07-29 — Peta ONU: hilangkan "reload" tiap aksi pin (5,2 s → 0,09 s)
+
+Keluhan owner: halaman Peta ONU berat saat dibuka, dan tiap lock/unlock atau geser pin terasa
+seperti me-reload halaman. Ternyata bukan Leaflet-nya — tiap aksi memang membangun **ulang
+seluruh payload peta** di server lalu membongkar-pasang semua marker di klien.
+
+Hasil ukur (data live: 19 OLT, 4.498 ONU, snapshot C300 ~1 MB, 21 ODP, 122 link):
+
+| Aksi | Sebelum | Sesudah |
+| --- | --- | --- |
+| `OnuOdpService::connectedOnus()` | 5,18 s | 0,085 s |
+| Buka peta (respons penuh) | ±5,5 s / 2,3 MB | 268 ms / 32 KB |
+| Geser pin, lock/unlock | ±5,5 s / 2,3 MB | 162 ms / 0,1 KB |
+| Buka modal Tambah Pin | (ikut tiap request) | 423 ms / 1,1 MB, sekali |
+
+Changed:
+
+- `app/Services/OnuInventoryService.php` — memo `$snapshots`/`$routePrefixes` per-OLT (per instance = per request), semua akses `$olt->last_test_result` lewat `snapshot()`. **Ini akar masalahnya**: cast `array` Eloquent men-`json_decode` ULANG di tiap akses atribut, sementara `findOne()` dipanggil sekali per pin + sekali per ONU-ODP dan tiap panggilan menyentuh snapshot 3x (port_onus + 2x `driverKey`) — untuk 122 link ke OLT C300 itu ±350 MB json_decode dalam satu request.
+- `app/Http/Controllers/OnuMapController.php` — prop `odps` dibungkus closure (dilewati saat partial reload `only: ['pins']`); prop `onus` jadi `Inertia::optional()` + dipangkas 22 → 12 kolom lewat `onuOptions()`; `$oltMeta` mengambil snapshot sekali ke variabel lokal; `focus_odp` dicari di koleksi `$odps` (payload sudah closure).
+- `resources/js/Pages/Map/Index.vue` — `ensureOnus()` menarik daftar ONU (`only: ['onus']`) hanya saat masuk mode tambah pin/klik peta; geser pin → `only: ['pins']`, geser ODP → `only: ['odps']`.
+- `resources/js/Components/Map/{PinDetailCard,OdpDetailCard}.vue` — lock/unlock → `only: ['pins'|'odps', 'flash']` (`flash` wajib ikut, kalau tidak toast-nya hilang karena `only` menyaring shared prop juga).
+- `resources/js/Components/Map/OnuMap.vue` — marker **di-diff**, tidak lagi `clearLayers()` + bikin ulang semua: `markers`/`odpMarkers` menyimpan `{ marker, sig }`, `syncMarker()` cuma `setLatLng`/`setIcon`/toggle draggable saat `sig` berubah. Marker yang sedang diseret (`draggingPinId`/`draggingOdpId`) tak ditimpa prop. Garis ODP→ONU memakai posisi marker hidup (ikut bergerak selama diseret, di-coalesce `requestAnimationFrame`) dengan koordinat ONU dari prop `pins`, bukan salinan di `odp.onus`.
+- `resources/js/lang/{id,en}.json` — `map.loading_onus`.
+- `resources/js/Components/Map/AddPinModal.vue` — prop `loading` + banner "Memuat daftar ONU…"; preset dari halaman Port ONUs dicocokkan ulang lewat `applyPreset()` bila daftar ONU baru tiba setelah modal terbuka.
+- `tests/Feature/OdpTest.php` — `test_map_defers_onu_list_until_requested` (kunjungan biasa tak membawa `onus`, partial `only: ['onus']` membawanya).
+
+Notes:
+
+- Yang membuatnya terasa seperti "reload" ada **dua lapis**: server menghitung ulang semuanya, dan klien menghancurkan lalu membuat ulang seluruh marker Leaflet (pin berkedip, kartu detail lompat). Keduanya diperbaiki.
+- `only` pada `router.put` tetap berlaku setelah redirect 303 — header partial ikut dikirim ulang, dan komponen tujuan tetap `Map/Index`.
+- Sisa biaya per request (±134 ms) ada di loop `SmartOltSupport::capabilities()`/`isC600()`/`isCDataGponV3()` yang juga men-decode `last_test_result` berkali-kali. Belum disentuh: itu helper statis yang dipakai hampir semua halaman, memo di sana perlu evaluasi tersendiri.
+- Verifikasi: 435 test PHP + 12 test Vitest hijau; pengukuran di atas dijalankan pada data OLT live server ini.
+
 ## 2026-07-28 — halaman ODP, lock/unlock pin peta, filter & registrasi ber-ODP
 
 Enam permintaan owner untuk modul ODP & Peta ONU. Basis data lama dipakai apa adanya (`odps`,

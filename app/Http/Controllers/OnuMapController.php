@@ -14,6 +14,7 @@ use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,10 +33,13 @@ class OnuMapController extends Controller
         // Index OLT + capabilities sekali agar enrich pin tidak N+1.
         $oltMeta = [];
         foreach ($olts as $olt) {
+            // Cast `array` men-decode ulang di tiap akses atribut — snapshot C300 ~1 MB, jadi
+            // ambil sekali ke variabel lokal daripada dua kali lewat data_get($olt->...).
+            $snapshot = $olt->last_test_result ?? [];
             $driver = SmartOltSupport::driverKey(
                 $olt,
-                data_get($olt->last_test_result, 'system.sys_descr'),
-                data_get($olt->last_test_result, 'system.sys_object_id'),
+                data_get($snapshot, 'system.sys_descr'),
+                data_get($snapshot, 'system.sys_object_id'),
             );
 
             $oltMeta[$olt->id] = [
@@ -54,29 +58,32 @@ class OnuMapController extends Controller
             ->map(fn (OnuMapPin $pin) => $this->serializePin($pin, $oltMeta))
             ->values();
 
-        $aggregated = $this->inventory->collect($olts);
-
         // ODP + ONU terhubung (untuk pin ODP kuning + garis animasi ODP→ONU di peta).
         $odps = Odp::query()
             ->whereIn('snmp_olt_id', array_keys($oltMeta))
             ->orderBy('name')
             ->get();
-        $connected = $this->odpService->connectedOnus($odps);
-        $odpsPayload = $odps
-            ->map(fn (Odp $odp) => [
-                'id' => $odp->id,
-                'snmp_olt_id' => $odp->snmp_olt_id,
-                'olt_name' => $oltMeta[$odp->snmp_olt_id]['olt']->name ?? null,
-                'name' => $odp->name,
-                'slot' => $odp->slot,
-                'port' => $odp->port,
-                'latitude' => (float) $odp->latitude,
-                'longitude' => (float) $odp->longitude,
-                'locked' => (bool) $odp->locked,
-                'notes' => $odp->notes,
-                'onus' => $connected[$odp->id] ?? [],
-            ])
-            ->values();
+        // Closure: enrich ONU per ODP (baca snapshot semua OLT) hanya dijalankan bila prop
+        // `odps` memang diminta — partial reload `only: ['pins']` melewatinya.
+        $odpsPayload = function () use ($odps, $oltMeta) {
+            $connected = $this->odpService->connectedOnus($odps);
+
+            return $odps
+                ->map(fn (Odp $odp) => [
+                    'id' => $odp->id,
+                    'snmp_olt_id' => $odp->snmp_olt_id,
+                    'olt_name' => $oltMeta[$odp->snmp_olt_id]['olt']->name ?? null,
+                    'name' => $odp->name,
+                    'slot' => $odp->slot,
+                    'port' => $odp->port,
+                    'latitude' => (float) $odp->latitude,
+                    'longitude' => (float) $odp->longitude,
+                    'locked' => (bool) $odp->locked,
+                    'notes' => $odp->notes,
+                    'onus' => $connected[$odp->id] ?? [],
+                ])
+                ->values();
+        };
 
         // Fokus ke pin tertentu (dari tombol "Lihat di Peta" di Port ONUs).
         $focus = $this->focusFromRequest();
@@ -90,7 +97,7 @@ class OnuMapController extends Controller
         // Fokus ke pin ODP tertentu (link "koordinat" dari halaman ODP).
         $focusOdpId = (int) request()->query('focus_odp', 0);
         $focusOdp = $focusOdpId > 0
-            ? $odpsPayload->first(fn (array $o) => $o['id'] === $focusOdpId)
+            ? $odps->first(fn (Odp $o) => $o->id === $focusOdpId)
             : null;
 
         return Inertia::render('Map/Index', [
@@ -101,16 +108,47 @@ class OnuMapController extends Controller
                 'name' => $olt->name,
                 'ip' => $olt->ip,
             ])->values(),
-            'onus' => $aggregated['onus'],
+            // Daftar ONU untuk dropdown/pencarian modal "Tambah Pin" — ~4.500 baris, jadi
+            // sengaja optional: hanya dikirim saat frontend memintanya (masuk mode tambah pin),
+            // bukan di tiap kunjungan/partial reload peta.
+            'onus' => Inertia::optional(fn () => $this->onuOptions($olts)),
             'default_center' => match (true) {
                 $focusPin !== null => ['lat' => $focusPin['latitude'], 'lng' => $focusPin['longitude'], 'zoom' => 17],
-                $focusOdp !== null => ['lat' => $focusOdp['latitude'], 'lng' => $focusOdp['longitude'], 'zoom' => 17],
+                $focusOdp !== null => ['lat' => (float) $focusOdp->latitude, 'lng' => (float) $focusOdp->longitude, 'zoom' => 17],
                 default => $this->defaultCenter($pins->all()),
             },
             'placement' => $this->placementFromRequest(),
             'focus_pin_id' => $focusPin['id'] ?? null,
-            'focus_odp_id' => $focusOdp['id'] ?? null,
+            'focus_odp_id' => $focusOdp?->id,
         ]);
+    }
+
+    /**
+     * ONU lintas-OLT untuk modal tambah pin, dipangkas ke kolom yang benar-benar dipakai
+     * (bentuk penuh `OnuInventoryService::collect()` ±22 kolom × 4.500 ONU ≈ 2 MB JSON).
+     *
+     * @param  Collection<int, SnmpOlt>  $olts
+     * @return array<int, array<string, mixed>>
+     */
+    private function onuOptions(Collection $olts): array
+    {
+        return array_map(
+            fn (array $onu) => [
+                'olt_id' => $onu['olt_id'],
+                'olt_name' => $onu['olt_name'],
+                'slot' => $onu['slot'],
+                'port' => $onu['port'],
+                'onu_id' => $onu['onu_id'],
+                'interface' => $onu['interface'],
+                'serial_number' => $onu['serial_number'],
+                'name' => $onu['name'],
+                'customer_name' => $onu['customer_name'],
+                'online' => $onu['online'],
+                'rx_power_dbm' => $onu['rx_power_dbm'],
+                'rx_power_label' => $onu['rx_power_label'],
+            ],
+            $this->inventory->collect($olts)['onus'],
+        );
     }
 
     public function store(Request $request): RedirectResponse
