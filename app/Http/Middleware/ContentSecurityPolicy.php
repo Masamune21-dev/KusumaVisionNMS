@@ -40,7 +40,10 @@ class ContentSecurityPolicy
             return $response;
         }
 
-        $response->headers->set('Content-Security-Policy', $this->policy(Vite::cspNonce()));
+        $response->headers->set(
+            'Content-Security-Policy',
+            $this->policy(Vite::cspNonce(), $request->isSecure()),
+        );
 
         return $response;
     }
@@ -53,11 +56,15 @@ class ContentSecurityPolicy
         return $type === '' || str_contains(strtolower($type), 'text/html');
     }
 
-    protected function policy(?string $nonce): string
+    /**
+     * @param  bool  $secure  Request dilayani lewat HTTPS (ikut X-Forwarded-Proto,
+     *                        lihat trustProxies di bootstrap/app.php).
+     */
+    protected function policy(?string $nonce, bool $secure = true): string
     {
         $script = "'self'".($nonce ? " 'nonce-{$nonce}'" : '');
 
-        return implode('; ', [
+        $directives = [
             "default-src 'self'",
             "base-uri 'self'",
             "object-src 'none'",
@@ -73,7 +80,18 @@ class ContentSecurityPolicy
             "connect-src 'self' wss:",
             "worker-src 'self' blob:",
             "manifest-src 'self'",
-            'upgrade-insecure-requests',
-        ]);
+        ];
+
+        // HANYA saat halaman benar-benar https. Di halaman http direktif ini
+        // memaksa browser menaikkan SEMUA sub-resource (termasuk /build/assets/*
+        // same-origin) ke https — padahal deploy default install.sh cuma
+        // `listen 80`, tak ada listener 443. Akibatnya CSS+JS gagal dimuat dan
+        // aplikasi tampil sebagai halaman putih kosong. Di halaman http direktif
+        // ini juga tak memberi jaminan keamanan apa pun, jadi tak ada yang hilang.
+        if ($secure) {
+            $directives[] = 'upgrade-insecure-requests';
+        }
+
+        return implode('; ', $directives);
     }
 }

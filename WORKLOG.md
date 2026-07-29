@@ -72,6 +72,37 @@ Notes:
 - `npm run build` hijau dan key manifest `resources/js/Pages/Welcome.vue` + `Pages/Panduan/Index.vue` masih ada — penting karena Welcome pernah kehilangan facade chunk-nya di manifest (lihat catatan tsParticles). `npm test` 12/12 hijau.
 - **Belum dikerjakan**: galeri Welcome & tabel screenshot README belum menampilkan halaman ODP — `public/img/` belum punya tangkapan layarnya.
 
+### Halaman putih di instalasi HTTP-polos: CSP `upgrade-insecure-requests`
+
+Laporan dari pengguna yang deploy sendiri (grup Telegram, server `asknet-netsense-nms`): setelah
+`sudo bash install.sh` selesai, aplikasi dibuka lewat IP (`http://…`, "Not secure") dan yang tampil
+**halaman putih total** — tanpa pesan error apa pun, dan `storage/logs/laravel.log` bersih dari
+error web (yang ada cuma `olts:poll` gagal query, isu terpisah).
+
+Diagnosis: HTML dari Laravel keluar normal, tapi CSS + JS tak pernah termuat. Rantainya:
+`install.sh` menyetel `APP_ENV=production` → middleware CSP aktif → direktif
+`upgrade-insecure-requests` terkirim **tanpa syarat** → browser menaikkan semua sub-resource
+(termasuk `/build/assets/*` yang same-origin) ke `https://` → nginx hasil `install.sh` cuma
+`listen 80`, tak ada listener 443 → `ERR_CONNECTION_REFUSED` untuk seluruh aset → `<div id="app">`
+tetap kosong dan Tailwind tak termuat (karena itu putih, bukan `bg-slate-950`).
+
+Created:
+
+- `tests/Feature/ContentSecurityPolicyTest.php` — 3 test: request http tak membawa direktif itu, request https membawa, request http + `X-Forwarded-Proto: https` tetap membawa.
+
+Changed:
+
+- `app/Http/Middleware/ContentSecurityPolicy.php` — `policy()` menerima `bool $secure` (diisi `$request->isSecure()`); `upgrade-insecure-requests` hanya ditambahkan saat request memang https. Direktif lain tak berubah.
+- `install.sh` — ringkasan akhir instalasi menyebut langkah opsional pasang TLS (`certbot --nginx`).
+- `docs/handbook/04-instalasi-deploy.md` — subbab "HTTPS (opsional, disarankan)" + penjelasan kenapa instalasi http-polos kini aman.
+
+Notes:
+
+- Regresi dari commit `7a7e36f` (13 Jul 2026, CSP nonce). Tak pernah terlihat di server kita karena nginx di sini redirect 80 → 443, dan deployer sebelumnya (nms.snvr.my.id) memakai Cloudflare — dua-duanya selalu https. Yang kena: **setiap** instalasi `install.sh` yang diakses via http polos, dan `install.sh` memang tidak memasang TLS.
+- Tidak ada penurunan keamanan: di halaman http direktif ini tak memberi jaminan apa pun (dokumennya sendiri sudah tak aman), dan di belakang Cloudflare/LB `isSecure()` ikut `X-Forwarded-Proto` berkat `trustProxies(at: '*')` — jadi deployment https tetap mendapatkannya (diverifikasi di server ini: header produksi masih memuat direktif tersebut setelah `systemctl reload php8.3-fpm`).
+- Verifikasi: `ContentSecurityPolicy|Example|Dashboard|RoleAccess|Locale` → 20 passed; `bash -n install.sh` bersih; Pint hijau.
+- Pemisahan isu untuk pelapor: error `olts:poll` di lognya adalah query gagal ke `snmp_olts` (migrasi belum jalan / kredensial DB salah) — mematikan polling, **bukan** penyebab halaman putih.
+
 ## 2026-07-28 — halaman ODP, lock/unlock pin peta, filter & registrasi ber-ODP
 
 Enam permintaan owner untuk modul ODP & Peta ONU. Basis data lama dipakai apa adanya (`odps`,

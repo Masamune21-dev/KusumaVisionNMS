@@ -31,6 +31,21 @@ sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD
 Verifikasi kapan saja dengan [`scripts/check-requirements.sh`](../../scripts/check-requirements.sh)
 (cek versi tool, ekstensi PHP, artefak build, dan status service/daemon).
 
+### HTTPS (opsional, disarankan)
+
+`install.sh` hanya menyiapkan nginx **port 80**. Untuk TLS, jalankan setelah instalasi:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d nms.example.com
+```
+
+Instalasi http-polos tetap berfungsi penuh: direktif CSP `upgrade-insecure-requests` sengaja
+**hanya dikirim saat request memang https** ([`ContentSecurityPolicy`](../../app/Http/Middleware/ContentSecurityPolicy.php)).
+Sebelumnya direktif itu selalu terkirim, sehingga browser menaikkan `/build/assets/*` ke https
+padahal tak ada listener 443 → CSS+JS gagal dimuat → **halaman putih kosong**. Di belakang
+reverse proxy (Cloudflare/LB) deteksi https ikut `X-Forwarded-Proto` lewat `trustProxies`.
+
 Bagian di bawah menjelaskan langkah **manual** (untuk dev, atau bila ingin paham yang dikerjakan
 `install.sh`).
 

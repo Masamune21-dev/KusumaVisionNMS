@@ -484,6 +484,9 @@ ${c_green}============================================================${c_reset}
   Cek daemon     : supervisorctl status
   Log aplikasi   : storage/logs/laravel.log
   Buat user lain : cd ${PROJECT_DIR} && php artisan user:create
+  HTTPS (opsional, disarankan):
+    sudo apt install -y certbot python3-certbot-nginx
+    sudo certbot --nginx -d <domain>
 
   PENTING: simpan DB password di atas. Setelah ubah .env/config jalankan:
     php artisan config:cache && php artisan queue:restart
