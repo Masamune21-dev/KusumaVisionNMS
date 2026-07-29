@@ -49,6 +49,23 @@ Notes:
 - Verifikasi: `GET /api/v1/odps` & `/api/v1/map` diuji langsung ke server produksi dengan token sementara (22 ODP, garis ODP→ONU, RX ikut) — token langsung dicabut. 450 test PHP + 12 Vitest + 6 test Flutter hijau, `flutter analyze` bersih, APK release 1.3.0+17 berhasil dibangun (arm64 20,7 MB / arm32 18,3 MB) dan disalin ke `public/downloads/`.
 - Pint melaporkan 3 file lawas (`routes/auth.php`, `bootstrap/providers.php`, `ZteProfileCatalogService.php`) — sudah begitu sebelum pekerjaan ini, tidak disentuh.
 
+### Pin peta: badge ODP pindah ke kanan-atas + pin hitam ke-glitch
+
+Owner mengirim tangkapan layar: angka jumlah ONU tergantung **di bawah** pin ODP, dan satu pin
+ter-render **hitam pekat** (bukan kuning).
+
+Changed:
+
+- `mobile/lib/features/map/map_screen.dart` — badge jumlah ONU jadi `Positioned(top: 0, right: 0)` menimpa kepala pin (dulu `Column` di bawah ikon); pin di-`Align(bottomCenter)` sehingga ujungnya benar-benar menunjuk koordinat; kotak marker dilebarkan (ODP 48×44, ONU 38×38) agar badge muat; badge jadi isi kuning solid + angka gelap supaya terbaca di atas citra satelit; glyph pin diekstrak ke `_PinGlyph` dan dipakai bersama pin ONU/ODP.
+- `mobile/pubspec.yaml` — versi 1.3.0+17 → **1.3.1+18** (versionCode wajib naik tiap rilis APK).
+
+Notes:
+
+- **Penyebab pin hitam**: `Icon(..., shadows: [Shadow(blurRadius: 6, …)])`. Bayangan ber-blur pada *glyph font* ikon ter-render sebagai blok hitam pekat di renderer Impeller. Semua `shadows:` pada pin dibuang; kontras terhadap satelit kini dari ikon gelap 3,5 px lebih besar di belakang ikon berwarna (garis tepi, **tanpa blur** → deterministik). Alasannya ditulis sebagai komentar di `_PinGlyph` agar tak terulang.
+- **Kenapa badge di bawah bikin pin meleset**: di flutter_map `alignment: Alignment.topCenter` berarti seluruh widget digambar DI ATAS titik — yang menyentuh koordinat adalah **dasar** kotak marker. Selama badge ada di dasar `Column`, yang menempel di koordinat justru badge-nya, bukan ujung pin.
+- Ukuran kotak marker sengaja lebih tinggi dari glyph (34 + 3,5 garis tepi) supaya ikon tepi tak terpotong constraint.
+- Verifikasi: `flutter analyze` bersih, APK release 1.3.1+18 dibangun ulang (arm64 20,7 MB / arm32 18,3 MB) dan disalin ke `public/downloads/`.
+
 ## 2026-07-29 — Peta ONU: hilangkan "reload" tiap aksi pin (5,2 s → 0,09 s)
 
 Keluhan owner: halaman Peta ONU berat saat dibuka, dan tiap lock/unlock atau geser pin terasa

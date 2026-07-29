@@ -110,14 +110,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 children: [
                   _tileLayer(style),
                   if (odps.isNotEmpty) PolylineLayer(polylines: _cables(odps)),
+                  // `Alignment.topCenter` = widget digambar DI ATAS titik, jadi ujung
+                  // pin harus berada di dasar-tengah kotak marker (lihat _PinGlyph).
                   if (odps.isNotEmpty)
                     MarkerLayer(
                       markers: [
                         for (final odp in odps)
                           Marker(
                             point: LatLng(odp.latitude, odp.longitude),
-                            width: 54,
-                            height: 58,
+                            // Lebih lebar/tinggi dari glyph (34+3,5 garis tepi) supaya
+                            // badge di kanan-atas muat tanpa memotong pinnya.
+                            width: 48,
+                            height: 44,
                             alignment: Alignment.topCenter,
                             child: _OdpMarker(odp: odp, onTap: () => _showOdpSheet(odp)),
                           ),
@@ -129,8 +133,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         for (final pin in pins)
                           Marker(
                             point: LatLng(pin.latitude, pin.longitude),
-                            width: 34,
-                            height: 42,
+                            width: 38,
+                            height: 38,
                             alignment: Alignment.topCenter,
                             child: _OnuMarker(pin: pin, onTap: () => _showPinSheet(pin)),
                           ),
@@ -462,6 +466,33 @@ class _OdpOnuTile extends StatelessWidget {
   }
 }
 
+/// Bentuk pin dasar, ujungnya menempel di dasar kotak marker.
+///
+/// **Jangan pakai `Icon(..., shadows: [...])`**: di sebagian perangkat (renderer
+/// Impeller) bayangan ber-blur pada glyph ikon ter-render sebagai blok hitam pekat
+/// yang menutupi pinnya. Kontras terhadap citra satelit didapat dari ikon gelap
+/// sedikit lebih besar di belakang (garis tepi, tanpa blur).
+class _PinGlyph extends StatelessWidget {
+  const _PinGlyph({required this.color});
+
+  final Color color;
+
+  /// Tinggi glyph pin. Kotak marker di [MapScreen] disetel mengikuti angka ini
+  /// (ujung pin di dasar kotak, badge ODP menimpa kepala pin di kanan-atas).
+  static const double size = 34;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        Icon(Icons.location_on, size: size + 3.5, color: const Color(0xCC000000)),
+        Icon(Icons.location_on, size: size, color: color),
+      ],
+    );
+  }
+}
+
 /// Pin ONU: hijau (online) / merah (offline) — sama seperti peta web.
 class _OnuMarker extends StatelessWidget {
   const _OnuMarker({required this.pin, required this.onTap});
@@ -470,17 +501,17 @@ class _OnuMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = pin.online ? AppColors.success : AppColors.danger;
     return GestureDetector(
       onTap: onTap,
-      child: Icon(Icons.location_on, size: 34, color: color, shadows: const [
-        Shadow(color: Color(0x99000000), blurRadius: 6, offset: Offset(0, 2)),
-      ]),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: _PinGlyph(color: pin.online ? AppColors.success : AppColors.danger),
+      ),
     );
   }
 }
 
-/// Pin ODP: kuning + badge jumlah ONU tersambung.
+/// Pin ODP: kuning + badge jumlah ONU **menempel di kanan-atas pin**.
 class _OdpMarker extends StatelessWidget {
   const _OdpMarker({required this.odp, required this.onTap});
   final MapOdp odp;
@@ -490,25 +521,35 @@ class _OdpMarker extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Stack(
         children: [
-          const Icon(Icons.location_on, size: 34, color: AppColors.warning, shadows: [
-            Shadow(color: Color(0x99000000), blurRadius: 6, offset: Offset(0, 2)),
-          ]),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: AppColors.bgElevated,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.warning.withValues(alpha: 0.6)),
-            ),
-            child: Text('${odp.onus.length}',
+          const Align(
+            alignment: Alignment.bottomCenter,
+            child: _PinGlyph(color: AppColors.warning),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 19),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.warning,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0xCC000000), width: 1.2),
+              ),
+              child: Text(
+                '${odp.onus.length}',
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.warning,
-                    fontFeatures: _tnum)),
+                  fontSize: 10.5,
+                  height: 1.2,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF241A00),
+                  fontFeatures: _tnum,
+                ),
+              ),
+            ),
           ),
         ],
       ),
