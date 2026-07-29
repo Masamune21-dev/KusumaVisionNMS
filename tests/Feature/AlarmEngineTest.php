@@ -553,6 +553,50 @@ class AlarmEngineTest extends TestCase
         );
     }
 
+    /**
+     * ONU C-Data EPON & HiOSO tak punya serial (identitasnya MAC), jadi `serial_number` di baris
+     * alarm null dan pencarian nama ber-serial tak bisa dipakai. Namanya tetap harus tampil dari
+     * `meta.customer_name` yang direkam saat alarm dinaikkan — dulu halaman ini `return null`
+     * lebih awal untuk serial null sehingga seluruh baris C-Data/HiOSO tampil tanpa nama.
+     */
+    public function test_alarms_page_shows_customer_name_for_onu_without_serial(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt($this->snapshotWithOnu([
+            'slot' => 1, 'port' => 1, 'onu_id' => 17, 'interface' => 'epon 0/1/1 onu 17',
+            'name' => 'zumaelakpanyar',
+            'serial_number' => '',
+            'mac' => 'DC:71:37:3E:53:47',
+            'online' => true,
+            'rx_power_dbm' => -28.24,
+        ]));
+
+        AlarmEvent::create([
+            'snmp_olt_id' => $olt->id,
+            'signature' => 'onu:1/1:17:high_rx_attenuation',
+            'type' => 'high_rx_attenuation',
+            'severity' => 'warning',
+            'status' => 'active',
+            'scope' => 'onu',
+            'slot' => 1,
+            'port' => 1,
+            'onu_id' => 17,
+            'serial_number' => null,
+            'message' => 'ONU epon 0/1/1 onu 17 RX -28.24 dBm di luar rentang sehat.',
+            'meta' => ['customer_name' => 'zumaelakpanyar', 'onu_name' => 'zumaelakpanyar'],
+            'first_seen_at' => now(),
+            'last_seen_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('alarms.index'))
+            ->assertInertia(fn ($page) => $page
+                ->component('SmartOlt/Alarms')
+                ->where('alarms.data.0.serial_number', null)
+                ->where('alarms.data.0.customer_name', 'zumaelakpanyar')
+            );
+    }
+
     public function test_alarms_are_paginated(): void
     {
         $user = User::factory()->create();

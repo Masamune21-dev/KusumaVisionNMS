@@ -226,12 +226,19 @@ class AlarmController extends Controller
      */
     private function customerNameForAlarm(AlarmEvent $alarm, array $customerNames): ?string
     {
-        if ($alarm->serial_number === null) {
-            return null;
-        }
+        // ONU C-Data EPON & HiOSO tak punya serial (identitasnya MAC), jadi hanya pencarian
+        // ber-serial yang dilewati — BUKAN seluruh resolusi nama. Nama pelanggan mereka tetap
+        // tersimpan di `meta.customer_name` saat alarm dinaikkan, sama seperti yang sudah
+        // dipakai API mobile/Telegram/FCM. Dulu di sini ada `return null` lebih awal untuk
+        // serial null sehingga baris C-Data/HiOSO selalu tampil tanpa nama.
+        $bySerial = $alarm->serial_number !== null
+            ? ($customerNames[$this->customerLookupKey($alarm->snmp_olt_id, $alarm->serial_number)] ?? null)
+            : null;
 
-        return $customerNames[$this->customerLookupKey($alarm->snmp_olt_id, $alarm->serial_number)]
-            ?? SmartOltSupport::cleanCustomerName(data_get($alarm->meta, 'customer_name'), $alarm->serial_number);
+        return $bySerial ?? SmartOltSupport::cleanCustomerName(
+            data_get($alarm->meta, 'customer_name'),
+            (string) $alarm->serial_number,
+        );
     }
 
     private function customerLookupKey(int $oltId, string $serial): string

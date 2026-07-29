@@ -37,6 +37,13 @@ Membandingkan alarm aktif di DB (`activeAlarms`) dengan yang terdeteksi sekarang
 
 ### Penyajian
 - Halaman **Alarms** (`AlarmController` → `SmartOlt/Alarms.vue`) baca `alarm_events`.
+- **Nama pelanggan** di baris alarm diresolusi berlapis: registrasi (`smartolt_onu_registrations`)
+  → snapshot `port_onus` live → `meta.customer_name` yang direkam saat alarm dinaikkan. Dua lapis
+  pertama **ber-kunci serial**, jadi untuk ONU **tanpa serial** (C-Data EPON & HiOSO — identitasnya
+  MAC) hanya lapis meta yang berlaku; jangan menambah gerbang `serial_number === null` di depan
+  resolusi ini (pernah jadi bug: seluruh baris C-Data/HiOSO tampil tanpa nama). Fallback lewat
+  **posisi** slot/port/onu_id sengaja tidak dipakai — untuk ONU tanpa serial, posisi yang sudah
+  dihuni pelanggan lain akan menampilkan nama yang salah pada alarm lama.
 - Bell notifikasi: `HandleInertiaRequests::notificationsPayload()` ambil 8 alarm aktif terbaru
   → dishare ke semua page. `NotificationsController@markAllRead` set
   `users.last_notifications_read_at` (penanda sudah dibaca).

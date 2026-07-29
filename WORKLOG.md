@@ -33,6 +33,23 @@ Notes:
 - Sisa biaya per request (±134 ms) ada di loop `SmartOltSupport::capabilities()`/`isC600()`/`isCDataGponV3()` yang juga men-decode `last_test_result` berkali-kali. Belum disentuh: itu helper statis yang dipakai hampir semua halaman, memo di sana perlu evaluasi tersendiri.
 - Verifikasi: 435 test PHP + 12 test Vitest hijau; pengukuran di atas dijalankan pada data OLT live server ini.
 
+### Nama pelanggan tak tampil di alarm OLT C-Data/HiOSO
+
+Owner melaporkan baris alarm OLT C-Data tampil tanpa nama pelanggan, sementara baris ZTE normal.
+
+Changed:
+
+- `app/Http/Controllers/AlarmController.php` — `customerNameForAlarm()` tak lagi `return null` lebih awal saat `serial_number` null. Yang dilewati sekarang hanya **pencarian ber-serial**, sedangkan fallback `meta.customer_name` tetap jalan.
+- `tests/Feature/AlarmEngineTest.php` — `test_alarms_page_shows_customer_name_for_onu_without_serial` (baris alarm serial-null tetap membawa nama dari meta). Diverifikasi gagal pada kode lama.
+
+Notes:
+
+- **Datanya sebenarnya sudah ada sejak awal**: `AlarmEvaluator::onuMeta()` merekam `customer_name` untuk semua family. Cek di DB: 8.833 dari 8.903 alarm ONU tanpa serial punya `meta.customer_name`. Yang hilang cuma di lapisan tampilan halaman web.
+- Penyebabnya ONU C-Data EPON & HiOSO memang **tanpa serial** (identitasnya MAC) — `serial_number` di snapshot berisi string kosong dan tersimpan null di `alarm_events`, sehingga gerbang serial ikut mematikan resolusi nama.
+- Bug ini **hanya di halaman web**. API mobile (`Api/V1/AlarmController`), Telegram (`TelegramNotifier`), dan FCM (`FcmAlarmNotifier`) sejak awal membaca `meta.customer_name` langsung tanpa gerbang serial, jadi ketiganya sudah benar — tak ada yang perlu diubah di sana.
+- Sengaja **tidak** memakai pencarian nama lewat posisi slot/port/onu_id sebagai fallback: untuk ONU tanpa serial, posisi yang sudah dipakai pelanggan lain akan menampilkan nama yang salah pada alarm lama (risiko yang sama yang sudah dihindari `AlarmNotificationTargetResolver` lewat `position_reused`). Nama dari meta = nama saat alarm dinaikkan, dan itu justru atribusi yang benar untuk baris historis.
+- Belum diperbaiki (temuan terpisah, menunggu keputusan owner): `scopeLabel()` di `Pages/SmartOlt/Alarms.vue` menulis label ONU tanpa serial sebagai `gpon-onu_1/{slot}/{port}:{onu}` — penamaan gaya ZTE — sehingga baris EPON tampil `gpon-onu_1/1/1:17` padahal pesannya `epon 0/1/1 onu 17`.
+
 ## 2026-07-28 — halaman ODP, lock/unlock pin peta, filter & registrasi ber-ODP
 
 Enam permintaan owner untuk modul ODP & Peta ONU. Basis data lama dipakai apa adanya (`odps`,
