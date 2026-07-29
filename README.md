@@ -42,13 +42,13 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 ## Key Features
 
 - **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON; automatic detection with a separate tab per vendor.
-- **Monitoring** — PON ports, ONU state (online / LOS / dying-gasp / offline), RX power, faceplate view, cross-OLT ONU monitoring, global search (⌘K), dashboard charts, and PON port descriptions editable directly from the dashboard via CLI.
-- **ONU provisioning (ZTE)** — discovery of unconfigured ONUs → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069), reconfiguration via delta scripts, per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
-- **Remote ONU management** — reboot, rename, enable/disable, delete, bulk TR-069 per port, and a **Telnet terminal directly in the browser**.
-- **Alarms and notifications** — a raise/clear alarm engine with anti-flap and root-cause correlation, **Telegram** notifications and **FCM push** to the Android app, plus a read-only Telegram bot.
-- **ONU and ODP mapping** — customer distribution on a map (Leaflet), pin creation from Google Maps links, **ODP (splitter) pins** with animated ODP→ONU cable lines, and an ODP column in the ONU table for every vendor.
+- **Monitoring** — PON ports, ONU state (online / LOS / power off / offline) with friendly bilingual labels, RX power, faceplate view, cross-OLT ONU monitoring (filter by OLT / port / state / **ODP**), customer name as the primary identity in ONU tables, global search (⌘K), dashboard charts, and PON port descriptions editable directly from the dashboard via CLI.
+- **ONU provisioning (ZTE)** — discovery of unconfigured ONUs → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069, **pick the ODP right at registration**), reconfiguration via delta scripts, per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
+- **Remote ONU management** — reboot, rename, enable/disable, delete, bulk TR-069 per port, remote open/close of the ONT web UI (Remote ONT), and a **Telnet terminal directly in the browser**.
+- **Alarms and notifications** — a raise/clear alarm engine with two-poll anti-flap confirmation and root-cause correlation, **clicking a notification opens the affected ONU/port/OLT** (it follows an ONU that moved ports and refuses to open a position now taken by a different customer), ONU-down alarms **grouped per ODP** on Telegram and FCM, **Telegram** notifications and **FCM push** to the Android app, plus a read-only Telegram bot.
+- **ONU and ODP mapping** — customer distribution on a map (Leaflet), pins added by map click or Google Maps link, **lock/unlock pin position** (drag to reposition, saved automatically), **ODP (splitter) pins** with animated ODP→ONU cable lines, a **dedicated ODP page** (CRUD, filter by OLT / PON port, Manage ONUs modal), and an ODP column plus filter in the ONU table for every vendor.
 - **Administration** — RBAC (admin / operator / partner / demo), immutable audit log, CSV and PDF reports, scheduled OLT config backups plus save-to-OLT-memory for all vendors, and a **REST API v1** for integration.
-- **Android app** — monitoring (including port descriptions), ONU registration, reboot/rename, and alarms with push notifications ([`mobile/`](mobile/), Flutter).
+- **Android app** — monitoring (including port descriptions), ONU registration, reboot/rename, and alarms with push notifications that open the affected ONU ([`mobile/`](mobile/), Flutter).
 
 **Stack:** Laravel 12 (PHP 8.3) + Vue 3/Inertia + TailwindCSS · PostgreSQL + Redis · Go SNMP poller · SNMP v1/v2c + Telnet CLI · Flutter (Android).
 

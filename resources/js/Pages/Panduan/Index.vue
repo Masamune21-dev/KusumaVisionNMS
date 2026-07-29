@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n';
 import {
     BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard,
     LifeBuoy, ListChecks, MapPin, PlugZap, Radar, Rocket, ScrollText, Send,
-    ShieldCheck, Smartphone, Sparkles, Terminal, Users, Wrench, WifiOff,
+    ShieldCheck, Smartphone, Sparkles, Terminal, Users, Waypoints, Wrench, WifiOff,
 } from '@lucide/vue';
 
 const page = usePage();
@@ -46,11 +46,12 @@ const SECTION_DEFS = [
     { id: 'olt', icon: Cable, accent: 'blue', ordered: true, items: [true, true, true, true], tip: true },
     { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true] },
     { id: 'unconfigured', icon: WifiOff, accent: 'amber', ordered: true, items: [false, false] },
-    { id: 'provisioning', icon: PlugZap, accent: 'fuchsia', ordered: true, items: [true, true, true, true], tip: true },
-    { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true] },
-    { id: 'monitoring', icon: ListChecks, accent: 'cyan', ordered: false, items: [false, false] },
-    { id: 'peta', icon: MapPin, accent: 'rose', ordered: true, items: [true, true, true] },
-    { id: 'alarm', icon: BellRing, accent: 'amber', ordered: false, items: [true, true, true, true], tip: true },
+    { id: 'provisioning', icon: PlugZap, accent: 'fuchsia', ordered: true, items: [true, true, true, true, true], tip: true },
+    { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true, true] },
+    { id: 'monitoring', icon: ListChecks, accent: 'cyan', ordered: false, items: [false, false, false] },
+    { id: 'peta', icon: MapPin, accent: 'rose', ordered: true, items: [true, true, true, true] },
+    { id: 'odp', icon: Waypoints, accent: 'emerald', ordered: false, items: [true, true, true, true] },
+    { id: 'alarm', icon: BellRing, accent: 'amber', ordered: false, items: [true, true, true, true, true], tip: true },
     { id: 'telnet', icon: Terminal, accent: 'indigo', ordered: false, items: [false, false] },
     { id: 'report', icon: FileBarChart, accent: 'emerald', ordered: false, items: [true, true, true] },
     { id: 'pengaturan', icon: KeyRound, accent: 'sky', badges: ['Admin'], ordered: false, items: [true, true, true, true, true, true] },

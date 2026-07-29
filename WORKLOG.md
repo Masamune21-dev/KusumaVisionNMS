@@ -50,6 +50,28 @@ Notes:
 - Sengaja **tidak** memakai pencarian nama lewat posisi slot/port/onu_id sebagai fallback: untuk ONU tanpa serial, posisi yang sudah dipakai pelanggan lain akan menampilkan nama yang salah pada alarm lama (risiko yang sama yang sudah dihindari `AlarmNotificationTargetResolver` lewat `position_reused`). Nama dari meta = nama saat alarm dinaikkan, dan itu justru atribusi yang benar untuk baris historis.
 - Belum diperbaiki (temuan terpisah, menunggu keputusan owner): `scopeLabel()` di `Pages/SmartOlt/Alarms.vue` menulis label ONU tanpa serial sebagai `gpon-onu_1/{slot}/{port}:{onu}` — penamaan gaya ZTE — sehingga baris EPON tampil `gpon-onu_1/1/1:17` padahal pesannya `epon 0/1/1 onu 17`.
 
+### Sinkronisasi dokumentasi: landing Welcome, halaman Panduan, dan README
+
+Permintaan owner: dokumentasi yang dilihat pengguna (landing, panduan in-app, README) sudah
+tertinggal dari fitur yang masuk sejak sinkronisasi terakhir (`a9768af`). Yang belum terdokumentasi:
+halaman ODP + filter/kolom ODP + ODP saat registrasi, lock/unlock pin peta, klik notifikasi alarm
+membuka ONU terdampak, pengelompokan alarm ONU-down per ODP, Remote ONT C-Data GPON, nama pelanggan
+sebagai identitas utama tabel ONU.
+
+Changed:
+
+- `README.md`, `README.id.md` — bullet "Fitur Utama" disegarkan: filter ODP + nama pelanggan di monitoring, pilih ODP saat registrasi, Remote ONT di remote-ONU, alarm (anti-flap 2 poll, korelasi root-cause, klik-untuk-buka + penolakan `position_reused`, rangkuman per ODP), peta (lock/unlock pin + geser reposisi, halaman ODP tersendiri, kolom & filter ODP semua vendor), push mobile membuka ONU terdampak.
+- `resources/js/Pages/Welcome.vue` — kartu modul baru **ODP** (ikon `Waypoints`) di grid "Modul Lengkap", di antara Peta ONU dan Telnet Console.
+- `resources/js/Pages/Panduan/Index.vue` — bagian baru `odp` (ikon `Waypoints`, aksen emerald) disisipkan setelah `peta`; jumlah butir bertambah di `provisioning` (4→5), `aksi-onu` (5→6), `monitoring` (2→3), `peta` (3→4), `alarm` (4→5).
+- `resources/js/lang/{id,en}.json` — namespace `welcome.*`: `f_odp_body`, `f_map_body`, `f_alarm_body`, `f_notif_body`, `f_remote_body`, `f_monitoring_body` ditulis ulang; `marquee_odp` "Peta ODP" → "ODP & Topologi"; key baru `m_odp_sub`. Namespace `panduan.*`: seksi `odp_*` baru (title/intro + 4 butir ber-strong), key baru `provisioning_i4/i4s`, `aksi-onu_i5/i5s`, `monitoring_i2`, `peta_i3/i3s`, `alarm_i4/i4s`; teks diperbarui di `pengantar_i0` (tadinya "ZTE (C300/C320)" — C600 hilang padahal sudah didukung penuh), `navigasi_i2`, `monitoring_i0/i1`, `alarm_i3`, `mobile_i1`.
+
+Notes:
+
+- **Tidak ada perubahan kode fungsional** — murni teks + satu kartu modul & satu seksi panduan. Semua string ditambahkan ke **kedua** bahasa sesuai konvensi i18n; verifikasi paritas key ID/EN: 1.464 key di dua file, selisih nol.
+- Struktur `SECTION_DEFS` di halaman Panduan menuntut key i18n yang persis sejumlah `items` (plus `_i{n}s` untuk butir ber-strong). Dicek dengan skrip: seluruh key yang dituntut struktur ada di kedua bahasa, tidak ada key `welcome.*` yang jadi yatim.
+- `npm run build` hijau dan key manifest `resources/js/Pages/Welcome.vue` + `Pages/Panduan/Index.vue` masih ada — penting karena Welcome pernah kehilangan facade chunk-nya di manifest (lihat catatan tsParticles). `npm test` 12/12 hijau.
+- **Belum dikerjakan**: galeri Welcome & tabel screenshot README belum menampilkan halaman ODP — `public/img/` belum punya tangkapan layarnya.
+
 ## 2026-07-28 — halaman ODP, lock/unlock pin peta, filter & registrasi ber-ODP
 
 Enam permintaan owner untuk modul ODP & Peta ONU. Basis data lama dipakai apa adanya (`odps`,

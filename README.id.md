@@ -42,13 +42,13 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 ## Fitur Utama
 
 - **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON; deteksi otomatis, tab terpisah per-vendor.
-- **Monitoring** — port PON, status ONU (online/LOS/dying-gasp/offline), RX power, faceplate, ONU Monitoring lintas OLT, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
-- **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069), reconfigure via delta script, manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
-- **Remote ONU** — reboot, rename, enable/disable, delete, TR069 massal per-port, dan **terminal Telnet langsung di browser**.
-- **Alarm & notifikasi** — alarm engine raise/clear (anti-flap + korelasi root-cause), notifikasi **Telegram** & **push FCM** ke aplikasi Android, bot Telegram read-only.
-- **Peta ONU & ODP** — sebaran pelanggan di peta (Leaflet), tambah pin dari link Google Maps, **pin ODP (splitter)** dengan garis kabel animasi ODP→ONU, kolom ODP di tabel ONU semua vendor.
+- **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power, faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
+- **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **pilih ODP langsung saat registrasi**), reconfigure via delta script, manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
+- **Remote ONU** — reboot, rename, enable/disable, delete, TR069 massal per-port, buka/tutup akses web ONT dari jauh (Remote ONT), dan **terminal Telnet langsung di browser**.
+- **Alarm & notifikasi** — alarm engine raise/clear (anti-flap konfirmasi 2 poll + korelasi root-cause), **klik notifikasi langsung membuka ONU/port/OLT yang terdampak** (mengikuti ONU yang pindah port, menolak membuka bila posisinya sudah dipakai pelanggan lain), alarm ONU-down **dikelompokkan per ODP** di Telegram & FCM, notifikasi **Telegram** & **push FCM** ke aplikasi Android, bot Telegram read-only.
+- **Peta ONU & ODP** — sebaran pelanggan di peta (Leaflet), tambah pin dari klik peta atau link Google Maps, **kunci/buka posisi pin** (geser untuk reposisi, tersimpan otomatis), **pin ODP (splitter)** dengan garis kabel animasi ODP→ONU, **halaman ODP tersendiri** (CRUD, filter OLT/port PON, modal Kelola ONU), kolom & filter ODP di tabel ONU semua vendor.
 - **Administrasi** — RBAC (admin/operator/partner/demo), audit log immutable, report CSV/PDF, backup config OLT terjadwal + save config ke memori OLT (semua vendor), **REST API v1** untuk integrasi.
-- **Aplikasi Android** — monitoring (termasuk deskripsi port), registrasi ONU, reboot/rename, alarm + push notification ([`mobile/`](mobile/), Flutter).
+- **Aplikasi Android** — monitoring (termasuk deskripsi port), registrasi ONU, reboot/rename, alarm + push notification yang membuka ONU terdampak ([`mobile/`](mobile/), Flutter).
 
 **Stack:** Laravel 12 (PHP 8.3) + Vue 3/Inertia + TailwindCSS · PostgreSQL + Redis · Go SNMP poller · SNMP v1/v2c + CLI Telnet · Flutter (Android).
 
