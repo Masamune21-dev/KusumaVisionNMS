@@ -22,6 +22,8 @@ class Onu {
     required this.rxPowerDbm,
     required this.rxPowerLabel,
     required this.portRoute,
+    this.odpId,
+    this.odpName,
   });
 
   final int oltId;
@@ -35,6 +37,10 @@ class Onu {
   final double? rxPowerDbm;
   final String? rxPowerLabel;
   final String? portRoute;
+
+  /// ODP tempat ONU ini tersambung (null = belum dikaitkan ke ODP mana pun).
+  final int? odpId;
+  final String? odpName;
 
   /// Judul tampilan: nama pelanggan → SN → interface.
   String get title {
@@ -70,5 +76,7 @@ class Onu {
         rxPowerDbm: J.asDoubleN(j['rx_power_dbm']),
         rxPowerLabel: J.asStrN(j['rx_power_label']),
         portRoute: J.asStrN(j['port_route']),
+        odpId: J.asIntN(j['odp_id']),
+        odpName: J.asStrN(j['odp_name']),
       );
 }

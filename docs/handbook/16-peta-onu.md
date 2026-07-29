@@ -49,8 +49,13 @@ Kolom `locked` (boolean, **default true**) di `onu_map_pins` dan `odps` — migr
 - `App\Services\OnuInventoryService` — agregasi ONU lintas-OLT dari cache (`collect()` untuk daftar +
   search global modal; `findOne()` untuk enrich satu pin). **Dipakai bersama** oleh `OnuMapController`
   & `SmartOltController::onuMonitor()`.
-- `OnuMapController::index()` mengirim tiap pin sudah di-enrich data ONU **live** (nama, RX, online,
-  interface, `if_index`) + `capabilities` OLT-nya, sehingga tombol aksi tahu apakah didukung.
+- `App\Services\Map\OnuMapPayloadService` — **perakit payload peta yang dipakai bersama** halaman web
+  (`OnuMapController::index`) dan REST API v1 (`Api\V1\MapController`): `oltMeta()`, `pins()`,
+  `odps()`, `onuOptions()`, `defaultCenter()`. Metadata OLT (driver/capabilities/prefix rute) di-memo
+  di dalamnya agar `driverKey()` tak dihitung ulang per pin. Kalau menambah field pin, ubah di sini
+  saja — web & aplikasi Android ikut.
+- Payload pin sudah di-enrich data ONU **live** (nama, RX, online, interface, `if_index`) +
+  `capabilities` OLT-nya, sehingga tombol aksi tahu apakah didukung.
 
 ## Kinerja halaman peta (aturan yang harus dijaga)
 
@@ -199,3 +204,35 @@ Scope v1: web saja (mobile/API belum).
 
 `map.pins.update` juga menerima `locked` (dan payload koordinat-saja dari geser pin).
 `map.index` menerima query `?focus_odp={id}` untuk membuka kartu detail sebuah ODP langsung.
+
+## Peta & ODP di aplikasi Android (`mobile/`)
+
+Ditambahkan 29 Jul 2026 (APK 1.3.0+17). Navigasi bawah dirombak jadi
+**Dashboard · OLT · ODP · Peta · Akun**; Alarm & Pencarian tak lagi punya tab
+(Alarm dibuka dari kartu di Akun/Dashboard, Pencarian dari ikon 🔍 di AppBar
+Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
+
+**Endpoint yang dipakai** (semua baca-saja, detail di `docs/API.md` §3.6–3.8):
+
+| Endpoint | Dipakai layar |
+|----------|---------------|
+| `GET /odps` | Tab ODP (daftar + cari + filter OLT) |
+| `GET /odps/{odp}` + `/odps/{odp}/onus` | Detail ODP (ONU di dalamnya + cari) |
+| `GET /map` | Tab Peta (pin ONU + pin ODP + garis + titik tengah) |
+| `GET /olts/{olt}/register/options` → `odps` | Dropdown "ODP (opsional)" di form registrasi |
+| `GET /olts/{olt}/onus/{slot}/{port}/{onuId}` → `odp_id`/`odp_name` | Baris ODP di detail ONU |
+
+- **Peta**: `flutter_map` + `latlong2` (murni Flutter, **tanpa API key / Play Services**), tile sama
+  seperti web (`mt{s}.google.com/vt`, toggle Peta/Satelit) dengan **`fallbackUrl` OSM** dan
+  User-Agent browser — kalau Google menolak permintaan dari aplikasi, peta tetap tergambar.
+  Layar peta adalah cabang shell sehingga navbar melayang tetap terlihat di atas peta.
+- **Baca-saja**: menambah/menggeser pin dan CRUD ODP tetap di web. Aksi ONU (reboot/rename/hapus)
+  dibuka lewat Detail ONU dari sheet pin.
+- Fokus lintas-layar ("Lihat di peta" pada detail ODP) memakai state Riverpod `mapFocusProvider`,
+  **bukan** query URL: tab peta hidup di `IndexedStack` sehingga rutenya tidak dibangun ulang
+  saat berpindah tab.
+- Kaitan ODP tampil sebagai chip kuning (`core/widgets/odp_chip.dart`) di daftar ONU per port dan
+  di detail ONU; chip-nya bisa ditekan untuk membuka halaman ODP.
+- Registrasi ONU: dropdown ODP disaring per slot/port di klien (ODP tanpa port muncul di semua
+  port). `odp_id` dikirim opsional; server mengaitkannya **setelah** CLI sukses, dan kegagalan
+  pengaitan muncul sebagai snackbar peringatan (`data.odp_error`) tanpa membatalkan registrasi.

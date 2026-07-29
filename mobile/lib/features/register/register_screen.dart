@@ -39,6 +39,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   String _tcont = '';
   String? _vlanProfile;
   String _wanMode = 'pppoe';
+  int? _odpId;
   bool _busy = false;
   bool _initialized = false;
 
@@ -91,7 +92,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         if (_wanMode == 'static') 'static_ip': _ctrl('static_ip').text.trim(),
         if (_wanMode == 'static') 'static_netmask': int.tryParse(_ctrl('static_netmask').text) ?? 24,
         if (_wanMode == 'static') 'ip_profile': _ctrl('ip_profile').text.trim(),
+        // Opsional: dikaitkan server SETELAH CLI sukses (gagal mengaitkan tidak
+        // membatalkan registrasi, hanya jadi peringatan `odp_error`).
+        if (_odpId != null) 'odp_id': _odpId,
       };
+
+  /// ODP yang boleh dipilih untuk slot/port yang sedang diisi. ODP terkunci ke
+  /// satu PON port; ODP yang belum punya port (belum ada ONU) muncul di semua port.
+  List<Map<String, dynamic>> _odpOptions(Map<String, dynamic> data) {
+    final slot = int.tryParse(_ctrl('slot').text);
+    final port = int.tryParse(_ctrl('port').text);
+
+    return ((data['odps'] ?? []) as List)
+        .cast<Map<String, dynamic>>()
+        .where((odp) {
+          final s = odp['slot'], p = odp['port'];
+          if (s == null || p == null) return true;
+          if (slot == null || port == null) return true;
+          return s == slot && p == port;
+        })
+        .toList();
+  }
 
   List<String> _names(Map<String, dynamic> profiles, String type) =>
       ((profiles[type] ?? []) as List).map((e) => e['name'].toString()).toList();
@@ -151,7 +172,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final res = await ref.read(nmsApiProvider).register(widget.oltId, _buildForm(), execute: true);
       if (!mounted) return;
       final ok = res['status'] == 'executed';
-      _snack(ok ? 'ONU berhasil diregister ke OLT.' : 'Registrasi ditolak OLT: ${res['error'] ?? ''}', error: !ok);
+      // ONU sudah nyata terdaftar walau pengaitan ODP gagal — beri tahu sebagai
+      // peringatan, bukan error, supaya operator memasang ODP-nya manual.
+      final odpError = res['odp_error']?.toString();
+      if (ok && odpError != null && odpError.isNotEmpty) {
+        _snack('ONU terdaftar, tapi gagal dikaitkan ke ODP: $odpError', warning: true);
+      } else {
+        _snack(ok ? 'ONU berhasil diregister ke OLT.' : 'Registrasi ditolak OLT: ${res['error'] ?? ''}',
+            error: !ok);
+      }
       if (ok) context.pop();
     } on ApiException catch (e) {
       _snack(e.message, error: true);
@@ -160,11 +189,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  void _snack(String msg, {bool error = false}) {
+  void _snack(String msg, {bool error = false, bool warning = false}) {
     if (!mounted) return;
+    final color = error
+        ? AppColors.danger
+        : warning
+            ? AppColors.warning
+            : AppColors.success;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? AppColors.danger.withValues(alpha: 0.9) : AppColors.success.withValues(alpha: 0.9),
+      backgroundColor: color.withValues(alpha: 0.9),
+      duration: Duration(seconds: warning ? 6 : 4),
     ));
   }
 
@@ -203,13 +238,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     children: [
                       _text('serial_number', 'Serial Number', required: true),
                       Row(children: [
-                        Expanded(child: _text('slot', 'Slot', number: true, required: true)),
+                        // Slot/port ikut menyaring dropdown ODP → rebuild saat diubah.
+                        Expanded(
+                            child: _text('slot', 'Slot',
+                                number: true, required: true, onChanged: _onPortChanged)),
                         const SizedBox(width: 10),
-                        Expanded(child: _text('port', 'Port', number: true, required: true)),
+                        Expanded(
+                            child: _text('port', 'Port',
+                                number: true, required: true, onChanged: _onPortChanged)),
                         const SizedBox(width: 10),
                         Expanded(child: _text('onu_id', 'ONU ID', number: true, required: true)),
                       ]),
                       _text('customer_name', 'Nama pelanggan', required: true),
+                      _odpDropdown(_odpOptions(data)),
                     ],
                   ),
                 ),
@@ -307,13 +348,56 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       );
 
-  Widget _text(String key, String label, {bool number = false, bool required = false}) => Padding(
+  /// Slot/port berubah → daftar ODP yang valid ikut berubah; pilihan yang jadi
+  /// tak valid dibuang supaya tak terkirim ODP milik port lain (server menolaknya).
+  void _onPortChanged(String _) => setState(() => _odpId = null);
+
+  Widget _odpDropdown(List<Map<String, dynamic>> odps) {
+    final valid = odps.any((o) => o['id'] == _odpId) ? _odpId : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: DropdownButtonFormField<int?>(
+        initialValue: valid,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: 'ODP (opsional)',
+          isDense: true,
+          helperText: odps.isEmpty ? 'Belum ada ODP di port ini' : null,
+          helperStyle: const TextStyle(fontSize: 11, color: AppColors.faint),
+        ),
+        items: [
+          const DropdownMenuItem<int?>(value: null, child: Text('—')),
+          ...odps.map((odp) => DropdownMenuItem<int?>(
+                value: odp['id'] as int,
+                child: Text(
+                  odp['slot'] == null
+                      ? odp['name'].toString()
+                      : '${odp['name']} · ${odp['slot']}/${odp['port']}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )),
+        ],
+        onChanged: odps.isEmpty ? null : (v) => setState(() => _odpId = v),
+      ),
+    );
+  }
+
+  Widget _text(
+    String key,
+    String label, {
+    bool number = false,
+    bool required = false,
+    ValueChanged<String>? onChanged,
+  }) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: TextFormField(
           controller: _ctrl(key),
           keyboardType: number ? TextInputType.number : TextInputType.text,
           inputFormatters: number ? [FilteringTextInputFormatter.digitsOnly] : null,
           decoration: InputDecoration(labelText: label, isDense: true),
+          onChanged: onChanged,
           validator: required ? (v) => (v == null || v.trim().isEmpty) ? '$label wajib diisi' : null : null,
         ),
       );

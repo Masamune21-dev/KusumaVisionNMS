@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\AlarmController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DeviceController;
+use App\Http\Controllers\Api\V1\MapController;
+use App\Http\Controllers\Api\V1\OdpController;
 use App\Http\Controllers\Api\V1\OltController;
 use App\Http\Controllers\Api\V1\OnuActionController;
 use App\Http\Controllers\Api\V1\OnuController;
@@ -77,6 +79,14 @@ Route::prefix('v1')->group(function () {
         Route::get('onus', [OnuController::class, 'index'])->name('api.onus.index');
 
         Route::get('alarms', [AlarmController::class, 'index'])->name('api.alarms.index');
+
+        // ODP + Peta (baca-saja) — pin ONU/ODP untuk peta full-screen di aplikasi Android,
+        // dan daftar ODP beserta ONU di dalamnya. Kepemilikan dijaga PartnerOltScope.
+        Route::get('odps', [OdpController::class, 'index'])->name('api.odps.index');
+        Route::get('odps/{odp}', [OdpController::class, 'show'])->name('api.odps.show');
+        Route::get('odps/{odp}/onus', [OdpController::class, 'onus'])->name('api.odps.onus');
+
+        Route::get('map', [MapController::class, 'index'])->name('api.map.index');
 
         // --- Aksi TULIS (admin, operator & partner; demo diblokir). Register/refresh ZTE-only;
         //     reboot/rename/delete bercabang per-family (ZTE, C-Data, HiOSO) di controller.

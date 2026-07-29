@@ -10,6 +10,7 @@ import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/odp_chip.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/stagger.dart';
 import '../../core/widgets/status_chip.dart';
@@ -196,7 +197,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
     if (_filter.isEmpty) return list;
     return list.where((o) {
       final hay = [
-        o.serialNumber, o.mac, o.name, o.customerName, o.interface,
+        o.serialNumber, o.mac, o.name, o.customerName, o.interface, o.odpName,
       ].whereType<String>().join(' ').toLowerCase();
       return hay.contains(_filter);
     }).toList();
@@ -242,6 +243,10 @@ class _OnuRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
                 ),
+                if (onu.odpName != null) ...[
+                  const SizedBox(height: 5),
+                  OdpChip(name: onu.odpName!, odpId: onu.odpId),
+                ],
               ],
             ),
           ),

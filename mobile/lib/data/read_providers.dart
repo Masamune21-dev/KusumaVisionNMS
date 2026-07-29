@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers.dart';
 import '../models/alarm.dart';
+import '../models/map_data.dart';
+import '../models/odp.dart';
 import '../models/olt.dart';
 import '../models/onu.dart';
 import '../models/search_result.dart';
@@ -41,6 +43,28 @@ final onuDetailProvider = FutureProvider.autoDispose.family<Onu, OnuArg>(
 final unconfiguredProvider = FutureProvider.autoDispose
     .family<({List<Map<String, dynamic>> onus, bool ok, String? refreshedAt}), int>(
   (ref, oltId) => ref.watch(nmsApiProvider).unconfigured(oltId),
+);
+
+/// Daftar ODP (lintas-OLT dalam scope pengguna). Filter OLT & pencarian
+/// dilakukan di layar karena jumlah ODP kecil (puluhan).
+final odpsProvider = FutureProvider.autoDispose<List<Odp>>(
+  (ref) => ref.watch(nmsApiProvider).odps(),
+);
+
+/// Detail satu ODP — dipakai saat masuk lewat deep-link (dari detail ONU),
+/// bukan dari daftar.
+final odpDetailProvider = FutureProvider.autoDispose.family<Odp, int>(
+  (ref, id) => ref.watch(nmsApiProvider).odp(id),
+);
+
+/// ONU yang tersambung ke sebuah ODP.
+final odpOnusProvider = FutureProvider.autoDispose.family<List<OdpOnu>, int>(
+  (ref, id) => ref.watch(nmsApiProvider).odpOnus(id),
+);
+
+/// Payload peta (pin ONU + pin ODP). Satu request untuk seluruh peta.
+final mapDataProvider = FutureProvider.autoDispose<MapData>(
+  (ref) => ref.watch(nmsApiProvider).mapData(),
 );
 
 /// Alarm — filter severity (null = semua).

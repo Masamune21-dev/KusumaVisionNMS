@@ -100,10 +100,13 @@ class OnuController extends Controller
 
     /**
      * GET /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId} — detail satu ONU.
+     *
+     * `withOdp: true` — panggilan satuan, jadi satu query kaitan ODP aman (beda dengan
+     * pemakaian findOne() di dalam loop; lihat catatan di OnuInventoryService).
      */
     public function show(SnmpOlt $olt, int $slot, int $port, int $onuId): JsonResponse
     {
-        $onu = $this->inventory->findOne($olt, $slot, $port, $onuId);
+        $onu = $this->inventory->findOne($olt, $slot, $port, $onuId, withOdp: true);
 
         if ($onu === null) {
             return response()->json([

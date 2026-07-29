@@ -7,14 +7,12 @@ use App\Models\OnuMapPin;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
-use App\Services\OnuInventoryService;
-use App\Services\OnuOdpService;
+use App\Services\Map\OnuMapPayloadService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,68 +20,25 @@ use Inertia\Response;
 class OnuMapController extends Controller
 {
     public function __construct(
-        private readonly OnuInventoryService $inventory,
-        private readonly OnuOdpService $odpService,
+        private readonly OnuMapPayloadService $payload,
     ) {}
 
     public function index(): Response
     {
         $olts = SnmpOlt::query()->orderBy('name')->get();
 
-        // Index OLT + capabilities sekali agar enrich pin tidak N+1.
-        $oltMeta = [];
-        foreach ($olts as $olt) {
-            // Cast `array` men-decode ulang di tiap akses atribut — snapshot C300 ~1 MB, jadi
-            // ambil sekali ke variabel lokal daripada dua kali lewat data_get($olt->...).
-            $snapshot = $olt->last_test_result ?? [];
-            $driver = SmartOltSupport::driverKey(
-                $olt,
-                data_get($snapshot, 'system.sys_descr'),
-                data_get($snapshot, 'system.sys_object_id'),
-            );
-
-            $oltMeta[$olt->id] = [
-                'olt' => $olt,
-                'driver' => $driver,
-                'capabilities' => SmartOltSupport::capabilities($driver, $olt),
-                'is_cdata' => SmartOltSupport::isNonZte($driver),
-                'port_route' => SmartOltSupport::inventoryRoutePrefix($driver).'.port-onus',
-            ];
-        }
-
-        $pins = OnuMapPin::query()
-            ->whereIn('snmp_olt_id', array_keys($oltMeta))
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn (OnuMapPin $pin) => $this->serializePin($pin, $oltMeta))
-            ->values();
+        // Perakitan payload (pin + ODP + titik tengah) dipakai bersama REST API v1 —
+        // lihat App\Services\Map\OnuMapPayloadService (termasuk catatan kinerjanya).
+        $pins = $this->payload->pins($olts);
 
         // ODP + ONU terhubung (untuk pin ODP kuning + garis animasi ODP→ONU di peta).
         $odps = Odp::query()
-            ->whereIn('snmp_olt_id', array_keys($oltMeta))
+            ->whereIn('snmp_olt_id', $olts->pluck('id')->all())
             ->orderBy('name')
             ->get();
         // Closure: enrich ONU per ODP (baca snapshot semua OLT) hanya dijalankan bila prop
         // `odps` memang diminta — partial reload `only: ['pins']` melewatinya.
-        $odpsPayload = function () use ($odps, $oltMeta) {
-            $connected = $this->odpService->connectedOnus($odps);
-
-            return $odps
-                ->map(fn (Odp $odp) => [
-                    'id' => $odp->id,
-                    'snmp_olt_id' => $odp->snmp_olt_id,
-                    'olt_name' => $oltMeta[$odp->snmp_olt_id]['olt']->name ?? null,
-                    'name' => $odp->name,
-                    'slot' => $odp->slot,
-                    'port' => $odp->port,
-                    'latitude' => (float) $odp->latitude,
-                    'longitude' => (float) $odp->longitude,
-                    'locked' => (bool) $odp->locked,
-                    'notes' => $odp->notes,
-                    'onus' => $connected[$odp->id] ?? [],
-                ])
-                ->values();
-        };
+        $odpsPayload = fn () => $this->payload->odps($odps, $olts);
 
         // Fokus ke pin tertentu (dari tombol "Lihat di Peta" di Port ONUs).
         $focus = $this->focusFromRequest();
@@ -111,44 +66,16 @@ class OnuMapController extends Controller
             // Daftar ONU untuk dropdown/pencarian modal "Tambah Pin" — ~4.500 baris, jadi
             // sengaja optional: hanya dikirim saat frontend memintanya (masuk mode tambah pin),
             // bukan di tiap kunjungan/partial reload peta.
-            'onus' => Inertia::optional(fn () => $this->onuOptions($olts)),
+            'onus' => Inertia::optional(fn () => $this->payload->onuOptions($olts)),
             'default_center' => match (true) {
                 $focusPin !== null => ['lat' => $focusPin['latitude'], 'lng' => $focusPin['longitude'], 'zoom' => 17],
                 $focusOdp !== null => ['lat' => (float) $focusOdp->latitude, 'lng' => (float) $focusOdp->longitude, 'zoom' => 17],
-                default => $this->defaultCenter($pins->all()),
+                default => $this->payload->defaultCenter($pins->all()),
             },
             'placement' => $this->placementFromRequest(),
             'focus_pin_id' => $focusPin['id'] ?? null,
             'focus_odp_id' => $focusOdp?->id,
         ]);
-    }
-
-    /**
-     * ONU lintas-OLT untuk modal tambah pin, dipangkas ke kolom yang benar-benar dipakai
-     * (bentuk penuh `OnuInventoryService::collect()` ±22 kolom × 4.500 ONU ≈ 2 MB JSON).
-     *
-     * @param  Collection<int, SnmpOlt>  $olts
-     * @return array<int, array<string, mixed>>
-     */
-    private function onuOptions(Collection $olts): array
-    {
-        return array_map(
-            fn (array $onu) => [
-                'olt_id' => $onu['olt_id'],
-                'olt_name' => $onu['olt_name'],
-                'slot' => $onu['slot'],
-                'port' => $onu['port'],
-                'onu_id' => $onu['onu_id'],
-                'interface' => $onu['interface'],
-                'serial_number' => $onu['serial_number'],
-                'name' => $onu['name'],
-                'customer_name' => $onu['customer_name'],
-                'online' => $onu['online'],
-                'rx_power_dbm' => $onu['rx_power_dbm'],
-                'rx_power_label' => $onu['rx_power_label'],
-            ],
-            $this->inventory->collect($olts)['onus'],
-        );
     }
 
     public function store(Request $request): RedirectResponse
@@ -430,72 +357,6 @@ class OnuMapController extends Controller
         }
 
         return true;
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $oltMeta
-     * @return array<string, mixed>
-     */
-    private function serializePin(OnuMapPin $pin, array $oltMeta): array
-    {
-        $meta = $oltMeta[$pin->snmp_olt_id] ?? null;
-        $olt = $meta['olt'] ?? null;
-        $live = $olt ? $this->inventory->findOne($olt, $pin->slot, $pin->port, $pin->onu_id) : null;
-
-        $liveName = $live['customer_name'] ?? null;
-        $interface = $live['interface'] ?? SmartOltSupport::onuInterfaceId(
-            $pin->slot,
-            $pin->port,
-            $pin->onu_id,
-            $olt ? SmartOltSupport::isC600($olt) : false,
-        );
-
-        return [
-            'id' => $pin->id,
-            'snmp_olt_id' => $pin->snmp_olt_id,
-            'olt_name' => $olt?->name,
-            'olt_cdata' => $meta['is_cdata'] ?? false,
-            // Nama rute halaman ONU per port (per family) untuk link "buka di Port ONUs".
-            'port_route' => $meta['port_route'] ?? 'smartolt.port-onus',
-            'capabilities' => $meta['capabilities'] ?? [],
-            'slot' => $pin->slot,
-            'port' => $pin->port,
-            'onu_id' => $pin->onu_id,
-            'if_index' => $live['if_index'] ?? null,
-            'interface' => $interface,
-            'serial_number' => $pin->serial_number ?? ($live['serial_number'] ?? null),
-            'latitude' => (float) $pin->latitude,
-            'longitude' => (float) $pin->longitude,
-            'locked' => (bool) $pin->locked,
-            // Nama tampil: override pin → nama ONU live.
-            'customer_name' => $pin->customer_name ?: $liveName,
-            'customer_name_override' => $pin->customer_name,
-            'onu_name' => $liveName,
-            'address' => $pin->address,
-            'phone' => $pin->phone,
-            'notes' => $pin->notes,
-            'rx_power_dbm' => $live['rx_power_dbm'] ?? null,
-            'rx_power_label' => $live['rx_power_label'] ?? null,
-            'online' => (bool) ($live['online'] ?? false),
-            'has_live' => $live !== null,
-        ];
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>  $pins
-     * @return array{lat: float, lng: float, zoom: int}
-     */
-    private function defaultCenter(array $pins): array
-    {
-        if ($pins === []) {
-            // Fallback: Pati, Jawa Tengah (lokasi OLT live utama).
-            return ['lat' => -6.7559, 'lng' => 111.0381, 'zoom' => 11];
-        }
-
-        $lat = array_sum(array_column($pins, 'latitude')) / count($pins);
-        $lng = array_sum(array_column($pins, 'longitude')) / count($pins);
-
-        return ['lat' => $lat, 'lng' => $lng, 'zoom' => count($pins) === 1 ? 15 : 12];
     }
 
     /**

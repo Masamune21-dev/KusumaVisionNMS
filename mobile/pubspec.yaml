@@ -3,7 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.2.4+16
+version: 1.3.0+17
 
 environment:
   sdk: ^3.12.2
@@ -52,6 +52,12 @@ dependencies:
 
   # Skeleton bercahaya saat loading.
   shimmer: ^3.0.0
+
+  # Peta (halaman Peta ONU/ODP). flutter_map = klien peta murni-Flutter tanpa
+  # API key / Google Play Services; tile-nya sama seperti web (Google keyless +
+  # fallback OSM). latlong2 menyediakan tipe LatLng-nya.
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

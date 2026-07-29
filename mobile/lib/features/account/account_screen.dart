@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -11,6 +12,7 @@ import '../../core/fcm/fcm_service.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../data/read_providers.dart';
 import '../../models/user.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_controller.dart';
@@ -108,9 +110,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             seq(0, _ProfileCard(user: user)),
             const SizedBox(height: 14),
 
+            // --- Alarm (dulu tab tersendiri; kini dibuka dari sini) ---
+            seq(1, _AlarmTile(onTap: () => context.push('/alarms'))),
+            const SizedBox(height: 14),
+
             // --- Notifikasi / tes push ---
             seq(
-              1,
+              2,
               GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,7 +155,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
             // --- Info aplikasi ---
             seq(
-              2,
+              3,
               GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,7 +188,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
             // --- Logout (dipisah, warna danger) ---
             seq(
-              3,
+              4,
               OutlinedButton.icon(
                 onPressed: _logout,
                 icon: const Icon(LucideIcons.logOut, size: 18),
@@ -248,6 +254,69 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
           ],
         ),
       );
+}
+
+/// Pintu masuk halaman Alarm (menggantikan tab Alarm yang lama), dengan jumlah
+/// alarm aktif langsung dari ringkasan dashboard supaya tak perlu request sendiri.
+class _AlarmTile extends ConsumerWidget {
+  const _AlarmTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = Theme.of(context).textTheme;
+    final summary = ref.watch(summaryProvider).valueOrNull;
+    final total = summary?.alarmTotal;
+    final critical = summary?.alarmCritical ?? 0;
+    final color = (total ?? 0) > 0 ? AppColors.warning : AppColors.success;
+
+    return GlassCard(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.chip),
+            ),
+            child: Icon(LucideIcons.bellRing, size: 16, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Alarm', style: t.titleMedium),
+                const SizedBox(height: 2),
+                Text(
+                  total == null
+                      ? 'Lihat alarm aktif jaringan'
+                      : total == 0
+                          ? 'Tidak ada alarm aktif'
+                          : '$total alarm aktif · $critical kritis',
+                  style: t.bodySmall?.copyWith(color: AppColors.muted),
+                ),
+              ],
+            ),
+          ),
+          if ((total ?? 0) > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Text('$total',
+                  style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+          const SizedBox(width: 6),
+          const Icon(LucideIcons.chevronRight, size: 18, color: AppColors.faint),
+        ],
+      ),
+    );
+  }
 }
 
 /// Kartu hero profil — avatar cincin-gradient + nama + chip peran tunggal.

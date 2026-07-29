@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SmartOltProfileController;
 use App\Models\SnmpOlt;
+use App\Services\OnuOdpService;
 use App\Services\Zte\OnuRegistrationFormDefaults;
 use App\Services\Zte\OnuRegistrationService;
 use App\Support\SmartOltSupport;
@@ -24,6 +25,7 @@ class OnuRegistrationController extends Controller
     public function __construct(
         private readonly OnuRegistrationFormDefaults $defaults,
         private readonly OnuRegistrationService $registration,
+        private readonly OnuOdpService $odps,
     ) {}
 
     public function options(Request $request, SnmpOlt $olt): JsonResponse
@@ -48,6 +50,11 @@ class OnuRegistrationController extends Controller
                     (string) $request->query('sn', ''),
                     $request->integer('suggested_onu_id'),
                 ),
+                // SELURUH ODP milik OLT ini (lengkap slot/port) — penyaringan per-port
+                // dilakukan di klien, sama seperti form web, karena slot/port masih bisa
+                // diubah pengguna setelah opsi ini ter-fetch. Kaitan ODP bersifat opsional:
+                // dikirim balik sebagai `odp_id` di POST register.
+                'odps' => $this->odps->odpsForOlt($olt),
             ],
         ]);
     }

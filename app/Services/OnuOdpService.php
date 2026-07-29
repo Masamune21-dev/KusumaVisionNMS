@@ -192,6 +192,11 @@ class OnuOdpService
                 'name' => $live['customer_name'] ?? null,
                 'online' => (bool) ($live['online'] ?? false),
                 'has_live' => $live !== null,
+                // RX ikut supaya kartu ODP (web) & daftar ONU dalam ODP (aplikasi Android)
+                // bisa menampilkan level sinyal tanpa request tambahan — datanya sudah ada
+                // di hasil normalize() findOne(), jadi tidak menambah query/dekode.
+                'rx_power_dbm' => $live['rx_power_dbm'] ?? null,
+                'rx_power_label' => $live['rx_power_label'] ?? null,
                 // Koordinat dari pin ONU (null bila ONU belum di-pin → tak ada garis di peta).
                 'latitude' => $pin ? (float) $pin->latitude : null,
                 'longitude' => $pin ? (float) $pin->longitude : null,

@@ -7,6 +7,9 @@ import 'features/alarms/alarm_list_screen.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/map/map_screen.dart';
+import 'features/odp/odp_detail_screen.dart';
+import 'features/odp/odp_list_screen.dart';
 import 'features/olts/olt_detail_screen.dart';
 import 'features/olts/olt_list_screen.dart';
 import 'features/onus/onu_detail_screen.dart';
@@ -58,10 +61,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(path: '/olts', builder: (_, __) => const OltListScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/alarms', builder: (_, __) => const AlarmListScreen()),
+            GoRoute(path: '/odps', builder: (_, __) => const OdpListScreen()),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
+            GoRoute(path: '/map', builder: (_, __) => const MapScreen()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(path: '/account', builder: (_, __) => const AccountScreen()),
@@ -70,6 +73,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // Halaman dalam (menutupi shell) — root navigator.
+      //
+      // Alarm & Pencarian dulu berupa tab; sekarang halaman yang di-push:
+      // Alarm dari kartu di Dashboard/Akun (dan tap notifikasi FCM), Pencarian
+      // dari ikon kaca pembesar di AppBar Dashboard.
+      GoRoute(
+        parentNavigatorKey: _rootKey,
+        path: '/alarms',
+        builder: (_, __) => const AlarmListScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootKey,
+        path: '/search',
+        builder: (_, s) => SearchScreen(initialQuery: s.uri.queryParameters['q']),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootKey,
+        path: '/odps/:id',
+        builder: (_, s) => OdpDetailScreen(odpId: int.parse(s.pathParameters['id']!)),
+      ),
       GoRoute(
         parentNavigatorKey: _rootKey,
         path: '/olts/:id',

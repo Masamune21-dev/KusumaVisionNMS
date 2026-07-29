@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 
 import '../../models/alarm.dart';
+import '../../models/map_data.dart';
+import '../../models/odp.dart';
 import '../../models/olt.dart';
 import '../../models/onu.dart';
 import '../../models/search_result.dart';
@@ -141,6 +143,35 @@ class NmsApi {
               .toList(),
           total: (d['meta']?['total'] ?? 0) as int,
         ),
+      );
+
+  // ---- ODP & Peta ----------------------------------------------------------
+
+  /// Daftar ODP. `oltId` null = seluruh OLT dalam scope pengguna.
+  Future<List<Odp>> odps({int? oltId}) => _run(
+        () => _dio.get('/odps', queryParameters: {if (oltId != null) 'olt_id': oltId}),
+        (d) => ((d['data'] ?? []) as List)
+            .map((e) => Odp.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  Future<Odp> odp(int id) => _run(
+        () => _dio.get('/odps/$id'),
+        (d) => Odp.fromJson(d['data'] as Map<String, dynamic>),
+      );
+
+  /// ONU yang tersambung ke sebuah ODP (status live + RX).
+  Future<List<OdpOnu>> odpOnus(int id) => _run(
+        () => _dio.get('/odps/$id/onus'),
+        (d) => ((d['data'] ?? []) as List)
+            .map((e) => OdpOnu.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  /// Payload peta: pin ONU + pin ODP + titik tengah default, satu request.
+  Future<MapData> mapData({int? oltId}) => _run(
+        () => _dio.get('/map', queryParameters: {if (oltId != null) 'olt_id': oltId}),
+        (d) => MapData.fromJson(d['data'] as Map<String, dynamic>),
       );
 
   // ---- Register options + aksi tulis ---------------------------------------

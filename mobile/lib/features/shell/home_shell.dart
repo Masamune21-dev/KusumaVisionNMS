@@ -13,11 +13,13 @@ class HomeShell extends StatelessWidget {
 
   final StatefulNavigationShell shell;
 
+  // Urutan HARUS sama dengan urutan branch di router.dart:
+  // dashboard · olts · odps · map · account.
   static const _items = <_NavItem>[
     _NavItem(LucideIcons.layoutDashboard, LucideIcons.layoutDashboardFilled, 'Dashboard'),
     _NavItem(LucideIcons.server, LucideIcons.serverFilled, 'OLT'),
-    _NavItem(LucideIcons.bellRing, LucideIcons.bellFilled, 'Alarm'),
-    _NavItem(LucideIcons.search, LucideIcons.searchFilled, 'Cari'),
+    _NavItem(LucideIcons.odp, LucideIcons.odpFilled, 'ODP'),
+    _NavItem(LucideIcons.map, LucideIcons.mapFilled, 'Peta'),
     _NavItem(LucideIcons.user, LucideIcons.userFilled, 'Akun'),
   ];
 

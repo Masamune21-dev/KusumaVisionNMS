@@ -1,5 +1,54 @@
 # Worklog
 
+## 2026-07-29 — Aplikasi Android: tab Peta & ODP, navigasi dirombak, ODP di ONU & registrasi
+
+Permintaan owner: aplikasi Android dapat **halaman peta satu layar penuh** (navbar tetap terlihat),
+**ODP tampil di ONU** yang sudah punya ODP, **ODP opsional ikut di form registrasi**, tab **Cari**
+pindah ke Dashboard (jadi ikon 🔍 di pojok kanan atas menggantikan tombol keluar), tab **Alarm**
+pindah ke halaman Akun, dan slot navbar alarm dipakai **ODP** (lihat ODP + ONU di dalamnya, dengan
+pencarian seperti halaman Port ONU).
+
+Navbar: `Dashboard · OLT · Alarm · Cari · Akun` → **`Dashboard · OLT · ODP · Peta · Akun`**.
+
+Created:
+
+- `app/Services/Map/OnuMapPayloadService.php` — perakit payload peta (oltMeta/pins/odps/onuOptions/defaultCenter) yang **dipakai bersama** halaman web `OnuMapController` dan REST API. Semua optimasi lama (memo snapshot lewat `OnuInventoryService`, closure `odps`, `Inertia::optional` untuk `onus`) dipertahankan.
+- `app/Http/Controllers/Api/V1/OdpController.php` — `GET /api/v1/odps` (filter `olt_id/slot/port/q`), `/odps/{odp}`, `/odps/{odp}/onus`.
+- `app/Http/Controllers/Api/V1/MapController.php` — `GET /api/v1/map` (pins + odps + olts + `default_center`), payload dipangkas dari bentuk web (tanpa nama rute Inertia & capabilities per pin).
+- `mobile/lib/features/odp/{odp_list_screen,odp_detail_screen}.dart` — tab ODP (cari + filter OLT + jumlah ONU) dan detail ODP (ringkasan online/offline + daftar ONU **dengan kotak cari** + tombol "Lihat di peta").
+- `mobile/lib/features/map/{map_screen,map_providers}.dart` — peta full-screen `flutter_map` (pin ONU hijau/merah, pin ODP kuning + badge, garis ODP→ONU, filter OLT, toggle lapisan & tile, bottom-sheet detail).
+- `mobile/lib/models/{odp,map_data}.dart`, `mobile/lib/core/widgets/odp_chip.dart`.
+- `tests/Feature/Api/ApiV1OdpMapTest.php` (9 test), `tests/Feature/OnuMapPageTest.php` (jaga bentuk prop halaman peta web setelah refactor), `mobile/test/odp_map_test.dart` (4 test model).
+
+Changed:
+
+- `app/Http/Controllers/OnuMapController.php` — `index()` memakai `OnuMapPayloadService` (serializePin/defaultCenter/onuOptions pindah ke sana); dependensi konstruktor jadi satu service.
+- `app/Services/OnuInventoryService.php` — `findOne(..., bool $withOdp = false)`. Default tetap **tanpa** query ODP (dipanggil di loop `connectedOnus()`); detail 1 ONU di API mengaktifkannya.
+- `app/Services/OnuOdpService.php` — `connectedOnus()` ikut mengirim `rx_power_dbm`/`rx_power_label` (gratis, sudah ada di hasil `findOne()`); dipakai daftar ONU-dalam-ODP di aplikasi dan kartu ODP di web.
+- `app/Http/Controllers/Api/V1/OnuController.php` — detail ONU membawa `odp_id`/`odp_name`.
+- `app/Http/Controllers/Api/V1/OnuRegistrationController.php` — `register/options` menyertakan `odps` (seluruh ODP OLT + slot/port, disaring per-port di klien).
+- `routes/api.php` — 4 rute baca baru. **`php artisan route:cache` sudah dijalankan** (rute API ikut ter-cache; tanpa itu 404).
+- `mobile/lib/router.dart`, `features/shell/home_shell.dart` — cabang shell jadi dashboard/olts/odps/map/account; `/alarms`, `/search`, `/odps/:id` jadi rute root yang di-`push`.
+- `mobile/lib/features/dashboard/dashboard_screen.dart` — tombol keluar diganti **ikon pencarian** (→ `/search`); kartu "Alarm aktif" `go` → `push`.
+- `mobile/lib/features/account/account_screen.dart` — kartu **Alarm** (jumlah alarm aktif + kritis dari `summaryProvider`) sebagai pintu masuk `/alarms`.
+- `mobile/lib/core/fcm/fcm_service.dart` — tap notifikasi alarm: `go('/dashboard')` lalu `push('/alarms')` supaya Back tak langsung keluar aplikasi.
+- `mobile/lib/features/search/search_screen.dart` — terima `initialQuery`, sinkron ke `searchQueryProvider`; inset bawah tak lagi menyisakan ruang navbar (sama untuk `alarm_list_screen.dart`).
+- `mobile/lib/features/onus/{port_onus,onu_detail}_screen.dart` — chip ODP kuning (bisa ditekan → halaman ODP); nama ODP ikut jadi bahan pencarian di daftar port.
+- `mobile/lib/features/register/register_screen.dart` — dropdown **"ODP (opsional)"** tersaring per slot/port (reset saat slot/port diubah), kirim `odp_id`, dan `odp_error` ditampilkan sebagai snackbar **peringatan** (registrasi tetap sukses).
+- `mobile/lib/{models/onu.dart,core/api/nms_api.dart,data/read_providers.dart,core/icons.dart}` — field `odp_id`/`odp_name`, method `odps/odp/odpOnus/mapData`, provider terkait, ikon ODP/peta.
+- `mobile/pubspec.yaml` — `flutter_map ^8.3.1` + `latlong2 ^0.10.1`; versi **1.2.4+16 → 1.3.0+17**.
+- `tests/Unit/OnuMapLinkResolverTest.php` — konstruktor `OnuMapController` yang baru.
+- Docs: `docs/API.md` (§3.6–3.8 + tabel endpoint + catatan `odp_id` registrasi), `docs/handbook/16-peta-onu.md` (bab "Peta & ODP di aplikasi Android" + `OnuMapPayloadService`), `CLAUDE.md`.
+
+Notes:
+
+- **Tile peta**: sama seperti web (`mt{s}.google.com/vt`, toggle Peta/Satelit) tapi dengan `fallbackUrl` OSM + User-Agent browser — endpoint Google keyless tak resmi dan bisa menolak permintaan non-browser; kalau itu terjadi peta tetap tergambar (dan ada mode OSM manual). Tanpa API key / Google Play Services.
+- **Fokus lintas-layar** ("Lihat di peta" dari detail ODP) lewat state Riverpod `mapFocusProvider`, **bukan** query URL: tab peta hidup di `IndexedStack`, rutenya tidak dibangun ulang saat berpindah tab, jadi query tak akan terbaca. Diterapkan di `onMapReady` supaya `MapController.move()` tak dipanggil sebelum peta siap.
+- **Peta baca-saja** di v1: menambah/menggeser pin dan CRUD ODP tetap di web. Aksi ONU dibuka lewat Detail ONU dari sheet pin, jadi tak ada duplikasi logika tulis.
+- Data live saat ini: **0 pin ONU**, 22 ODP, 136 kaitan → peta di produksi awalnya hanya menampilkan pin ODP. Karena itu `default_center` dihitung dari pin ONU **dan** ODP, dan ada hint "belum ada pin" di layar.
+- Verifikasi: `GET /api/v1/odps` & `/api/v1/map` diuji langsung ke server produksi dengan token sementara (22 ODP, garis ODP→ONU, RX ikut) — token langsung dicabut. 450 test PHP + 12 Vitest + 6 test Flutter hijau, `flutter analyze` bersih, APK release 1.3.0+17 berhasil dibangun (arm64 20,7 MB / arm32 18,3 MB) dan disalin ke `public/downloads/`.
+- Pint melaporkan 3 file lawas (`routes/auth.php`, `bootstrap/providers.php`, `ZteProfileCatalogService.php`) — sudah begitu sebelum pekerjaan ini, tidak disentuh.
+
 ## 2026-07-29 — Peta ONU: hilangkan "reload" tiap aksi pin (5,2 s → 0,09 s)
 
 Keluhan owner: halaman Peta ONU berat saat dibuka, dan tiap lock/unlock atau geser pin terasa

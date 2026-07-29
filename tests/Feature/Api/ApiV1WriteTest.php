@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Contracts\SmartOltSnmpDriver;
+use App\Models\Odp;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
@@ -124,6 +125,47 @@ class ApiV1WriteTest extends TestCase
 
         $id = $res->json('data.registration_id');
         $this->assertNotNull(SmartOltOnuRegistration::withoutGlobalScopes()->findOrFail($id)->executed_at);
+    }
+
+    /**
+     * ODP opsional pada form registrasi mobile: dikirim sebagai `odp_id` dan baru dikaitkan
+     * setelah CLI sukses (lihat OnuRegistrationService::register).
+     */
+    public function test_register_with_odp_links_onu_after_execution(): void
+    {
+        $olt = $this->seedOlt();
+        $operator = User::factory()->create();
+
+        $odp = Odp::create([
+            'snmp_olt_id' => $olt->id,
+            'name' => 'ODP-API',
+            'slot' => 1,
+            'port' => 1,
+            'latitude' => -6.75,
+            'longitude' => 111.03,
+        ]);
+
+        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
+        {
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                return ['ok' => true, 'error' => null, 'output' => 'BMKV-C320#'];
+            }
+        });
+
+        $this->actingAs($operator, 'sanctum')
+            ->postJson("/api/v1/olts/{$olt->id}/register", [...$this->payload(), 'odp_id' => $odp->id, 'execute' => true])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'executed')
+            ->assertJsonPath('data.odp_error', null);
+
+        $this->assertDatabaseHas('onu_odp_links', [
+            'snmp_olt_id' => $olt->id,
+            'slot' => 1,
+            'port' => 1,
+            'onu_id' => 6,
+            'odp_id' => $odp->id,
+        ]);
     }
 
     public function test_demo_user_cannot_register(): void

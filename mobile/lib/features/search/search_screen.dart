@@ -15,14 +15,18 @@ import '../../models/search_result.dart';
 import '../../theme/app_theme.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.initialQuery});
+
+  /// Kata kunci awal (mis. dibuka dari tempat lain dengan `?q=`).
+  final String? initialQuery;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final _controller = TextEditingController();
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialQuery ?? '');
   final _focus = FocusNode();
   Timer? _debounce;
 
@@ -30,6 +34,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _focus.addListener(() => setState(() {}));
+
+    // Layar ini di-push (bukan tab lagi), jadi provider query bisa membawa sisa
+    // pencarian sebelumnya — selaraskan dengan isi kotak saat masuk.
+    final initial = widget.initialQuery?.trim() ?? '';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(searchQueryProvider.notifier).state = initial;
+    });
   }
 
   @override
@@ -72,7 +83,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final results = ref.watch(searchProvider);
     final topInset = MediaQuery.of(context).padding.top + kToolbarHeight;
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 88;
+    // Layar ini di-push (bukan tab lagi), jadi tak ada navbar melayang yang
+    // perlu diberi ruang — cukup inset sistem + sedikit napas.
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 24;
     final focused = _focus.hasFocus;
 
     return Scaffold(

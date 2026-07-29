@@ -120,7 +120,10 @@ class FcmService {
   void _routeFromData(GoRouter router, Map<String, dynamic> data) {
     final oltId = data['olt_id'];
     if (oltId == null || oltId.toString().isEmpty) {
-      router.go('/alarms');
+      // /alarms bukan tab lagi, melainkan halaman yang di-push. Mendarat di
+      // Dashboard dulu supaya tombol Back kembali ke aplikasi, bukan keluar.
+      router.go('/dashboard');
+      router.push('/alarms');
       return;
     }
     final slot = data['slot'];

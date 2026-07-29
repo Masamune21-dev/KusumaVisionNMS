@@ -228,6 +228,10 @@ Ringkasan:
 | GET    | `/olts/{olt}/register/options`                      | Profil + default form registrasi ONU    |
 | GET    | `/search?q=`                                        | Pencarian global OLT + ONU              |
 | GET    | `/alarms`                                          | Daftar alarm                            |
+| GET    | `/odps`                                            | Daftar ODP (+ jumlah ONU)               |
+| GET    | `/odps/{odp}`                                       | Detail 1 ODP                            |
+| GET    | `/odps/{odp}/onus`                                  | ONU di dalam sebuah ODP                 |
+| GET    | `/map`                                             | Pin ONU + pin ODP untuk peta            |
 | POST   | `/devices`                                          | Daftarkan token FCM (push Android)      |
 | DELETE | `/devices`                                          | Cabut token FCM                         |
 
@@ -253,7 +257,11 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
 ```
 
 > **Catatan mobile:** endpoint baca `/search`, `/olts/{olt}/ports/.../onus`, `/olts/{olt}/unconfigured`,
-> `/olts/{olt}/register/options` + aksi tulis di atas ditambahkan untuk aplikasi Android (`mobile/`).
+> `/olts/{olt}/register/options`, `/odps*`, `/map` + aksi tulis di atas ditambahkan untuk aplikasi
+> Android (`mobile/`). `/olts/{olt}/register/options` menyertakan blok `odps` (seluruh ODP OLT itu
+> lengkap `slot`/`port`) — klien menyaringnya per PON port dan mengirim balik `odp_id` opsional
+> di `POST /olts/{olt}/register`; kaitan ODP dibuat **setelah** CLI sukses, kegagalannya muncul
+> sebagai `data.odp_error` tanpa membatalkan registrasi.
 > `GET /olts/{olt}` kini menyertakan `capabilities` (mis. `supports_provisioning`, `supports_reboot`,
 > `supports_onu_delete`) agar klien menampilkan/menyembunyikan aksi per-driver. Registrasi ONU &
 > refresh live **ZTE-only** (mode dasar); reboot/rename/delete **bercabang per-family**
@@ -412,9 +420,97 @@ curl "https://nms.bmkv.net/api/v1/olts/1/onus/1/1/5" \
 ```
 
 Mengembalikan satu objek ONU (bentuk sama seperti elemen `data` pada `/onus`)
-di dalam `{"data": {...}}`. Tidak ditemukan → `404`.
+di dalam `{"data": {...}}`, **termasuk `odp_id` + `odp_name`** bila ONU itu sudah
+dikaitkan ke sebuah ODP. Tidak ditemukan → `404`.
 
-### 3.6. `GET /alarms` — daftar alarm
+### 3.6. `GET /odps` — daftar ODP
+
+ODP (Optical Distribution Point) = splitter lapangan; satu ODP terkunci ke satu
+OLT + satu PON port. Partner hanya melihat ODP milik OLT yang di-assign padanya.
+
+**Query params:** `olt_id`, `slot`, `port`, `q` (cari nama ODP / nama OLT / catatan).
+
+```bash
+curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
+  -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
+      "name": "ODP BANGPE", "slot": 2, "port": 3,
+      "latitude": -6.6129883, "longitude": 111.0610271,
+      "notes": null, "onu_count": 6
+    }
+  ],
+  "meta": { "count": 22 }
+}
+```
+
+`GET /odps/{odp}` mengembalikan satu ODP dengan bentuk yang sama.
+
+### 3.7. `GET /odps/{odp}/onus` — ONU di dalam sebuah ODP
+
+Kaitan ONU↔ODP disimpan sebagai posisi `(olt, slot, port, onu_id)`, lalu di-enrich
+status live dari snapshot polling terakhir.
+
+```json
+{
+  "data": [
+    {
+      "snmp_olt_id": 2, "slot": 2, "port": 3, "onu_id": 80,
+      "serial_number": "ZTEGCF0995D0", "interface": "gpon-onu_1/2/3:80",
+      "name": "#2310095708 Ika Kulon Studio", "online": true, "has_live": true,
+      "rx_power_dbm": -25.852, "rx_power_label": "-25.852 dBm",
+      "latitude": null, "longitude": null
+    }
+  ],
+  "meta": { "odp_id": 26, "count": 6, "online": 5 }
+}
+```
+
+- `has_live: false` ⇒ ONU tak ada lagi di snapshot OLT (kaitan ODP-nya basi), bukan sekadar offline.
+- `latitude`/`longitude` berasal dari **pin peta ONU** (null bila ONU belum di-pin).
+
+### 3.8. `GET /map` — payload peta (pin ONU + pin ODP)
+
+Satu request untuk seluruh peta: pin ONU pelanggan, pin ODP beserta ONU yang
+tersambung (untuk menggambar garis ODP→ONU), daftar OLT untuk filter, dan titik
+tengah default. **Query param:** `olt_id` (opsional).
+
+```json
+{
+  "data": {
+    "pins": [
+      { "id": 9, "olt_id": 1, "olt_name": "OLT-C320-PATI", "slot": 1, "port": 1,
+        "onu_id": 5, "interface": "gpon-onu_1/1/1:5", "serial_number": "ZTEG00000005",
+        "latitude": -6.7, "longitude": 111.0, "customer_name": "Bu Sri",
+        "address": null, "phone": null, "notes": null,
+        "rx_power_dbm": -21.5, "rx_power_label": "-21.50 dBm",
+        "online": true, "has_live": true }
+    ],
+    "odps": [
+      { "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
+        "name": "ODP BANGPE", "slot": 2, "port": 3,
+        "latitude": -6.61, "longitude": 111.06, "locked": true, "notes": null,
+        "onus": [ /* bentuk sama dengan /odps/{id}/onus */ ] }
+    ],
+    "olts": [{ "id": 1, "name": "OLT-C320-PATI" }],
+    "default_center": { "lat": -6.6168, "lng": 111.0568, "zoom": 12 }
+  },
+  "meta": { "pins": 0, "odps": 22 }
+}
+```
+
+`default_center` dihitung dari rata-rata pin ONU **dan** pin ODP (fallback: Pati),
+supaya peta tetap terbuka di area kerja meski ONU-nya belum di-pin.
+
+Peta di aplikasi bersifat **baca-saja**: menambah/menggeser pin & CRUD ODP tetap
+lewat dashboard web.
+
+### 3.9. `GET /alarms` — daftar alarm
 
 **Query params:**
 

@@ -102,13 +102,14 @@ class OnuInventoryService
     /**
      * Cari satu ONU di cache OLT dan kembalikan bentuk ter-normalisasi (untuk enrich pin peta).
      *
-     * Sengaja TIDAK melakukan lookup ODP: `OnuOdpService::connectedOnus()` memanggil metode ini
-     * di dalam loop, jadi satu query per panggilan justru akan menjadi N+1. Pemakai yang butuh
-     * kolom ODP memakai collect()/forPort().
+     * Secara default TIDAK melakukan lookup ODP: `OnuOdpService::connectedOnus()` memanggil
+     * metode ini di dalam loop, jadi satu query per panggilan justru akan menjadi N+1. Pemanggil
+     * satuan yang memang butuh kolom ODP (mis. detail 1 ONU di REST API) mengaktifkannya lewat
+     * $withOdp — jangan set true di dalam loop.
      *
      * @return array<string, mixed>|null
      */
-    public function findOne(SnmpOlt $olt, int $slot, int $port, int $onuId): ?array
+    public function findOne(SnmpOlt $olt, int $slot, int $port, int $onuId, bool $withOdp = false): ?array
     {
         $routePrefix = $this->routePrefix($olt);
 
@@ -116,7 +117,12 @@ class OnuInventoryService
 
         foreach ($onus as $onu) {
             if ((int) ($onu['onu_id'] ?? 0) === $onuId) {
-                return $this->normalize($olt, $routePrefix, $onu);
+                return $this->normalize(
+                    $olt,
+                    $routePrefix,
+                    $onu,
+                    $withOdp ? $this->odpLookupMap([$olt->id], $slot, $port) : [],
+                );
             }
         }
 

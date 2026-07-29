@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/odp_chip.dart';
 import '../../core/widgets/pulse_dot.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/status_chip.dart';
@@ -312,8 +313,29 @@ class _Info extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
         children: [
+          // ODP dipisah dari baris teks biasa karena berupa chip yang bisa
+          // ditekan untuk membuka halaman ODP-nya.
+          if (onu.odpName != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 130,
+                    child: Text('ODP', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: OdpChip(name: onu.odpName!, odpId: onu.odpId, dense: false),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const Divider(height: 1),
+            if (i > 0 || onu.odpName != null) const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 11),
               child: Row(

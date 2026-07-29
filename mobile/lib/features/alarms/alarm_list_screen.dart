@@ -29,7 +29,9 @@ class AlarmListScreen extends ConsumerWidget {
     final selected = ref.watch(alarmSeverityProvider);
     final data = ref.watch(alarmsProvider);
     final topInset = MediaQuery.of(context).padding.top + kToolbarHeight;
-    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 88;
+    // Layar ini di-push (bukan tab lagi), jadi tak ada navbar melayang yang
+    // perlu diberi ruang — cukup inset sistem + sedikit napas.
+    final bottomInset = MediaQuery.of(context).viewPadding.bottom + 24;
 
     return Scaffold(
       extendBodyBehindAppBar: true,

@@ -50,4 +50,15 @@ class LucideIcons {
   static const IconData copy = Icons.copy_rounded;
   static const IconData smartphone = Icons.smartphone_outlined;
   static const IconData trash = Icons.delete_outline_rounded;
+
+  // --- ODP & Peta ---
+  static const IconData odp = Icons.hub_outlined;
+  static const IconData odpFilled = Icons.hub;
+  static const IconData map = Icons.map_outlined;
+  static const IconData mapFilled = Icons.map_rounded;
+  static const IconData mapPin = Icons.place_outlined;
+  static const IconData layers = Icons.layers_outlined;
+  static const IconData locate = Icons.my_location_rounded;
+  static const IconData filter = Icons.filter_alt_outlined;
+  static const IconData navigation = Icons.near_me_outlined;
 }

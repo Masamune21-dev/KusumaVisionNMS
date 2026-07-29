@@ -3,8 +3,7 @@
 namespace Tests\Unit;
 
 use App\Http\Controllers\OnuMapController;
-use App\Services\OnuInventoryService;
-use App\Services\OnuOdpService;
+use App\Services\Map\OnuMapPayloadService;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
@@ -17,10 +16,7 @@ class OnuMapLinkResolverTest extends TestCase
 {
     private function hostResolvesPublic(string $url): bool
     {
-        $controller = new OnuMapController(
-            $this->createMock(OnuInventoryService::class),
-            $this->createMock(OnuOdpService::class),
-        );
+        $controller = new OnuMapController($this->createMock(OnuMapPayloadService::class));
         $method = new ReflectionMethod($controller, 'hostResolvesPublic');
         $method->setAccessible(true);
 

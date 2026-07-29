@@ -45,10 +45,12 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
         actions: [
+          // Pencarian global tidak lagi punya tab sendiri — pintu masuknya di sini.
+          // (Tombol keluar ada di halaman Akun.)
           IconButton(
-            tooltip: 'Keluar',
-            icon: const Icon(LucideIcons.logOut, size: 20),
-            onPressed: () => _confirmLogout(context, ref),
+            tooltip: 'Cari OLT / ONU',
+            icon: const Icon(LucideIcons.search, size: 21),
+            onPressed: () => context.push('/search'),
           ),
           const SizedBox(width: 4),
         ],
@@ -72,28 +74,6 @@ class DashboardScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _confirmLogout(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Keluar?'),
-        content: const Text('Anda akan keluar dari sesi ini.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: AppColors.danger, foregroundColor: Colors.white),
-            onPressed: () {
-              Navigator.pop(ctx);
-              ref.read(authControllerProvider.notifier).logout();
-            },
-            child: const Text('Keluar'),
-          ),
-        ],
       ),
     );
   }
@@ -160,7 +140,7 @@ class _SummaryBody extends StatelessWidget {
               value: summary.alarmTotal,
               sub: '${summary.alarmCritical} kritis',
               color: AppColors.warning,
-              onTap: () => context.go('/alarms'),
+              onTap: () => context.push('/alarms'),
             ),
           ),
         ])),
