@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
+use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteRemoteOnuService;
@@ -56,7 +57,7 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/name  {name?, description?}
      */
-    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
+    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp): JsonResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');
 
@@ -80,9 +81,14 @@ class OnuActionController extends Controller
                     return response()->json(['message' => 'OLT ini hanya mendukung ubah nama ONU.'], 422);
                 }
 
-                $result = $this->isHioso($olt)
-                    ? $hioso->setName($olt, $port, $onuId, $name)
-                    : $cdata->setDescription($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId, $name);
+                // HiOSO HA7302 (`description_mode='snmp'`): rename via SNMP SET, bukan CLI.
+                if ($this->isHioso($olt)) {
+                    $result = $this->descriptionMode($olt) === 'snmp'
+                        ? $hiosoSnmp->setOnuName($olt, $port, $onuId, $name)
+                        : $hioso->setName($olt, $port, $onuId, $name);
+                } else {
+                    $result = $cdata->setDescription($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId, $name);
+                }
 
                 if (! ($result['ok'] ?? false)) {
                     return response()->json(['message' => 'Update info ONU gagal: '.($result['error'] ?? '')], 422);
@@ -235,6 +241,11 @@ class OnuActionController extends Controller
     private function isHioso(SnmpOlt $olt): bool
     {
         return SmartOltSupport::isHioso($this->driver($olt));
+    }
+
+    private function descriptionMode(SnmpOlt $olt): string
+    {
+        return (string) (SmartOltSupport::capabilities($this->driver($olt), $olt)['description_mode'] ?? 'cli_hioso');
     }
 
     private function ifaceKeyword(SnmpOlt $olt): string

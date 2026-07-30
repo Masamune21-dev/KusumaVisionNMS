@@ -18,6 +18,11 @@ class FakeHiosoSnmp extends HiosoSnmp
      */
     public function __construct(private array $walks = [], private array $gets = []) {}
 
+    /** @var list<array{oid: string, type: string, value: string}> */
+    public array $sets = [];
+
+    public bool $setResult = true;
+
     public function get(SnmpOlt $olt, string $oid): ?string
     {
         return $this->gets[$oid] ?? null;
@@ -26,6 +31,13 @@ class FakeHiosoSnmp extends HiosoSnmp
     public function walk(SnmpOlt $olt, string $oid, int $timeoutUs = 10_000_000, int $retries = 3): array
     {
         return $this->walks[$oid] ?? [];
+    }
+
+    public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
+    {
+        $this->sets[] = compact('oid', 'type', 'value');
+
+        return $this->setResult;
     }
 }
 
@@ -428,5 +440,74 @@ class HiosoSnmpDriverTest extends TestCase
         $onus = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt);
 
         $this->assertSame([], $onus, 'ONU absen > MAX_MISSED_POLLS harus dilepas dari roster');
+    }
+
+    /**
+     * HA7304: ifDescr meng-expose `Pon-Nni{n}` → getPorts menurunkan port PON dari situ.
+     */
+    public function test_getports_derives_pon_ports_from_pon_nni_ifdescr(): void
+    {
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $snmp = new FakeHiosoSnmp([
+            $ifd => ["{$ifd}.1" => 'Pon-Nni1', "{$ifd}.2" => 'Pon-Nni2', "{$ifd}.5" => 'G1'],
+        ]);
+
+        $ports = (new HiosoEponSnmpService($snmp))->getPorts($this->olt());
+
+        $this->assertSame([1, 2], array_column($ports, 'port'));
+        $this->assertSame(1, $ports[0]['slot']);
+    }
+
+    /**
+     * HA7302 (mis. HA7302CSM v7.76): TIDAK ada `Pon-Nni` di IF-MIB (ruang LLID datar). getPorts harus
+     * fallback ke satu port EPON agregat (slot 1 / port 1) supaya OLT tetap tampil punya port.
+     */
+    public function test_getports_falls_back_to_single_port_without_pon_nni(): void
+    {
+        // ifDescr hanya lo/eth0 (gaya HA7302) — tak ada Pon-Nni.
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $snmp = new FakeHiosoSnmp([
+            $ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0', "{$ifd}.3" => 'eth0.1'],
+        ]);
+
+        $ports = (new HiosoEponSnmpService($snmp))->getPorts($this->olt());
+
+        $this->assertCount(1, $ports);
+        $this->assertSame(1, $ports[0]['slot']);
+        $this->assertSame(1, $ports[0]['port']);
+        $this->assertSame('epon 0/1/1', $ports[0]['name']);
+    }
+
+    /**
+     * HA7302 rename via SNMP SET: menulis OID nama `.25355.…37.1.{oltId}.{onu}` (writable) dengan nama
+     * yang dibersihkan (spasi dibiarkan, kontrol dibuang, dipangkas 32).
+     */
+    public function test_set_onu_name_writes_via_snmp_set(): void
+    {
+        $snmp = new FakeHiosoSnmp;
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+
+        $result = (new HiosoEponSnmpService($snmp))->setOnuName($olt, 1, 42, '  Budi  Santoso ');
+
+        $this->assertTrue($result['ok']);
+        $this->assertCount(1, $snmp->sets);
+        $this->assertSame('1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1.1.42', $snmp->sets[0]['oid']);
+        $this->assertSame('s', $snmp->sets[0]['type']);
+        $this->assertSame('Budi Santoso', $snmp->sets[0]['value']);
+    }
+
+    /**
+     * Bila agen menolak SET (write community salah / OID read-only), setOnuName melaporkan gagal.
+     */
+    public function test_set_onu_name_reports_failure_when_agent_rejects(): void
+    {
+        $snmp = new FakeHiosoSnmp;
+        $snmp->setResult = false;
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+
+        $result = (new HiosoEponSnmpService($snmp))->setOnuName($olt, 1, 5, 'x');
+
+        $this->assertFalse($result['ok']);
+        $this->assertNotNull($result['error']);
     }
 }

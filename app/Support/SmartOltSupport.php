@@ -185,7 +185,7 @@ class SmartOltSupport
         }
 
         if ($driver === self::DRIVER_HIOSO_EPON) {
-            return self::hiosoEponCapabilities();
+            return self::hiosoEponCapabilities($olt);
         }
 
         if ($driver !== self::DRIVER_ZTE) {
@@ -324,18 +324,30 @@ class SmartOltSupport
      * CLI telnet `conf t` → `interface epon 0/{port}` → `onu {id} name|reboot` / `no onu {id}`
      * (rename/reboot guide §5.5; delete `no onu {id}` guide §5.6 — verifikasi live via UI). Provisioning belum ada.
      *
+     * **Varian HA7302** (mis. HA7302CSM v7.76, terverifikasi live Jul 2026): SNMP menyajikan ONU sebagai
+     * satu ruang LLID datar (index `{oltId=1}.{onu}`, `onu` 1..128 per PON) tanpa `Pon-Nni` di IF-MIB,
+     * tapi OID nama/MAC/Rx kanonik sama → inventory + Rx terbaca. CLI-nya login **3-lapis** dan dialek beda
+     * (node `epon`→`pon 1/{pon}`→`set onu {onu} reboot`; `delete onu 1/{pon}/{onu}`;
+     * `set pon 1/{pon} onu {onu} auth-mode pass|deny`), TAK ada `interface epon` maupun rename CLI.
+     * Pemetaan LLID-datar→CLI onuId **terverifikasi 1:1** via `search mac-address` (flat index == CLI onuId,
+     * PON = index SNMP; 4/4 MAC cocok) → reboot/enable-disable/delete/save **AKTIF**. Rename tetap lewat
+     * **SNMP SET** (OID nama writable, `description_mode='snmp'`) karena CLI HA7302 tak punya rename.
+     *
      * @return array<string, mixed>
      */
-    private static function hiosoEponCapabilities(): array
+    private static function hiosoEponCapabilities(?SnmpOlt $olt = null): array
     {
+        $isHa7302 = self::isHiosoHa7302($olt);
+
         return [
             'driver' => self::DRIVER_HIOSO_EPON,
-            'vendor_family' => 'HiOSO / V-Sol EPON',
+            'vendor_family' => $isHa7302 ? 'HiOSO / V-Sol EPON (HA7302)' : 'HiOSO / V-Sol EPON',
             'pon_label' => 'EPON',
             'port_label' => 'EPON Port',
             'port_name_prefix' => 'epon 0',
             'onu_interface_pattern' => 'epon 0/%d/%d:%d',
             'is_c600' => false,
+            'is_ha7302' => $isHa7302,
             'read_only' => false,
             'supports_snmp_rx' => true,
             'supports_cli_rx' => false,
@@ -346,13 +358,35 @@ class SmartOltSupport
             'supports_provisioning' => false,
             'supports_onu_delete' => true,
             'supports_separate_description' => false,
+            // HA7302: rename hanya via SNMP SET (CLI tak punya rename); HA7304: rename via CLI.
             'supports_onu_info_write' => true,
-            'description_mode' => 'cli_hioso',
+            'description_mode' => $isHa7302 ? 'snmp' : 'cli_hioso',
             'supports_onu_toggle' => true,
-            // Simpan running-config via CLI: enable → write.
             'supports_config_save' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
+    }
+
+    /**
+     * Apakah OLT HiOSO ini varian **HA7302** (mis. HA7302CSM/HA7302CST) — dibedakan dari HA7304 karena
+     * layout SNMP (LLID datar) & dialek CLI-nya berbeda. Sinyal utama: string firmware OID
+     * `.25355.3.1.8.1.1.2.1` (mis. `v7.76/HA7302CSM/…`) yang discan ke `last_test_result.system.firmware`;
+     * juga menerima hint dari vendor/name/sysDescr bila operator menandainya manual.
+     */
+    public static function isHiosoHa7302(?SnmpOlt $olt): bool
+    {
+        if ($olt === null) {
+            return false;
+        }
+
+        $haystack = strtolower(implode(' ', array_filter([
+            data_get($olt->last_test_result, 'system.firmware'),
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            $olt->vendor,
+            $olt->name,
+        ])));
+
+        return str_contains($haystack, 'ha7302');
     }
 
     /**

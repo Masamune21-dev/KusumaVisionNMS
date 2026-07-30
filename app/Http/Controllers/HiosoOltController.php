@@ -270,7 +270,7 @@ class HiosoOltController extends Controller
         }
     }
 
-    public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, HiosoCliWriteService $hioso): RedirectResponse
+    public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, HiosoCliWriteService $hioso, HiosoEponSnmpService $snmp): RedirectResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');
         $data = $request->validate(['name' => ['nullable', 'string', 'max:128']]);
@@ -278,7 +278,11 @@ class HiosoOltController extends Controller
         $back = redirect()->route('hioso-olt.port-onus', [$olt, $slot, $port]);
 
         try {
-            $result = $hioso->setName($olt, $port, $onuId, $name);
+            // HA7302 (`description_mode='snmp'`): rename via SNMP SET (CLI-nya tak punya rename).
+            // HA7304: tetap via CLI `onu {id} name`.
+            $result = $this->descriptionMode($olt) === 'snmp'
+                ? $snmp->setOnuName($olt, $port, $onuId, $name)
+                : $hioso->setName($olt, $port, $onuId, $name);
             if (! $result['ok']) {
                 return $back->with('error', __('flash.onu_rename_failed').$result['error']);
             }
@@ -353,6 +357,11 @@ class HiosoOltController extends Controller
             data_get($olt->last_test_result, 'system.sys_descr'),
             data_get($olt->last_test_result, 'system.sys_object_id'),
         );
+    }
+
+    private function descriptionMode(SnmpOlt $olt): string
+    {
+        return (string) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)['description_mode'] ?? 'cli_hioso');
     }
 
     private function assertCapability(SnmpOlt $olt, string $capability): void

@@ -7,6 +7,7 @@ use App\Models\OnuMapPin;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
+use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\Map\OnuMapPayloadService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
@@ -187,7 +188,7 @@ class OnuMapController extends Controller
     /**
      * Ganti nama ONU dari detail pin — delegasi ke service ZTE / C-Data, lalu balik ke peta.
      */
-    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): RedirectResponse
+    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp): RedirectResponse
     {
         $olt = $pin->olt;
         $back = redirect()->route('map.index');
@@ -198,7 +199,10 @@ class OnuMapController extends Controller
 
         try {
             if ($this->isHioso($olt)) {
-                $result = $hioso->setName($olt, $pin->port, $pin->onu_id, $name);
+                // HA7302 (`description_mode='snmp'`): rename via SNMP SET, bukan CLI.
+                $result = (string) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)['description_mode'] ?? 'cli_hioso') === 'snmp'
+                    ? $hiosoSnmp->setOnuName($olt, $pin->port, $pin->onu_id, $name)
+                    : $hioso->setName($olt, $pin->port, $pin->onu_id, $name);
                 if (! ($result['ok'] ?? false)) {
                     return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
                 }

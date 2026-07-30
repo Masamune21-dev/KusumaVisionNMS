@@ -36,6 +36,33 @@ class HiosoSnmp
     }
 
     /**
+     * SNMP SET (v1/v2c) memakai **write community**. Dipakai HA7302 yang CLI-nya tak punya perintah
+     * rename ONU — nama/deskripsi ONU ditulis lewat OID `.25355.…37.1.{oltId}.{onu}` (writable,
+     * terverifikasi live round-trip). Mengembalikan true bila agen menerima SET (agen Net-SNMP
+     * menolak OID read-only / community salah dengan false).
+     *
+     * @param  string  $type  tipe SNMP snmpset ('s' string, 'i' integer, dll.)
+     */
+    public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
+    {
+        $this->assertReadable($olt);
+
+        $community = (string) $olt->snmp_write_community;
+        if ($community === '') {
+            throw new RuntimeException('SNMP write community OLT belum diisi — tak bisa menulis via SNMP.');
+        }
+
+        $version = $olt->snmp_version === 'v1' ? SNMP::VERSION_1 : SNMP::VERSION_2C;
+        $session = new SNMP($version, $olt->getHostAddress(), $community, 5_000_000, 2);
+
+        try {
+            return @$session->set($oid, $type, $value);
+        } finally {
+            $session->close();
+        }
+    }
+
+    /**
      * @return array<string, string> di-key oleh OID numerik (tanpa titik depan)
      */
     public function walk(SnmpOlt $olt, string $oid, int $timeoutUs = self::DEFAULT_TIMEOUT_US, int $retries = self::DEFAULT_RETRIES): array

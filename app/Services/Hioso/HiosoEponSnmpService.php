@@ -87,19 +87,21 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     /**
      * Port PON dari ifDescr `Pon-Nni{n}` (guide §4.2). `ifOperStatus` HA7304 TIDAK reliable untuk
      * status PON physical, jadi tidak dipakai — status ditentukan dari jumlah ONU online di scanner.
+     *
+     * Firmware HA7302 (mis. HA7302CSM v7.76) TIDAK meng-expose interface `Pon-Nni` di IF-MIB dan
+     * menyajikan ONU sebagai satu ruang LLID datar (index `.{oltId}.{onu}`, oltId selalu 1). Untuk itu,
+     * bila tak ada `Pon-Nni`, kembalikan **satu port EPON agregat** (slot 1 / port 1) supaya OLT tetap
+     * tampil punya port & faceplate — konsisten dengan ONU yang seluruhnya masuk port 1
+     * ({@see self::getRegisteredOnus} men-scope via {@see self::ponNumbers}, bukan getPorts, agar walk
+     * fallback full-table tetap utuh).
      */
     public function getPorts(SnmpOlt $olt): array
     {
         $ports = [];
 
-        foreach ($this->snmp->walk($olt, self::IF_DESCR) as $oid => $label) {
-            if (! preg_match('/pon-?nni\s*(\d+)/i', (string) $label, $m)) {
-                continue;
-            }
-
-            $port = (int) $m[1];
+        foreach ($this->ponNumbers($olt) as $port) {
             $ports[] = [
-                'if_index' => HiosoValue::oidLastSegments($oid, 1)[0] ?? $port,
+                'if_index' => $port,
                 'name' => sprintf('epon 0/1/%d', $port),
                 'slot' => 1,
                 'port' => $port,
@@ -108,9 +110,41 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             ];
         }
 
-        usort($ports, fn ($a, $b) => $a['port'] <=> $b['port']);
+        if ($ports === []) {
+            // HA7302 tanpa Pon-Nni → satu port EPON agregat.
+            $ports[] = [
+                'if_index' => 1,
+                'name' => 'epon 0/1/1',
+                'slot' => 1,
+                'port' => 1,
+                'oper_status_code' => null,
+                'oper_status' => 'unknown',
+            ];
+        }
 
         return $ports;
+    }
+
+    /**
+     * Nomor PON dari ifDescr `Pon-Nni{n}` (mungkin kosong bila firmware tak meng-expose-nya, mis.
+     * HA7302). Dipakai untuk men-scope walk tabel ONU per-PON; kosong = jalur fallback full-table
+     * ({@see self::walkTable}) — JANGAN samakan dengan {@see self::getPorts} yang menambah port sintetik.
+     *
+     * @return array<int, int>
+     */
+    private function ponNumbers(SnmpOlt $olt): array
+    {
+        $ports = [];
+
+        foreach ($this->snmp->walk($olt, self::IF_DESCR) as $label) {
+            if (preg_match('/pon-?nni\s*(\d+)/i', (string) $label, $m)) {
+                $ports[] = (int) $m[1];
+            }
+        }
+
+        sort($ports);
+
+        return array_values(array_unique($ports));
     }
 
     public function getRegisteredOnus(SnmpOlt $olt): array
@@ -118,7 +152,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
         // Daftar PON dari ifDescr (walk kecil & stabil). Dipakai untuk men-scope walk tabel ONU per
         // PON — walk seluruh tabel sering terpotong link WAN pada port padat sehingga hitungan ONU &
         // kelengkapan nama/Rx berubah-ubah antar poll (lihat {@see walkTable}).
-        $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
+        $ports = $this->ponNumbers($olt);
 
         // Roster ONU dari poll SEBELUMNYA — dipakai carry-forward: poll yang terpotong link lossy hanya
         // boleh MENAMBAH/meng-update ONU, tak pernah menghapus ONU yang sudah dikenal. Registrasi EPON
@@ -311,9 +345,48 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
         ));
     }
 
+    /**
+     * Rename ONU HA7302 via SNMP SET (write community) pada OID nama `.25355.…37.1.{oltId}.{onu}`.
+     * HA7302 (mis. HA7302CSM v7.76) CLI-nya TAK punya perintah rename ONU, sedang OID nama-nya
+     * writable (terverifikasi live round-trip: set → baca berubah → restore). `$oltId` = segmen tengah
+     * index (biasanya 1) — pada model driver ini identik dengan field `port` ONU. Nama dibersihkan
+     * (karakter kontrol dibuang, spasi dirapikan, dipangkas 32). Nama kosong = mengosongkan label.
+     *
+     * @return array{ok: bool, output: string, error: ?string}
+     */
+    public function setOnuName(SnmpOlt $olt, int $oltId, int $onuId, ?string $name): array
+    {
+        $label = $this->sanitizeName($name);
+        $oid = self::ONU_NAME.".{$oltId}.{$onuId}";
+
+        try {
+            $ok = $this->snmp->set($olt, $oid, 's', $label);
+
+            return [
+                'ok' => $ok,
+                'output' => $ok ? "SNMP SET {$oid} = \"{$label}\"" : '',
+                'error' => $ok ? null : 'OLT menolak SNMP SET nama ONU (periksa write community / OID).',
+            ];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'output' => '', 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Bersihkan nama ONU untuk SNMP SET: buang karakter kontrol, rapikan spasi, batasi 32 karakter.
+     * Lebih longgar dari sanitasi CLI (spasi & tanda baca dibiarkan) karena SNMP tak rentan injeksi CLI.
+     */
+    private function sanitizeName(?string $value): string
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]/', ' ', (string) $value) ?? '';
+        $value = trim(preg_replace('/\s+/', ' ', $value) ?? '');
+
+        return mb_strimwidth($value, 0, 32, '');
+    }
+
     public function getPortRxMap(SnmpOlt $olt): array
     {
-        $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
+        $ports = $this->ponNumbers($olt);
 
         return $this->rxScan($olt, $ports)['valid'];
     }
@@ -322,7 +395,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
     {
         try {
             // Hanya slot dgn MAC non-nol = ONU terdaftar sungguhan (tabel nama memuat slot hantu).
-            $ports = array_map(static fn (array $p): int => (int) $p['port'], $this->getPorts($olt));
+            $ports = $this->ponNumbers($olt);
             $count = 0;
             foreach ($this->walkTable($olt, self::ONU_MAC, $ports) as $value) {
                 $mac = HiosoValue::macFromHex($value);

@@ -1,5 +1,90 @@
 # Worklog
 
+## 2026-07-29 — HiOSO HA7302: aksi CLI (reboot/enable-disable/delete/save) diaktifkan
+
+Lanjutan dari entri di bawah. Pemetaan LLID-datar→CLI **diverifikasi 1:1** dan aksi CLI HA7302
+dibuka. Kunci-kunci temuan live (HA7302CSM v7.76, `103.189.249.141:2223`):
+
+- **`search mac-address {mac} mask 1`** (node `epon`) mengembalikan `OnuId` sebagai `pon:onu` (mis.
+  `1/1:5`) — satu-satunya perintah listing CLI yang jalan (`show pon`/`show optical-ddm pon`/`show onu all`
+  **bug**: "Id … invalid" / output kosong / wedge sesi). Dari situ + cross-check MAC SNMP: **CLI onuId ==
+  index flat SNMP, PON = 1** (4/4 MAC cocok: flat 5/76/112/124 = `1/1:5/76/112/124`). onuId >64 semua di
+  PON 1 → benar 1 PON bisa 128 ONU (dikonfirmasi owner), bukan split /64. Jadi target CLI = `pon 1/{port}`
+  (port=index-a SNMP, kini 1) + onuId=onu_id — aman & future-proof (kalau PON 2 dipakai, index SNMP-nya 2).
+- **IAC telnet WAJIB**: HA7302 **menahan banner login** sampai opsi telnet dijawab. Tanpa balasan IAC,
+  agen diam → login timeout (gejala: `readUntil` dapat 0 byte 27 detik). HA7304 tak begitu.
+
+Changed:
+
+- `app/Services/Hioso/HiosoCliWriteService.php` — variant-aware (`isHiosoHa7302`): (1) login **3-lapis**
+  generik `loginMultiTier()` (jawab tiap prompt password dgn `cli_password`, sisipkan `enable` di `>`,
+  berhenti di `#`); (2) `readUntil` kini **IAC-aware** lewat `TelnetIacFilter` (di-set per `openSession`,
+  **hanya** HA7302 → HA7304 byte-for-byte tak berubah); (3) reboot `pon 1/{port}`→`set onu {onu} reboot`,
+  delete `delete onu 1/{port}/{onu}`, enable/disable `set pon 1/{port} onu {onu} auth-mode pass|deny`
+  (node `epon`); (4) needle error tambah `command incomplete`/`no command matched`.
+- `app/Support/SmartOltSupport.php` — HA7302 capabilities: `supports_reboot/onu_toggle/onu_delete/
+  config_save` **true** (sebelumnya di-OFF-kan menunggu verifikasi). `description_mode` tetap `snmp`
+  (rename tetap SNMP — CLI HA7302 tak punya rename).
+- `tests/Unit/HiosoHa7302CapabilitiesTest.php` — sesuaikan (CLI actions ON, rename SNMP).
+
+Notes:
+
+- Verifikasi live end-to-end via service nyata (reflection): login 3-lapis 12,3s → navigasi
+  `configure terminal`→`epon`→`pon 1/1` (`EPON(epon-pon-1/1)#`) → `saveConfig()` nyata = **"Configuration
+  file saved ok!"** `ok=true`. Jalur reboot/delete/toggle memakai plumbing yang sama + satu baris grammar
+  yang sudah dikonfirmasi device (`list`/help + `set onu 2 reboot`). Reboot/delete **belum** dieksekusi ke
+  ONU pelanggan sungguhan (biar owner memilih ONU uji) — grammar & pipeline sudah terbukti.
+- 456 test hijau; worker di-`queue:restart`.
+
+## 2026-07-29 — HiOSO varian HA7302 (HA7302CSM v7.76): monitoring SNMP + rename via SNMP SET
+
+Owner punya OLT HiOSO/V-Sol **2-port** yang berbeda dari HA7304 existing. Verifikasi live 2 unit:
+`103.189.249.196` = **HA7302CST v7.76→v7.89** (layout SNMP dirombak, MIB `web789`; ONU offline) dan
+`103.189.249.141` = **HA7302CSM v7.76** (120 ONU, 115 online). Telnet 2223 / SNMP UDP **2224** (bukan
+161 default — NAT), community `SNMPREAD`/`SNMPWRITE`, telnet `root`/`admin` + **2 lapis password ekstra**
+(Access + Enable, keduanya `admin`) yang tak ada di HA7304.
+
+Temuan kunci (terverifikasi live):
+- **HA7302CSM v7.76**: OID ONU kanonik HiOSO (`.37.1` nama / `.11.1` MAC / `.14.2.1.8.1` Rx) **cocok** →
+  driver existing membacanya utuh (120 ONU, nama/MAC/Rx benar). TAPI: (a) **tak ada `Pon-Nni`** di
+  IF-MIB — ONU disajikan sebagai satu ruang **LLID datar 1..128** (index `.{oltId=1}.{onu}`), (b) sysDescr
+  generik `Linux EPON …`/sysObjectID net-snmp `8072` (deteksi HiOSO tetap jalan karena form set
+  `vendor="HiOSO EPON 25355"`), (c) CLI **beda dialek** (`epon`→`pon {olt}/{pon}`→`set onu {id} reboot`,
+  TAK ada `interface epon 0/{port}`; alamat `olt/pon/onu`) dan pemetaan LLID-datar→pon/onuId **belum**
+  terverifikasi aman → aksi CLI per-ONU di-OFF-kan agar tak salah target pelanggan.
+- **Rename**: CLI HA7302 **tak punya** perintah rename ONU, tapi **OID nama `.37.1.{oltId}.{onu}` WRITABLE**
+  via SNMP SET (round-trip terverifikasi: set→berubah→restore). Jadi rename dialihkan ke **SNMP SET**.
+- HA7302CST v7.89 (`web789`, "Hardware Changed") layout MIB berbeda total → varian SNMP terpisah, ditunda
+  (butuh ONU online untuk verifikasi Rx/status/nama).
+
+Created:
+
+- `tests/Unit/HiosoHa7302CapabilitiesTest.php` — HA7304 pertahankan aksi CLI; HA7302 gerbang CLI OFF +
+  `description_mode='snmp'`, rename ON.
+- Test baru di `tests/Unit/HiosoSnmpDriverTest.php` — `getPorts` fallback 1 port tanpa `Pon-Nni`,
+  `getPorts` dari `Pon-Nni`, `setOnuName` menulis OID via SNMP SET + laporan gagal.
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — `hiosoEponCapabilities(?SnmpOlt)` jadi variant-aware + helper baru
+  `isHiosoHa7302()` (deteksi dari firmware `.25355.3.1.8.1.1.2.1`/vendor/name yang memuat `ha7302`). HA7302:
+  `supports_reboot/onu_toggle/onu_delete/config_save=false`, `description_mode='snmp'`, `is_ha7302=true`,
+  `vendor_family='HiOSO / V-Sol EPON (HA7302)'`. HA7304 **tak berubah**.
+- `app/Services/Hioso/HiosoSnmp.php` — method `set()` (SNMP SET pakai write community).
+- `app/Services/Hioso/HiosoEponSnmpService.php` — `getPorts()` fallback **1 port EPON agregat** bila tak ada
+  `Pon-Nni`; scoping walk pindah ke `ponNumbers()` (deteksi mentah, kosong=full-table fallback — pembacaan
+  120 ONU & unit test lama tak berubah); method `setOnuName()` (rename via SNMP SET, OID `.37.1.{oltId}.{onu}`).
+- `app/Http/Controllers/HiosoOltController.php` + `Api/V1/OnuActionController.php` + `OnuMapController.php` —
+  rename ONU bercabang: `description_mode==='snmp'` → `HiosoEponSnmpService::setOnuName`, selain itu CLI
+  `HiosoCliWriteService::setName` (HA7304). Reboot/delete/toggle sudah tergerbang capability (auto-hide di
+  `Pages/Hioso/PortOnus.vue`).
+
+Notes:
+
+- **OLT ditambahkan ke sistem**: id=1222 `OLT HiOSO HA7302CSM` (`103.189.249.141:2224`), scan awal 121 ONU
+  (115 online), 1 port agregat, faceplate model HA7302CSM. Polling aktif. Owner bisa rename/ubah/hapus di UI.
+- Seluruh 456 test suite hijau. Verifikasi live end-to-end via tinker (deteksi, getPorts, rename round-trip).
+
 ## 2026-07-29 — Aplikasi Android: tab Peta & ODP, navigasi dirombak, ODP di ONU & registrasi
 
 Permintaan owner: aplikasi Android dapat **halaman peta satu layar penuh** (navbar tetap terlihat),
