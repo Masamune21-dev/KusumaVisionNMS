@@ -274,7 +274,12 @@
         "confirm_delete_hioso_title": "Hapus OLT HiOSO",
         "confirm_delete_msg": "Hapus OLT {name}? Tindakan ini permanen.",
         "confirm_save_title": "Simpan konfigurasi OLT",
-        "confirm_save_msg": "Simpan (write) konfigurasi berjalan ke memori OLT {name}? Pada OLT dengan config besar (mis. ZTE C300) proses bisa memakan ~30 detik."
+        "confirm_save_msg": "Simpan (write) konfigurasi berjalan ke memori OLT {name}? Pada OLT dengan config besar (mis. ZTE C300) proses bisa memakan ~30 detik.",
+        "hsairpo_inventory_title": "Inventory OLT HsAirPo",
+        "hsairpo_inventory_subtitle": "Inventori & test koneksi HsAirPo / HSGQ EPON (12170) — ONU via CLI",
+        "empty_hsairpo_title": "Belum ada OLT HsAirPo",
+        "empty_hsairpo_subtitle": "Tambahkan OLT HsAirPo / HSGQ EPON untuk mulai memantau ONU-nya.",
+        "confirm_delete_hsairpo_title": "Hapus OLT HsAirPo"
     },
     "oltform": {
         "edit_title": "Edit OLT",
@@ -838,6 +843,24 @@
         "remote_modal_hint": "Rule dipasang tanpa filter IP sumber — batasi akses lewat firewall/NAT router bila IP ONT bisa dijangkau publik. Simpan konfigurasi OLT (Save Config) agar rule bertahan setelah OLT reboot.",
         "remote_enable": "Aktifkan",
         "remote_disable": "Nonaktifkan"
+    },
+    "hsairpo": {
+        "create_title": "Tambah OLT HsAirPo",
+        "edit_title": "Edit OLT HsAirPo",
+        "identity_sub": "Nama & alamat IP perangkat HsAirPo / HSGQ EPON (12170)",
+        "family_hint": "Family tetap HsAirPo/HSGQ 12170 (OEM Photon Broadband). Tombol Test memverifikasi via sysObjectID.",
+        "snmp_sub": "HsAirPo hanya mendukung SNMP v1/v2c (port 161 default) — dipakai untuk sistem & port PON",
+        "cli_sub": "Telnet WAJIB — daftar ONU family ini hanya tersedia di CLI (show epon onu all info)",
+        "poll_sub": "Scan terjadwal otomatis: port PON via SNMP, inventori ONU via CLI (1 perintah per scan)",
+        "rx_pending_hint": "Rx/redaman per-ONU diambil via CLI saat Refresh di halaman port (per-ONU, agak lambat) — tak ikut di polling terjadwal.",
+        "readonly_notice": "Family HsAirPo / HSGQ: inventori & status ONU dibaca via CLI (SNMP perangkat ini tak punya tabel ONU). Rename, reboot, dan hapus ONU tersedia lewat CLI; Rx/redaman per-ONU muncul saat tombol Refresh di halaman port ditekan (diambil per-ONU, agak lambat).",
+        "product": "Produk",
+        "manufacturer": "Manufaktur",
+        "col_config": "Config",
+        "search_placeholder": "Cari MAC / interface",
+        "rx_refresh": "Ambil Rx power",
+        "rx_fetch_all": "Rx semua ONU",
+        "rx_progress": "Mengambil Rx: {done}/{total}"
     },
     "map": {
         "title": "Peta ONU",

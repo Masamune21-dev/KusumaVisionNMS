@@ -7,6 +7,7 @@ use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
+use App\Services\HsAirPo\HsAirPoCliService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\ZteRemoteOnuService;
@@ -27,12 +28,14 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot
      */
-    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
+    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HsAirPoCliService $hsairpo): JsonResponse
     {
         $this->assertCapability($olt, 'supports_reboot');
 
         try {
-            if ($this->isHioso($olt)) {
+            if ($this->isHsAirPo($olt)) {
+                $result = $hsairpo->reboot($olt, $port, $onuId);
+            } elseif ($this->isHioso($olt)) {
                 $result = $hioso->reboot($olt, $port, $onuId);
             } elseif ($this->isCdata($olt)) {
                 $result = $cdata->reboot($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
@@ -57,7 +60,7 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/name  {name?, description?}
      */
-    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp): JsonResponse
+    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp, HsAirPoCliService $hsairpo): JsonResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');
 
@@ -75,14 +78,16 @@ class OnuActionController extends Controller
         }
 
         try {
-            if ($this->isHioso($olt) || $this->isCdata($olt)) {
+            if ($this->isHioso($olt) || $this->isCdata($olt) || $this->isHsAirPo($olt)) {
                 // Non-ZTE hanya punya satu field nama; `description` khusus ZTE (paritas web).
                 if ($name === null) {
                     return response()->json(['message' => 'OLT ini hanya mendukung ubah nama ONU.'], 422);
                 }
 
                 // HiOSO HA7302 (`description_mode='snmp'`): rename via SNMP SET, bukan CLI.
-                if ($this->isHioso($olt)) {
+                if ($this->isHsAirPo($olt)) {
+                    $result = $hsairpo->setDescription($olt, $port, $onuId, $name);
+                } elseif ($this->isHioso($olt)) {
                     $result = $this->descriptionMode($olt) === 'snmp'
                         ? $hiosoSnmp->setOnuName($olt, $port, $onuId, $name)
                         : $hioso->setName($olt, $port, $onuId, $name);
@@ -123,12 +128,14 @@ class OnuActionController extends Controller
      * ZTE `no onu {id}`, C-Data `ont delete`, HiOSO `delete onu {id}` — semua
      * lewat service family masing-masing (sama seperti web).
      */
-    public function delete(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
+    public function delete(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HsAirPoCliService $hsairpo): JsonResponse
     {
         $this->assertCapability($olt, 'supports_onu_delete');
 
         try {
-            if ($this->isHioso($olt)) {
+            if ($this->isHsAirPo($olt)) {
+                $result = $hsairpo->delete($olt, $port, $onuId);
+            } elseif ($this->isHioso($olt)) {
                 $result = $hioso->delete($olt, $port, $onuId);
             } elseif ($this->isCdata($olt)) {
                 $result = $cdata->delete($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
@@ -241,6 +248,11 @@ class OnuActionController extends Controller
     private function isHioso(SnmpOlt $olt): bool
     {
         return SmartOltSupport::isHioso($this->driver($olt));
+    }
+
+    private function isHsAirPo(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isHsAirPo($this->driver($olt));
     }
 
     private function descriptionMode(SnmpOlt $olt): string

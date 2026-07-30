@@ -97,6 +97,8 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 
 > Halaman **Port Manager** lama dihapus; navigasinya kini lewat **klik port di visualisasi chassis** (halaman Detail OLT) → halaman **Detail Port** (`PortDetail.vue`).
 
+> **Family HsAirPo / HSGQ (12170):** punya prefix rute sendiri `hsairpo-olt.*` — `index` (redirect ke tab), `create`/`store`/`edit`/`update`/`destroy`, `test`, `detail`, `refresh`, `port-onus`, `port-onus.refresh`. **Tidak ada rute aksi tulis ONU maupun `config.save`** (Fase A read-only; sintaks tulis family ini belum diverifikasi di perangkat asli). Lihat [`docs/SMARTOLT_HSAIRPO_GUIDE.md`](../SMARTOLT_HSAIRPO_GUIDE.md).
+
 > **Save Config non-ZTE:** family C-Data & HiOSO punya rute paralel `cdata-olt.config.save` (POST `/cdata-olt/{olt}/config/save`) dan `hioso-olt.config.save` (POST `/hioso-olt/{olt}/config/save`) — simpan running-config ke memori OLT via CLI (C-Data `enable→config→save`, HiOSO `enable→write`). Semua gated capability `supports_config_save` + `throttle:olt-refresh`. Lihat [09 CLI & Telnet](09-cli-telnet.md).
 
 **ONU per port**

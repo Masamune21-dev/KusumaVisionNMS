@@ -1,5 +1,107 @@
 # Worklog
 
+## 2026-07-30 — HsAirPo / HSGQ EPON (Photon 12170) Fase A: family baru, inventori ONU via CLI
+
+Implementasi rencana `docs/SMARTOLT_PHOTON_12170_PLAN.md` (kini di-rename jadi
+`docs/SMARTOLT_HSAIRPO_GUIDE.md`). Family non-ZTE ke-5 dan **satu-satunya yang CLI-first**: SNMP
+perangkat ini tak punya tabel ONU sama sekali, jadi daftar ONU dibaca `show epon onu all info`
+(1 perintah/scan) sedangkan SNMP hanya menyuplai sistem + port PON + penghitung ONU online per-PON.
+
+Created:
+
+- `app/Services/HsAirPo/HsAirPoSnmp.php` — transport SNMP read v1/v2c (get + walk MIB-2). Subtree
+  enterprise 12170 **tak boleh di-walk** (cabang `.2.3.1.2` & `.2.3.2.4` GETNEXT-nya loop tak
+  berhingga) → skalar vendor diambil GET OID persis.
+- `app/Services/HsAirPo/HsAirPoCliService.php` — sesi telnet gaya Cisco-IOS (`Username:` → password →
+  `enable` → `EPON-OLT#`), IAC via `TelnetIacFilter`, `terminal length 0`, auto `--More--`, dan
+  **batas waktu keras di setiap pembacaan** (prompt tak kembali = exception, bukan menggantung).
+  Parser public utk unit test: `parseOnuAllInfo`, `parseVersion`, `parseFooterCount`, `parseAutofindList`.
+- `app/Services/HsAirPo/HsAirPoEponService.php` — driver `SmartOltSnmpDriver`: sistem (MIB-2 + skalar
+  vendor + `show version`), port `pon1..pon4` dari ifDescr/ifOperStatus (+ `onu_online_snmp` per PON),
+  ONU dari CLI. Hasil sesi CLI **di-memo per-OLT** supaya 1 scan = 1 sesi telnet (scanner memanggil
+  getSystemInfo/getPorts/getRegisteredOnus berurutan pada instance yang sama).
+- `app/Http/Controllers/HsAirPoOltController.php` + rute `hsairpo-olt.*` (index/create/store/edit/
+  update/destroy/test/detail/refresh/port-onus/port-onus.refresh). **Tidak ada rute tulis** — Fase A
+  read-only, sintaks `epon onu` belum diverifikasi di perangkat asli.
+- `resources/js/Pages/HsAirPo/*` — Create/Edit/Detail/PortOnus + `Partials/HsAirPoOltForm` (CLI
+  ditandai wajib, `cli_transport` hanya telnet). PortOnus read-only: kolom MAC/status/config-state +
+  ODP + pin peta (tanpa tombol rename/reboot/toggle/delete).
+- `tests/Unit/HsAirPoCliParseTest.php` (fixture = output ASLI OLT lab) + `tests/Feature/HsAirPoOltTest.php`
+  (partisi tab, halaman, redirect, secret preserve, tolak SSH, dan **assert rute tulis belum ada**).
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — `DRIVER_HSAIRPO_EPON` + deteksi (needle `12170|hsairpo|hsgq|photon`,
+  **sebelum** needle `epon` C-Data), `isHsAirPo()`, masuk `isNonZte()`, `inventoryRoutePrefix()` →
+  `hsairpo-olt`, `hsAirPoEponCapabilities()` (read_only; SEMUA capability write + snmp_rx/cli_rx false).
+- `app/Services/SmartOltSnmpServiceResolver.php` — map family → `HsAirPoEponService`.
+- `app/Services/CData/CDataOltScanner.php` — pemilihan faceplate jadi `match` 3-arah; HsAirPo di-skip
+  (belum ada pembaca panel) supaya OID C-Data tak ditembakkan ke perangkat family lain.
+- `app/Http/Controllers/SmartOltController.php` — partisi inventori jadi 4-arah (`hsairpoOlts`).
+- `resources/js/Pages/SmartOlt/Index.vue` — tab **"OLT HsAirPo"**; cabang `isHiosoTab` diganti peta
+  `nonZteFamilies` (data/ikon/judul/prefix rute per family) supaya penambahan family berikutnya 1 entri.
+- i18n: namespace `hsairpo` + 5 kunci `smartolt.*` di `resources/js/lang/{id,en}.json`, `flash.olt_hsairpo_*`
+  di `lang/{id,en}/flash.php`.
+- Docs: `docs/SMARTOLT_PHOTON_12170_PLAN.md` → `docs/SMARTOLT_HSAIRPO_GUIDE.md` (ditulis ulang jadi
+  guide + tabel OID + status fase + hasil verifikasi), `CLAUDE.md` (scope + bullet Architecture),
+  `docs/handbook/06-routing.md`, `docs/handbook/09-cli-telnet.md`.
+
+Notes:
+
+- **Verifikasi live** ke OLT lab (4PON EPON-OLT, firmware `1.1.2.20210408_release`), DB sqlite
+  in-memory supaya tak menyentuh produksi: `getPorts()` = pon1–pon4 semua up; `getRegisteredOnus()` =
+  **116 ONU / 107 online**; per-PON online 29/53/0/25 **cocok persis** dengan penghitung SNMP vendor
+  `.12170.2.3.3.1.1.8.1.0.{pon}` dan footer CLI `Total: 116, online 107`. `CDataOltScanner::scan()`
+  membentuk cache `port_onus` keempat PON dalam ~5,5 detik. Global search MAC ONU → `hsairpo-olt`.
+- ⚠️ `show epon port {n} onu all optical-info` **membekukan CLI** — Rx wajib per-ONU (Fase B, perlu
+  throttle). Karena itu `supports_cli_rx` masih false, bukan sekadar belum sempat.
+- Semua jalur tulis lintas-halaman (pin peta, REST API v1, bot Telegram) sudah di-gate capability,
+  jadi family ini otomatis menolak reboot/rename tanpa cabang kode tambahan (dicek ulang, bukan asumsi).
+- 473 test hijau (17 baru), Vitest 12 hijau, Pint bersih untuk berkas yang disentuh.
+
+## 2026-07-30 — HsAirPo Fase B+C: Rx per-ONU (on-demand + background) & rename/reboot/delete
+
+Melengkapi Fase A: OLT HsAirPo kini punya **Rx per-ONU** dan **aksi tulis** (rename/reboot/delete).
+Enable/disable sengaja diskip (verb `activate`/`no activate` ada tapi semantik belum diuji live). Semua
+verb tulis diverifikasi live via context-help perangkat: `epon port {pon} onu {onu} {reboot|delete|
+description <str1-64>}`, dan enable/disable = `[no] … activate`.
+
+Created:
+
+- `app/Jobs/RefreshHsAirPoPortRxJob.php` — ambil Rx SEMUA ONU online 1 PON di background (queue).
+  Wajib background: sinkron se-port (PON 53 ONU ≈122 dtk) menembus 100 dtk Cloudflare → **504** (sudah
+  kejadian di lapangan). Menulis progres+Rx bertahap (`persist()` load+save per-ONU).
+
+Changed:
+
+- `app/Services/HsAirPo/HsAirPoCliService.php` — method tulis `reboot`/`delete`/`setDescription` via
+  `runConfig` (`configure terminal` → cmd → `end`, auto-jawab konfirmasi), `fetchPortRx`/`parseOpticalRx`
+  (Rx per-ONU `optical-info`; **jangan** varian `all` yang membekukan CLI) + callback `$onEach` untuk
+  progres inkremental job.
+- `app/Support/SmartOltSupport.php` — `hsAirPoEponCapabilities`: `supports_cli_rx/reboot/onu_delete/
+  onu_info_write` = **true** (`read_only=false`, `description_mode='cli_hsairpo'`, `rx_source_label`).
+- `app/Http/Controllers/HsAirPoOltController.php` — `rebootOnu`/`deleteOnu`/`updateOnuInfo`; Rx **dua
+  jalur**: `refreshOnuRx` (per-ONU sinkron ~2 dtk) & `refreshPortRx` (dispatch job). Rx disimpan di
+  **side-store `hsairpo_rx.{slot}_{port}.{onu}`** DI LUAR `port_onus` (`putRx`) supaya **selamat dari
+  scan/poll**; `mergeRx` menggabungkannya saat render. `refreshPortOnus` = inventori saja (cepat).
+- `app/Http/Controllers/OnuMapController.php` + `Api/V1/OnuActionController.php` — cabang `isHsAirPo`
+  untuk reboot/rename/delete (peta & mobile) supaya tak nyasar ke jalur ZTE.
+- `resources/js/Pages/HsAirPo/PortOnus.vue` — kolom **Rx** (warna per level) + tombol **↻ per-ONU** +
+  tombol **"Rx semua ONU"** (background) dgn progres `X/Y` & **auto-poll `only:['snapshot','rx_status']`
+  tiap 5 dtk** selama `running`; tombol rename/reboot/delete (gated). Modal rename + ConfirmModal.
+- `routes/web.php` — `hsairpo-olt.onu.{rx,reboot,info}` + `hsairpo-olt.{port-rx}` + `onu.delete`.
+- `lang/{id,en}/flash.php` + `resources/js/lang/{id,en}.json` — key Rx + aksi (dwibahasa).
+- `CLAUDE.md` — bullet HsAirPo disinkronkan (Rx dua jalur + side-store + aksi tulis).
+
+Notes:
+
+- Diverifikasi live (OLT lab 116 ONU): Rx 1 ONU ~2,4 dtk; **full PON1 (30 ONU) 69 dtk**, PON2 (53) ≈122
+  dtk → konfirmasi butuh background. Job **PON4 (25 ONU) mengisi 8→13→19→24→25/25 ~50 dtk**, dan Rx
+  side-store **selamat dari full scan** (25→25, `mergeRx` benar). Login + `configure terminal` (config
+  mode) terbukti; reboot/delete/rename **belum dieksekusi ke ONU pelanggan** (grammar + jalur terbukti).
+- 474 test hijau (parse test `HsAirPoCliParseTest` disesuaikan: capability write kini true + test
+  `parseOpticalRx`; feature `HsAirPoOltTest` assert rute tulis KINI ada). Pint bersih.
+
 ## 2026-07-29 — HiOSO HA7302: aksi CLI (reboot/enable-disable/delete/save) diaktifkan
 
 Lanjutan dari entri di bawah. Pemetaan LLID-datar→CLI **diverifikasi 1:1** dan aksi CLI HA7302

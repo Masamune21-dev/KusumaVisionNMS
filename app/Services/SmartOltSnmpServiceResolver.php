@@ -9,6 +9,7 @@ use App\Services\CData\CDataGponCliService;
 use App\Services\CData\CDataGponSnmpService;
 use App\Services\CData\CDataSnmp;
 use App\Services\Hioso\HiosoEponSnmpService;
+use App\Services\HsAirPo\HsAirPoEponService;
 use App\Services\Snmp\OltSnmpClient;
 use App\Support\SmartOltSupport;
 use RuntimeException;
@@ -20,8 +21,9 @@ use RuntimeException;
  * ZTE sengaja tidak melewati resolver ini — pakai {@see OltSnmpClient} langsung.
  *
  * Mengembalikan {@see CDataEponSnmpService} (EPON 17409), {@see CDataGponSnmpService}
- * (GPON 34592, legacy + deteksi FlashV3.x), atau {@see HiosoEponSnmpService} (HiOSO/V-Sol EPON
- * 25355). Family yang belum dikenali / ZTE → exception deskriptif. GPON V3 inventory penuh
+ * (GPON 34592, legacy + deteksi FlashV3.x), {@see HiosoEponSnmpService} (HiOSO/V-Sol EPON 25355),
+ * atau {@see HsAirPoEponService} (HsAirPo/HSGQ EPON 12170 — CLI-first, SNMP-nya tak punya tabel
+ * ONU). Family yang belum dikenali / ZTE → exception deskriptif. GPON V3 inventory penuh
  * (SN/MAC/optical) di-enrich via CLI pada fase berikutnya.
  */
 class SmartOltSnmpServiceResolver
@@ -53,6 +55,7 @@ class SmartOltSnmpServiceResolver
             SmartOltSupport::DRIVER_CDATA_EPON => new CDataEponSnmpService($this->snmp),
             SmartOltSupport::DRIVER_CDATA_GPON => new CDataGponSnmpService($this->snmp, $this->cli),
             SmartOltSupport::DRIVER_HIOSO_EPON => app(HiosoEponSnmpService::class),
+            SmartOltSupport::DRIVER_HSAIRPO_EPON => app(HsAirPoEponService::class),
             SmartOltSupport::DRIVER_ZTE => throw new RuntimeException(
                 "OLT ZTE '{$olt->name}' memakai OltSnmpClient langsung, bukan resolver C-Data."
             ),

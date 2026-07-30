@@ -274,7 +274,12 @@
         "confirm_delete_hioso_title": "Delete HiOSO OLT",
         "confirm_delete_msg": "Delete OLT {name}? This action is permanent.",
         "confirm_save_title": "Save OLT config",
-        "confirm_save_msg": "Save (write) the running config to OLT {name}'s memory? On OLTs with a large config (e.g. ZTE C300) this can take ~30 seconds."
+        "confirm_save_msg": "Save (write) the running config to OLT {name}'s memory? On OLTs with a large config (e.g. ZTE C300) this can take ~30 seconds.",
+        "hsairpo_inventory_title": "HsAirPo OLT Inventory",
+        "hsairpo_inventory_subtitle": "Inventory & connection test for HsAirPo / HSGQ EPON (12170) — ONUs via CLI",
+        "empty_hsairpo_title": "No HsAirPo OLTs yet",
+        "empty_hsairpo_subtitle": "Add a HsAirPo / HSGQ EPON OLT to start monitoring its ONUs.",
+        "confirm_delete_hsairpo_title": "Delete HsAirPo OLT"
     },
     "oltform": {
         "edit_title": "Edit OLT",
@@ -838,6 +843,24 @@
         "remote_modal_hint": "The rule is installed without a source-IP filter — restrict access via your router firewall/NAT if the ONT IP is publicly reachable. Save the OLT configuration (Save Config) so the rule survives an OLT reboot.",
         "remote_enable": "Enable",
         "remote_disable": "Disable"
+    },
+    "hsairpo": {
+        "create_title": "Add HsAirPo OLT",
+        "edit_title": "Edit HsAirPo OLT",
+        "identity_sub": "Name & IP address of the HsAirPo / HSGQ EPON (12170) device",
+        "family_hint": "Family is fixed to HsAirPo/HSGQ 12170 (OEM Photon Broadband). The Test button verifies it via sysObjectID.",
+        "snmp_sub": "HsAirPo supports SNMP v1/v2c only (port 161 by default) — used for system info & PON ports",
+        "cli_sub": "Telnet is REQUIRED — this family exposes its ONU list only over CLI (show epon onu all info)",
+        "poll_sub": "Scheduled scan: PON ports via SNMP, ONU inventory via CLI (one command per scan)",
+        "rx_pending_hint": "Per-ONU Rx is fetched over CLI on the port page Refresh (per-ONU, a bit slow) — not part of scheduled polling.",
+        "readonly_notice": "HsAirPo / HSGQ family: ONU inventory and status are read over CLI (this device has no ONU table in SNMP). Rename, reboot and delete are available via CLI; per-ONU Rx appears when you press Refresh on a port page (fetched per-ONU, a bit slow).",
+        "product": "Product",
+        "manufacturer": "Manufacturer",
+        "col_config": "Config",
+        "search_placeholder": "Search MAC / interface",
+        "rx_refresh": "Fetch Rx power",
+        "rx_fetch_all": "All ONU Rx",
+        "rx_progress": "Fetching Rx: {done}/{total}"
     },
     "map": {
         "title": "ONU Map",

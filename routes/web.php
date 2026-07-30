@@ -6,6 +6,7 @@ use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\HiosoOltController;
+use App\Http\Controllers\HsAirPoOltController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OdpController;
@@ -136,6 +137,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [HiosoOltController::class, 'setOnuState'])->name('hioso-olt.onu.state');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HiosoOltController::class, 'updateOnuInfo'])->name('hioso-olt.onu.info');
     Route::delete('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HiosoOltController::class, 'deleteOnu'])->name('hioso-olt.onu.delete');
+
+    // OLT HsAirPo / HSGQ EPON (OEM Photon Broadband 12170) — Fase A: inventori read-only (CLI-first).
+    // Belum ada rute aksi tulis ONU: sintaks tulis family ini belum diverifikasi di perangkat asli.
+    Route::get('/hsairpo-olt', [HsAirPoOltController::class, 'index'])->name('hsairpo-olt.index');
+    Route::get('/hsairpo-olt/create', [HsAirPoOltController::class, 'create'])->middleware('role:admin,operator,partner')->name('hsairpo-olt.create');
+    Route::post('/hsairpo-olt', [HsAirPoOltController::class, 'store'])->middleware('role:admin,operator,partner')->name('hsairpo-olt.store');
+    Route::get('/hsairpo-olt/{olt}/edit', [HsAirPoOltController::class, 'edit'])->name('hsairpo-olt.edit');
+    Route::put('/hsairpo-olt/{olt}', [HsAirPoOltController::class, 'update'])->name('hsairpo-olt.update');
+    Route::delete('/hsairpo-olt/{olt}', [HsAirPoOltController::class, 'destroy'])->middleware('role:admin,operator,partner')->name('hsairpo-olt.destroy');
+    Route::post('/hsairpo-olt/{olt}/test', [HsAirPoOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('hsairpo-olt.test');
+    Route::get('/hsairpo-olt/{olt}/detail', [HsAirPoOltController::class, 'detail'])->name('hsairpo-olt.detail');
+    Route::post('/hsairpo-olt/{olt}/refresh', [HsAirPoOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('hsairpo-olt.refresh');
+    Route::get('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus', [HsAirPoOltController::class, 'portOnus'])->name('hsairpo-olt.port-onus');
+    Route::post('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HsAirPoOltController::class, 'refreshPortOnus'])->middleware('throttle:olt-refresh')->name('hsairpo-olt.port-onus.refresh');
+    Route::post('/hsairpo-olt/{olt}/ports/{slot}/{port}/rx', [HsAirPoOltController::class, 'refreshPortRx'])->middleware('throttle:olt-refresh')->name('hsairpo-olt.port-rx');
+    Route::post('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/rx', [HsAirPoOltController::class, 'refreshOnuRx'])->name('hsairpo-olt.onu.rx');
+    Route::post('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HsAirPoOltController::class, 'rebootOnu'])->name('hsairpo-olt.onu.reboot');
+    Route::post('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HsAirPoOltController::class, 'updateOnuInfo'])->name('hsairpo-olt.onu.info');
+    Route::delete('/hsairpo-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HsAirPoOltController::class, 'deleteOnu'])->name('hsairpo-olt.onu.delete');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->middleware('role:admin,operator,partner')->name('smartolt.create');

@@ -15,6 +15,9 @@ class SmartOltSupport
 
     public const DRIVER_HIOSO_EPON = 'hioso-epon-25355';
 
+    /** HsAirPo / HSGQ (OEM Shenzhen Photon Broadband, enterprise 12170) — 4PON EPON, inventori CLI-only. */
+    public const DRIVER_HSAIRPO_EPON = 'hsairpo-epon-12170';
+
     public const DRIVER_UNKNOWN = 'unknown';
 
     public static function driverKey(?SnmpOlt $olt, ?string $sysDescr = null, ?string $sysObjectId = null): string
@@ -37,6 +40,15 @@ class SmartOltSupport
         foreach (['hioso', 'ha7304', '25355', 'v-sol', 'vsol', 'v-solution'] as $needle) {
             if (str_contains($haystack, $needle)) {
                 return self::DRIVER_HIOSO_EPON;
+            }
+        }
+
+        // HsAirPo / HSGQ (OEM Photon Broadband, enterprise 12170) — juga diperiksa sebelum needle
+        // "epon" C-Data. sysDescr perangkat ini KOSONG (spasi), jadi sysObjectID `.1.3.6.1.4.1.12170.2.3`
+        // adalah penanda paling andal; needle brand dipakai bila operator mengetiknya di vendor/nama.
+        foreach (['hsairpo', 'hsgq', 'photon', '12170'] as $needle) {
+            if (str_contains($haystack, $needle)) {
+                return self::DRIVER_HSAIRPO_EPON;
             }
         }
 
@@ -74,6 +86,11 @@ class SmartOltSupport
         return $driver === self::DRIVER_HIOSO_EPON;
     }
 
+    public static function isHsAirPo(string $driver): bool
+    {
+        return $driver === self::DRIVER_HSAIRPO_EPON;
+    }
+
     /**
      * Family non-ZTE yang digerakkan {@see SmartOltSnmpServiceResolver} + scanner
      * (C-Data EPON/GPON & HiOSO). Dipakai untuk routing/pengelompokan (tab inventory, halaman
@@ -82,16 +99,21 @@ class SmartOltSupport
      */
     public static function isNonZte(string $driver): bool
     {
-        return self::isCData($driver) || self::isHioso($driver);
+        return self::isCData($driver) || self::isHioso($driver) || self::isHsAirPo($driver);
     }
 
     /**
-     * Prefix nama rute inventori untuk sebuah driver: `hioso-olt` (HiOSO), `cdata-olt` (C-Data),
-     * atau `smartolt` (ZTE + unknown). Sumber tunggal pemilihan rute detail/port-onus lintas halaman
-     * (global search, peta, ONU monitoring) sehingga tiap family memakai controller-nya sendiri.
+     * Prefix nama rute inventori untuk sebuah driver: `hsairpo-olt` (HsAirPo/HSGQ), `hioso-olt`
+     * (HiOSO), `cdata-olt` (C-Data), atau `smartolt` (ZTE + unknown). Sumber tunggal pemilihan rute
+     * detail/port-onus lintas halaman (global search, peta, ONU monitoring) sehingga tiap family
+     * memakai controller-nya sendiri.
      */
     public static function inventoryRoutePrefix(string $driver): string
     {
+        if (self::isHsAirPo($driver)) {
+            return 'hsairpo-olt';
+        }
+
         if (self::isHioso($driver)) {
             return 'hioso-olt';
         }
@@ -186,6 +208,10 @@ class SmartOltSupport
 
         if ($driver === self::DRIVER_HIOSO_EPON) {
             return self::hiosoEponCapabilities($olt);
+        }
+
+        if ($driver === self::DRIVER_HSAIRPO_EPON) {
+            return self::hsAirPoEponCapabilities();
         }
 
         if ($driver !== self::DRIVER_ZTE) {
@@ -364,6 +390,51 @@ class SmartOltSupport
             'supports_onu_toggle' => true,
             'supports_config_save' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
+        ];
+    }
+
+    /**
+     * HsAirPo / HSGQ EPON 12170 (OEM Photon Broadband, mis. "4PON EPON-OLT") — **Fase A: read-only**.
+     *
+     * Perangkat ini TIDAK meng-expose tabel ONU di SNMP (terverifikasi full-walk live Jul 2026):
+     * SNMP hanya menyajikan MIB-2 device+port, FDB bridge, skalar vendor, dan jumlah ONU online
+     * per-PON. Karena itu inventori ONU CLI-first (`show epon onu all info`, 1 perintah/scan) —
+     * lihat `docs/SMARTOLT_HSAIRPO_GUIDE.md`.
+     *
+     * Rx per-ONU ada di CLI (`show epon port {n} onu {id} optical-info`) tapi per-ONU dan mahal
+     * (116 perintah/poll) → Fase B, jadi `supports_cli_rx` masih false. Aksi tulis (Fase C) belum
+     * diverifikasi live sehingga semua write dimatikan.
+     *
+     * @return array<string, mixed>
+     */
+    private static function hsAirPoEponCapabilities(): array
+    {
+        return [
+            'driver' => self::DRIVER_HSAIRPO_EPON,
+            'vendor_family' => 'HsAirPo / HSGQ EPON',
+            'pon_label' => 'EPON',
+            'port_label' => 'EPON Port',
+            'port_name_prefix' => 'pon',
+            'onu_interface_pattern' => 'pon%2$d:%3$d',
+            'is_c600' => false,
+            'read_only' => false,
+            'supports_snmp_rx' => false,
+            // Rx per-ONU via CLI `show epon port {n} onu {id} optical-info` (per-ONU; varian `all` hang).
+            'supports_cli_rx' => true,
+            'supports_cli_onu_detail' => false,
+            'supports_cli_onu_configure' => false,
+            // Aksi tulis via CLI config `epon port {pon} onu {onu} <verb>` (terverifikasi live via help).
+            'supports_reboot' => true,
+            'reboot_mode' => 'cli_hsairpo',
+            'supports_provisioning' => false,
+            'supports_onu_delete' => true,
+            'supports_separate_description' => false,
+            'supports_onu_info_write' => true,
+            'description_mode' => 'cli_hsairpo',
+            // Enable/disable (activate / no activate) sengaja OFF — semantik belum diuji live.
+            'supports_onu_toggle' => false,
+            'supports_config_save' => false,
+            'rx_source_label' => 'Rx ONU (CLI)',
         ];
     }
 

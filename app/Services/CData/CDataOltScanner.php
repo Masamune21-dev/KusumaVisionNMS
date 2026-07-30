@@ -17,6 +17,10 @@ use Throwable;
  * Sinkron: EPON via SNMP cepat, GPON V3 via CLI ~10 detik. Dipakai bersama oleh
  * {@see CDataOltController} (refresh manual, auto-refresh halaman,
  * scan saat OLT dibuat) dan bot Telegram (perintah /refresh).
+ *
+ * Dipakai ulang oleh SELURUH family non-ZTE yang lewat {@see SmartOltSnmpServiceResolver}: HiOSO
+ * (`HiosoOltController`) dan HsAirPo/HSGQ (`HsAirPoOltController`, driver CLI-first) — jalur
+ * polling terjadwal `PollOltJob::pollViaScanner()` juga memakai kelas ini.
  */
 class CDataOltScanner
 {
@@ -71,12 +75,16 @@ class CDataOltScanner
         data_set($snapshot, 'onu_scanned_at', $now);
 
         // Faceplate (panel depan) — best-effort; kegagalan tak boleh menggagalkan scan/polling.
-        // HiOSO punya layout panel sendiri (HA7304) + status PON dari ONU online ($ports turunan).
+        // HiOSO punya layout panel sendiri (HA7304) + status PON dari ONU online ($ports turunan);
+        // HsAirPo/HSGQ belum punya pembaca panel (tabel device vendor 12170 tak dipetakan) → dilewati
+        // supaya tak menembak OID C-Data ke perangkat family lain.
         try {
-            $isHioso = SmartOltSupport::isHioso($this->resolver->driverKey($olt));
-            $panel = $isHioso
-                ? $this->hiosoFaceplate->build($olt, $ports)
-                : $this->faceplate->collect($olt);
+            $driver = $this->resolver->driverKey($olt);
+            $panel = match (true) {
+                SmartOltSupport::isHioso($driver) => $this->hiosoFaceplate->build($olt, $ports),
+                SmartOltSupport::isHsAirPo($driver) => null,
+                default => $this->faceplate->collect($olt),
+            };
 
             if ($panel !== null) {
                 data_set($snapshot, 'panel', $panel);
