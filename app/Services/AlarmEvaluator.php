@@ -6,6 +6,7 @@ use App\Jobs\SendFcmAlarmNotifications;
 use App\Models\AlarmEvent;
 use App\Models\AlarmSetting;
 use App\Models\SnmpOlt;
+use App\Services\Alarm\OdpAlarmGrouper;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
@@ -23,10 +24,18 @@ class AlarmEvaluator
     private const RX_CLEAR_HIGH_DBM = -10.0;
 
     /**
+     * Jumlah ONU minimum sebuah ODP agar layak jadi alarm `odp_down` sendiri. ODP berisi 1 ONU
+     * = pelanggan tunggal → tetap dilaporkan sebagai alarm ONU biasa, bukan "ODP down".
+     */
+    private const ODP_MIN_ONUS = 2;
+
+    /**
      * Label teknologi PON OLT yang sedang dievaluasi ('GPON'/'EPON'), diset di awal {@see self::evaluate()}
      * agar pesan port-down/recovery memakai istilah yang benar per family (EPON tak tertulis "GPON").
      */
     private string $ponLabel = 'GPON';
+
+    private ?OdpAlarmGrouper $odp = null;
 
     public function __construct(private ?TelegramNotifier $telegram = null) {}
 
@@ -46,6 +55,12 @@ class AlarmEvaluator
      * ACTIVE & notifikasi dikirim seketika. Berlaku untuk SEMUA jenis alarm (OLT unreachable, port down,
      * LOS, dying gasp, ONU offline, RX) & SEMUA OLT.
      *
+     * Korelasi root-cause (Settings → Alarm, `suppress_child_alarms`): OLT unreachable → port & ONU tak
+     * dievaluasi; PON port down → alarm ONU di port itu tak dinotifikasikan; SEMUA ONU satu ODP offline →
+     * satu alarm `odp_down` mewakili, alarm ONU anggotanya tak dinotifikasikan. Alarm anak yang sudah
+     * terbuka tetap direkonsiliasi (tak ter-clear palsu) tapi ditandai `meta.notified=false` sehingga
+     * notifikasi raise MAUPUN clear-nya dilewati — penerima cuma dapat pesan induknya.
+     *
      * @param  array<string, mixed>  $previous  the snapshot from the prior poll
      * @return array{active:int, raised:int, cleared:int}
      */
@@ -58,6 +73,7 @@ class AlarmEvaluator
         // Saklar global debounce 2 poll vs realtime (Settings → Alarm). Dibaca per-evaluasi agar
         // perubahan di UI langsung berlaku pada poll berikutnya tanpa restart.
         $confirm = AlarmSetting::confirmBeforeNotify();
+        $suppressChildren = AlarmSetting::suppressChildAlarms();
         $snapshot = $olt->last_test_result ?? [];
         // Episode terbuka = alarm ACTIVE (sudah dikirim) + PENDING (menunggu konfirmasi poll ke-2).
         // Deteksi transisi memakai keduanya agar fault yang sedang pending terus "terdeteksi" di poll
@@ -98,13 +114,68 @@ class AlarmEvaluator
             $detected += $this->portAlarm($port, $prev, $open, $onuCountByPort["{$slot}/{$portNo}"] ?? 0);
         }
 
+        // Port yang BARU pulih di poll ini (down → up): ONU di bawahnya yang masih mati tak punya
+        // transisi online→offline (mereka mati sejak sebelum port pulih) sehingga tanpa penanda ini
+        // takkan pernah beralarm. Begitu induknya sehat, sisa ONU mati = gangguan mandiri.
+        $recoveredPorts = [];
+        foreach ($prev['portStatus'] as $key => $status) {
+            if ($status === 'down' && ! ($downPorts[$key] ?? false)) {
+                $recoveredPorts[$key] = true;
+            }
+        }
+
+        // Korelasi root-cause tingkat ODP: bila SEMUA ONU satu ODP offline, akar masalahnya ODP
+        // (kabel distribusi/splitter) — naikkan satu alarm `odp_down` dan supres alarm ONU anggotanya.
+        $downOdps = [];
+        $recoveredOdps = [];
+        $odpStatuses = $this->odp()->statuses($olt, $snapshot);
+
+        if ($odpStatuses !== []) {
+            $previousOdpStatuses = $this->odp()->statuses($olt, $previous);
+            $openChildOdps = $this->odpsWithOpenOnuAlarms($olt, $open);
+
+            foreach ($odpStatuses as $odpId => $status) {
+                $wasAllDown = $previousOdpStatuses[$odpId]['all_down'] ?? false;
+
+                if (! $status['all_down'] || $status['total'] < self::ODP_MIN_ONUS) {
+                    if ($wasAllDown) {
+                        $recoveredOdps[$odpId] = true;
+                    }
+
+                    continue;
+                }
+
+                // Port PON induknya sedang down = akar yang lebih dalam; alarm port sudah mewakili.
+                if ($downPorts["{$status['slot']}/{$status['port']}"] ?? false) {
+                    continue;
+                }
+
+                $downOdps[$odpId] = true;
+                $detected += $this->odpAlarm(
+                    $status,
+                    $previousOdpStatuses,
+                    $open,
+                    $openChildOdps[$odpId] ?? false,
+                );
+            }
+        }
+
+        // Peta ONU→ODP hanya diperlukan saat ada ODP yang down/baru pulih (hindari query sia-sia).
+        $onuOdp = $downOdps === [] && $recoveredOdps === [] ? [] : $this->odp()->linkIndex($olt);
+
         foreach ($snapshot['port_onus'] ?? [] as $portData) {
             foreach ($portData['onus'] ?? [] as $onu) {
                 if (($onu['admin_state'] ?? null) === 'disabled') {
                     continue;
                 }
 
-                $detected += $this->onuStateAlarms($onu, $prev, $open, $downPorts);
+                $parentDown = $suppressChildren
+                    && $this->parentIsDown($onu, $downPorts, $downOdps, $onuOdp);
+
+                $parentRecovered = ! $parentDown
+                    && $this->parentIsDown($onu, $recoveredPorts, $recoveredOdps, $onuOdp);
+
+                $detected += $this->onuStateAlarms($onu, $prev, $open, $parentDown, $parentRecovered);
                 $detected += $this->onuRxAlarm($onu, $prev, $open);
             }
         }
@@ -155,6 +226,12 @@ class AlarmEvaluator
             $name = $port['name'] ?? "{$alarm->slot}/{$alarm->port}";
 
             return ['message' => "{$this->ponLabel} port {$name} kembali up.", 'online' => true];
+        }
+
+        if ($alarm->scope === 'odp') {
+            $name = data_get($alarm->meta, 'odp_name') ?: 'ODP #'.data_get($alarm->meta, 'odp_id');
+
+            return ['message' => "ODP {$name} kembali normal — ada ONU yang online lagi.", 'online' => true];
         }
 
         $key = $alarm->serial_number ?: sprintf('%d/%d:%d', $alarm->slot ?? 0, $alarm->port ?? 0, $alarm->onu_id ?? 0);
@@ -247,6 +324,115 @@ class AlarmEvaluator
     }
 
     /**
+     * Alarm "ODP down": semua ONU satu ODP offline sekaligus.
+     *
+     * Sama seperti port: hanya naik pada TRANSISI (ODP sebelumnya masih punya ONU online) atau
+     * saat episodenya memang sudah terbuka. ODP yang sudah lama mati total (mis. baru selesai
+     * migrasi/dibongkar) tak membangkitkan alarm baru tiap poll.
+     *
+     * Pengecualian `$hasOpenChildren`: ODP yang gangguannya SUDAH dilaporkan sebagai alarm ONU
+     * satu per satu (episode lama, sebelum korelasi ODP ada) tetap dinaikkan sekali sebagai satu
+     * alarm ODP — supaya episodenya punya induk yang bisa melaporkan pemulihan, sementara alarm
+     * ONU anaknya berhenti berisik.
+     *
+     * @param  array{odp_id:int, name:string, slot:?int, port:?int, total:int, down:int, all_down:bool}  $status
+     * @param  array<int, array{all_down:bool}>  $previousStatuses
+     * @param  Collection<string, AlarmEvent>  $open
+     * @return array<string, array<string, mixed>>
+     */
+    private function odpAlarm(array $status, array $previousStatuses, $open, bool $hasOpenChildren = false): array
+    {
+        $odpId = $status['odp_id'];
+        $signature = "odp:{$odpId}:odp_down";
+
+        $wasHealthy = ($previousStatuses[$odpId]['all_down'] ?? null) === false;
+
+        if (! $open->has($signature) && ! $wasHealthy && ! $hasOpenChildren) {
+            return [];
+        }
+
+        $where = $status['slot'] !== null && $status['port'] !== null
+            ? " (port {$this->ponLabel} {$status['slot']}/{$status['port']})"
+            : '';
+
+        return [$signature => [
+            'type' => AlarmEvent::TYPE_ODP_DOWN,
+            'severity' => AlarmEvent::SEVERITY_MAJOR,
+            'scope' => 'odp',
+            'slot' => $status['slot'],
+            'port' => $status['port'],
+            'message' => "ODP {$status['name']} down — semua {$status['total']} ONU offline{$where}.",
+            'meta' => [
+                'odp_id' => $odpId,
+                'odp_name' => $status['name'],
+                'affected_onus' => $status['total'],
+            ],
+        ]];
+    }
+
+    /**
+     * Apakah induk sebuah ONU (PON port atau ODP-nya) sedang down — dipakai untuk mensupres
+     * notifikasi alarm anak.
+     *
+     * @param  array<string, mixed>  $onu
+     * @param  array<string, true>  $downPorts  himpunan "slot/port"
+     * @param  array<int, true>  $downOdps  himpunan odp_id
+     * @param  array<string, int>  $onuOdp  peta "slot/port/onu_id" => odp_id
+     */
+    private function parentIsDown(array $onu, array $downPorts, array $downOdps, array $onuOdp): bool
+    {
+        $slot = (int) ($onu['slot'] ?? 0);
+        $port = (int) ($onu['port'] ?? 0);
+
+        if ($downPorts["{$slot}/{$port}"] ?? false) {
+            return true;
+        }
+
+        $odpId = $onuOdp["{$slot}/{$port}/".((int) ($onu['onu_id'] ?? 0))] ?? null;
+
+        return $odpId !== null && ($downOdps[$odpId] ?? false);
+    }
+
+    private function odp(): OdpAlarmGrouper
+    {
+        return $this->odp ??= app(OdpAlarmGrouper::class);
+    }
+
+    /**
+     * ODP yang punya episode alarm ONU terbuka (active/pending) — dipakai agar gangguan ODP yang
+     * terlanjur tercatat per-ONU bisa "diangkat" jadi satu alarm ODP.
+     *
+     * @param  Collection<string, AlarmEvent>  $open
+     * @return array<int, true>
+     */
+    private function odpsWithOpenOnuAlarms(SnmpOlt $olt, $open): array
+    {
+        $onuAlarms = $open->filter(fn (AlarmEvent $alarm) => $alarm->scope === 'onu'
+            && in_array($alarm->type, [
+                AlarmEvent::TYPE_LOS,
+                AlarmEvent::TYPE_DYING_GASP,
+                AlarmEvent::TYPE_ONU_OFFLINE,
+            ], true));
+
+        if ($onuAlarms->isEmpty()) {
+            return [];
+        }
+
+        $links = $this->odp()->linkIndex($olt);
+        $result = [];
+
+        foreach ($onuAlarms as $alarm) {
+            $odpId = $links[((int) $alarm->slot).'/'.((int) $alarm->port).'/'.((int) $alarm->onu_id)] ?? null;
+
+            if ($odpId !== null) {
+                $result[$odpId] = true;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Jumlah ONU terdaftar per PON port ("slot/port" => count) dari snapshot poll.
      *
      * @param  array<string, mixed>  $snapshot
@@ -286,10 +472,11 @@ class AlarmEvaluator
      * @param  array<string, mixed>  $onu
      * @param  array{online: array<string, bool>}  $prev
      * @param  Collection<string, AlarmEvent>  $open
-     * @param  array<string, true>  $downPorts  himpunan "slot/port" PON port yang sedang down
+     * @param  bool  $parentDown  induk (PON port / ODP) sedang down → alarm ONU ini tak dinotifikasikan
+     * @param  bool  $parentRecovered  induk baru pulih di poll ini → ONU yang masih mati dianggap fault baru
      * @return array<string, array<string, mixed>>
      */
-    private function onuStateAlarms(array $onu, array $prev, $open, array $downPorts = []): array
+    private function onuStateAlarms(array $onu, array $prev, $open, bool $parentDown = false, bool $parentRecovered = false): array
     {
         // An ONU that is currently up has no active fault. last_down_cause records the
         // historical reason it was *previously* down and persists after recovery, so it
@@ -300,24 +487,31 @@ class AlarmEvaluator
 
         $key = $this->onuKey($onu);
 
-        // Korelasi root-cause: jika PON port induk sedang down, JANGAN buat alarm ONU-offline BARU
-        // (alarm port-down sudah mewakili — hindari banjir puluhan alarm anak). Episode ONU yang SUDAH
-        // terbuka (fault independen sebelum port turun) tetap dilewatkan agar direkonsiliasi normal
-        // dan tidak ter-clear palsu.
-        $portKey = ((int) ($onu['slot'] ?? 0)).'/'.((int) ($onu['port'] ?? 0));
-        if (($downPorts[$portKey] ?? false) && ! $this->onuHasStateAlarm($open, $key)) {
+        // Korelasi root-cause: jika induknya (PON port / ODP) sedang down, JANGAN buat episode
+        // alarm ONU BARU — alarm induk sudah mewakili, hindari banjir puluhan alarm anak. Episode
+        // yang SUDAH terbuka tetap dilewatkan agar direkonsiliasi normal (tak ter-clear palsu),
+        // tapi ditandai `silent` supaya notifikasi raise/clear-nya dilewati.
+        if ($parentDown && ! $this->onuHasStateAlarm($open, $key)) {
             return [];
         }
 
         // Only alarm a fault that started as an online -> fault transition, or that is
         // already an open episode (active/pending). An ONU that was already down when first
         // observed (never seen online) is skipped, so long-offline devices stay silent.
+        // Pengecualian: induknya (port/ODP) BARU pulih di poll ini — ONU yang masih mati tak
+        // punya transisi online→offline karena matinya tertutup gangguan induk; itu dihitung
+        // sebagai fault baru sekarang supaya pelanggan yang tak ikut naik tak luput terpantau.
         $prevOnline = ($prev['online'][$key] ?? false) === true;
-        if (! $prevOnline && ! $this->onuHasStateAlarm($open, $key)) {
+        if (! $prevOnline && ! $parentRecovered && ! $this->onuHasStateAlarm($open, $key)) {
             return [];
         }
 
         $base = $this->onuScopeFields($onu);
+
+        if ($parentDown) {
+            $base['silent'] = true;
+        }
+
         $iface = $onu['interface'] ?? $key;
         $phase = $onu['phase_state'] ?? null;
         $lastDown = $onu['last_down_cause'] ?? null;
@@ -481,9 +675,12 @@ class AlarmEvaluator
                 continue;
             }
 
-            // Alarm ACTIVE (sudah dikirim) → clear + kirim notifikasi pemulihan.
+            // Alarm ACTIVE → clear. Notifikasi pemulihan hanya untuk alarm yang dulu MEMANG dikirim:
+            // alarm anak yang disupres (meta.notified === false) tak pernah bikin pesan "down", jadi
+            // tak boleh bikin pesan "cleared" — kalau tidak, port/ODP pulih = banjir pesan clear.
             $recovery = $this->buildRecovery($alarm, $current);
             $meta = $alarm->meta ?? [];
+            $wasNotified = ($meta['notified'] ?? null) !== false;
 
             if ($recovery !== null) {
                 $meta['recovery'] = $recovery;
@@ -494,20 +691,40 @@ class AlarmEvaluator
                 'cleared_at' => $now,
                 'meta' => $meta,
             ]);
-            $clearedAlarms[] = $alarm;
+
+            if ($wasNotified) {
+                $clearedAlarms[] = $alarm;
+            }
         }
 
         foreach ($detected as $signature => $data) {
             $existing = $open->get($signature);
 
+            // Alarm anak yang induknya (port/ODP) sedang down: tetap dicatat untuk UI/riwayat,
+            // tapi TIDAK dinotifikasikan. Ditandai di meta agar clear-nya juga ikut diam.
+            $silent = (bool) ($data['silent'] ?? false);
+            $meta = $data['meta'] ?? null;
+
+            if ($silent) {
+                $meta = [...($meta ?? []), 'notified' => false];
+            }
+
             // Sudah ACTIVE → perbarui saja (tak kirim ulang).
             if ($existing && $existing->status === AlarmEvent::STATUS_ACTIVE) {
+                $wasSilent = (data_get($existing->meta, 'notified') === false);
+
                 $existing->update([
                     'last_seen_at' => $now,
                     'severity' => $data['severity'],
                     'message' => $data['message'],
-                    'meta' => $data['meta'] ?? null,
+                    'meta' => $meta,
                 ]);
+
+                // Induknya sudah pulih tapi ONU ini MASIH fault → kini gangguan mandiri:
+                // baru sekarang layak dikirim (sebelumnya ditahan sebagai alarm anak).
+                if ($wasSilent && ! $silent) {
+                    $raisedAlarms[] = $existing;
+                }
 
                 continue;
             }
@@ -520,9 +737,12 @@ class AlarmEvaluator
                     'last_seen_at' => $now,
                     'severity' => $data['severity'],
                     'message' => $data['message'],
-                    'meta' => $data['meta'] ?? null,
+                    'meta' => $meta,
                 ]);
-                $raisedAlarms[] = $existing;
+
+                if (! $silent) {
+                    $raisedAlarms[] = $existing;
+                }
 
                 continue;
             }
@@ -543,12 +763,12 @@ class AlarmEvaluator
                 'onu_id' => $data['onu_id'] ?? null,
                 'serial_number' => $data['serial_number'] ?? null,
                 'message' => $data['message'],
-                'meta' => $data['meta'] ?? null,
+                'meta' => $meta,
                 'first_seen_at' => $now,
                 'last_seen_at' => $now,
             ]);
 
-            if (! $confirm) {
+            if (! $confirm && ! $silent) {
                 $raisedAlarms[] = $alarm;
             }
         }

@@ -15,9 +15,31 @@ sebelumnya dan sesudahnya. Prinsip inti:
 | Type | Scope | Severity | Kondisi raise | Kondisi clear |
 |------|-------|----------|---------------|---------------|
 | `olt_unreachable` | olt | critical | snapshot `ok=false` & sebelumnya `ok` | OLT `ok` lagi |
-| port down | port | (di `portAlarm`) | port up → down | port up lagi |
+| `port_down` | port | critical (di `portAlarm`) | port up → down | port up lagi |
+| `odp_down` | odp | major (di `odpAlarm`) | SEMUA ONU satu ODP (≥2 ONU) offline, sebelumnya masih ada yang online | ada ONU ODP itu online lagi |
 | ONU state (LOS / dying-gasp / offline) | onu | (di `onuStateAlarms`) | online → fault | online lagi |
 | ONU RX out-of-range | onu | warning/major | RX < −28 dBm atau > −8 dBm | kembali ke dalam −26..−10 dBm (histeresis) |
+
+### Korelasi root-cause (anti banjir notifikasi)
+Hierarki induk→anak, saklarnya `alarm_settings.suppress_child_alarms` (Settings → Alarm, default ON):
+
+1. **OLT unreachable** → port & ONU tak dievaluasi sama sekali.
+2. **Port PON down** → alarm ONU di port itu tak dibuat baru; pesan port menyebut jumlah ONU
+   terdampak (`meta.affected_onus`).
+3. **ODP down** (`App\Services\Alarm\OdpAlarmGrouper::statuses()` menghitung per-ODP: total ONU
+   yang muncul di snapshot vs yang offline) → satu alarm `odp_down`, alarm ONU anggotanya diam.
+   ODP yang portnya sedang down dilewati (port = akar yang lebih dalam).
+4. **Episode ONU yang SUDAH terbuka** saat induknya turun tetap direkonsiliasi (tak ter-clear
+   palsu) tapi ditandai `meta.notified = false` → notifikasi raise **dan** clear-nya dilewati.
+   Begitu induknya pulih sementara ONU-nya masih mati, tanda itu dilepas dan alarm ONU dikirim
+   sebagai gangguan mandiri (`$parentRecovered` juga membuka ONU yang tak pernah punya transisi
+   online→offline karena matinya tertutup gangguan induk).
+
+ODP yang gangguannya terlanjur tercatat per-ONU (episode lama) diangkat sekali jadi satu alarm
+`odp_down` (`$hasOpenChildren`), supaya pemulihannya punya induk yang melapor.
+
+Sisanya (ODP baru **sebagian** ONU-nya down) dirangkum di layer notifikasi jadi satu pesan berisi
+daftar pelanggan — `OdpAlarmGrouper::group()`, saklar `alarm_settings.group_odp_alarms`.
 
 Ambang RX (konstanta di kelas):
 ```
@@ -52,19 +74,22 @@ Membandingkan alarm aktif di DB (`activeAlarms`) dengan yang terdeteksi sekarang
 
 Dua arah: **push** (alarm ke chat) dan **inbound command** (query dari chat).
 
-### Konfigurasi — `telegram_settings` (singleton)
-Diatur di **Pengaturan → Telegram** (`SettingsController`, admin). Field: `enabled`, `bot_token`
-(enc), `chat_id` (boleh banyak, pisah spasi/koma), `min_severity`, `notify_on_raise`,
-`notify_on_clear`, `notify_types` (json), `commands_enabled`, `webhook_secret` (enc). Helper
-model: `isReady()`, `commandsReady()`, `isChatAuthorized()`, `minSeverityRank()`, `chatIds()`,
-`notifyTypes()`, `shouldNotifyType()`.
+### Kebijakan alarm TERPUSAT — `alarm_settings` (singleton)
+Semua aturan alarm ada di **Pengaturan → tab Alarm** (`SettingsController::updateAlarm`, admin) dan
+berlaku untuk **semua kanal**: `confirm_before_notify` (debounce 2 poll vs realtime), `min_severity`,
+`notify_on_raise`, `notify_on_clear`, `notify_types` (json, null = semua jenis), `suppress_child_alarms`,
+`group_odp_alarms`. Daftar jenis kanonis + labelnya di `AlarmEvent::TYPE_LABELS` (`AlarmEvent::types()`
+= `olt_unreachable`, `port_down`, `odp_down`, `los`, `dying_gasp`, `onu_offline`, `high_rx_attenuation`).
 
-**Filter per-jenis alarm** (`notify_types`): admin memilih jenis alarm mana yang dikirim ke
-Telegram (mis. hanya LOS, dying gasp, redaman RX tinggi, port down). Daftar jenis kanonis +
-labelnya ada di `AlarmEvent::TYPE_LABELS` (sumber tunggal; `AlarmEvent::types()` =
-`olt_unreachable`, `port_down`, `los`, `dying_gasp`, `onu_offline`, `high_rx_attenuation`).
-`notify_types = null` berarti **semua jenis** (default/kompat lama); array eksplisit (termasuk
-kosong = semua dibisukan) dihormati apa adanya.
+`TelegramSetting` (bot global) & `FcmSetting` **mendelegasikan** `minSeverityRank()`/`notifyTypes()`/
+`shouldNotifyType()`/`notifyOnRaise()`/`notifyOnClear()` ke `AlarmSetting` — kolom senama di kedua
+tabel kanal masih ada tapi tak dipakai lagi (dipertahankan demi rollback). **Bot partner**
+(`PartnerTelegramBot`) tetap memakai filter per-bot miliknya sendiri (diatur partner di halamannya).
+
+### Konfigurasi koneksi — `telegram_settings` (singleton)
+Diatur di **Pengaturan → Bot Telegram** (admin), kini murni koneksi: `enabled`, `bot_token` (enc),
+`chat_id` (boleh banyak, pisah spasi/koma), `commands_enabled`, `webhook_secret` (enc). Helper model:
+`isReady()`, `commandsReady()`, `isChatAuthorized()`, `chatIds()`.
 
 ### Multi-bot: bot global (admin) + bot partner (self-service)
 `telegram_settings` = bot **global** (alarm SEMUA OLT, command lintas-OLT). Selain itu tiap user role

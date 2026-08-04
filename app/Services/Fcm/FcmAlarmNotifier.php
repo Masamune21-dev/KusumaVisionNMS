@@ -28,12 +28,8 @@ use Kreait\Firebase\Messaging\Notification;
  */
 class FcmAlarmNotifier
 {
-    public const SEVERITY_RANK = [
-        AlarmEvent::SEVERITY_WARNING => 1,
-        AlarmEvent::SEVERITY_MINOR => 2,
-        AlarmEvent::SEVERITY_MAJOR => 3,
-        AlarmEvent::SEVERITY_CRITICAL => 4,
-    ];
+    /** @deprecated pakai {@see AlarmEvent::SEVERITY_RANK} — alias demi kompatibilitas pemanggil lama. */
+    public const SEVERITY_RANK = AlarmEvent::SEVERITY_RANK;
 
     /**
      * Kredensial Firebase tersedia (kapabilitas teknis). Dipakai tombol "Tes Push"
@@ -80,35 +76,45 @@ class FcmAlarmNotifier
             return;
         }
 
+        // Filter alarm (severity/jenis/raise-clear) TERPUSAT di Settings → Alarm; method di
+        // FcmSetting mendelegasikannya ke AlarmSetting supaya Telegram & mobile tak bisa beda.
         $minRank = $setting->minSeverityRank();
         $types = $setting->notifyTypes();
+        $eligible = fn (AlarmEvent $alarm) => (AlarmEvent::SEVERITY_RANK[$alarm->severity] ?? 1) >= $minRank
+            && in_array($alarm->type, $types, true);
 
+        $grouper = app(OdpAlarmGrouper::class);
         $messages = [];
-        if ($setting->notify_on_raise) {
+
+        if ($setting->notifyOnRaise()) {
             // Filter dulu (semantik tak berubah), lalu kelompokkan alarm down per-ODP:
             // >1 ONU 1 ODP → 1 push grup, sisanya per-ONU seperti biasa.
-            $eligible = [];
+            $raisedEligible = [];
             foreach ($raised as $alarm) {
-                if ((self::SEVERITY_RANK[$alarm->severity] ?? 1) < $minRank
-                    || ! in_array($alarm->type, $types, true)) {
-                    continue;
+                if ($eligible($alarm)) {
+                    $raisedEligible[] = $alarm;
                 }
-                $eligible[] = $alarm;
             }
 
-            foreach (app(OdpAlarmGrouper::class)->group($olt, $eligible) as $item) {
+            foreach ($grouper->group($olt, $raisedEligible) as $item) {
                 $messages[] = $item['kind'] === 'odp'
                     ? $this->buildOdpMessage($olt, $item)
                     : $this->buildMessage($olt, $item['alarm'], 'raised');
             }
         }
-        if ($setting->notify_on_clear) {
+
+        if ($setting->notifyOnClear()) {
+            $clearedEligible = [];
             foreach ($cleared as $alarm) {
-                if ((self::SEVERITY_RANK[$alarm->severity] ?? 1) < $minRank
-                    || ! in_array($alarm->type, $types, true)) {
-                    continue;
+                if ($eligible($alarm)) {
+                    $clearedEligible[] = $alarm;
                 }
-                $messages[] = $this->buildMessage($olt, $alarm, 'cleared');
+            }
+
+            foreach ($grouper->group($olt, $clearedEligible, recovered: true) as $item) {
+                $messages[] = $item['kind'] === 'odp'
+                    ? $this->buildOdpMessage($olt, $item)
+                    : $this->buildMessage($olt, $item['alarm'], 'cleared');
             }
         }
 
@@ -307,33 +313,39 @@ class FcmAlarmNotifier
     }
 
     /**
-     * Satu push untuk sekumpulan ONU down di satu ODP.
+     * Satu push untuk sekumpulan ONU down (atau pulih) di satu ODP.
+     *
+     * Kalau SEMUA ONU satu ODP mati, yang dikirim adalah alarm `odp_down` tunggal dari evaluator
+     * (alarm anaknya disupres) — grup ini untuk gangguan/pemulihan SEBAGIAN.
      *
      * @param  array<string, mixed>  $item
      */
     private function buildOdpMessage(SnmpOlt $olt, array $item): CloudMessage
     {
-        $emoji = $this->severityEmoji($item['severity']);
         $name = (string) $item['odp_name'];
         $count = count($item['members']);
+        $recovered = (bool) ($item['recovered'] ?? false);
+        $names = array_map(
+            fn (AlarmEvent $alarm) => OdpAlarmGrouper::memberLabel($alarm),
+            $item['members'],
+        );
 
-        // Semua ONU 1 ODP down → cukup "ODP ini down (semua)".
-        if ($item['all_down']) {
-            $title = "$emoji ODP DOWN · $name";
+        if ($recovered) {
+            $title = "✅ ODP pulih · $name ($count ONU)";
+            $body = "ODP $name — $count ONU kembali online: ".implode(', ', $names)." — {$olt->name}";
+        } elseif ($item['all_down']) {
+            // Semua ONU 1 ODP down → cukup "ODP ini down (semua)".
+            $title = $this->severityEmoji($item['severity'])." ODP DOWN · $name";
             $body = "ODP $name — semua {$item['total']} pelanggan offline. — {$olt->name}";
         } else {
-            $title = "$emoji ODP gangguan · $name ($count ONU)";
-            $names = array_map(
-                fn (AlarmEvent $alarm) => OdpAlarmGrouper::memberLabel($alarm),
-                $item['members'],
-            );
+            $title = $this->severityEmoji($item['severity'])." ODP gangguan · $name ($count ONU)";
             $body = "ODP $name — $count ONU down: ".implode(', ', $names)." — {$olt->name}";
         }
 
         $data = array_map(
             fn ($v) => (string) ($v ?? ''),
             [
-                'event' => 'raised',
+                'event' => $recovered ? 'cleared' : 'raised',
                 'group' => 'odp',
                 'odp_id' => $item['odp_id'],
                 'odp_name' => $name,

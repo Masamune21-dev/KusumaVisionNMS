@@ -32,21 +32,19 @@ class TelegramSettingsTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
+        // Tab Telegram kini hanya menyimpan KONEKSI bot; filter alarm ada di tab Alarm
+        // (lihat SettingsAlarmTest) dan dibaca lewat delegasi ke AlarmSetting.
         $this->actingAs($admin)
             ->put(route('settings.telegram.update'), [
                 'enabled' => true,
                 'bot_token' => '123:ABC',
                 'chat_id' => '111, -1002',
-                'min_severity' => 'major',
-                'notify_on_raise' => true,
-                'notify_on_clear' => false,
             ])
             ->assertSessionHas('success');
 
         $setting = TelegramSetting::instance();
         $this->assertTrue($setting->enabled);
         $this->assertSame('123:ABC', $setting->bot_token);
-        $this->assertSame('major', $setting->min_severity);
         $this->assertSame(['111', '-1002'], $setting->chatIds());
     }
 
@@ -65,9 +63,6 @@ class TelegramSettingsTest extends TestCase
                 'enabled' => true,
                 'bot_token' => '',
                 'chat_id' => '222',
-                'min_severity' => 'warning',
-                'notify_on_raise' => true,
-                'notify_on_clear' => false,
             ])
             ->assertSessionHas('success');
 

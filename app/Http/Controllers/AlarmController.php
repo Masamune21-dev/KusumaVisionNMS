@@ -23,7 +23,7 @@ class AlarmController extends Controller
         $severity = in_array($request->query('severity'), $this->severities(), true)
             ? $request->query('severity')
             : 'all';
-        $scope = in_array($request->query('scope'), ['olt', 'port', 'onu'], true)
+        $scope = in_array($request->query('scope'), ['olt', 'port', 'odp', 'onu'], true)
             ? $request->query('scope')
             : 'all';
         $type = trim((string) $request->query('type', 'all')) ?: 'all';
@@ -125,7 +125,7 @@ class AlarmController extends Controller
                     ->pluck('type')
                     ->values(),
                 'severities' => $this->severities(),
-                'scopes' => ['olt', 'port', 'onu'],
+                'scopes' => ['olt', 'port', 'odp', 'onu'],
             ],
         ]);
     }

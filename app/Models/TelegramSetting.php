@@ -11,6 +11,12 @@ use Illuminate\Database\Eloquent\Model;
  * Bot Telegram GLOBAL (admin) — mendapat alarm dari SEMUA OLT & command lintas-OLT.
  * Bot per-partner ada di {@see PartnerTelegramBot}. Keduanya berbagi
  * {@see TelegramBotConfigTrait} dan memenuhi {@see TelegramBotConfig}.
+ *
+ * FILTER ALARM-nya TERPUSAT di {@see AlarmSetting} (Settings → tab Alarm): severity minimum,
+ * kirim saat naik/pulih, dan jenis alarm dibaca dari sana, BUKAN dari kolom-kolom senama di
+ * tabel ini (kolom lama dipertahankan demi kompatibilitas/rollback). Model ini kini hanya
+ * mengurus koneksi bot: token, chat id, saklar aktif, webhook/command.
+ * Bot partner tetap memakai filter per-bot miliknya sendiri.
  */
 class TelegramSetting extends Model implements TelegramBotConfig
 {
@@ -70,5 +76,37 @@ class TelegramSetting extends Model implements TelegramBotConfig
     public static function instance(): self
     {
         return static::query()->firstOrNew([]);
+    }
+
+    /* --------------------------------------------------------------------- */
+    /* Filter alarm — didelegasikan ke kebijakan terpusat (Settings → Alarm). */
+    /* --------------------------------------------------------------------- */
+
+    public function minSeverityRank(): int
+    {
+        return AlarmSetting::policy()->minSeverityRank();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function notifyTypes(): array
+    {
+        return AlarmSetting::policy()->notifyTypes();
+    }
+
+    public function shouldNotifyType(?string $type): bool
+    {
+        return AlarmSetting::policy()->shouldNotifyType($type);
+    }
+
+    public function notifyOnRaise(): bool
+    {
+        return AlarmSetting::policy()->notifyOnRaise();
+    }
+
+    public function notifyOnClear(): bool
+    {
+        return AlarmSetting::policy()->notifyOnClear();
     }
 }

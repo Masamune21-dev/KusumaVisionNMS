@@ -6,9 +6,10 @@ use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Pengaturan push mobile (FCM) — singleton. Menentukan alarm mana yang diteruskan
- * ke aplikasi Android (severity minimum, raise/clear, filter per-tipe). Mirror
- * {@see TelegramSetting} tapi untuk kanal FCM.
+ * Pengaturan push mobile (FCM) — singleton. Kini hanya menyimpan SAKLAR kanal (aktif/tidak)
+ * + jejak pengiriman terakhir; FILTER alarm (severity minimum, raise/clear, jenis) TERPUSAT di
+ * {@see AlarmSetting} (Settings → tab Alarm) dan dibaca lewat method delegasi di bawah, supaya
+ * Telegram & mobile tak bisa lagi berbeda diam-diam. Kolom lama dipertahankan demi rollback.
  */
 class FcmSetting extends Model
 {
@@ -27,12 +28,8 @@ class FcmSetting extends Model
         return '';
     }
 
-    public const SEVERITY_RANK = [
-        AlarmEvent::SEVERITY_WARNING => 1,
-        AlarmEvent::SEVERITY_MINOR => 2,
-        AlarmEvent::SEVERITY_MAJOR => 3,
-        AlarmEvent::SEVERITY_CRITICAL => 4,
-    ];
+    /** @deprecated pakai {@see AlarmEvent::SEVERITY_RANK} — alias demi kompatibilitas pemanggil lama. */
+    public const SEVERITY_RANK = AlarmEvent::SEVERITY_RANK;
 
     protected $fillable = [
         'enabled',
@@ -73,9 +70,13 @@ class FcmSetting extends Model
         return static::query()->firstOrNew([]);
     }
 
+    /* --------------------------------------------------------------------- */
+    /* Filter alarm — didelegasikan ke kebijakan terpusat (Settings → Alarm). */
+    /* --------------------------------------------------------------------- */
+
     public function minSeverityRank(): int
     {
-        return self::SEVERITY_RANK[$this->min_severity] ?? self::SEVERITY_RANK[AlarmEvent::SEVERITY_MAJOR];
+        return AlarmSetting::policy()->minSeverityRank();
     }
 
     /**
@@ -85,6 +86,21 @@ class FcmSetting extends Model
      */
     public function notifyTypes(): array
     {
-        return $this->notify_types ?? AlarmEvent::types();
+        return AlarmSetting::policy()->notifyTypes();
+    }
+
+    public function shouldNotifyType(?string $type): bool
+    {
+        return AlarmSetting::policy()->shouldNotifyType($type);
+    }
+
+    public function notifyOnRaise(): bool
+    {
+        return AlarmSetting::policy()->notifyOnRaise();
+    }
+
+    public function notifyOnClear(): bool
+    {
+        return AlarmSetting::policy()->notifyOnClear();
     }
 }

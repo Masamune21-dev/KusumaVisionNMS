@@ -1,5 +1,86 @@
 # Worklog
 
+## 2026-08-02
+
+### Alarm ODP down + supresi alarm anak + pengaturan alarm dipusatkan di tab Alarm
+
+Laporan owner: notifikasi Telegram & mobile **masih mengirim ONU satu per satu** padahal yang mati
+satu ODP/port utuh. Diminta: kalau 1 port down cukup kirim alarm portnya, kalau 1 ODP mati semua
+cukup kirim "ODP down" — ONU di dalamnya jangan ikut. Sekalian semua pengaturan alarm dikumpulkan
+di **Settings → tab Alarm** (sebelumnya tersebar di tab Telegram & Notifikasi Mobile).
+
+Created:
+
+- `database/migrations/2026_08_02_000001_add_notification_policy_to_alarm_settings_table.php` —
+  `alarm_settings` + `min_severity`, `notify_on_raise`, `notify_on_clear`, `notify_types` (json),
+  `suppress_child_alarms`, `group_odp_alarms`. **Backfill** dari `telegram_settings` (kebijakan yang
+  sudah dipakai admin) + jenis baru `odp_down` otomatis dicentang bila filter jenis dipakai.
+- `tests/Feature/AlarmOdpCorrelationTest.php` — 9 test skenario lapangan: ODP mati total → 1 alarm
+  saja; ONU yang sempat pending sebelum ODP mati total tak dinotifikasikan; pemulihan hanya melapor
+  induknya; **port terbaca down 1 poll setelah ONU-nya jatuh** (celah yang dilaporkan owner); ONU
+  yang tetap mati setelah induknya pulih baru dikirim; episode per-ONU lama diangkat jadi 1 alarm
+  ODP; korelasi bisa dimatikan dari Settings; ODP 1 pelanggan tetap alarm ONU biasa; Telegram
+  menerima 1 pesan ODP (Http::fake) bukan 1 pesan per pelanggan.
+
+Changed:
+
+- `app/Services/AlarmEvaluator.php` — (1) jenis alarm baru **`odp_down`** (scope `odp`, severity
+  major): semua ONU satu ODP (≥2 ONU) offline & port induknya masih up → satu alarm, `meta` berisi
+  `odp_id/odp_name/affected_onus`; naik hanya pada transisi (ODP sebelumnya masih punya ONU online)
+  atau saat episodenya sudah terbuka. (2) **Supresi alarm anak** kini juga berlaku untuk episode ONU
+  yang SUDAH terbuka: ditandai `meta.notified=false` sehingga notifikasi raise **dan** clear-nya
+  dilewati — sebelumnya alarm ONU yang jadi pending sebelum port/ODP-nya terbaca down tetap
+  dipromosikan lalu dikirim (inilah bocornya), dan pemulihan port membanjiri pesan "cleared".
+  (3) `$parentRecovered`: begitu induk pulih, ONU yang masih mati dianggap fault baru (tanpa ini
+  mereka tak punya transisi online→offline dan takkan pernah terpantau). (4) `$hasOpenChildren`:
+  ODP yang gangguannya terlanjur tercatat per-ONU diangkat sekali jadi satu alarm ODP.
+- `app/Services/Alarm/OdpAlarmGrouper.php` — kini juga menyediakan **status per-ODP** untuk evaluator
+  (`statuses()`: total ONU ODP yang muncul di snapshot vs offline, `all_down`; topologi link+ODP
+  dimemo per instance) dan `linkIndex()`. `group()` dapat parameter `recovered` (pesan pemulihan ikut
+  dikelompokkan) dan dihormati saklar `group_odp_alarms`.
+- `app/Models/AlarmSetting.php` — jadi **sumber tunggal kebijakan alarm** (severity/raise-clear/jenis
+  + dua saklar korelasi) dengan `policy()` yang aman saat tabel belum dimigrasi.
+- `app/Models/TelegramSetting.php`, `app/Models/FcmSetting.php` — `minSeverityRank()`/`notifyTypes()`/
+  `shouldNotifyType()`/`notifyOnRaise()`/`notifyOnClear()` **didelegasikan** ke `AlarmSetting`. Kolom
+  lama dibiarkan (rollback-safe, tak dipakai). Bot partner tetap pakai filter per-bot.
+- `app/Models/AlarmEvent.php` — `TYPE_ODP_DOWN` + label, konstanta `SEVERITY_RANK` jadi sumber tunggal
+  (trait Telegram & FcmSetting/FcmAlarmNotifier kini alias ke situ).
+- `app/Services/Telegram/TelegramNotifier.php`, `app/Services/Fcm/FcmAlarmNotifier.php` — pakai method
+  kebijakan (bukan kolom kanal), grup ODP juga dipakai untuk alarm yang pulih ("ODP PULIH · N ONU").
+- `app/Http/Controllers/SettingsController.php` — `updateAlarm()` menyimpan seluruh kebijakan;
+  `updateTelegram()`/`updateFcm()` menyusut jadi koneksi/saklar saja (field filter tak lagi diterima).
+- `resources/js/Pages/Settings/Index.vue` — tab **Alarm** jadi pusat (perilaku deteksi + korelasi
+  root-cause + severity + pemicu + jenis alarm); tab Telegram & Notifikasi Mobile kehilangan blok
+  filter dan diganti tombol pengarah ke tab Alarm.
+- `app/Services/Alarm/AlarmNotificationTargetResolver.php` — alarm scope `odp` diarahkan ke halaman
+  ONU port-nya (`resource_type` = 'port'; app mobile tak perlu diubah), fallback filter terima `odp`.
+- `app/Services/Alarm/AlarmNotificationService.php` — `odp_down` masuk alarm yang bertahan di bel
+  sampai pulih. `app/Http/Controllers/AlarmController.php` + `Pages/SmartOlt/Alarms.vue` +
+  `resources/js/lib/alarm.js` — filter/label scope `odp` & tipe `odp_down`.
+- i18n `resources/js/lang/{id,en}.json` — `alarms.type_odp_down` + 8 kunci `settings.alarm_*` baru.
+- Test lama menyesuaikan pemusatan: `SettingsAlarmTest` (payload penuh + delegasi 2 kanal),
+  `SettingsFcmTest` (saklar kanal; endpoint tak lagi memiliki filter), `TelegramSettingsTest`.
+- Docs: `CLAUDE.md` (bullet korelasi diperluas + bullet pengaturan terpusat), `docs/handbook/10-alarm-telegram.md`.
+
+Notes:
+
+- **Akar bug yang dilaporkan**: supresi lama hanya menahan alarm ONU **baru**. Di lapangan ONU jatuh
+  duluan (jadi baris PENDING), status port/ODP baru terbaca down di poll berikutnya → episode pending
+  itu lolos ke promosi ACTIVE + notifikasi. Sekarang supresi berbasis **keadaan induk**, bukan umur
+  episode, dan tanda `meta.notified=false` menutup jalur clear-nya juga.
+- Alarm ONU anak **tetap tercatat** di halaman Alarm/riwayat (tak ada baris baru dibuat selama induk
+  down, jadi tak ada ledakan baris seperti sebelum korelasi ada) — yang dibungkam hanya notifikasi.
+- Verifikasi data produksi (read-only, sesudah `migrate --force`): `OLT-C300-SEKARJALAK` punya 33 ODP
+  terpetakan dan **5 ODP mati total** (PAK NDUT 7, PERTIGAAN KIDUL BALDES 6, TIKUNGAN 4, YUMI 1 5,
+  YUMI 2 3 = 25 pelanggan) padahal **port 2/2-nya up** — persis kasus yang dulu jadi 25 notifikasi
+  ONU, kini 5 pesan "ODP down". Backfill migrasi terverifikasi: `min_severity=warning`, raise+clear
+  on, `notify_types` = 4 jenis lama + `odp_down`, mode realtime admin (`confirm_before_notify=false`)
+  dipertahankan.
+- `php artisan migrate --force` sudah dijalankan di produksi + `queue:restart` (worker memuat
+  evaluator baru). Tak ada rute baru → route cache tak perlu di-rebuild.
+- **487 test hijau** (9 baru), Vitest 12 hijau, `npm run build` sukses, Pint bersih untuk berkas yang
+  disentuh (sisa temuan `ZteProfileCatalogService.php` sudah ada sebelum sesi ini).
+
 ## 2026-07-30 — HsAirPo / HSGQ EPON (Photon 12170) Fase A: family baru, inventori ONU via CLI
 
 Implementasi rencana `docs/SMARTOLT_PHOTON_12170_PLAN.md` (kini di-rename jadi

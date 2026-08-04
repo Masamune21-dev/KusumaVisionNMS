@@ -124,9 +124,15 @@ class AlarmNotificationTargetResolver
             return $this->location('onu', $olt->id, $slot, $port, $onuId, true, $located['reason']);
         }
 
-        if ($alarm->scope === 'port') {
+        // Un ODP vive en exactamente UN puerto PON, y la pantalla útil es la lista de ONUs de ese
+        // puerto: por eso `scope=odp` viaja como destino de tipo 'port' (el tipo describe A DÓNDE
+        // navegar, no qué es la alarma — para eso está el campo `scope`). Así web y móvil abren
+        // algo útil sin tocar el cliente. Sin slot/port (ODP sin puerto aún) → el OLT.
+        if ($alarm->scope === 'port' || $alarm->scope === 'odp') {
             if ($alarm->slot === null || $alarm->port === null) {
-                return $this->location('port', $olt->id, null, null, null, false, self::REASON_INCOMPLETE_LOCATION);
+                return $alarm->scope === 'odp'
+                    ? $this->location('olt', $olt->id, null, null, null, true, null)
+                    : $this->location('port', $olt->id, null, null, null, false, self::REASON_INCOMPLETE_LOCATION);
             }
 
             return $this->location('port', $olt->id, (int) $alarm->slot, (int) $alarm->port, null, true, null);
@@ -277,7 +283,7 @@ class AlarmNotificationTargetResolver
     {
         return route('alarms.index', array_filter([
             'olt_id' => $alarm->snmp_olt_id,
-            'scope' => in_array($alarm->scope, ['olt', 'port', 'onu'], true) ? $alarm->scope : null,
+            'scope' => in_array($alarm->scope, ['olt', 'port', 'odp', 'onu'], true) ? $alarm->scope : null,
         ]), absolute: false);
     }
 

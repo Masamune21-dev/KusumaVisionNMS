@@ -131,12 +131,17 @@ const scopeLabel = (alarm) => {
     if (alarm.scope === 'port') {
         return `gpon-olt_1/${alarm.slot}/${alarm.port}`;
     }
+    // Alarm ODP: nama ODP ada di pesan alarm; sub-label cukup posisi port PON-nya.
+    if (alarm.scope === 'odp') {
+        return alarm.slot != null && alarm.port != null ? `ODP · ${alarm.slot}/${alarm.port}` : 'ODP';
+    }
     return 'OLT';
 };
 
 const scopeOptionLabel = (scope) => ({
     olt: 'OLT',
     port: 'Port',
+    odp: 'ODP',
     onu: 'ONU',
 }[scope] ?? scope);
 

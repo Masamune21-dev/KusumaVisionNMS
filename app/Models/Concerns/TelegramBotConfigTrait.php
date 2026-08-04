@@ -17,13 +17,9 @@ trait TelegramBotConfigTrait
 {
     /**
      * Urutan severity (rendah → tinggi) untuk filter minimal severity.
+     * Sumber tunggal: {@see AlarmEvent::SEVERITY_RANK}.
      */
-    public const SEVERITY_RANK = [
-        AlarmEvent::SEVERITY_WARNING => 1,
-        AlarmEvent::SEVERITY_MINOR => 2,
-        AlarmEvent::SEVERITY_MAJOR => 3,
-        AlarmEvent::SEVERITY_CRITICAL => 4,
-    ];
+    public const SEVERITY_RANK = AlarmEvent::SEVERITY_RANK;
 
     public function botToken(): string
     {

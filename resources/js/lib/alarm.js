@@ -11,6 +11,7 @@
 const KNOWN_TYPES = new Set([
     'olt_unreachable',
     'port_down',
+    'odp_down',
     'los',
     'dying_gasp',
     'onu_offline',

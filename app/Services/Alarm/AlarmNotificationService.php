@@ -25,6 +25,7 @@ class AlarmNotificationService
     private const PERSISTENT_UNTIL_RECOVERY = [
         AlarmEvent::TYPE_HIGH_RX,
         AlarmEvent::TYPE_PORT_DOWN,
+        AlarmEvent::TYPE_ODP_DOWN,
         AlarmEvent::TYPE_LOS,
         AlarmEvent::TYPE_OLT_UNREACHABLE,
     ];

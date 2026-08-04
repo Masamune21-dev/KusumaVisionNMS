@@ -3,6 +3,7 @@
 namespace App\Services\Alarm;
 
 use App\Models\AlarmEvent;
+use App\Models\AlarmSetting;
 use App\Models\Odp;
 use App\Models\OnuOdpLink;
 use App\Models\Scopes\PartnerOltScope;
@@ -10,18 +11,25 @@ use App\Models\SnmpOlt;
 use App\Support\SmartOltSupport;
 
 /**
- * Mengelompokkan alarm "down" ONU (LOS / dying gasp / offline) per-ODP untuk
- * notifikasi (Telegram & push FCM), agar monitoring tak banjir pesan saat satu
- * ODP (splitter lapangan) putus dan menjatuhkan banyak pelanggan sekaligus.
+ * Korelasi & pengelompokan alarm pada level ODP (splitter lapangan).
  *
- * Aturan (permintaan owner):
- *  - 1 ONU down di sebuah ODP  → kirim biasa (pesan per-ONU seperti sebelumnya).
- *  - >1 ONU down di 1 ODP      → 1 pesan grup berisi daftar pelanggan yang down.
- *  - SEMUA ONU 1 ODP down      → cukup 1 pesan "ODP ini down (semua)".
- *  - ONU tanpa ODP / alarm non-down (port, RX, OLT) → tetap per-item.
+ * Dua peran:
  *
- * MURNI layer presentasi notifikasi — tiap ONU tetap punya baris AlarmEvent
- * sendiri di UI/riwayat; grouping ini tak mengubah evaluasi/pencatatan alarm.
+ * 1. **Status ODP** ({@see self::statuses()}) — dari snapshot poll, hitung per-ODP berapa ONU-nya
+ *    yang muncul & berapa yang offline, sehingga {@see App\Services\AlarmEvaluator} bisa
+ *    menaikkan SATU alarm `odp_down` saat SEMUA ONU satu ODP mati (akar masalah = ODP/kabel
+ *    distribusinya) dan mensupres alarm ONU anaknya.
+ *
+ * 2. **Pengelompokan notifikasi** ({@see self::group()}) — untuk ODP yang baru SEBAGIAN ONU-nya
+ *    down (belum semua, jadi belum jadi alarm `odp_down`), rangkum jadi satu pesan berisi daftar
+ *    pelanggan alih-alih satu pesan per pelanggan. Aturan:
+ *      - 1 ONU down di sebuah ODP → kirim biasa (pesan per-ONU seperti sebelumnya).
+ *      - >1 ONU down di 1 ODP     → 1 pesan grup berisi daftar pelanggan.
+ *      - ONU tanpa ODP / alarm non-down (port, RX, OLT) → tetap per-item.
+ *    Bisa dimatikan admin lewat Settings → Alarm (`group_odp_alarms`).
+ *
+ * Peran (2) MURNI layer presentasi notifikasi — tiap ONU tetap punya baris AlarmEvent sendiri
+ * di UI/riwayat.
  */
 class OdpAlarmGrouper
 {
@@ -32,25 +40,31 @@ class OdpAlarmGrouper
         AlarmEvent::TYPE_ONU_OFFLINE,
     ];
 
-    /** Urutan severity untuk memilih emoji/severity wakil grup. */
-    private const SEVERITY_RANK = [
-        AlarmEvent::SEVERITY_WARNING => 1,
-        AlarmEvent::SEVERITY_MINOR => 2,
-        AlarmEvent::SEVERITY_MAJOR => 3,
-        AlarmEvent::SEVERITY_CRITICAL => 4,
-    ];
+    /**
+     * Topologi ODP per-OLT (link ONU↔ODP + atribut ODP), dimemo per instance: evaluator
+     * memanggil {@see self::statuses()} dua kali (snapshot sekarang & sebelumnya) dalam satu
+     * evaluasi, jadi query link/ODP cukup sekali.
+     *
+     * @var array<int, array{links: array<string, int>, odps: array<int, array{name:string, slot:?int, port:?int}>}>
+     */
+    private array $topology = [];
 
     /**
-     * Ubah daftar alarm raised (yang SUDAH lolos filter severity/tipe penerima)
-     * menjadi daftar item notifikasi: singleton atau grup ODP.
+     * Ubah daftar alarm (yang SUDAH lolos filter severity/tipe penerima) menjadi daftar item
+     * notifikasi: singleton atau grup ODP.
      *
      * @param  array<int, AlarmEvent>  $alarms
-     * @return array<int, array<string, mixed>> item: {kind:'single',alarm} | {kind:'odp',odp_id,odp_name,members,total,down_count,all_down,severity}
+     * @param  bool  $recovered  true = daftar alarm yang PULIH (clear), memengaruhi kata-kata di notifier
+     * @return array<int, array<string, mixed>> item: {kind:'single',alarm} | {kind:'odp',odp_id,odp_name,members,total,down_count,all_down,severity,recovered}
      */
-    public function group(SnmpOlt $olt, array $alarms): array
+    public function group(SnmpOlt $olt, array $alarms, bool $recovered = false): array
     {
         if ($alarms === []) {
             return [];
+        }
+
+        if (! AlarmSetting::groupOdpAlarms()) {
+            return array_map(fn (AlarmEvent $alarm) => ['kind' => 'single', 'alarm' => $alarm], $alarms);
         }
 
         $linkIndex = $this->linkIndex($olt);
@@ -75,8 +89,7 @@ class OdpAlarmGrouper
         }
 
         $items = [];
-        $odpNames = $this->odpNames(array_keys($byOdp));
-        $downStats = $this->downStats($olt, array_keys($byOdp));
+        $statuses = $this->statuses($olt, $olt->last_test_result ?? []);
 
         foreach ($byOdp as $odpId => $members) {
             // Hanya 1 ONU down di ODP ini → tetap kirim biasa (per-ONU).
@@ -86,17 +99,22 @@ class OdpAlarmGrouper
                 continue;
             }
 
-            [$total, $down] = $downStats[$odpId] ?? [count($members), count($members)];
+            $status = $statuses[$odpId] ?? null;
+            $total = $status['total'] ?? count($members);
+            $down = $status['down'] ?? count($members);
 
             $items[] = [
                 'kind' => 'odp',
                 'odp_id' => $odpId,
-                'odp_name' => $odpNames[$odpId] ?? ('ODP #'.$odpId),
+                'odp_name' => $status['name'] ?? ('ODP #'.$odpId),
                 'members' => $members,
                 'total' => $total,
-                'down_count' => $down,
-                'all_down' => $total > 0 && $down >= $total,
+                'down_count' => $recovered ? count($members) : $down,
+                // Saat semua ONU 1 ODP down, alarm `odp_down` yang mewakili (alarm anak disupres),
+                // jadi grup di sini praktis selalu "sebagian" — flag tetap dihitung demi kompatibilitas.
+                'all_down' => ! $recovered && $total > 0 && $down >= $total,
                 'severity' => $this->maxSeverity($members),
+                'recovered' => $recovered,
             ];
         }
 
@@ -105,6 +123,70 @@ class OdpAlarmGrouper
         }
 
         return $items;
+    }
+
+    /**
+     * Status tiap ODP milik OLT ini menurut sebuah snapshot poll.
+     *
+     * `total` = jumlah ONU ODP yang muncul di snapshot (link basi diabaikan agar tak memblok
+     * deteksi "semua down"), `down` = yang offline, `all_down` = semuanya offline.
+     * ODP yang tak punya satu pun ONU di snapshot tidak ikut (tak ada yang bisa disimpulkan).
+     *
+     * @param  array<string, mixed>  $snapshot
+     * @return array<int, array{odp_id:int, name:string, slot:?int, port:?int, total:int, down:int, all_down:bool}>
+     */
+    public function statuses(SnmpOlt $olt, array $snapshot): array
+    {
+        $topology = $this->topologyFor($olt);
+
+        if ($topology['links'] === []) {
+            return [];
+        }
+
+        $online = $this->onlineMap($snapshot);
+        $stats = [];
+
+        foreach ($topology['links'] as $key => $odpId) {
+            if (! array_key_exists($key, $online)) {
+                continue; // ONU tak ada di snapshot ini → abaikan.
+            }
+
+            $odp = $topology['odps'][$odpId] ?? ['name' => 'ODP #'.$odpId, 'slot' => null, 'port' => null];
+
+            $stats[$odpId] ??= [
+                'odp_id' => $odpId,
+                'name' => $odp['name'],
+                // Port ODP boleh kosong (ODP lama/baru dibuat) → pakai posisi ONU-nya.
+                'slot' => $odp['slot'] ?? (int) explode('/', $key)[0],
+                'port' => $odp['port'] ?? (int) explode('/', $key)[1],
+                'total' => 0,
+                'down' => 0,
+                'all_down' => false,
+            ];
+
+            $stats[$odpId]['total']++;
+
+            if ($online[$key] === false) {
+                $stats[$odpId]['down']++;
+            }
+        }
+
+        foreach ($stats as $odpId => $stat) {
+            $stats[$odpId]['all_down'] = $stat['total'] > 0 && $stat['down'] >= $stat['total'];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Peta "slot/port/onu_id" => odp_id untuk seluruh link ONU↔ODP OLT ini.
+     * Dipakai evaluator untuk tahu ODP induk sebuah ONU.
+     *
+     * @return array<string, int>
+     */
+    public function linkIndex(SnmpOlt $olt): array
+    {
+        return $this->topologyFor($olt)['links'];
     }
 
     /**
@@ -137,96 +219,62 @@ class OdpAlarmGrouper
     {
         return match ($type) {
             AlarmEvent::TYPE_LOS => 'LOS',
-            AlarmEvent::TYPE_DYING_GASP => 'Dying Gasp',
+            AlarmEvent::TYPE_DYING_GASP => 'Power Off',
             AlarmEvent::TYPE_ONU_OFFLINE => 'Offline',
             default => $type,
         };
     }
 
     /**
-     * Peta "slot/port/onu_id" => odp_id untuk seluruh link ONU↔ODP OLT ini.
+     * Link ONU↔ODP + atribut ODP milik satu OLT (query sekali per instance).
+     * Lookup pakai `withoutGlobalScope(PartnerOltScope)` agar deterministik di konteks
+     * queue/polling (tak ada user yang login).
      *
-     * @return array<string, int>
+     * @return array{links: array<string, int>, odps: array<int, array{name:string, slot:?int, port:?int}>}
      */
-    private function linkIndex(SnmpOlt $olt): array
+    private function topologyFor(SnmpOlt $olt): array
     {
-        $index = [];
+        if (isset($this->topology[$olt->id])) {
+            return $this->topology[$olt->id];
+        }
+
+        $links = [];
 
         OnuOdpLink::withoutGlobalScope(PartnerOltScope::class)
             ->where('snmp_olt_id', $olt->id)
             ->get(['odp_id', 'slot', 'port', 'onu_id'])
-            ->each(function (OnuOdpLink $link) use (&$index) {
-                $index["{$link->slot}/{$link->port}/{$link->onu_id}"] = $link->odp_id;
+            ->each(function (OnuOdpLink $link) use (&$links) {
+                $links["{$link->slot}/{$link->port}/{$link->onu_id}"] = (int) $link->odp_id;
             });
 
-        return $index;
+        $odps = [];
+
+        if ($links !== []) {
+            $odps = Odp::withoutGlobalScope(PartnerOltScope::class)
+                ->whereIn('id', array_values(array_unique($links)))
+                ->get(['id', 'name', 'slot', 'port'])
+                ->mapWithKeys(fn (Odp $odp) => [$odp->id => [
+                    'name' => (string) $odp->name,
+                    'slot' => $odp->slot,
+                    'port' => $odp->port,
+                ]])
+                ->all();
+        }
+
+        return $this->topology[$olt->id] = ['links' => $links, 'odps' => $odps];
     }
 
     /**
-     * Nama ODP by id.
+     * Peta "slot/port/onu_id" => bool online dari sebuah snapshot poll.
      *
-     * @param  array<int, int>  $odpIds
-     * @return array<int, string>
-     */
-    private function odpNames(array $odpIds): array
-    {
-        if ($odpIds === []) {
-            return [];
-        }
-
-        return Odp::withoutGlobalScope(PartnerOltScope::class)
-            ->whereIn('id', $odpIds)
-            ->pluck('name', 'id')
-            ->all();
-    }
-
-    /**
-     * Per-ODP: [total ONU (yang muncul di snapshot), jumlah offline] untuk menentukan "semua down".
-     * ONU link yang tak ada di snapshot (stale) diabaikan agar tak memblok deteksi "semua".
-     *
-     * @param  array<int, int>  $odpIds
-     * @return array<int, array{0:int, 1:int}>
-     */
-    private function downStats(SnmpOlt $olt, array $odpIds): array
-    {
-        if ($odpIds === []) {
-            return [];
-        }
-
-        $online = $this->onlineMap($olt);
-
-        $links = OnuOdpLink::withoutGlobalScope(PartnerOltScope::class)
-            ->where('snmp_olt_id', $olt->id)
-            ->whereIn('odp_id', $odpIds)
-            ->get(['odp_id', 'slot', 'port', 'onu_id']);
-
-        $stats = [];
-        foreach ($links as $link) {
-            $key = "{$link->slot}/{$link->port}/{$link->onu_id}";
-            if (! array_key_exists($key, $online)) {
-                continue; // ONU tak ada di snapshot → abaikan.
-            }
-
-            $stats[$link->odp_id] ??= [0, 0];
-            $stats[$link->odp_id][0]++;
-            if ($online[$key] === false) {
-                $stats[$link->odp_id][1]++;
-            }
-        }
-
-        return $stats;
-    }
-
-    /**
-     * Peta "slot/port/onu_id" => bool online dari snapshot poll terakhir OLT.
-     *
+     * @param  array<string, mixed>  $snapshot
      * @return array<string, bool>
      */
-    private function onlineMap(SnmpOlt $olt): array
+    private function onlineMap(array $snapshot): array
     {
         $map = [];
 
-        foreach (($olt->last_test_result['port_onus'] ?? []) as $portData) {
+        foreach (($snapshot['port_onus'] ?? []) as $portData) {
             foreach ($portData['onus'] ?? [] as $onu) {
                 $key = ((int) ($onu['slot'] ?? 0)).'/'.((int) ($onu['port'] ?? 0)).'/'.((int) ($onu['onu_id'] ?? 0));
                 $map[$key] = (bool) ($onu['online'] ?? false);
@@ -250,7 +298,7 @@ class OdpAlarmGrouper
         $bestRank = 0;
 
         foreach ($members as $alarm) {
-            $rank = self::SEVERITY_RANK[$alarm->severity] ?? 1;
+            $rank = AlarmEvent::SEVERITY_RANK[$alarm->severity] ?? 1;
             if ($rank > $bestRank) {
                 $bestRank = $rank;
                 $best = $alarm->severity;

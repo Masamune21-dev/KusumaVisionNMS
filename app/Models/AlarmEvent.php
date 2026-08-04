@@ -28,9 +28,27 @@ class AlarmEvent extends Model
 
     public const SEVERITY_WARNING = 'warning';
 
+    /**
+     * Urutan severity (rendah → tinggi) untuk filter "severity minimum". Sumber tunggal;
+     * {@see TelegramSetting}/{@see FcmSetting}/{@see AlarmSetting} memakainya.
+     */
+    public const SEVERITY_RANK = [
+        self::SEVERITY_WARNING => 1,
+        self::SEVERITY_MINOR => 2,
+        self::SEVERITY_MAJOR => 3,
+        self::SEVERITY_CRITICAL => 4,
+    ];
+
     public const TYPE_OLT_UNREACHABLE = 'olt_unreachable';
 
     public const TYPE_PORT_DOWN = 'port_down';
+
+    /**
+     * SEMUA ONU satu ODP (splitter lapangan) offline serentak → akar masalahnya ODP/kabel
+     * distribusinya, bukan tiap pelanggan. Satu alarm ini mewakili seluruh ONU di dalamnya;
+     * alarm ONU anaknya disupres dari notifikasi ({@see App\Services\AlarmEvaluator}).
+     */
+    public const TYPE_ODP_DOWN = 'odp_down';
 
     public const TYPE_LOS = 'los';
 
@@ -42,11 +60,12 @@ class AlarmEvent extends Model
 
     /**
      * Every alarm type the evaluator can raise, with a human label. Single source
-     * of truth for the Telegram per-type notification filter (Settings → Telegram).
+     * of truth for the per-type notification filter (Settings → Alarm).
      */
     public const TYPE_LABELS = [
         self::TYPE_OLT_UNREACHABLE => 'OLT tidak terhubung',
         self::TYPE_PORT_DOWN => 'Port PON down',
+        self::TYPE_ODP_DOWN => 'ODP down (semua ONU offline)',
         self::TYPE_LOS => 'Loss of Signal (LOS)',
         self::TYPE_DYING_GASP => 'Power Off',
         self::TYPE_ONU_OFFLINE => 'ONU offline',

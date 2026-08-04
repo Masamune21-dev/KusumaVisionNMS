@@ -115,45 +115,47 @@ const submitAcs = () => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Tab: Alarm (perilaku konfirmasi)                                    */
+/* Tab: Alarm — PUSAT kebijakan alarm (dipakai Telegram + push mobile) */
 /* ------------------------------------------------------------------ */
 const alarmForm = useForm({
     confirm_before_notify: props.alarm.confirm_before_notify,
+    min_severity: props.alarm.min_severity,
+    notify_on_raise: props.alarm.notify_on_raise,
+    notify_on_clear: props.alarm.notify_on_clear,
+    notify_types: [...(props.alarm.notify_types ?? [])],
+    suppress_child_alarms: props.alarm.suppress_child_alarms,
+    group_odp_alarms: props.alarm.group_odp_alarms,
 });
+
+const isTypeSelected = (value) => alarmForm.notify_types.includes(value);
+
+const toggleType = (value) => {
+    alarmForm.notify_types = isTypeSelected(value)
+        ? alarmForm.notify_types.filter((v) => v !== value)
+        : [...alarmForm.notify_types, value];
+};
+
+const allTypesSelected = computed(
+    () => props.alarmTypeOptions.length > 0 && alarmForm.notify_types.length === props.alarmTypeOptions.length,
+);
+
+const toggleAllTypes = () => {
+    alarmForm.notify_types = allTypesSelected.value ? [] : props.alarmTypeOptions.map((opt) => opt.value);
+};
 
 const submitAlarm = () => {
     alarmForm.put(route('settings.alarm.update'), { preserveScroll: true });
 };
 
 /* ------------------------------------------------------------------ */
-/* Tab: Bot Telegram                                                   */
+/* Tab: Bot Telegram — KONEKSI saja (filter alarm ada di tab Alarm)     */
 /* ------------------------------------------------------------------ */
 const form = useForm({
     enabled: props.telegram.enabled,
     bot_token: '',
     chat_id: props.telegram.chat_id ?? '',
-    min_severity: props.telegram.min_severity,
-    notify_on_raise: props.telegram.notify_on_raise,
-    notify_on_clear: props.telegram.notify_on_clear,
-    notify_types: [...(props.telegram.notify_types ?? [])],
     commands_enabled: props.telegram.commands_enabled,
 });
-
-const isTypeSelected = (value) => form.notify_types.includes(value);
-
-const toggleType = (value) => {
-    form.notify_types = isTypeSelected(value)
-        ? form.notify_types.filter((v) => v !== value)
-        : [...form.notify_types, value];
-};
-
-const allTypesSelected = computed(
-    () => props.alarmTypeOptions.length > 0 && form.notify_types.length === props.alarmTypeOptions.length,
-);
-
-const toggleAllTypes = () => {
-    form.notify_types = allTypesSelected.value ? [] : props.alarmTypeOptions.map((opt) => opt.value);
-};
 
 const submit = () => {
     form.put(route('settings.telegram.update'), {
@@ -201,28 +203,12 @@ const lastSent = computed(() =>
 );
 
 /* ------------------------------------------------------------------ */
-/* Tab: Notifikasi Mobile (FCM)                                        */
+/* Tab: Notifikasi Mobile (FCM) — saklar kanal + perangkat             */
 /* ------------------------------------------------------------------ */
 const fcmForm = useForm({
     enabled: props.fcm.enabled,
-    min_severity: props.fcm.min_severity,
-    notify_on_raise: props.fcm.notify_on_raise,
-    notify_on_clear: props.fcm.notify_on_clear,
-    notify_types: [...(props.fcm.notify_types ?? [])],
 });
 
-const isFcmTypeSelected = (value) => fcmForm.notify_types.includes(value);
-const toggleFcmType = (value) => {
-    fcmForm.notify_types = isFcmTypeSelected(value)
-        ? fcmForm.notify_types.filter((v) => v !== value)
-        : [...fcmForm.notify_types, value];
-};
-const allFcmTypesSelected = computed(
-    () => props.alarmTypeOptions.length > 0 && fcmForm.notify_types.length === props.alarmTypeOptions.length,
-);
-const toggleAllFcmTypes = () => {
-    fcmForm.notify_types = allFcmTypesSelected.value ? [] : props.alarmTypeOptions.map((opt) => opt.value);
-};
 const submitFcm = () => {
     fcmForm.put(route('settings.fcm.update'), { preserveScroll: true });
 };
@@ -575,6 +561,12 @@ const copyText = async (text, key) => {
                     </div>
 
                     <div class="space-y-6 p-5 sm:p-6">
+                        <div class="flex items-start gap-3 rounded-lg border border-cyan-500/25 bg-cyan-500/5 px-4 py-3 text-xs text-cyan-100/90">
+                            <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
+                            <span v-html="$t('settings.alarm_central_note')"></span>
+                        </div>
+
+                        <!-- Perilaku deteksi -->
                         <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
                             <span>
                                 <span class="block text-sm font-medium text-white">{{ $t('settings.alarm_toggle') }}</span>
@@ -583,6 +575,90 @@ const copyText = async (text, key) => {
                             <Checkbox v-model:checked="alarmForm.confirm_before_notify" class="h-5 w-5" />
                         </label>
 
+                        <!-- Korelasi root-cause: induk down = anak tak ikut dikirim -->
+                        <div class="space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                            <p class="text-sm font-semibold text-white">{{ $t('settings.alarm_correlation_title') }}</p>
+                            <label class="flex items-start justify-between gap-4">
+                                <span>
+                                    <span class="block text-sm font-medium text-white">{{ $t('settings.alarm_suppress_children') }}</span>
+                                    <span class="block text-xs text-slate-400" v-html="$t('settings.alarm_suppress_children_hint')"></span>
+                                </span>
+                                <Checkbox v-model:checked="alarmForm.suppress_child_alarms" class="mt-0.5 h-5 w-5 shrink-0" />
+                            </label>
+                            <label class="flex items-start justify-between gap-4 border-t border-white/5 pt-3">
+                                <span>
+                                    <span class="block text-sm font-medium text-white">{{ $t('settings.alarm_group_odp') }}</span>
+                                    <span class="block text-xs text-slate-400" v-html="$t('settings.alarm_group_odp_hint')"></span>
+                                </span>
+                                <Checkbox v-model:checked="alarmForm.group_odp_alarms" class="mt-0.5 h-5 w-5 shrink-0" />
+                            </label>
+                        </div>
+
+                        <!-- Filter penerusan: severity + pemicu -->
+                        <div class="grid gap-x-6 gap-y-6 lg:grid-cols-2">
+                            <div>
+                                <InputLabel for="alarm_min_severity" :value="$t('telegrambot.min_severity')" />
+                                <select
+                                    id="alarm_min_severity"
+                                    v-model="alarmForm.min_severity"
+                                    class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
+                                >
+                                    <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ $t(`alarms.sev_opt_${opt.value}`) }}</option>
+                                </select>
+                                <InputError :message="alarmForm.errors.min_severity" class="mt-2" />
+                                <p class="mt-1 text-xs text-slate-400">{{ $t('telegrambot.min_severity_hint') }}</p>
+                            </div>
+
+                            <div>
+                                <InputLabel :value="$t('telegrambot.triggers')" />
+                                <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                    <label class="flex items-start gap-3">
+                                        <Checkbox v-model:checked="alarmForm.notify_on_raise" class="mt-0.5" />
+                                        <span>
+                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_raise') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_raise_hint') }}</span>
+                                        </span>
+                                    </label>
+                                    <label class="flex items-start gap-3">
+                                        <Checkbox v-model:checked="alarmForm.notify_on_clear" class="mt-0.5" />
+                                        <span>
+                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_clear') }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_clear_hint') }}</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Jenis alarm yang dikirim -->
+                        <div>
+                            <div class="flex items-center justify-between gap-3">
+                                <InputLabel :value="$t('telegrambot.types_label')" />
+                                <button type="button" class="text-xs font-medium text-cyan-300 hover:text-cyan-200" @click="toggleAllTypes">
+                                    {{ allTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
+                                </button>
+                            </div>
+                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
+                                <label
+                                    v-for="opt in alarmTypeOptions"
+                                    :key="opt.value"
+                                    class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
+                                >
+                                    <Checkbox
+                                        :checked="isTypeSelected(opt.value)"
+                                        class="h-4 w-4"
+                                        @update:checked="toggleType(opt.value)"
+                                    />
+                                    <span class="text-sm text-slate-200">{{ alarmTypeLabel(t, opt.value) }}</span>
+                                </label>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-400">
+                                {{ $t('settings.alarm_types_hint') }}
+                                <span v-if="alarmForm.notify_types.length === 0" class="text-amber-400">{{ $t('telegrambot.types_none') }}</span>
+                            </p>
+                            <InputError :message="alarmForm.errors.notify_types" class="mt-2" />
+                        </div>
+
                         <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
                             <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
                             <span v-html="$t('settings.alarm_note')"></span>
@@ -590,6 +666,7 @@ const copyText = async (text, key) => {
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5">
                             <PrimaryButton :disabled="alarmForm.processing">{{ $t('common.save') }}</PrimaryButton>
+                            <span v-if="alarmForm.recentlySuccessful" class="text-xs text-emerald-400">{{ $t('settings.saved') }}</span>
                         </div>
                     </div>
                 </form>
@@ -641,70 +718,15 @@ const copyText = async (text, key) => {
                             <p class="mt-1 text-xs text-slate-400" v-html="$t('telegrambot.chat_id_hint')"></p>
                         </div>
 
-                        <div>
-                            <InputLabel for="min_severity" :value="$t('telegrambot.min_severity')" />
-                            <select
-                                id="min_severity"
-                                v-model="form.min_severity"
-                                class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
-                            >
-                                <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ $t(`alarms.sev_opt_${opt.value}`) }}</option>
-                            </select>
-                            <InputError :message="form.errors.min_severity" class="mt-2" />
-                            <p class="mt-1 text-xs text-slate-400">{{ $t('telegrambot.min_severity_hint') }}</p>
-                        </div>
-
-                        <div>
-                            <InputLabel :value="$t('telegrambot.triggers')" />
-                            <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                                <label class="flex items-start gap-3">
-                                    <Checkbox v-model:checked="form.notify_on_raise" class="mt-0.5" />
-                                    <span>
-                                        <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_raise') }}</span>
-                                        <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_raise_hint') }}</span>
-                                    </span>
-                                </label>
-                                <label class="flex items-start gap-3">
-                                    <Checkbox v-model:checked="form.notify_on_clear" class="mt-0.5" />
-                                    <span>
-                                        <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_clear') }}</span>
-                                        <span class="block text-xs text-slate-400">{{ $t('telegrambot.on_clear_hint') }}</span>
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="lg:col-span-2">
-                            <div class="flex items-center justify-between gap-3">
-                                <InputLabel :value="$t('telegrambot.types_label')" />
-                                <button
-                                    type="button"
-                                    class="text-xs font-medium text-cyan-300 hover:text-cyan-200"
-                                    @click="toggleAllTypes"
-                                >
-                                    {{ allTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
-                                </button>
-                            </div>
-                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
-                                <label
-                                    v-for="opt in alarmTypeOptions"
-                                    :key="opt.value"
-                                    class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
-                                >
-                                    <Checkbox
-                                        :checked="isTypeSelected(opt.value)"
-                                        class="h-4 w-4"
-                                        @update:checked="toggleType(opt.value)"
-                                    />
-                                    <span class="text-sm text-slate-200">{{ alarmTypeLabel(t, opt.value) }}</span>
-                                </label>
-                            </div>
-                            <p class="mt-1 text-xs text-slate-400">
-                                {{ $t('telegrambot.types_hint_admin') }}
-                                <span v-if="form.notify_types.length === 0" class="text-amber-400">{{ $t('telegrambot.types_none') }}</span>
-                            </p>
-                            <InputError :message="form.errors.notify_types" class="mt-2" />
-                        </div>
+                        <!-- Filter alarm dipindah ke tab Alarm (satu pengaturan untuk semua kanal). -->
+                        <button
+                            type="button"
+                            class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
+                            @click="activeTab = 'alarm'"
+                        >
+                            <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                            <span class="text-xs text-slate-400" v-html="$t('settings.alarm_filter_moved')"></span>
+                        </button>
 
                         <div class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-4 lg:col-span-2">
                             <div class="flex items-center justify-between gap-3">
@@ -793,62 +815,15 @@ const copyText = async (text, key) => {
                                 <Checkbox v-model:checked="fcmForm.enabled" class="h-5 w-5" />
                             </label>
 
-                            <div>
-                                <InputLabel for="fcm_min_severity" :value="$t('telegrambot.min_severity')" />
-                                <select
-                                    id="fcm_min_severity"
-                                    v-model="fcmForm.min_severity"
-                                    class="mt-1 block min-h-11 w-full rounded-md border border-white/10 bg-slate-900/60 py-2.5 px-3 text-sm text-white shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
-                                >
-                                    <option v-for="opt in severityOptions" :key="opt.value" :value="opt.value">{{ $t(`alarms.sev_opt_${opt.value}`) }}</option>
-                                </select>
-                                <InputError :message="fcmForm.errors.min_severity" class="mt-2" />
-                                <p class="mt-1 text-xs text-slate-400">{{ $t('telegrambot.min_severity_hint') }}</p>
-                            </div>
-
-                            <div>
-                                <InputLabel :value="$t('telegrambot.triggers')" />
-                                <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
-                                    <label class="flex items-start gap-3">
-                                        <Checkbox v-model:checked="fcmForm.notify_on_raise" class="mt-0.5" />
-                                        <span>
-                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_raise') }}</span>
-                                            <span class="block text-xs text-slate-400">{{ $t('settings.fcm_on_raise_hint') }}</span>
-                                        </span>
-                                    </label>
-                                    <label class="flex items-start gap-3">
-                                        <Checkbox v-model:checked="fcmForm.notify_on_clear" class="mt-0.5" />
-                                        <span>
-                                            <span class="block text-sm font-medium text-white">{{ $t('telegrambot.on_clear') }}</span>
-                                            <span class="block text-xs text-slate-400">{{ $t('settings.fcm_on_clear_hint') }}</span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div class="lg:col-span-2">
-                                <div class="flex items-center justify-between gap-3">
-                                    <InputLabel :value="$t('telegrambot.types_label')" />
-                                    <button type="button" class="text-xs font-medium text-cyan-300 hover:text-cyan-200" @click="toggleAllFcmTypes">
-                                        {{ allFcmTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
-                                    </button>
-                                </div>
-                                <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
-                                    <label
-                                        v-for="opt in alarmTypeOptions"
-                                        :key="opt.value"
-                                        class="flex items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-white/5"
-                                    >
-                                        <Checkbox :checked="isFcmTypeSelected(opt.value)" class="h-4 w-4" @update:checked="toggleFcmType(opt.value)" />
-                                        <span class="text-sm text-slate-200">{{ alarmTypeLabel(t, opt.value) }}</span>
-                                    </label>
-                                </div>
-                                <p class="mt-1 text-xs text-slate-400">
-                                    {{ $t('settings.fcm_types_hint') }}
-                                    <span v-if="fcmForm.notify_types.length === 0" class="text-amber-400">{{ $t('settings.fcm_types_none') }}</span>
-                                </p>
-                                <InputError :message="fcmForm.errors.notify_types" class="mt-2" />
-                            </div>
+                            <!-- Filter alarm dipindah ke tab Alarm (satu pengaturan untuk semua kanal). -->
+                            <button
+                                type="button"
+                                class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
+                                @click="activeTab = 'alarm'"
+                            >
+                                <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                                <span class="text-xs text-slate-400" v-html="$t('settings.alarm_filter_moved')"></span>
+                            </button>
 
                             <div v-if="fcmLastSent || fcm.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
                                 <p v-if="fcmLastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ fcmLastSent }}</span></p>

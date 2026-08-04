@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AlarmEvent;
+use App\Models\AlarmSetting;
 use App\Models\FcmSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,36 +13,48 @@ class SettingsFcmTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_default_fcm_setting_is_enabled_raise_major(): void
+    public function test_default_fcm_setting_is_enabled_and_follows_central_policy(): void
     {
         $s = FcmSetting::instance();
 
         $this->assertTrue($s->enabled);
-        $this->assertTrue($s->notify_on_raise);
-        $this->assertFalse($s->notify_on_clear);
-        $this->assertSame(AlarmEvent::SEVERITY_MAJOR, $s->min_severity);
-        // null notify_types → semua tipe.
+        // Filter alarm kini terpusat di AlarmSetting (default: kirim saat naik, semua jenis).
+        $this->assertTrue($s->notifyOnRaise());
+        $this->assertFalse($s->notifyOnClear());
         $this->assertSame(AlarmEvent::types(), $s->notifyTypes());
     }
 
-    public function test_admin_can_update_fcm_settings(): void
+    public function test_admin_can_toggle_mobile_push_channel(): void
     {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->put(route('settings.fcm.update'), ['enabled' => false])
+            ->assertSessionHas('success');
+
+        $this->assertFalse(FcmSetting::instance()->enabled);
+    }
+
+    public function test_fcm_endpoint_no_longer_owns_alarm_filters(): void
+    {
+        // Filter dikirim ke endpoint kanal (mis. dari klien lama) tak boleh mengubah kebijakan:
+        // satu-satunya pintu adalah Settings → Alarm.
+        AlarmSetting::create(['min_severity' => AlarmEvent::SEVERITY_WARNING]);
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->put(route('settings.fcm.update'), [
                 'enabled' => true,
                 'min_severity' => AlarmEvent::SEVERITY_CRITICAL,
-                'notify_on_raise' => true,
-                'notify_on_clear' => true,
-                'notify_types' => [AlarmEvent::TYPE_LOS, AlarmEvent::TYPE_DYING_GASP],
+                'notify_types' => [AlarmEvent::TYPE_LOS],
             ])
             ->assertSessionHas('success');
 
-        $s = FcmSetting::instance();
-        $this->assertSame(AlarmEvent::SEVERITY_CRITICAL, $s->min_severity);
-        $this->assertTrue($s->notify_on_clear);
-        $this->assertSame([AlarmEvent::TYPE_LOS, AlarmEvent::TYPE_DYING_GASP], $s->notifyTypes());
+        $this->assertSame(AlarmEvent::SEVERITY_WARNING, AlarmSetting::instance()->min_severity);
+        $this->assertSame(
+            AlarmEvent::SEVERITY_RANK[AlarmEvent::SEVERITY_WARNING],
+            FcmSetting::instance()->minSeverityRank(),
+        );
     }
 
     public function test_non_admin_cannot_access_settings(): void
@@ -49,7 +62,7 @@ class SettingsFcmTest extends TestCase
         $operator = User::factory()->create(); // default operator
 
         $this->actingAs($operator)
-            ->put(route('settings.fcm.update'), ['min_severity' => AlarmEvent::SEVERITY_MAJOR])
+            ->put(route('settings.fcm.update'), ['enabled' => true])
             ->assertForbidden();
     }
 

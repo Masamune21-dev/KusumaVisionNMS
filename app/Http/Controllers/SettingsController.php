@@ -58,17 +58,20 @@ class SettingsController extends Controller
             ],
             'appInfo' => $this->appInfoPayload(),
             'mobileApk' => $this->mobileApkPayload(),
+            // Kebijakan alarm TERPUSAT (tab Alarm) — dipakai bersama kanal Telegram & push mobile.
             'alarm' => [
                 'confirm_before_notify' => (bool) $alarm->confirm_before_notify,
+                'min_severity' => $alarm->min_severity ?? AlarmEvent::SEVERITY_WARNING,
+                'notify_on_raise' => (bool) $alarm->notify_on_raise,
+                'notify_on_clear' => (bool) $alarm->notify_on_clear,
+                'notify_types' => $alarm->notifyTypes(),
+                'suppress_child_alarms' => (bool) $alarm->suppress_child_alarms,
+                'group_odp_alarms' => (bool) $alarm->group_odp_alarms,
             ],
             'telegram' => [
                 'enabled' => (bool) $setting->enabled,
                 'bot_token_set' => filled($setting->bot_token),
                 'chat_id' => $setting->chat_id,
-                'min_severity' => $setting->min_severity ?? AlarmEvent::SEVERITY_WARNING,
-                'notify_on_raise' => (bool) $setting->notify_on_raise,
-                'notify_on_clear' => (bool) $setting->notify_on_clear,
-                'notify_types' => $setting->notifyTypes(),
                 'commands_enabled' => (bool) $setting->commands_enabled,
                 'webhook_set' => filled($setting->webhook_secret),
                 'last_sent_at' => $setting->last_sent_at?->toIso8601String(),
@@ -78,10 +81,6 @@ class SettingsController extends Controller
                 // Kredensial Firebase terpasang di server (kapabilitas teknis).
                 'credentials_ready' => app(FcmAlarmNotifier::class)->enabled(),
                 'enabled' => (bool) $fcm->enabled,
-                'min_severity' => $fcm->min_severity ?? AlarmEvent::SEVERITY_MAJOR,
-                'notify_on_raise' => (bool) $fcm->notify_on_raise,
-                'notify_on_clear' => (bool) $fcm->notify_on_clear,
-                'notify_types' => $fcm->notifyTypes(),
                 'device_count' => FcmDeviceToken::query()->count(),
                 'last_sent_at' => $fcm->last_sent_at?->toIso8601String(),
                 'last_error' => $fcm->last_error,
@@ -259,19 +258,46 @@ class SettingsController extends Controller
     }
 
     /**
-     * Simpan perilaku alarm global (debounce 2 poll vs realtime).
-     * true  = konfirmasi 2 poll dulu sebelum kirim notifikasi (anti-flap, default).
-     * false = realtime: kirim langsung saat fault pertama terdeteksi.
-     * Berlaku untuk semua OLT & semua kanal (Telegram + FCM), efektif pada poll berikutnya.
+     * Simpan kebijakan alarm TERPUSAT (tab Alarm) — satu-satunya tempat mengatur perilaku alarm.
+     * Berlaku untuk semua OLT & SEMUA kanal (Telegram bot global + push mobile), efektif pada
+     * poll berikutnya tanpa restart:
+     *  - `confirm_before_notify` true = konfirmasi 2 poll dulu (anti-flap, default), false = realtime.
+     *  - `min_severity` / `notify_on_raise` / `notify_on_clear` / `notify_types` = filter penerusan.
+     *  - `suppress_child_alarms` = port PON / ODP down menahan notifikasi alarm ONU di bawahnya.
+     *  - `group_odp_alarms` = beberapa ONU 1 ODP down dirangkum jadi satu pesan.
      */
     public function updateAlarm(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'confirm_before_notify' => ['boolean'],
+            'min_severity' => ['required', Rule::in(array_keys(AlarmEvent::SEVERITY_RANK))],
+            'notify_on_raise' => ['boolean'],
+            'notify_on_clear' => ['boolean'],
+            'notify_types' => ['array'],
+            'notify_types.*' => [Rule::in(AlarmEvent::types())],
+            'suppress_child_alarms' => ['boolean'],
+            'group_odp_alarms' => ['boolean'],
         ]);
 
         $setting = AlarmSetting::instance();
-        $setting->confirm_before_notify = (bool) ($validated['confirm_before_notify'] ?? false);
+
+        $setting->fill([
+            'confirm_before_notify' => (bool) ($validated['confirm_before_notify'] ?? false),
+            'min_severity' => $validated['min_severity'],
+            'notify_on_raise' => (bool) ($validated['notify_on_raise'] ?? false),
+            'notify_on_clear' => (bool) ($validated['notify_on_clear'] ?? false),
+            'suppress_child_alarms' => (bool) ($validated['suppress_child_alarms'] ?? false),
+            'group_odp_alarms' => (bool) ($validated['group_odp_alarms'] ?? false),
+        ]);
+
+        // Filter per-jenis hanya disentuh bila form benar-benar mengirimnya. Field absen =
+        // pertahankan yang ada (null = semua jenis); array eksplisit disimpan ternormalisasi.
+        if ($request->has('notify_types')) {
+            $setting->notify_types = array_values(
+                array_intersect(AlarmEvent::types(), $validated['notify_types'] ?? [])
+            );
+        }
+
         $setting->save();
 
         return back()->with('success', __('flash.alarm_saved'));
@@ -303,22 +329,17 @@ class SettingsController extends Controller
         return back()->with('success', __('flash.acs_saved'));
     }
 
+    /**
+     * Simpan KONEKSI bot Telegram global (token, chat id, saklar, command/webhook).
+     * Filter alarm (severity/jenis/raise-clear) TIDAK diatur di sini lagi — terpusat di
+     * {@see self::updateAlarm()} (Settings → tab Alarm).
+     */
     public function updateTelegram(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'enabled' => ['boolean'],
             'bot_token' => ['nullable', 'string', 'max:255'],
             'chat_id' => ['nullable', 'string', 'max:255'],
-            'min_severity' => ['required', Rule::in([
-                AlarmEvent::SEVERITY_WARNING,
-                AlarmEvent::SEVERITY_MINOR,
-                AlarmEvent::SEVERITY_MAJOR,
-                AlarmEvent::SEVERITY_CRITICAL,
-            ])],
-            'notify_on_raise' => ['boolean'],
-            'notify_on_clear' => ['boolean'],
-            'notify_types' => ['array'],
-            'notify_types.*' => [Rule::in(AlarmEvent::types())],
             'commands_enabled' => ['boolean'],
         ]);
 
@@ -327,20 +348,8 @@ class SettingsController extends Controller
         $setting->fill([
             'enabled' => (bool) ($validated['enabled'] ?? false),
             'chat_id' => $validated['chat_id'] ?? null,
-            'min_severity' => $validated['min_severity'],
-            'notify_on_raise' => (bool) ($validated['notify_on_raise'] ?? false),
-            'notify_on_clear' => (bool) ($validated['notify_on_clear'] ?? false),
             'commands_enabled' => (bool) ($validated['commands_enabled'] ?? false),
         ]);
-
-        // Only touch the per-type filter when the form actually submits it. An absent
-        // field keeps the existing set (null = all); an explicit (even empty) array is
-        // stored normalised to known types in canonical order.
-        if ($request->has('notify_types')) {
-            $setting->notify_types = array_values(
-                array_intersect(AlarmEvent::types(), $validated['notify_types'] ?? [])
-            );
-        }
 
         // Empty token field means "keep the existing token".
         if (filled($validated['bot_token'] ?? null)) {
@@ -386,39 +395,17 @@ class SettingsController extends Controller
     }
 
     /**
-     * Simpan pengaturan push notifikasi mobile (FCM).
+     * Simpan SAKLAR push notifikasi mobile (FCM). Filter alarmnya terpusat di tab Alarm
+     * ({@see self::updateAlarm()}), jadi di sini tinggal on/off kanalnya.
      */
     public function updateFcm(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'enabled' => ['boolean'],
-            'min_severity' => ['required', Rule::in([
-                AlarmEvent::SEVERITY_WARNING,
-                AlarmEvent::SEVERITY_MINOR,
-                AlarmEvent::SEVERITY_MAJOR,
-                AlarmEvent::SEVERITY_CRITICAL,
-            ])],
-            'notify_on_raise' => ['boolean'],
-            'notify_on_clear' => ['boolean'],
-            'notify_types' => ['array'],
-            'notify_types.*' => [Rule::in(AlarmEvent::types())],
         ]);
 
         $setting = FcmSetting::instance();
-
-        $setting->fill([
-            'enabled' => (bool) ($validated['enabled'] ?? false),
-            'min_severity' => $validated['min_severity'],
-            'notify_on_raise' => (bool) ($validated['notify_on_raise'] ?? false),
-            'notify_on_clear' => (bool) ($validated['notify_on_clear'] ?? false),
-        ]);
-
-        if ($request->has('notify_types')) {
-            $setting->notify_types = array_values(
-                array_intersect(AlarmEvent::types(), $validated['notify_types'] ?? [])
-            );
-        }
-
+        $setting->enabled = (bool) ($validated['enabled'] ?? false);
         $setting->save();
 
         return back()->with('success', __('flash.fcm_saved'));
