@@ -76,8 +76,12 @@ class ContentSecurityPolicy
             "font-src 'self' https://fonts.bunny.net data:",
             // Tiles peta (Google/OSM) + marker data/blob.
             "img-src 'self' data: blob: https:",
-            // API same-origin (axios) + telnet WebSocket (same-origin wss via /telnet-ws).
-            "connect-src 'self' wss:",
+            // API same-origin (axios) + telnet WebSocket (same-origin via /telnet-ws).
+            // Di halaman http (deploy Docker/LAN tanpa TLS) URL-nya ws://, dan 'self'
+            // tidak menjamin cocok untuk skema ws: di semua browser -> koneksi telnet
+            // diblokir CSP. Buka ws: HANYA saat halaman memang http; di halaman https
+            // cukup wss: (ws: pun akan ditolak browser sebagai mixed content).
+            "connect-src 'self' wss:".($secure ? '' : ' ws:'),
             "worker-src 'self' blob:",
             "manifest-src 'self'",
         ];

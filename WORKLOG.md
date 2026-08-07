@@ -1,5 +1,52 @@
 # Worklog
 
+## 2026-08-07
+
+### Fix terminal telnet browser gagal di deploy Docker ("WebSocket error")
+
+Laporan pengguna eksternal (install via Docker, buka `http://localhost:8080`): terminal telnet
+selalu berakhir **"WebSocket error — cek daemon telnet:proxy"** padahal daemon hidup dan instalasi
+manual (`install.sh`, port 80) aman. Bukan salah instalasi — dua bug di aplikasi yang cuma muncul
+saat aplikasi dilayani di **port non-standar** dan/atau **tanpa TLS**, dua-duanya kondisi default
+deploy Docker (`APP_PORT=8080`, http).
+
+Created:
+
+- `tests/Feature/TelnetSessionUrlTest.php` — 2 test: `ws_url` mempertahankan port non-standar
+  (`http://localhost:8080` → `ws://localhost:8080/telnet-ws?token=…`), dan tetap `wss://host` tanpa
+  port saat https. Diverifikasi memerah pada kode lama (menghasilkan `ws://localhost/telnet-ws`,
+  persis yang diterima browser pelapor).
+
+Changed:
+
+- `app/Http/Controllers/TelnetSessionController.php` — `wsUrl()` memakai `$request->getHttpHost()`
+  (bukan `getHost()`) saat `TELNET_PROXY_WS_URL` berupa path relatif. `getHost()` **membuang port**,
+  jadi container yang di-publish `8080:80` menghasilkan URL WebSocket ke port 80 — tak ada listener
+  → `onerror` seketika. Di port 80/443 nilainya identik, jadi deploy `install.sh` tak berubah.
+- `app/Http/Middleware/ContentSecurityPolicy.php` — `connect-src` menambah `ws:` **hanya** saat
+  halaman http. Di halaman non-TLS URL telnet berskema `ws://`, dan `'self'` tak dijamin cocok untuk
+  skema `ws:` di semua browser → koneksi bisa diblokir CSP. Di halaman https tetap `'self' wss:`
+  (ws polos akan ditolak browser sebagai mixed content, jadi tak ada gunanya dibuka).
+- `tests/Feature/ContentSecurityPolicyTest.php` — 2 test tambahan: halaman http mengandung
+  `connect-src 'self' wss: ws:`, halaman https tidak mengandung ws polos.
+- `resources/js/Components/Shell/TelnetWindow.vue` + `resources/js/lang/{id,en}.json` — pesan error
+  WebSocket kini **menyebut URL yang dicoba** (kunci baru `shell.telnet_ws_error`) dan ikut ditulis
+  ke terminal. Pesan lama hardcoded dan tak menyebut URL, sehingga "URL salah" vs "daemon mati" tak
+  bisa dibedakan dari layar pengguna — inilah yang bikin diagnosis jarak jauh buntu.
+- `docs/DOCKER.md` — baris troubleshooting untuk gejala ini (update image via `docker compose up -d
+  --build`, cara cek daemon lewat `docker compose logs app`).
+
+Notes:
+
+- Konfigurasi Docker sendiri **sudah benar** dan tak diubah: nginx `location /telnet-ws` sudah
+  meneruskan `Upgrade`/`Connection` ke `127.0.0.1:6002`, supervisor sudah menjalankan
+  `kusumavision-telnet-proxy`, dan `TELNET_PROXY_*` sudah di-set di `docker-compose.yml`.
+- Bug ini mengenai **semua** deploy di port non-standar (mis. `php artisan serve --port=8000` +
+  `TELNET_PROXY_WS_URL=/telnet-ws`), bukan Docker saja.
+- Pengguna Docker perlu **rebuild image** (`docker compose up -d --build`) karena perbaikannya ada di
+  kode aplikasi; server yang deploy dari repo cukup `git pull` + rebuild aset frontend.
+- Seluruh suite hijau: 491 passed (2585 assertions).
+
 ## 2026-08-02
 
 ### Alarm ODP down + supresi alarm anak + pengaturan alarm dipusatkan di tab Alarm

@@ -74,6 +74,7 @@
         "telnet_requesting_token": "Meminta token…",
         "telnet_token_failed": "Gagal mendapatkan token telnet.",
         "telnet_closed": "Koneksi ditutup",
+        "telnet_ws_error": "WebSocket error ke {url} — cek daemon telnet:proxy / URL WebSocket",
         "rx_last": "Terakhir",
         "rx_empty": "Belum ada riwayat RX pada rentang ini. Tunggu siklus polling RX berikutnya.",
         "rx_avg": "Rata-rata",

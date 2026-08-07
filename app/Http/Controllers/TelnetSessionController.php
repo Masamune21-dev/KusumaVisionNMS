@@ -48,7 +48,12 @@ class TelnetSessionController extends Controller
             $base = sprintf('ws://%s:%d', $request->getHost(), (int) config('telnet.proxy.port', 6002));
         } elseif (str_starts_with($base, '/')) {
             // Relative path proxied by the web server: derive scheme + host from the request.
-            $base = ($request->isSecure() ? 'wss' : 'ws').'://'.$request->getHost().$base;
+            // getHttpHost() (BUKAN getHost()) supaya PORT non-standar ikut terbawa —
+            // deploy Docker mem-publish container :80 ke host :8080, jadi getHost()
+            // menghasilkan ws://localhost/telnet-ws yang menembak port 80 (tak ada
+            // listener) -> browser langsung "WebSocket error". Di port 80/443 nilainya
+            // identik dengan getHost(), jadi deploy install.sh tak berubah.
+            $base = ($request->isSecure() ? 'wss' : 'ws').'://'.$request->getHttpHost().$base;
         }
 
         $sep = str_contains($base, '?') ? '&' : '?';

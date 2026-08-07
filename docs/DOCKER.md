@@ -159,6 +159,7 @@ image sudah tersedia dan tidak diminta rebuild.)
 | Web tak kebuka, `app` restart terus | `docker compose logs app` — cek error migrasi/APP_KEY/DB. Pastikan `db` `healthy` dulu. |
 | `docker compose` tidak dikenal | Docker Desktop belum jalan / plugin compose belum ada. |
 | Lupa password admin | `docker compose exec app php artisan user:create ...` buat user baru, atau reset via tinker. |
+| Terminal telnet browser: **"WebSocket error — cek daemon telnet:proxy"** | Sudah diperbaiki (URL WebSocket dulu kehilangan `APP_PORT`, mis. `ws://localhost/telnet-ws` padahal app di `:8080`). **Update image**: `git pull` lalu `docker compose up -d --build` (atau `update.bat`). Kalau masih: `docker compose logs app \| grep telnet-proxy` untuk memastikan daemon hidup, dan pastikan port telnet OLT (TCP/23) memang bisa dijangkau dari PC. |
 | Ganti PC tapi ingin bawa data | Backup (`pg_dump`) di §5, restore di PC baru. |
 | Ingin mulai bersih total | `docker compose down -v` (⚠️ **menghapus semua data volume**). |
 | **Windows:** build gagal saat unduh, pesan `gzip`/`unexpected EOF`/`failed to register layer` | Layer image korup karena koneksi putus saat mengunduh base image (node/go/php ± 2 GB). **Ulang** `docker compose build --pull` (Docker melanjutkan dari layer yang sudah ada). Kalau jaringan tak stabil: build **sekali** di PC berjaringan bagus lalu distribusi via **image prebuilt** (§8 Opsi B). |

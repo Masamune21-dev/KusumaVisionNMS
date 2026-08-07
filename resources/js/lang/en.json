@@ -74,6 +74,7 @@
         "telnet_requesting_token": "Requesting token…",
         "telnet_token_failed": "Failed to get a telnet token.",
         "telnet_closed": "Connection closed",
+        "telnet_ws_error": "WebSocket error to {url} — check the telnet:proxy daemon / WebSocket URL",
         "rx_last": "Last",
         "rx_empty": "No RX history in this range yet. Wait for the next RX polling cycle.",
         "rx_avg": "Average",

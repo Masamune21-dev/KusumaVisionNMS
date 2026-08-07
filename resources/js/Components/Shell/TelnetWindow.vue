@@ -175,7 +175,10 @@ function connect(url) {
     };
     ws.onerror = () => {
         status.value = 'error';
-        statusMessage.value = 'WebSocket error — cek daemon telnet:proxy';
+        // Tampilkan URL yang dicoba: penyebab tersering adalah URL WebSocket salah
+        // (port/skema) atau daemon telnet:proxy mati — tanpa URL sulit dibedakan.
+        statusMessage.value = t('shell.telnet_ws_error', { url });
+        term?.writeln(`\r\n\x1b[31m${statusMessage.value}\x1b[0m`);
     };
 }
 
