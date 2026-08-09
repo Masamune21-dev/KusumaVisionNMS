@@ -529,7 +529,7 @@ const mapHref = (odp) =>
         </Modal>
 
         <!-- Modal kelola ONU -->
-        <Modal :show="manageOpen" max-width="2xl" @close="closeManage">
+        <Modal :show="manageOpen" max-width="4xl" @close="closeManage">
             <div v-if="manageOdp" class="p-6">
                 <div class="flex items-start justify-between gap-3">
                     <div>
@@ -555,7 +555,7 @@ const mapHref = (odp) =>
                             {{ $t('odp.connected_title', { count: connected.length }) }}
                         </h4>
                         <p v-if="!connected.length" class="mt-2 text-sm text-slate-500">{{ $t('odp.connected_empty') }}</p>
-                        <ul v-else class="mt-2 max-h-72 space-y-1.5 overflow-y-auto pr-1">
+                        <ul v-else class="mt-2 max-h-[22rem] space-y-1.5 overflow-y-auto pr-1">
                             <li
                                 v-for="onu in connected"
                                 :key="`c-${onu.slot}-${onu.port}-${onu.onu_id}`"
@@ -563,10 +563,17 @@ const mapHref = (odp) =>
                             >
                                 <component :is="onu.online ? Wifi : WifiOff" class="h-4 w-4 flex-shrink-0" :class="onu.online ? 'text-emerald-400' : 'text-red-400'" />
                                 <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm text-slate-100">{{ onu.name || $t('odp.onu_unnamed') }}</p>
-                                    <p class="truncate text-[11px] text-slate-500">{{ onu.interface }} · {{ onu.serial_number }}</p>
+                                    <p
+                                        class="break-words text-sm leading-snug text-slate-100"
+                                        :title="onu.name || $t('odp.onu_unnamed')"
+                                    >
+                                        {{ onu.name || $t('odp.onu_unnamed') }}
+                                    </p>
+                                    <p class="truncate text-[11px] text-slate-500" :title="`${onu.interface} · ${onu.serial_number}`">
+                                        {{ onu.interface }} · {{ onu.serial_number }}
+                                    </p>
                                 </div>
-                                <IconButton variant="danger" :title="$t('odp.remove_onu')" :disabled="assigning" @click="assignOnu(onu, null)">
+                                <IconButton class="flex-shrink-0" variant="danger" :title="$t('odp.remove_onu')" :disabled="assigning" @click="assignOnu(onu, null)">
                                     <X class="h-4 w-4" />
                                 </IconButton>
                             </li>
@@ -586,7 +593,7 @@ const mapHref = (odp) =>
                             />
                         </div>
                         <p v-if="!candidates.length" class="mt-2 text-sm text-slate-500">{{ $t('odp.add_onu_empty') }}</p>
-                        <ul v-else class="mt-2 max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                        <ul v-else class="mt-2 max-h-[19rem] space-y-1.5 overflow-y-auto pr-1">
                             <li
                                 v-for="onu in candidates"
                                 :key="`a-${onu.slot}-${onu.port}-${onu.onu_id}`"
@@ -594,13 +601,18 @@ const mapHref = (odp) =>
                             >
                                 <component :is="onu.online ? Wifi : WifiOff" class="h-4 w-4 flex-shrink-0" :class="onu.online ? 'text-emerald-400' : 'text-red-400'" />
                                 <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm text-slate-100">{{ onu.name || $t('odp.onu_unnamed') }}</p>
-                                    <p class="truncate text-[11px] text-slate-500">
+                                    <p
+                                        class="break-words text-sm leading-snug text-slate-100"
+                                        :title="onu.name || $t('odp.onu_unnamed')"
+                                    >
+                                        {{ onu.name || $t('odp.onu_unnamed') }}
+                                    </p>
+                                    <p class="text-[11px] text-slate-500">
                                         {{ onu.interface }}
                                         <span v-if="onu.current_odp_name" class="text-amber-300">· {{ $t('odp.currently_in', { name: onu.current_odp_name }) }}</span>
                                     </p>
                                 </div>
-                                <IconButton :title="$t('odp.add_onu')" :disabled="assigning" @click="assignOnu(onu, manageOdp.id)">
+                                <IconButton class="flex-shrink-0" :title="$t('odp.add_onu')" :disabled="assigning" @click="assignOnu(onu, manageOdp.id)">
                                     <Plus class="h-4 w-4" />
                                 </IconButton>
                             </li>

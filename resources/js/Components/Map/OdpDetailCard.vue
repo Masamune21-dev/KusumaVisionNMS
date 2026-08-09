@@ -88,9 +88,9 @@ const deleteOdp = async () => {
         <!-- Header -->
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
-                <div class="flex items-center gap-1.5">
-                    <span class="inline-block h-2.5 w-2.5 rounded-sm bg-amber-500 ring-1 ring-white/40"></span>
-                    <h3 class="truncate text-sm font-semibold text-white">{{ odp.name }}</h3>
+                <div class="flex items-start gap-1.5">
+                    <span class="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-amber-500 ring-1 ring-white/40"></span>
+                    <h3 class="break-words text-sm font-semibold leading-snug text-white" :title="odp.name">{{ odp.name }}</h3>
                 </div>
                 <p class="mt-0.5 truncate text-[11px] text-slate-400">
                     {{ $t('map.odp_label') }} · {{ odp.olt_name }}<span v-if="odp.port != null"> · {{ $t('map.odp_port') }} {{ odp.slot }}/{{ odp.port }}</span>
@@ -112,17 +112,22 @@ const deleteOdp = async () => {
         </div>
 
         <!-- Daftar ONU terhubung -->
-        <div v-if="onus.length" class="max-h-44 space-y-1 overflow-auto rounded-lg border border-white/10 bg-white/5 p-1.5">
+        <div v-if="onus.length" class="max-h-52 space-y-1 overflow-auto rounded-lg border border-white/10 bg-white/5 p-1.5">
             <div
                 v-for="onu in onus"
                 :key="`${onu.snmp_olt_id}-${onu.slot}-${onu.port}-${onu.onu_id}`"
-                class="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs"
+                class="flex items-start justify-between gap-2 rounded-md px-2 py-1 text-xs"
             >
                 <span class="min-w-0">
-                    <span class="block truncate font-medium text-slate-100">{{ onu.name || onu.interface || `ONU #${onu.onu_id}` }}</span>
+                    <!-- Nama pelanggan dibiarkan membungkus (maks 2 baris) — dipotong 1 baris
+                         bikin nama panjang "…(ODP X)" tak terbaca sama sekali. -->
+                    <span
+                        class="line-clamp-2 break-words font-medium leading-snug text-slate-100"
+                        :title="onu.name || onu.interface || `ONU #${onu.onu_id}`"
+                    >{{ onu.name || onu.interface || `ONU #${onu.onu_id}` }}</span>
                     <span class="block truncate text-[10px] text-slate-500">{{ onu.serial_number || onu.interface || '—' }}</span>
                 </span>
-                <component :is="onu.online ? Wifi : WifiOff" class="h-3.5 w-3.5 shrink-0" :class="onu.online ? 'text-emerald-400' : 'text-red-400'" />
+                <component :is="onu.online ? Wifi : WifiOff" class="mt-0.5 h-3.5 w-3.5 shrink-0" :class="onu.online ? 'text-emerald-400' : 'text-red-400'" />
             </div>
         </div>
         <p v-else class="rounded-lg border border-dashed border-white/10 px-2 py-3 text-center text-[11px] text-slate-500">

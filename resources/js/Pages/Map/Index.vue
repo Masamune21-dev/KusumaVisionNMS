@@ -211,10 +211,11 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
                     <span class="kv-pin-popup__arrow"></span>
                 </div>
 
-                <!-- Kartu detail pin ODP -->
+                <!-- Kartu detail pin ODP — sedikit lebih lebar dari kartu ONU karena memuat
+                     daftar ONU anggota; dibatasi lebar layar supaya tak meluber di ponsel. -->
                 <div
                     v-if="selectedOdp && odpCardPos"
-                    class="kv-pin-popup absolute z-[500] w-72"
+                    class="kv-pin-popup absolute z-[500] w-80 max-w-[calc(100vw-1.5rem)]"
                     :style="odpCardStyle"
                 >
                     <OdpDetailCard :odp="selectedOdp" @close="closeOdpDetail" />

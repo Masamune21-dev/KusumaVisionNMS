@@ -1,5 +1,49 @@
 # Worklog
 
+## 2026-08-09
+
+### Nama ONU tak lagi terpotong di modal "Kelola ONU" (halaman ODP) & popup detail ODP (peta)
+
+Laporan pengguna: nama pelanggan di daftar ONU tampil terpotong (`Pipit Ledokan (ODP MUSHOL…`,
+`#2309160719 Eko SRC Golilo (OD…`) sehingga tak bisa dibedakan satu sama lain. Penyebabnya kombinasi
+dua hal — wadah terlalu sempit **dan** `truncate` (1 baris + elipsis); memperbaiki salah satunya saja
+tak cukup, karena nama pola `#<id> <nama> (ODP <x>)` di proyek ini rutin 40+ karakter.
+
+Changed:
+
+- `resources/js/Components/Modal.vue` — `maxWidthClass` menambah opsi `3xl`/`4xl`/`5xl` (sebelumnya
+  mentok `2xl` = 672px). Aditif, tak mengubah pemakai modal yang sudah ada.
+- `resources/js/Pages/Odp/Index.vue` — modal "Kelola ONU" `max-width` `2xl` → `4xl` (896px; dua kolom
+  jadi ~420px/kolom, dari ~300px). Nama ONU di kedua kolom: `truncate` → `break-words` +
+  `leading-snug` + atribut `title`, jadi nama panjang turun ke baris berikutnya alih-alih hilang;
+  baris kedua (interface · serial) tetap `truncate` + `title` karena panjangnya seragam. `IconButton`
+  aksi diberi `flex-shrink-0` supaya tak gepeng saat baris jadi 2 baris. Tinggi daftar disamakan
+  (`max-h-72`/`max-h-64` → `22rem`/`19rem`) agar dua kolom rata dan tetap muat di layar.
+- `resources/js/Pages/Map/Index.vue` — wadah popup detail **ODP** `w-72` → `w-80` +
+  `max-w-[calc(100vw-1.5rem)]`. Popup pin ONU sengaja tetap `w-72` (isinya cuma 1 ONU).
+- `resources/js/Components/Map/OdpDetailCard.vue` — nama ONU anggota: `truncate` → `line-clamp-2
+  break-words` + `title`; nama ODP di header lepas dari `truncate` (penanda kotak kuning pindah ke
+  `items-start` + `mt-1` + `shrink-0` supaya tetap sejajar baris pertama saat nama jadi 2 baris);
+  ikon status Wifi diberi `mt-0.5` + baris `items-start` dengan alasan yang sama; tinggi daftar
+  `max-h-44` → `max-h-52`.
+
+Notes:
+
+- Beda perlakuan disengaja: di **modal** halaman ODP nama dibiarkan wrap bebas (ruang lega),
+  sedangkan di **popup peta** dibatasi `line-clamp-2` — popup ruangnya sempit dan ODP berisi 12+ ONU
+  akan jadi terlalu tinggi kalau tiap nama boleh 3-4 baris. Pada lebar 320px, 2 baris ≈ 90 karakter,
+  jauh di atas nama terpanjang yang ada.
+- `max-w-[calc(100vw-1.5rem)]` pada popup ODP wajib: popup ditempel `transform: translate(-50%, …)`
+  di atas pin, jadi kartu 320px tanpa batas bisa meluber keluar area peta di layar ponsel.
+- Tinggi daftar di popup peta hanya dinaikkan sedikit (176 → 208px) karena kartu tumbuh **ke atas**
+  dari pin dan belum ada logika flip posisi — menambah terlalu banyak bikin bagian atas kartu keluar
+  viewport peta.
+- `resources/js/Components/Map/PinDetailCard.vue:113` (judul nama pelanggan di popup pin ONU) sengaja
+  **tidak** disentuh — di luar cakupan permintaan, dan isinya satu nama pendek di header.
+- Verifikasi: `npm run build` sukses; kelas baru terbukti masuk CSS hasil build (`sm:max-w-4xl`,
+  `line-clamp-2`, `.w-80`, `max-w-\[calc\(100vw-1\.5rem\)\]`). Tailwind 3.4 sudah punya `line-clamp`
+  bawaan, tak perlu plugin.
+
 ## 2026-08-07
 
 ### Fix terminal telnet browser gagal di deploy Docker ("WebSocket error")

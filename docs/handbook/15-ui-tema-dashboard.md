@@ -265,7 +265,15 @@ aksi — bukan tabel kosong.
 Jangan kirim tabel lebar tanpa varian mobile.
 
 **Modal/konfirmasi**: aksi destruktif pakai `useConfirm` + `<ConfirmModal>`; modal kustom pakai
-`Components/Modal.vue` (sudah dark glass, `rounded-2xl`).
+`Components/Modal.vue` (sudah dark glass, `rounded-2xl`). Prop `max-width` menerima
+`sm|md|lg|xl|2xl|3xl|4xl|5xl` — pakai `md`/`lg` untuk form pendek, `4xl` ke atas hanya untuk isi
+dua kolom (mis. modal "Kelola ONU" di halaman ODP) supaya nama panjang tak perlu dipotong.
+
+**Teks yang bisa panjang** (nama pelanggan/ONU pola `#<id> <nama> (ODP <x>)`, sering 40+ karakter):
+jangan refleks `truncate`. Di ruang lega pakai `break-words` + `leading-snug`; di ruang sempit
+(popup peta) `line-clamp-2 break-words`. Selalu sertakan atribut `title` berisi teks penuh, dan beri
+elemen sebelah (ikon/tombol) `shrink-0` + baris `items-start` supaya tetap rapi saat teks jadi 2
+baris. `truncate` tetap wajar untuk nilai berpanjang seragam (interface, serial).
 
 ---
 
