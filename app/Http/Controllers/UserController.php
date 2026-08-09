@@ -7,6 +7,7 @@ use App\Models\SnmpOlt;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -17,18 +18,47 @@ class UserController extends Controller
 {
     public function index(): Response
     {
+        // OLT privat yang ditambahkan sendiri oleh tiap user, dikelompokkan per pemilik.
+        //
+        // WAJIB query builder mentah, bukan Eloquent: PartnerOltScope menyembunyikan OLT
+        // privat partner (`owner_user_id` terisi) dari admin/operator, jadi relasi
+        // `partnerOlts` di bawah tak akan pernah memuatnya — itu benar untuk form assign
+        // (admin memang cuma boleh menugaskan OLT global), tapi bikin jumlah OLT partner
+        // tampak lebih sedikit dari kenyataan.
+        $ownedOltIds = [];
+
+        foreach (DB::table('snmp_olts')->whereNotNull('owner_user_id')->get(['id', 'owner_user_id']) as $row) {
+            $ownedOltIds[(int) $row->owner_user_id][] = (int) $row->id;
+        }
+
         $users = User::query()
             ->with('partnerOlts:id')
             ->orderBy('name')
             ->get()
-            ->map(fn (User $user) => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role?->value,
-                'assigned_olt_ids' => $user->partnerOlts->pluck('id')->all(),
-                'created_at' => $user->created_at?->toISOString(),
-            ]);
+            // Role tertinggi di atas (Administrator → Operator → Partner → Demo), nama tetap
+            // menaik di dalam tiap role: sortBy PHP 8 stabil, jadi orderBy('name') di atas
+            // yang menentukan urutan sesama role. `values()` wajib — sortBy mempertahankan
+            // key, dan array berlubang akan ter-serialisasi jadi objek JSON, bukan array.
+            ->sortBy(fn (User $user) => $user->role?->rank() ?? PHP_INT_MAX)
+            ->values()
+            ->map(function (User $user) use ($ownedOltIds) {
+                // Hanya OLT global — inilah yang boleh dicentang admin di form assign.
+                $assignedIds = $user->partnerOlts->pluck('id')->all();
+                $owned = $ownedOltIds[$user->id] ?? [];
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role?->value,
+                    'assigned_olt_ids' => $assignedIds,
+                    'owned_olt_count' => count($owned),
+                    // Total OLT yang bisa diakses user = penugasan admin + OLT tambahan
+                    // sendiri. Di-unique untuk jaga-jaga bila keduanya beririsan.
+                    'total_olt_count' => count(array_unique(array_merge($assignedIds, $owned))),
+                    'created_at' => $user->created_at?->toISOString(),
+                ];
+            });
 
         return Inertia::render('Users/Index', [
             'users' => $users,

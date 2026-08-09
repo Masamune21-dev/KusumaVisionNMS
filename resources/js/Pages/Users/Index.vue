@@ -78,15 +78,22 @@ const oltAssignmentHint = computed(() =>
 );
 
 // Label ringkas cakupan OLT di daftar user. Operator tanpa assignment = akses penuh (tak ditampilkan).
+//
+// Yang dihitung adalah TOTAL OLT yang bisa diakses user (penugasan admin + OLT yang
+// ditambahkan sendiri partner), bukan cuma yang di-assign. Kalau ada OLT tambahan sendiri,
+// rinciannya ikut ditampilkan supaya angka yang lebih besar dari jumlah centang di form
+// assign tidak terlihat seperti bug.
 const oltScopeText = (user) => {
-    const count = assignedCount(user);
-    if (user.role === 'partner') {
-        return t('users.olt_assigned', { n: count });
+    const total = totalOltCount(user);
+    const owned = ownedCount(user);
+
+    if (user.role !== 'partner' && !(user.role === 'operator' && total > 0)) {
+        return null;
     }
-    if (user.role === 'operator' && count > 0) {
-        return t('users.olt_assigned', { n: count });
-    }
-    return null;
+
+    return owned > 0
+        ? t('users.olt_scope_mixed', { total, assigned: total - owned, owned })
+        : t('users.olt_assigned', { n: total });
 };
 
 const toggleOlt = (id) => {
@@ -98,7 +105,11 @@ const toggleOlt = (id) => {
     }
 };
 
+// `assigned_olt_ids` sengaja tetap berisi OLT global saja — dipakai untuk mencentang form
+// assign, dan admin memang tak bisa menugaskan OLT privat milik partner.
 const assignedCount = (user) => (user.assigned_olt_ids ?? []).length;
+const ownedCount = (user) => user.owned_olt_count ?? 0;
+const totalOltCount = (user) => user.total_olt_count ?? assignedCount(user);
 
 const openCreate = () => {
     editingUser.value = null;

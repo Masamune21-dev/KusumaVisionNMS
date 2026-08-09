@@ -1204,6 +1204,7 @@
         "assign_hint_operator": "Operator dibatasi ke OLT yang dicentang. Kosongkan untuk memberi akses ke semua OLT.",
         "assign_hint_partner": "Partner hanya bisa melihat & mengedit OLT yang dicentang di sini.",
         "olt_assigned": "{n} OLT di-assign",
+        "olt_scope_mixed": "{total} OLT · {assigned} di-assign, {owned} milik sendiri",
         "no_olt": "Belum ada OLT terdaftar. Tambahkan OLT lebih dulu.",
         "password_new": "Password Baru (kosongkan jika tidak diganti)",
         "password": "Password",

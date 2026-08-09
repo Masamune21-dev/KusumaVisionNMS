@@ -1204,6 +1204,7 @@
         "assign_hint_operator": "The operator is limited to the checked OLTs. Leave empty to grant access to all OLTs.",
         "assign_hint_partner": "The partner can only view & edit the OLTs checked here.",
         "olt_assigned": "{n} OLTs assigned",
+        "olt_scope_mixed": "{total} OLTs · {assigned} assigned, {owned} self-added",
         "no_olt": "No OLTs registered yet. Add an OLT first.",
         "password_new": "New Password (leave blank to keep the current one)",
         "password": "Password",

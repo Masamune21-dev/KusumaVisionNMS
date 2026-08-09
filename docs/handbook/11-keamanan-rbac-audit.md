@@ -47,6 +47,14 @@ Assignment global dikelola admin di halaman **Users** (multiselect OLT) — pivo
 **dipertahankan** saat sync (`syncPartnerOlts`) supaya kepemilikan tak lepas. Aksi tambah OLT di-gate
 `role:admin,operator,partner`; hapus di-gate role + kepemilikan di controller.
 
+**Satu pengecualian sadar dari "tersembunyi total"**: daftar user (`UserController::index`) menampilkan
+**jumlah** OLT partner termasuk OLT privatnya (`total_olt_count` = pivot ∪ `owner_user_id`,
+`owned_olt_count` = yang ia tambah sendiri) supaya angkanya tidak menyesatkan admin. Nama/IP/detail OLT
+privat tetap tersembunyi. Hitungannya **wajib** lewat `DB::table('snmp_olts')` mentah — relasi
+`partnerOlts` kena `PartnerOltScope` sehingga tak pernah memuat OLT privat. Field `assigned_olt_ids`
+(pengisi centang form assign) tetap **hanya OLT global**: admin tak boleh menugaskan/mencabut OLT privat
+partner, jadi memasukkannya ke situ bisa membuat form menghapus kepemilikan yang tak terlihat di layar.
+
 **Alarm ke partner:** `FcmAlarmNotifier` & `TelegramNotifier` — untuk OLT **global** penerima = admin+operator ∪
 partner ter-assign; untuk OLT **privat partner** (`owner_user_id` terisi) admin/operator **tidak** dapat
 notif — hanya partner pemiliknya. Bot Telegram partner: lihat [10 — Alarm & Telegram](10-alarm-telegram.md).

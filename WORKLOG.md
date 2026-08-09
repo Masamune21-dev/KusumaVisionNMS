@@ -44,6 +44,49 @@ Notes:
   `line-clamp-2`, `.w-80`, `max-w-\[calc\(100vw-1\.5rem\)\]`). Tailwind 3.4 sudah punya `line-clamp`
   bawaan, tak perlu plugin.
 
+### Halaman Pengguna: urut per hierarki role + jumlah OLT partner ikut hitung OLT tambahan sendiri
+
+Dua permintaan pengguna pada halaman Manajemen User: (1) role tertinggi di paling atas, (2) angka
+OLT partner harus mencerminkan yang benar-benar ia punya — bukan cuma yang di-assign admin, tapi
+juga OLT yang ditambahkan partner itu sendiri.
+
+Created:
+
+- `tests/Feature/UserListPageTest.php` — 2 test payload halaman user: urutan
+  `admin,admin,operator,operator,partner,partner,demo` dengan nama tetap menaik di dalam tiap role
+  (7 user sengaja di-insert acak), dan partner dengan 1 OLT global + 2 OLT privat menghasilkan
+  `total_olt_count=3` / `owned_olt_count=2` sementara `assigned_olt_ids` tetap hanya OLT global.
+
+Changed:
+
+- `app/Enums/UserRole.php` — method `rank()` (Admin 0 → Operator 1 → Partner 2 → Demo 3) sebagai
+  sumber tunggal hierarki role.
+- `app/Http/Controllers/UserController.php` — `index()` mengurutkan hasil dengan
+  `sortBy(role->rank())` setelah `orderBy('name')`, lalu `values()`. Ditambah pengumpulan
+  `owner_user_id` dari `snmp_olts` (satu query, dikelompokkan per pemilik) dan dua field payload
+  baru: `owned_olt_count` + `total_olt_count`.
+- `resources/js/Pages/Users/Index.vue` — `oltScopeText()` memakai total, dan menampilkan rincian
+  bila partner punya OLT sendiri; helper `ownedCount`/`totalOltCount` ditambah.
+- `resources/js/lang/{id,en}.json` — kunci `users.olt_scope_mixed`.
+
+Notes:
+
+- **Relasi `partnerOlts` tak bisa dipakai menghitung OLT milik partner.** `PartnerOltScope`
+  menyembunyikan OLT privat partner (`owner_user_id` terisi) dari admin/operator — termasuk lewat
+  relasi Eloquent — jadi jumlahnya selalu kekecilan. Hitungan `owner_user_id` karena itu memakai
+  `DB::table('snmp_olts')` mentah, teknik yang sama dengan `User::allowedOltIds()`.
+- `assigned_olt_ids` **sengaja tidak diubah** (tetap OLT global saja): field itu mengisi centang
+  form assign, dan admin memang tak boleh menugaskan/mencabut OLT privat partner. Kalau OLT privat
+  ikut dimasukkan, menyimpan form bisa mengubah kepemilikan OLT yang tak terlihat di layar.
+- Urutan nama di dalam satu role mengandalkan `sortBy` PHP 8 yang **stabil**, jadi `orderBy('name')`
+  di query yang menentukan — bukan sort dua kunci. `->values()` wajib: `sortBy` mempertahankan key,
+  dan array berlubang ter-serialisasi jadi objek JSON, bukan array.
+- Konsekuensi produk yang disadari & disetujui: halaman ini kini membocorkan **keberadaan** OLT
+  privat partner ke admin dalam bentuk jumlah (nama/IP tetap tersembunyi), padahal desain
+  `PartnerOltScope` menyembunyikannya total. Ini konsekuensi langsung dari permintaan.
+- Verifikasi: 20 test lolos (`UserListPageTest` + `RoleAccessTest` + `PartnerRoleTest`), Pint bersih,
+  `npm run build` sukses.
+
 ## 2026-08-07
 
 ### Fix terminal telnet browser gagal di deploy Docker ("WebSocket error")

@@ -20,6 +20,23 @@ enum UserRole: string
     }
 
     /**
+     * Peringkat hierarki role — angka kecil = wewenang lebih tinggi.
+     *
+     * Dipakai untuk mengurutkan daftar user (Administrator di paling atas). Sengaja
+     * eksplisit, bukan diturunkan dari urutan `cases()`, supaya urutan case bisa diubah
+     * tanpa diam-diam mengubah hierarki.
+     */
+    public function rank(): int
+    {
+        return match ($this) {
+            self::Admin => 0,
+            self::Operator => 1,
+            self::Partner => 2,
+            self::Demo => 3,
+        };
+    }
+
+    /**
      * @return array<int, string>
      */
     public static function values(): array
