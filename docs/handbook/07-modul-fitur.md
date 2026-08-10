@@ -69,6 +69,9 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   Detail (`Pages/{CDataOlt,Hioso,HsAirPo}/Detail.vue`, plus baris label di kartu mobile) dan di
   header halaman Port ONU. Prop `port_labels` dikirim controller detail/portOnus masing-masing
   family. Tidak ada telnet/SNMP yang tersentuh — label murni catatan operator.
+- **Aplikasi Android**: `GET /api/v1/olts/{olt}` mengirim label ini lewat field `description` per
+  port yang sudah ada (untuk non-ZTE field itu memang selalu `null` sebelumnya), jadi label tampil
+  di APK terpasang tanpa rilis baru — model & layar Flutter sudah merender `description`.
 
 ### 4b. TR069 Massal (per-OLT)
 - **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_onu_config_write` — penulis config gaya C300, OFF di C600; ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.

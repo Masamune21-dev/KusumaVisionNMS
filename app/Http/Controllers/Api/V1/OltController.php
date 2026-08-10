@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\SmartOltInterfaceStatus;
 use App\Models\SnmpOlt;
+use App\Services\OltPortLabelService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 
@@ -29,7 +30,7 @@ class OltController extends Controller
     /**
      * GET /api/v1/olts/{olt} — detail satu OLT: info sistem, daftar port, ringkasan ONU.
      */
-    public function show(SnmpOlt $olt): JsonResponse
+    public function show(SnmpOlt $olt, OltPortLabelService $labels): JsonResponse
     {
         $result = $olt->last_test_result ?? [];
         $portOnus = collect($result['port_onus'] ?? []);
@@ -38,8 +39,11 @@ class OltController extends Controller
         // Di C600 `if_descr` SNMP sudah berisi deskripsi bebas — dipakai fallback bila CLI belum ditarik.
         $descByKey = SmartOltInterfaceStatus::descriptionsBySlotPort($olt->id);
         $isC600 = SmartOltSupport::isC600($olt);
+        // Family non-ZTE menamai portnya di NMS (tabel olt_port_labels), bukan di perangkat —
+        // dikirim lewat field `description` yang sama supaya tampil di APK yang sudah terpasang.
+        $labelByKey = $labels->forOlt($olt);
 
-        $ports = collect($result['ports'] ?? [])->map(function (array $port) use ($portOnus, $descByKey, $isC600) {
+        $ports = collect($result['ports'] ?? [])->map(function (array $port) use ($portOnus, $descByKey, $isC600, $labelByKey) {
             $key = ($port['slot'] ?? 0).'_'.($port['port'] ?? 0);
             $bucket = collect($portOnus->get($key)['onus'] ?? []);
 
@@ -48,6 +52,7 @@ class OltController extends Controller
                 $ifDescr = trim((string) ($port['if_descr'] ?? ''));
                 $description = $ifDescr !== '' ? $ifDescr : null;
             }
+            $description ??= $labelByKey[$key] ?? null;
 
             return [
                 'if_index' => $port['if_index'] ?? null,

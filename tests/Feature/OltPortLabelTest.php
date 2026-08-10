@@ -203,6 +203,34 @@ class OltPortLabelTest extends TestCase
                 ->where('port_labels.0_1', 'Perum Griya'));
     }
 
+    /**
+     * Aplikasi Android membaca `description` per port dari API. Family non-ZTE tak punya deskripsi
+     * dari perangkat, jadi label NMS dikirim lewat field yang sama — muncul di APK yang sudah
+     * terpasang tanpa perlu rilis baru.
+     */
+    public function test_api_port_detail_exposes_the_label_as_port_description(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->cdataOlt();
+        $olt->forceFill(['last_test_result' => [
+            'ok' => true,
+            'system' => ['sys_name' => 'CDATA-FAKE'],
+            'ports' => [['name' => 'epon 0/0/1', 'slot' => 0, 'port' => 1, 'if_index' => 524289, 'oper_status' => 'up']],
+        ]])->save();
+
+        $this->actingAs($user, 'sanctum')->getJson("/api/v1/olts/{$olt->id}")
+            ->assertOk()
+            ->assertJsonPath('data.ports.0.description', null);
+
+        $this->actingAs($user)
+            ->post(route('olt.port-label.store', $olt), ['slot' => 0, 'port' => 1, 'label' => 'Perum Griya'])
+            ->assertRedirect();
+
+        $this->actingAs($user, 'sanctum')->getJson("/api/v1/olts/{$olt->id}")
+            ->assertOk()
+            ->assertJsonPath('data.ports.0.description', 'Perum Griya');
+    }
+
     public function test_partner_cannot_label_ports_of_an_olt_outside_its_scope(): void
     {
         $partner = User::factory()->partner()->create();

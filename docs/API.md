@@ -361,7 +361,9 @@ OLT tak ada → `404`.
 
 `description` = deskripsi port PON (mis. nama area) hasil parse CLI `show interface`
 (tabel `smartolt_interface_statuses`) — `null` bila belum pernah ditarik; khusus C600
-fallback ke `ifDescr` SNMP.
+fallback ke `ifDescr` SNMP. Untuk family **non-ZTE** (C-Data/HiOSO/HsAirPo) perangkatnya
+tak punya deskripsi port, jadi field ini diisi **label port sisi-NMS** (`olt_port_labels`,
+di-set dari dashboard web) — lihat handbook [07 §4c](handbook/07-modul-fitur.md).
 
 ### 3.4. `GET /onus` — inventaris ONU lintas-OLT
 

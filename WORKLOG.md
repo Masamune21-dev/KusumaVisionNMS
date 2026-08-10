@@ -98,7 +98,10 @@ Changed:
 - `resources/js/Pages/{CDataOlt,Hioso,HsAirPo}/PortOnus.vue` — label + tombol edit di header port.
 - `resources/js/lang/{id,en}.json` — namespace `portlabel`; `lang/{id,en}/flash.php` —
   `port_label_saved`/`port_label_cleared`.
-- `CLAUDE.md`, `docs/handbook/{05-database-model,06-routing,07-modul-fitur}.md` — dokumentasi.
+- `app/Http/Controllers/Api/V1/OltController.php` — `show()` mengisi `description` per port dari
+  label NMS untuk family non-ZTE (fallback setelah deskripsi CLI ZTE / `if_descr` C600).
+- `CLAUDE.md`, `docs/API.md`, `docs/handbook/{05-database-model,06-routing,07-modul-fitur}.md` —
+  dokumentasi.
 
 Notes:
 
@@ -110,9 +113,16 @@ Notes:
 - `SmartOltSupport::capabilities()` menerima **string driver** sebagai argumen pertama (bukan model) —
   sempat salah panggil dan diam-diam jatuh ke cabang `unknown`; sekarang selalu lewat
   `capabilities(SmartOltSupport::driverKey($olt), $olt)`.
-- Diverifikasi: `OltPortLabelTest` 7 passed; `CDataOltInventoryTest|HiosoOltTest|HsAirPoOltTest|
-  CDataOltWriteTest` 29 passed / 254 assertions; `npm test` 12 passed; `npm run build` sukses.
-  Diterapkan ke produksi: `migrate --force`, `route:cache`, `queue:restart`.
+- **Aplikasi Android tak perlu rilis baru**: model `OltPort` (`mobile/lib/models/olt.dart:78`) dan
+  layar detail OLT (`olt_detail_screen.dart:242`) sudah merender `description`, sedangkan field itu
+  selalu `null` untuk family non-ZTE. Jadi label dikirim lewat field yang sama, bukan field baru —
+  keputusan sadar (field terpisah `port_label` lebih rapi secara semantik tapi menuntut build APK +
+  bump versionCode + sebar ulang). Untuk ZTE urutannya tak berubah: deskripsi dari perangkat menang.
+- Diverifikasi: `OltPortLabelTest` 8 passed; `CDataOltInventoryTest|HiosoOltTest|HsAirPoOltTest|
+  CDataOltWriteTest` 29 passed / 254 assertions; `ApiV1*` 41 passed; `npm test` 12 passed;
+  `npm run build` sukses. Payload API dicek langsung di OLT HiOSO live (id 1104): 4 port EPON
+  terkirim dengan `description` (null selama label belum diisi). Diterapkan ke produksi:
+  `migrate --force`, `route:cache`, `queue:restart`.
 
 ## 2026-08-09
 
