@@ -29,13 +29,16 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
   `supervisorctl restart kusumavision-telnet-proxy`.
 
 ### Test "nyasar" ke PostgreSQL / DB produksi
-- **Penyebab**: config ter-cache membuat `phpunit.xml` (SQLite testing) terabaikan.
+- **Penyebab**: config ter-cache dimuat lebih dulu saat boot dan **menang** atas `<env>` di
+  `phpunit.xml`, jadi koneksi resolve ke pgsql produksi walau `DB_CONNECTION=sqlite` sudah diset.
+- **Bahaya**: 53 file test memakai `RefreshDatabase`, yang memanggil `migrate:fresh` pada koneksi
+  default = **drop seluruh tabel produksi**.
 - **Solusi**:
   ```bash
-  php artisan config:clear
-  php artisan test
-  php artisan optimize        # cache lagi setelah selesai
+  bash scripts/test.sh        # mengalihkan cache config+route, abort bila DB bukan sqlite
   ```
+  **Jangan** pakai `php artisan config:clear` untuk ini — DB memang jadi aman, tapi cache config
+  produksi ikut terhapus dan tidak pernah dipulihkan.
 
 ### Migrasi gagal di test tapi sukses di prod (atau sebaliknya)
 - **Penyebab**: memakai fitur PostgreSQL-only; test pakai SQLite in-memory.
@@ -186,7 +189,7 @@ php artisan pail                        # tail log realtime (dev)
 php artisan tinker                      # REPL (cek model/cache)
 php artisan optimize / optimize:clear   # cache config+route+view
 ./vendor/bin/pint                      # code style
-php artisan test                       # PHPUnit (clear config dulu bila ter-cache)
+bash scripts/test.sh                   # PHPUnit — SELALU lewat skrip ini (lihat bagian troubleshooting)
 php artisan horizon                    # dashboard queue (dev)
 ```
 

@@ -12,7 +12,7 @@ The user communicates in Indonesian — respond in Indonesian (bilingual when di
 composer dev        # serve + queue + pail logs + vite (concurrently)
 php artisan serve --host=0.0.0.0 --port=8000
 npm run dev         # vite
-php artisan test    # PHPUnit (uses in-memory sqlite, see phpunit.xml)
+bash scripts/test.sh # PHPUnit — SELALU lewat skrip ini, JANGAN `php artisan test` polos (lihat Conventions)
 npm test            # Vitest (tests komponen Vue di tests/js/*.spec.js; config vitest.config.js)
 ./vendor/bin/pint   # code style
 php artisan telnet:proxy           # WebSocket<->telnet proxy daemon (browser terminal)
@@ -69,6 +69,7 @@ The PRD (`KusumaVision_NMS_PRD.md`) describes a broad vision; the **built scope 
 
 ## Conventions
 
+- **Test SELALU lewat `bash scripts/test.sh`** (alias `composer test`), **jangan pernah** `php artisan test` / `phpunit` polos. Checkout ini melayani produksi, dan `bootstrap/cache/config.php` dimuat lebih dulu saat boot lalu **menang** atas `<env>` di `phpunit.xml` — koneksi resolve ke pgsql `kusumavision_nms` walau `DB_CONNECTION=sqlite` sudah diset (terukur 10 Agu 2026). 53 file test memakai `RefreshDatabase` → `migrate:fresh` pada koneksi default = **drop seluruh tabel produksi**. Skrip itu mengalihkan `APP_CONFIG_CACHE`+`APP_ROUTES_CACHE` ke path non-eksisten (hanya dua ini — `APP_SERVICES_CACHE`/`APP_PACKAGES_CACHE` ditulis ulang saat boot, path tak-writable = exception) lalu **abort** kecuali probe menghasilkan `sqlite|:memory:`. `config:clear` **bukan** solusi: DB aman tapi cache config produksi terhapus permanen. Baseline hijau: 493 passed / 2606 assertions, `npm test` 12 passed.
 - Provisioning writes an audit row in `smartolt_onu_registrations` (script generated first, executed later/optionally). Profiles are scoped per-OLT with global (`snmp_olt_id = null`) fallback.
 - `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` is the **authoritative ZTE CLI command reference** — consult it over guessing command syntax. Untuk **C600** pakai `docs/SMARTOLT_ZTE_C600_GUIDE.md` (guide lama bagian C600 pernah salah total). **OID vendor hanya boleh masuk kode setelah dibaca dari perangkat asli** — kalau tak bisa diverifikasi, biarkan `null` dan matikan capability-nya. PDF C600 di `docs/*.pdf` **tak terverifikasi**, jangan dipakai sebagai sumber OID.
 - `WORKLOG.md` logs work phase-by-phase (Created/Changed/Notes, with real-OLT verification). Add a matching entry for meaningful changes.

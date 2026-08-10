@@ -11,7 +11,8 @@ terkait di handbook ini, lalu ikuti pola yang sudah ada di kode (jangan mencipta
 > - String UI/flash/pesan dalam **Bahasa Indonesia**.
 > - Catat perubahan berarti di [`WORKLOG.md`](../../WORKLOG.md) (Created/Changed/Notes + verifikasi
 >   OLT nyata bila menyentuh SNMP/CLI). Selesai → push (lihat skill `/done`).
-> - Jalankan `php artisan test` & `./vendor/bin/pint` sebelum commit.
+> - Jalankan `bash scripts/test.sh` & `./vendor/bin/pint` sebelum commit (**jangan** `php artisan
+>   test` polos — di mesin prod itu bisa men-drop tabel produksi).
 
 ---
 
@@ -108,7 +109,7 @@ Lihat [10 — Alarm & Telegram](10-alarm-telegram.md).
 ## Checklist pre-commit / pre-deploy
 
 - [ ] `./vendor/bin/pint` (style) bersih.
-- [ ] `php artisan test` hijau (clear config cache dulu bila mesin prod).
+- [ ] `bash scripts/test.sh` hijau (jangan `php artisan test` polos di mesin prod).
 - [ ] Migrasi SQLite-compatible.
 - [ ] Izin/role + capability + demo handling sudah benar (lihat [11](11-keamanan-rbac-audit.md)).
 - [ ] Secret tidak ter-log; cast `encrypted` + `$hidden`.

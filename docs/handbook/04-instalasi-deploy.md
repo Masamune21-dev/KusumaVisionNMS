@@ -182,11 +182,14 @@ supervisorctl restart kusumavision-telnet-proxy   # daemon telnet pakai kode bar
   lalu **restart daemon** (`queue:restart`, `supervisorctl restart kusumavision-telnet-proxy`).
 - **`.env` harus `640 root:www-data`** agar user `www-data` bisa membacanya. Bila jadi `root:root`
   dan cache config di-clear, app fallback ke SQLite → **site 500**.
-- **Saat menjalankan test di mesin yang config-nya ter-cache**, clear dulu:
+- **Test SELALU lewat `bash scripts/test.sh`**, tidak pernah `php artisan test` polos:
   ```bash
-  php artisan config:clear && php artisan test && php artisan optimize
+  bash scripts/test.sh
   ```
-  Kalau tidak, test bisa "nyasar" ke koneksi pgsql alih-alih SQLite test.
+  Di mesin yang config-nya ter-cache, cached config menang atas `<env>` `phpunit.xml` → koneksi
+  resolve ke pgsql produksi, dan test ber-`RefreshDatabase` akan men-`migrate:fresh` (drop semua
+  tabel) di sana. Skrip itu mengalihkan cache config+route ke path non-eksisten lalu **abort**
+  kecuali DB benar-benar sqlite `:memory:`.
 
 > Memori proyek mencatat dua gotcha ini — patuhi agar tidak menjatuhkan site.
 
@@ -213,7 +216,8 @@ supervisorctl status
 ## Testing
 
 ```bash
-php artisan test           # PHPUnit, SQLite in-memory (phpunit.xml)
+bash scripts/test.sh       # PHPUnit, SQLite in-memory (phpunit.xml) — jangan `artisan test` polos
+npm test                   # Vitest (tests/js/*.spec.js)
 ./vendor/bin/pint          # code style (Laravel Pint)
 ```
 Migrasi **wajib kompatibel SQLite** karena test jalan di SQLite walau prod PostgreSQL.

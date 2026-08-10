@@ -48,14 +48,15 @@ chown -R www-data:www-data storage bootstrap/cache
 php artisan queue:restart
 ```
 
-Saat menjalankan test, clear config cache lebih dulu agar `phpunit.xml` dapat memakai
-environment testing:
+Test **selalu** lewat skrip pembungkus, jangan `php artisan test` polos. Di mesin yang config-nya
+ter-cache, cached config menang atas `phpunit.xml` sehingga test berjalan di DB produksi:
 
 ```bash
-php artisan config:clear --ansi
-php artisan test
-php artisan optimize
+bash scripts/test.sh
 ```
+
+Skrip itu mengalihkan `APP_CONFIG_CACHE`/`APP_ROUTES_CACHE` ke path non-eksisten (cache produksi
+tidak disentuh) dan menolak jalan kecuali koneksi benar-benar sqlite `:memory:`.
 
 ## Nginx
 

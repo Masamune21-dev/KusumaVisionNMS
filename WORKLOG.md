@@ -1,5 +1,61 @@
 # Worklog
 
+## 2026-08-10
+
+### Test suite tak lagi bisa menyentuh database produksi (`scripts/test.sh`)
+
+Ditemukan saat mencari perkakas yang cocok untuk proyek ini: `php artisan test` polos di server ini
+**tidak** berjalan di sqlite seperti yang selama ini diasumsikan. `bootstrap/cache/config.php` produksi
+dimuat lebih dulu saat boot dan **menang** atas `<env>` di `phpunit.xml`, jadi koneksi resolve ke pgsql
+`kusumavision_nms`. Diukur langsung, bukan disimpulkan:
+
+```
+APP_ENV=testing DB_CONNECTION=sqlite php artisan tinker --execute="echo config('database.default');"
+  cache prod aktif            -> pgsql | kusumavision_nms
+  APP_CONFIG_CACHE dialihkan  -> sqlite | :memory:
+```
+
+53 file test memakai `RefreshDatabase`, yang memanggil `migrate:fresh` pada koneksi default
+(`vendor/laravel/framework/src/Illuminate/Foundation/Testing/RefreshDatabase.php:119`) — artinya **drop
+seluruh tabel produksi**. Tidak ada `.env.testing` yang menahan. Kenapa run sebelumnya tidak
+menghancurkan prod tidak bisa direkonstruksi penuh; dugaan terkuat justru itulah sebagian kegagalan
+yang dulu tercatat sebagai "test gagal massal".
+
+Created:
+
+- `scripts/test.sh` — pembungkus test. Mengalihkan `APP_CONFIG_CACHE` + `APP_ROUTES_CACHE` ke path
+  non-eksisten (file cache produksi tidak disentuh), lalu dua lapis pengaman: (1) pastikan path
+  pengalihan memang tidak ada, (2) probe `config('database.default')` meniru `<env>` phpunit dan
+  **abort** kecuali hasilnya `sqlite|:memory:`. Argumen diteruskan ke `artisan test`.
+
+Changed:
+
+- `composer.json` — script `test` tak lagi `php artisan config:clear && php artisan test` (DB memang
+  jadi aman, tapi cache config produksi terhapus dan tak pernah dipulihkan), kini `bash scripts/test.sh`.
+- `CLAUDE.md` — perintah `php artisan test` di bagian Commands diganti; ditambah butir Conventions
+  yang menjelaskan bahaya + kenapa hanya `APP_CONFIG_CACHE`/`APP_ROUTES_CACHE` yang boleh dialihkan.
+- `docs/handbook/13-troubleshooting-maintenance.md` — bagian "Test nyasar ke PostgreSQL" ditulis ulang
+  (penyebab sebenarnya + risiko drop tabel); tabel perintah cepat diperbarui.
+- `docs/handbook/04-instalasi-deploy.md` — catatan test di bagian deploy & bagian Testing diperbarui,
+  `npm test` ikut didaftarkan.
+- `docs/handbook/14-panduan-tambah-fitur.md` — aturan pre-commit & checklist memakai `scripts/test.sh`.
+- `docs/LOCAL_PRODUCTION_HARDENING.md` — resep `config:clear` + `optimize` diganti.
+
+Notes:
+
+- Diverifikasi dua arah, bukan hanya jalur sukses: `OdpTest` (memakai `RefreshDatabase`) lulus di
+  sqlite; salinan skrip dengan pengalihan cache dilepas **abort dengan exit 1**. Timestamp
+  `bootstrap/cache/config.php` (25 Jul) dan `routes-v7.php` (30 Jul) tidak berubah sesudahnya.
+- Baseline hijau lewat jalur baru: **493 passed / 2606 assertions / 108 dtk**, `npm test` 12 passed.
+  Kegagalan setelah ini berarti regresi sungguhan, bukan artefak cache.
+- **Hanya** `APP_CONFIG_CACHE` & `APP_ROUTES_CACHE` yang boleh dialihkan — keduanya read-only saat
+  boot. `APP_SERVICES_CACHE`/`APP_PACKAGES_CACHE` ditulis ulang on-demand, mengarahkannya ke path
+  tak-writable melempar exception. Path harus non-eksisten, bukan file kosong.
+- Server uji C600 (38.10.82.29) punya risiko yang sama dan ikut terlindungi begitu menarik commit ini.
+- Ditambahkan juga skill lokal `.claude/skills/test/` & `.claude/skills/apply/` (panduan menjalankan
+  test, dan tabel file-berubah → perintah refresh cache/daemon). **Tidak ikut ter-commit** karena
+  `.claude` ada di `.gitignore` — pengamannya sendiri (`scripts/test.sh`) tetap ikut.
+
 ## 2026-08-09
 
 ### Nama ONU tak lagi terpotong di modal "Kelola ONU" (halaman ODP) & popup detail ODP (peta)
