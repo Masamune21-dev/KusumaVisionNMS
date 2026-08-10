@@ -103,6 +103,8 @@ return [
     'port_detail_refreshed' => 'Detail :interface berhasil diperbarui dari OLT.',
     'port_refresh_failed' => 'Refresh :interface gagal: ',
     'port_description_saved' => 'Deskripsi :interface berhasil disimpan ke OLT.',
+    'port_label_saved' => 'Label port disimpan: :label',
+    'port_label_cleared' => 'Label port dihapus.',
     'fcm_sent' => 'Notifikasi terkirim ke :n perangkat.',
     'fcm_no_devices' => 'Belum ada perangkat mobile yang terdaftar.',
     'fcm_send_failed' => 'Gagal mengirim: ',

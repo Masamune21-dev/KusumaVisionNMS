@@ -2,6 +2,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import OltPortLabel from '@/Components/OltPortLabel.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -28,11 +29,18 @@ const props = defineProps({
     pinned_onu_ids: { type: Array, default: () => [] },
     odps: { type: Array, default: () => [] },
     odp_links: { type: Object, default: () => ({}) },
+    port_labels: { type: Object, default: () => ({}) },
 });
 
 const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
 
 const page = usePage();
+
+// Label port sisi-NMS (tabel olt_port_labels) — tak pernah ditulis ke OLT.
+const canEditPortLabel = computed(
+    () => Boolean(page.props.auth?.can?.manage_olt) && Boolean(props.olt.capabilities?.supports_port_label),
+);
+const portLabel = computed(() => props.port_labels?.[`${props.slot}_${props.port}`] ?? null);
 const flash = computed(() => page.props.flash ?? {});
 const search = ref(props.q ?? '');
 
@@ -212,9 +220,22 @@ const viewOnMap = (onu) => {
                     <Link :href="route('cdata-olt.detail', olt.id)" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
                     </Link>
-                    <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
-                        {{ olt.name }} · {{ olt.capabilities.pon_label }} 0/{{ slot }}/{{ port }}
-                    </h2>
+                    <div>
+                        <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
+                            {{ olt.name }} · {{ olt.capabilities.pon_label }} 0/{{ slot }}/{{ port }}
+                        </h2>
+                        <div class="mt-1 flex items-center gap-2">
+                            <span class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portlabel.column') }}</span>
+                            <OltPortLabel
+                                :olt-id="olt.id"
+                                :slot="slot"
+                                :port="port"
+                                :label="portLabel"
+                                :editable="canEditPortLabel"
+                                variant="header"
+                            />
+                        </div>
+                    </div>
                 </div>
                 <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
                     <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}

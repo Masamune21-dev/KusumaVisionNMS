@@ -56,6 +56,64 @@ Notes:
   test, dan tabel file-berubah → perintah refresh cache/daemon). **Tidak ikut ter-commit** karena
   `.claude` ada di `.gitignore` — pengamannya sendiri (`scripts/test.sh`) tetap ikut.
 
+### Label port PON sisi-NMS untuk family non-ZTE (C-Data, HiOSO, HsAirPo)
+
+Pertanyaan awal: OLT ZTE bisa dinamai deskripsi portnya — family lain bisa tidak? Diperiksa ke
+perangkat asli, bukan diasumsikan. Tak ada perintah CLI deskripsi **port PON** yang terverifikasi di
+C-Data/HiOSO/HsAirPo (yang ada hanya deskripsi **ONU**), dan probe `ifAlias`
+(`.1.3.6.1.2.1.31.1.1.1.18`) ke OLT live menunjukkan:
+
+| OLT | ifAlias | isi |
+|---|---|---|
+| ZTE C320 (#1) | 11 baris | semua kosong |
+| C-Data EPON (#276) | 16 baris | semua kosong |
+| C-Data GPON V3 (#277) | 14 baris | cuma nama port bawaan agent (`gpon 0/0/1`), bukan teks user |
+| HiOSO HA7304 (#1104) / HA7302 (#1222) | 8 / 11 baris | semua kosong |
+| HsAirPo (#1226) | — | tak menjawab SNMP saat probe |
+
+Karena itu labelnya disimpan di NMS, bukan ditulis ke perangkat. **ZTE tidak disentuh** — tetap
+memakai `smartolt.port.description` yang menulis ke OLT.
+
+Created:
+
+- `database/migrations/2026_08_10_000001_create_olt_port_labels_table.php` — tabel `olt_port_labels`
+  (`snmp_olt_id`+`slot`+`port` unik, `label` maks 64).
+- `app/Models/OltPortLabel.php` — model + `PartnerOltScope`.
+- `app/Services/OltPortLabelService.php` — `forOlt()` (peta `{slot}_{port}` ⇒ label) & `set()`
+  (simpan/hapus + sanitasi: buang kontrol char, rapatkan spasi, potong 64).
+- `app/Http/Controllers/OltPortLabelController.php` — satu endpoint untuk ketiga family.
+- `resources/js/Components/OltPortLabel.vue` — sel label inline (baca + edit) yang dipakai bersama.
+- `tests/Feature/OltPortLabelTest.php` — 7 test: simpan/hapus/ubah, sanitasi, ZTE ditolak 403, demo
+  & partner di luar scope tak bisa menulis, prop `port_labels` sampai ke halaman Detail & PortOnus.
+
+Changed:
+
+- `app/Support/SmartOltSupport.php` — capability baru `supports_port_label` = true di
+  `cdataEpon`/`cdataGpon`/`hiosoEpon`/`hsAirPoEpon`; **sengaja tidak ada di ZTE**.
+- `routes/web.php` — `POST /olts/{olt}/port-label` (`olt.port-label.store`).
+- `app/Http/Controllers/{CDataOlt,HiosoOlt,HsAirPoOlt}Controller.php` — `detail()` & `portOnus()`
+  mengirim prop `port_labels`.
+- `resources/js/Pages/{CDataOlt,Hioso,HsAirPo}/Detail.vue` — kolom **Label** di tabel port (+ baris
+  label di kartu mobile).
+- `resources/js/Pages/{CDataOlt,Hioso,HsAirPo}/PortOnus.vue` — label + tombol edit di header port.
+- `resources/js/lang/{id,en}.json` — namespace `portlabel`; `lang/{id,en}/flash.php` —
+  `port_label_saved`/`port_label_cleared`.
+- `CLAUDE.md`, `docs/handbook/{05-database-model,06-routing,07-modul-fitur}.md` — dokumentasi.
+
+Notes:
+
+- Label **sengaja di luar `last_test_result`**: snapshot itu ditimpa penuh tiap scan/poll, jadi label
+  akan hilang kalau ditaruh di sana (pola sama seperti side-store `hsairpo_rx`).
+- Gerbangnya capability `supports_port_label`, bukan cek nama family — OLT ZTE yang menembak endpoint
+  ini dapat 403 supaya tak ada dua sumber kebenaran untuk penamaan port.
+- Tak ada telnet/SNMP yang tersentuh sama sekali; menyimpan label = satu INSERT/UPDATE.
+- `SmartOltSupport::capabilities()` menerima **string driver** sebagai argumen pertama (bukan model) —
+  sempat salah panggil dan diam-diam jatuh ke cabang `unknown`; sekarang selalu lewat
+  `capabilities(SmartOltSupport::driverKey($olt), $olt)`.
+- Diverifikasi: `OltPortLabelTest` 7 passed; `CDataOltInventoryTest|HiosoOltTest|HsAirPoOltTest|
+  CDataOltWriteTest` 29 passed / 254 assertions; `npm test` 12 passed; `npm run build` sukses.
+  Diterapkan ke produksi: `migrate --force`, `route:cache`, `queue:restart`.
+
 ## 2026-08-09
 
 ### Nama ONU tak lagi terpotong di modal "Kelola ONU" (halaman ODP) & popup detail ODP (peta)

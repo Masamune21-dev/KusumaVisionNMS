@@ -1586,5 +1586,13 @@
         "phase_auth_failed": "Authentication failed",
         "phase_offline": "Offline",
         "phase_unknown": "Unknown"
+    },
+    "portlabel": {
+        "column": "Label",
+        "empty": "No label yet",
+        "placeholder": "e.g. East Route / Griya Estate",
+        "add_title": "Add port label",
+        "edit_title": "Edit port label",
+        "hint": "The label is stored in the NMS only; it is not written to the OLT."
     }
 }

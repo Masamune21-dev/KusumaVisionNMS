@@ -1,5 +1,6 @@
 <script setup>
 import IconButton from '@/Components/IconButton.vue';
+import OltPortLabel from '@/Components/OltPortLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import OltFaceplate from '@/Components/CDataOlt/OltFaceplate.vue';
@@ -11,6 +12,7 @@ import { computed } from 'vue';
 const props = defineProps({
     olt: { type: Object, required: true },
     snapshot: { type: Object, required: true },
+    port_labels: { type: Object, default: () => ({}) },
 });
 
 const page = usePage();
@@ -38,6 +40,12 @@ const portsUp = computed(() => ports.value.filter((p) => p.oper_status === 'up')
 const indexTab = computed(() => (props.olt.driver === 'hioso-epon-25355' ? 'hioso' : 'cdata'));
 
 const portCount = (p) => counts.value[`${p.slot}_${p.port}`] ?? { count: 0, online: 0 };
+
+// Label port sisi-NMS (tabel olt_port_labels) — tak pernah ditulis ke OLT.
+const canEditPortLabel = computed(
+    () => Boolean(page.props.auth?.can?.manage_olt) && Boolean(props.olt.capabilities?.supports_port_label),
+);
+const portLabel = (p) => props.port_labels?.[`${p.slot}_${p.port}`] ?? null;
 
 const scan = () => router.post(route('cdata-olt.refresh', props.olt.id), {}, { preserveScroll: true });
 const fmt = (v) => formatDateTime(v);
@@ -172,6 +180,7 @@ const fmt = (v) => formatDateTime(v);
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.port') }}</th>
+                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portlabel.column') }}</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
                                     <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
                                     <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
@@ -180,6 +189,15 @@ const fmt = (v) => formatDateTime(v);
                             <tbody class="divide-y divide-white/5">
                                 <tr v-for="p in ports" :key="p.if_index" class="transition-colors hover:bg-white/[0.03]">
                                     <td class="px-4 py-4 font-mono text-sm text-white">{{ p.name }}</td>
+                                    <td class="px-4 py-4">
+                                        <OltPortLabel
+                                            :olt-id="olt.id"
+                                            :slot="p.slot"
+                                            :port="p.port"
+                                            :label="portLabel(p)"
+                                            :editable="canEditPortLabel"
+                                        />
+                                    </td>
                                     <td class="px-4 py-4">
                                         <span class="inline-flex items-center gap-1.5 text-xs" :class="p.oper_status === 'up' ? 'text-emerald-400' : 'text-slate-500'">
                                             <span class="h-1.5 w-1.5 rounded-full" :class="p.oper_status === 'up' ? 'bg-emerald-400' : 'bg-slate-600'"></span>
@@ -214,6 +232,7 @@ const fmt = (v) => formatDateTime(v);
                                 <span class="font-mono text-sm text-white">{{ p.name }}</span>
                                 <span class="text-xs" :class="p.oper_status === 'up' ? 'text-emerald-400' : 'text-slate-500'">{{ p.oper_status }}</span>
                             </div>
+                            <p v-if="portLabel(p)" class="mt-0.5 break-words text-xs text-cyan-300">{{ portLabel(p) }}</p>
                             <p class="mt-1 text-xs text-slate-400">{{ $t('cdatadetail.onu_count_mobile', { count: portCount(p).count, online: portCount(p).online }) }}</p>
                         </Link>
                     </div>

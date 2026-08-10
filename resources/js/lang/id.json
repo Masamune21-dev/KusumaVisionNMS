@@ -1586,5 +1586,13 @@
         "phase_auth_failed": "Autentikasi gagal",
         "phase_offline": "Offline",
         "phase_unknown": "Tidak diketahui"
+    },
+    "portlabel": {
+        "column": "Label",
+        "empty": "Belum ada label",
+        "placeholder": "mis. Jalur Timur / Perum Griya",
+        "add_title": "Beri label port",
+        "edit_title": "Ubah label port",
+        "hint": "Label hanya disimpan di NMS, tidak ditulis ke OLT."
     }
 }

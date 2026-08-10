@@ -301,6 +301,9 @@ class SmartOltSupport
             'supports_onu_toggle' => true,
             // Simpan running-config via CLI: enable → config → save.
             'supports_config_save' => true,
+            // Label port PON disimpan di NMS (tabel olt_port_labels) — perangkat ini tak punya
+            // perintah deskripsi port yang terverifikasi, beda dari ZTE yang menulis ke OLT.
+            'supports_port_label' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
@@ -341,6 +344,8 @@ class SmartOltSupport
             // Buka/tutup akses remote web ONT via `ont security-mgmt` (klon sintaks ZTE, tak ada di
             // manual resmi — terverifikasi live FD1608S-B1 V3 Jul 2026, efektif juga utk ONT merk ZTE).
             'supports_onu_remote_access' => $isV3,
+            // Label port PON sisi-NMS (lihat catatan di cdataEponCapabilities()).
+            'supports_port_label' => true,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',
         ];
     }
@@ -389,6 +394,8 @@ class SmartOltSupport
             'description_mode' => $isHa7302 ? 'snmp' : 'cli_hioso',
             'supports_onu_toggle' => true,
             'supports_config_save' => true,
+            // Label port PON sisi-NMS (lihat catatan di cdataEponCapabilities()).
+            'supports_port_label' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }
@@ -434,6 +441,8 @@ class SmartOltSupport
             // Enable/disable (activate / no activate) sengaja OFF — semantik belum diuji live.
             'supports_onu_toggle' => false,
             'supports_config_save' => false,
+            // Label port PON sisi-NMS (lihat catatan di cdataEponCapabilities()).
+            'supports_port_label' => true,
             'rx_source_label' => 'Rx ONU (CLI)',
         ];
     }

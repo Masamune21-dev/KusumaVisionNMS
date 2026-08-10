@@ -53,6 +53,23 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   interface via `gponOltInterface()`), gate `supports_port_description_write`. Deskripsi ikut tampil
   di aplikasi Android (field `description` payload `ports` API v1).
 
+### 4c. Label port PON sisi-NMS (family non-ZTE)
+- **Kenapa ada**: hanya ZTE yang punya perintah deskripsi port di perangkat. C-Data, HiOSO, dan
+  HsAirPo tak punya padanan yang terverifikasi live (probe `ifAlias` di keempat perangkat: kosong,
+  atau — pada C-Data GPON V3 — cuma cerminan nama port bawaan agent). Jadi labelnya milik NMS.
+- **Data**: tabel `olt_port_labels` (`snmp_olt_id` + `slot` + `port` unik, `label` maks 64 char),
+  model `OltPortLabel` (pakai `PartnerOltScope`), service `App\Services\OltPortLabelService`
+  (`forOlt()` → peta `{slot}_{port}` ⇒ label; `set()` menyimpan/menghapus + sanitasi teks).
+  Sengaja **bukan** di `last_test_result` supaya tak ikut tertimpa tiap scan/poll.
+- **Route**: `POST olts/{olt}/port-label` (`olt.port-label.store`, `OltPortLabelController`) — satu
+  endpoint dipakai ketiga family. Gate: `canManageOlt()` + capability `supports_port_label`
+  (menyala di C-Data EPON/GPON, HiOSO, HsAirPo; **tidak ada** di ZTE → 403, ZTE tetap menulis
+  deskripsinya ke perangkat).
+- **UI**: komponen bersama `Components/OltPortLabel.vue` — kolom **Label** di tabel port halaman
+  Detail (`Pages/{CDataOlt,Hioso,HsAirPo}/Detail.vue`, plus baris label di kartu mobile) dan di
+  header halaman Port ONU. Prop `port_labels` dikirim controller detail/portOnus masing-masing
+  family. Tidak ada telnet/SNMP yang tersentuh — label murni catatan operator.
+
 ### 4b. TR069 Massal (per-OLT)
 - **Tombol** "TR069 Massal" di header GPON Ports (gate `supports_onu_config_write` — penulis config gaya C300, OFF di C600; ZTE saja) → `Components/SmartOlt/Tr069BulkModal.vue`.
 - **Controller**: `tr069Bulk` (POST, antrikan job), `tr069BulkStatus` (GET, poll) · **Service**: `ZteTr069BulkService` · **Job**: `Tr069BulkConfigJob` + tabel `tr069_bulk_tasks`.

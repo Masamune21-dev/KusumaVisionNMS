@@ -9,6 +9,7 @@ use App\Models\SnmpOlt;
 use App\Services\CData\CDataOltScanner;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
+use App\Services\OltPortLabelService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
@@ -129,17 +130,18 @@ class HiosoOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function detail(SnmpOlt $olt, CDataOltScanner $scanner): Response
+    public function detail(SnmpOlt $olt, CDataOltScanner $scanner, OltPortLabelService $labels): Response
     {
         $this->ensureFreshScan($olt, $scanner);
 
         return Inertia::render('Hioso/Detail', [
             'olt' => $this->serializeOlt($olt),
             'snapshot' => $this->serializeSnapshot($olt),
+            'port_labels' => $labels->forOlt($olt),
         ]);
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService, OltPortLabelService $labels): Response
     {
         $this->ensureFreshScan($olt, $scanner);
 
@@ -158,6 +160,7 @@ class HiosoOltController extends Controller
                 ->all(),
             'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
+            'port_labels' => $labels->forOlt($olt),
         ]);
     }
 

@@ -11,6 +11,7 @@ use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OdpController;
 use App\Http\Controllers\OltConfigBackupController;
+use App\Http\Controllers\OltPortLabelController;
 use App\Http\Controllers\OnuMapController;
 use App\Http\Controllers\PanduanController;
 use App\Http\Controllers\Partner\TelegramBotController as PartnerTelegramBotController;
@@ -98,6 +99,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/partner/telegram/webhook/register', [PartnerTelegramBotController::class, 'registerWebhook'])->name('partner.telegram.webhook.register');
         Route::post('/partner/telegram/webhook/delete', [PartnerTelegramBotController::class, 'deleteWebhook'])->name('partner.telegram.webhook.delete');
     });
+
+    // Label port PON sisi-NMS (C-Data/HiOSO/HsAirPo). ZTE tak lewat sini — deskripsi portnya
+    // ditulis ke perangkat via `smartolt.port.description`.
+    Route::post('/olts/{olt}/port-label', [OltPortLabelController::class, 'store'])->name('olt.port-label.store');
 
     // OLT C-Data (non-ZTE: EPON 17409 & GPON 34592) — v1 read-only monitoring.
     Route::get('/cdata-olt', [CDataOltController::class, 'index'])->name('cdata-olt.index');

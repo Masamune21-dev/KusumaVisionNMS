@@ -22,6 +22,7 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `odps` | `Odp` | Pin ODP/splitter lapangan di Peta (per-OLT: nama, koordinat, notes) |
 | `onu_odp_links` | `OnuOdpLink` | Relasi ONU↔ODP (kunci komposit ONU, unik 1 ODP/ONU) |
 | `olt_config_backups` | `OltConfigBackup` | Riwayat backup running-config OLT (content terenkripsi, sha256 dedup) |
+| `olt_port_labels` | `OltPortLabel` | Label port PON sisi-NMS untuk family non-ZTE (unik per OLT+slot+port; tak pernah ditulis ke OLT) |
 | `copy_onu_tasks` | `CopyOnuTask` | Progres batch job salin konfigurasi ONU antar port |
 | `tr069_bulk_tasks` | `Tr069BulkTask` | Progres batch job TR069 massal per-port |
 | `olt_user` (pivot) | — | Kepemilikan OLT partner + saklar alarm per-partner (`alarms_enabled`) |

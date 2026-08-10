@@ -99,6 +99,8 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 
 > **Family HsAirPo / HSGQ (12170):** punya prefix rute sendiri `hsairpo-olt.*` — `index` (redirect ke tab), `create`/`store`/`edit`/`update`/`destroy`, `test`, `detail`, `refresh`, `port-onus`, `port-onus.refresh`. **Tidak ada rute aksi tulis ONU maupun `config.save`** (Fase A read-only; sintaks tulis family ini belum diverifikasi di perangkat asli). Lihat [`docs/SMARTOLT_HSAIRPO_GUIDE.md`](../SMARTOLT_HSAIRPO_GUIDE.md).
 
+> **Label port PON (non-ZTE):** `POST /olts/{olt}/port-label` (`olt.port-label.store`, `OltPortLabelController`) — satu rute untuk C-Data, HiOSO, dan HsAirPo; menyimpan label port di DB NMS (`olt_port_labels`), bukan ke perangkat. Gated `canManageOlt()` + capability `supports_port_label` → **ZTE ditolak 403** (ZTE menulis deskripsi portnya ke OLT lewat `smartolt.port.description`). Lihat [07 Modul & Fitur §4c](07-modul-fitur.md).
+
 > **Save Config non-ZTE:** family C-Data & HiOSO punya rute paralel `cdata-olt.config.save` (POST `/cdata-olt/{olt}/config/save`) dan `hioso-olt.config.save` (POST `/hioso-olt/{olt}/config/save`) — simpan running-config ke memori OLT via CLI (C-Data `enable→config→save`, HiOSO `enable→write`). Semua gated capability `supports_config_save` + `throttle:olt-refresh`. Lihat [09 CLI & Telnet](09-cli-telnet.md).
 
 **ONU per port**
