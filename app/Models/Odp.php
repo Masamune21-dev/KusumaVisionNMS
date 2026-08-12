@@ -22,6 +22,7 @@ class Odp extends Model
         'latitude',
         'longitude',
         'color',
+        'photo_path',
         'locked',
         'notes',
         'created_by',

@@ -180,7 +180,16 @@ apt-get install -y \
   supervisor \
   golang-go \
   snmp \
+  webp \
   nodejs
+
+# Batas unggah PHP: default 2M menolak foto HP (3–8 MB) pada fitur foto ODP.
+# Ditulis sebagai file terpisah supaya tidak menimpa php.ini bawaan distro.
+cat >"/etc/php/${PHP_VERSION}/fpm/conf.d/99-kusumavision-uploads.ini" <<'PHPINI'
+; Foto dokumentasi ODP (dikonversi ke WebP oleh cwebp). Validasi app membatasi 12 MB.
+upload_max_filesize = 16M
+post_max_size = 20M
+PHPINI
 
 systemctl enable --now postgresql redis-server nginx supervisor "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
 

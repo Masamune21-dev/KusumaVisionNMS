@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
+import '../../core/api/api_exception.dart';
 import '../../core/odp_colors.dart';
+import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/odp_photo.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/stagger.dart';
 import '../../core/widgets/status_chip.dart';
@@ -32,12 +36,124 @@ class OdpDetailScreen extends ConsumerStatefulWidget {
 
 class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
   final _search = TextEditingController();
+  final _picker = ImagePicker();
   String _filter = '';
+  bool _photoBusy = false;
 
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: (error ? AppColors.danger : AppColors.success).withValues(alpha: 0.95),
+    ));
+  }
+
+  /// Menu foto ODP: ambil dari kamera / galeri, atau hapus foto yang ada.
+  Future<void> _photoMenu(Odp odp) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgElevated,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.camera, color: AppColors.primary),
+              title: const Text('Kamera'),
+              onTap: () => Navigator.pop(sheetContext, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.image, color: AppColors.primary),
+              title: const Text('Galeri'),
+              onTap: () => Navigator.pop(sheetContext, 'gallery'),
+            ),
+            if (odp.photoUrl != null)
+              ListTile(
+                leading: const Icon(LucideIcons.trash, color: AppColors.danger),
+                title: const Text('Hapus foto', style: TextStyle(color: AppColors.danger)),
+                onTap: () => Navigator.pop(sheetContext, 'delete'),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == null) return;
+    if (action == 'delete') {
+      await _deletePhoto(odp);
+
+      return;
+    }
+
+    await _uploadPhoto(
+      odp,
+      action == 'camera' ? ImageSource.camera : ImageSource.gallery,
+    );
+  }
+
+  /// Unggah/ganti foto ODP lalu segarkan detail, daftar, dan peta.
+  /// Konversi ke WebP tetap dilakukan server.
+  Future<void> _uploadPhoto(Odp odp, ImageSource source) async {
+    // Foto HP bisa 4000px/8MB; dikecilkan di perangkat supaya unggahan cepat di
+    // jaringan lapangan — server tetap membatasi dimensi & mengonversi ke WebP.
+    final file = await _picker.pickImage(
+      source: source,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 88,
+    );
+    if (file == null) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      await ref.read(nmsApiProvider).uploadOdpPhoto(odp.id, file.path);
+      ref.invalidate(odpDetailProvider(odp.id));
+      ref.invalidate(odpsProvider);
+      ref.invalidate(mapDataProvider);
+      _snack('Foto ODP tersimpan.');
+    } on ApiException catch (e) {
+      _snack(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _deletePhoto(Odp odp) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus foto ODP?'),
+        content: const Text('Foto akan dihapus permanen dari server.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Batal')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      await ref.read(nmsApiProvider).deleteOdpPhoto(odp.id);
+      ref.invalidate(odpDetailProvider(odp.id));
+      ref.invalidate(odpsProvider);
+      ref.invalidate(mapDataProvider);
+      _snack('Foto ODP dihapus.');
+    } on ApiException catch (e) {
+      _snack(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
   }
 
   /// Ganti warna pin ODP (bawaan: se-PON-port, sama seperti web).
@@ -79,6 +195,17 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
         actions: [
           if (odp.valueOrNull != null)
             IconButton(
+              tooltip: 'Foto ODP',
+              icon: _photoBusy
+                  ? const SizedBox(
+                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(LucideIcons.camera,
+                      size: 20,
+                      color: odp.value!.photoUrl != null ? AppColors.primary : null),
+              onPressed: _photoBusy ? null : () => _photoMenu(odp.value!),
+            ),
+          if (odp.valueOrNull != null)
+            IconButton(
               tooltip: 'Warna pin ODP',
               icon: Icon(LucideIcons.palette, size: 20, color: odpColorOf(odp.value!.color)),
               onPressed: () => _pickColor(odp.value!),
@@ -118,6 +245,9 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
                       total: all.length,
                       online: online,
                       onOpenMap: odp.valueOrNull == null ? null : () => _openOnMap(odp.value!),
+                      onAddPhoto: odp.valueOrNull == null || _photoBusy
+                          ? null
+                          : () => _photoMenu(odp.value!),
                     ),
                   ),
                   Padding(
@@ -213,11 +343,13 @@ class _Header extends StatelessWidget {
     required this.total,
     required this.online,
     required this.onOpenMap,
+    required this.onAddPhoto,
   });
 
   final Odp? odp;
   final int total, online;
   final VoidCallback? onOpenMap;
+  final VoidCallback? onAddPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +395,20 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
+          // Foto dokumentasi ODP — ketuk foto untuk perbesar; kalau belum ada, tombol
+          // ajakan unggah (kamera/galeri) supaya teknisi tak perlu buka web.
+          if ((odp?.photoUrl ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            OdpPhoto(url: odp!.photoUrl, height: 170),
+          ] else if (onAddPhoto != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onAddPhoto,
+              icon: const Icon(LucideIcons.camera, size: 17),
+              label: const Text('Tambah foto ODP'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(42)),
+            ),
+          ],
           if ((odp?.notes ?? '').trim().isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(odp!.notes!, style: t.bodySmall?.copyWith(color: AppColors.muted)),

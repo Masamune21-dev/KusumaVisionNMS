@@ -231,6 +231,7 @@ Ringkasan:
 | GET    | `/odps`                                            | Daftar ODP (+ jumlah ONU)               |
 | GET    | `/odps/{odp}`                                       | Detail 1 ODP                            |
 | GET    | `/odps/{odp}/onus`                                  | ONU di dalam sebuah ODP                 |
+| GET    | `/odps/{odp}/photo`                                 | Berkas foto ODP (WebP, butuh token)     |
 | GET    | `/map`                                             | Pin ONU + pin ODP untuk peta            |
 | POST   | `/devices`                                          | Daftarkan token FCM (push Android)      |
 | DELETE | `/devices`                                          | Cabut token FCM                         |
@@ -247,6 +248,8 @@ Ringkasan:
 | POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name`           | Ubah nama/deskripsi ONU         |
 | DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}`                | Hapus (deregister) ONU dari OLT |
 | POST   | `/odps/{odp}/color`                                     | Warna pin ODP di peta (§3.9)    |
+| POST   | `/odps/{odp}/photo`                                     | Unggah/ganti foto ODP (§3.9)    |
+| DELETE | `/odps/{odp}/photo`                                     | Hapus foto ODP (§3.9)           |
 
 Contoh hapus ONU (destruktif — deregistrasi permanen dari OLT; gated capability
 `supports_onu_delete`):
@@ -446,6 +449,7 @@ curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
       "name": "ODP BANGPE", "slot": 2, "port": 3,
       "latitude": -6.6129883, "longitude": 111.0610271,
       "color": "#22d3ee",
+      "photo_url": "https://nms.bmkv.net/api/v1/odps/26/photo?v=1a2b3c4d",
       "notes": null, "onu_count": 6
     }
   ],
@@ -462,6 +466,11 @@ curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
 `color` null = pakai `meta.color_default`. `meta.color_palette` adalah daftar warna
 resmi dari server (`App\Support\OdpColors`) — klien menampilkannya apa adanya, jangan
 menyalin daftarnya ke dalam aplikasi.
+
+`photo_url` null = ODP belum punya foto. Berkasnya ada di disk **privat**, jadi
+permintaan gambar harus membawa header `Authorization` yang sama seperti panggilan API
+lain (di Flutter: `Image.network(url, headers: {...})`). Query `?v=` berubah tiap foto
+diganti, sehingga respons aman di-cache lama. Mengunggah/menghapus foto tetap web-only.
 
 ### 3.7. `GET /odps/{odp}/onus` — ONU di dalam sebuah ODP
 
@@ -543,6 +552,28 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
 ```
 
 `updated` = jumlah ODP yang ikut terwarnai. Hex tak valid → 422 (`errors.color`).
+
+#### Foto ODP (`POST` / `DELETE /odps/{odp}/photo`)
+
+Satu foto per ODP — unggahan baru menimpa yang lama. Kirim **multipart/form-data**
+dengan field `photo` (`jpg`, `jpeg`, `png`, atau `webp`, maks 12 MB); server yang
+mengonversinya ke WebP, klien cukup mengirim berkas aslinya. Otorisasi sama dengan
+endpoint tulis lain (`admin`/`operator`/`partner`; demo 403, ODP luar scope 404).
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+  -F "photo=@odp-bangpe.jpg" \
+  https://nms.kusumavision.net/api/v1/odps/26/photo
+# → { "data": { "id": 26, "photo_url": "https://…/api/v1/odps/26/photo?v=1a2b3c4d", "ok": true } }
+
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  https://nms.kusumavision.net/api/v1/odps/26/photo
+# → { "data": { "id": 26, "photo_url": null, "ok": true } }
+```
+
+Berkas yang tak lolos validasi → 422 (`errors.photo`). Ingat batas `upload_max_filesize`
+PHP-FPM di server (disarankan ≥ 12M) — kalau lebih kecil, unggahan besar ditolak
+sebelum sampai ke validasi Laravel.
 
 ### 3.10. `GET /alarms` — daftar alarm
 

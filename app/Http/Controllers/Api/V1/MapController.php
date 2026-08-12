@@ -56,7 +56,9 @@ class MapController extends Controller
             ->whereIn('snmp_olt_id', $olts->pluck('id')->all())
             ->orderBy('name')
             ->get();
-        $odpRows = $this->payload->odps($odps, $olts);
+        // true = URL foto ODP memakai rute Sanctum; token bearer aplikasi tak berlaku
+        // di rute web ber-session.
+        $odpRows = $this->payload->odps($odps, $olts, apiPhotoUrls: true);
 
         return response()->json([
             'data' => [

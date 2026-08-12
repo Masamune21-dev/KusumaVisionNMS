@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/odp_colors.dart';
 import '../../core/widgets/async_view.dart';
+import '../../core/widgets/odp_photo.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/status_chip.dart';
 import '../../data/read_providers.dart';
@@ -353,6 +354,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         fontFeatures: _tnum)),
               ],
             ),
+            // Foto dokumentasi ODP (kalau ada) — lihat-saja, ketuk untuk perbesar.
+            if ((odp.photoUrl ?? '').isNotEmpty) ...[
+              const SizedBox(height: 12),
+              OdpPhoto(url: odp.photoUrl, height: 130),
+            ],
             const SizedBox(height: 12),
             if (odp.onus.isEmpty)
               const Text('Belum ada ONU yang dikaitkan.',

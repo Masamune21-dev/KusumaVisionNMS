@@ -76,6 +76,7 @@ class MapOdp {
     required this.latitude,
     required this.longitude,
     required this.color,
+    required this.photoUrl,
     required this.notes,
     required this.onus,
   });
@@ -88,6 +89,9 @@ class MapOdp {
 
   /// Warna pin ODP ("#rrggbb"); null = bawaan (lihat core/odp_colors.dart).
   final String? color;
+
+  /// URL foto dokumentasi ODP (rute ber-token). Null = belum ada foto.
+  final String? photoUrl;
   final String? notes;
   final List<OdpOnu> onus;
 
@@ -105,6 +109,7 @@ class MapOdp {
         latitude: J.asDoubleN(j['latitude']) ?? 0,
         longitude: J.asDoubleN(j['longitude']) ?? 0,
         color: J.asStrN(j['color']),
+        photoUrl: J.asStrN(j['photo_url']),
         notes: J.asStrN(j['notes']),
         onus: ((j['onus'] ?? []) as List)
             .map((e) => OdpOnu.fromJson(e as Map<String, dynamic>))

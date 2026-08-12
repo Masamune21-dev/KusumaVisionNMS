@@ -13,6 +13,7 @@ class Odp {
     required this.latitude,
     required this.longitude,
     required this.color,
+    required this.photoUrl,
     required this.notes,
     required this.onuCount,
   });
@@ -29,6 +30,9 @@ class Odp {
 
   /// Warna pin ODP di peta ("#rrggbb"); null = warna bawaan (lihat core/odp_colors.dart).
   final String? color;
+
+  /// URL foto dokumentasi (rute ber-token; butuh header Authorization). Null = belum ada.
+  final String? photoUrl;
   final String? notes;
   final int onuCount;
 
@@ -47,6 +51,7 @@ class Odp {
         latitude: J.asDoubleN(j['latitude']),
         longitude: J.asDoubleN(j['longitude']),
         color: J.asStrN(j['color']),
+        photoUrl: J.asStrN(j['photo_url']),
         notes: J.asStrN(j['notes']),
         onuCount: J.asInt(j['onu_count']),
       );

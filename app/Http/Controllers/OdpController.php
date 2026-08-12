@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Odp;
 use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
+use App\Services\Odp\OdpPhotoService;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
 use App\Support\OdpColors;
@@ -13,12 +14,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class OdpController extends Controller
 {
     public function __construct(
         private readonly OnuOdpService $service,
         private readonly OnuInventoryService $inventory,
+        private readonly OdpPhotoService $photos,
     ) {}
 
     /**
@@ -42,6 +45,7 @@ class OdpController extends Controller
                 'latitude' => (float) $odp->latitude,
                 'longitude' => (float) $odp->longitude,
                 'color' => $odp->color,
+                'photo_url' => $this->photos->url($odp),
                 'locked' => (bool) $odp->locked,
                 'notes' => $odp->notes,
                 'onu_count' => $odp->links_count,
@@ -211,8 +215,42 @@ class OdpController extends Controller
         return back()->with('success', __('flash.odp_color_updated', ['count' => $result['updated']]));
     }
 
+    /**
+     * Unggah / ganti foto dokumentasi ODP (satu foto per ODP, dikonversi ke WebP).
+     */
+    public function storePhoto(Request $request, Odp $odp): RedirectResponse
+    {
+        $request->validate(OdpPhotoService::rules());
+
+        $this->photos->store($odp, $request->file('photo'));
+
+        return back()->with('success', __('flash.odp_photo_saved'));
+    }
+
+    public function destroyPhoto(Odp $odp): RedirectResponse
+    {
+        $this->photos->delete($odp);
+
+        return back()->with('success', __('flash.odp_photo_deleted'));
+    }
+
+    /**
+     * Sajikan berkas foto. Rute ber-auth (bukan disk publik) — route-model binding kena
+     * `PartnerOltScope`, jadi ODP di luar scope pengguna 404.
+     */
+    public function photo(Odp $odp): BinaryFileResponse
+    {
+        $path = $this->photos->absolutePath($odp);
+        abort_if($path === null, 404);
+
+        // Nama berkas acak + `?v=` token → aman di-cache lama di sisi klien.
+        return response()->file($path, ['Cache-Control' => 'private, max-age=604800']);
+    }
+
     public function destroy(Odp $odp): RedirectResponse
     {
+        // Berkas fotonya ikut dibuang supaya tak jadi sampah di storage.
+        $this->photos->delete($odp);
         $odp->delete();
 
         return back()->with('success', __('flash.odp_deleted'));

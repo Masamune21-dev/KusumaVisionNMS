@@ -3,6 +3,7 @@ import ConfirmModal from '@/Components/ConfirmModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import OdpColorModal from '@/Components/Map/OdpColorModal.vue';
+import OdpPhotoField from '@/Components/Map/OdpPhotoField.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -151,6 +152,11 @@ const deleteOdp = async () => {
         <p v-else class="rounded-lg border border-dashed border-white/10 px-2 py-3 text-center text-[11px] text-slate-500">
             {{ $t('map.odp_no_onu') }}
         </p>
+
+        <!-- Foto dokumentasi ODP -->
+        <div class="border-t border-white/10 pt-2.5">
+            <OdpPhotoField :odp="odp" compact />
+        </div>
 
         <!-- Detail -->
         <dl class="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">

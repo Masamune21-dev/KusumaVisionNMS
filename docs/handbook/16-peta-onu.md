@@ -196,6 +196,37 @@ sekaligus.
   tak berubah oleh diff dan pin tetap warna lama sampai halaman dimuat ulang.
 - Garis kabel ODP→ONU **tetap** hijau/merah status ONU (bukan warna ODP) supaya sinyal gangguan tak hilang.
 
+## Foto dokumentasi ODP (Agu 2026)
+
+Satu foto per ODP (unggah baru menimpa yang lama), untuk dokumentasi lapangan.
+
+- **Simpan**: kolom `odps.photo_path` (migrasi `2026_08_12_000002`) → berkas di disk **privat**
+  `local` (`storage/app/private/odp-photos/{odp}/{acak}.webp`). **Bukan** `/storage` publik: berkas
+  hanya keluar lewat rute ber-auth `odp.photo` (web, session) dan `api.odps.photo` (aplikasi, token
+  Sanctum) — route-model binding kena `PartnerOltScope`, jadi ODP di luar scope 404.
+- **Konversi WebP**: `App\Services\Odp\OdpPhotoService` menjalankan biner **`cwebp`** (paket apt
+  `webp`), **bukan** GD/Imagick — PHP produksi tak memuat kedua ekstensi itu, dan cara ini juga
+  menghindari mendekode gambar tak dipercaya di dalam proses PHP. Kualitas & batas dimensi diatur
+  di `config/services.php` (`cwebp.quality` 82, `cwebp.max_dimension` 1600 — `-resize` hanya dipakai
+  bila gambar memang lebih besar, karena cwebp juga akan MEMPERBESAR gambar kecil). Kalau `cwebp`
+  tak ada, foto tetap tersimpan dalam format aslinya (fitur tidak mati, berkas lebih besar).
+- **Batas**: `jpg/jpeg/png/webp`, maks 12 MB (`OdpPhotoService::MAX_KILOBYTES`). PHP-FPM harus
+  `upload_max_filesize ≥ 12M` — `install.sh` menulis `99-kusumavision-uploads.ini` (16M/20M);
+  `scripts/check-requirements.sh` memperingatkan bila lebih kecil.
+- **Cache**: nama berkas acak + query `?v=` (hash path) → URL berubah tiap foto diganti, jadi respons
+  boleh `Cache-Control: private, max-age=604800`.
+- **UI web**: `Components/Map/OdpPhotoField.vue` (pratinjau, unggah/ganti, hapus, lightbox) dipakai
+  inline di `OdpDetailCard` (peta) dan di modal halaman ODP; halaman ODP juga menampilkan thumbnail
+  kecil di kolom nama. Upload memakai `router.post(..., { forceFormData: true, only: ['odps','flash'] })`.
+- **Mobile**: tampil lewat `mobile/lib/core/widgets/odp_photo.dart` (`Image.network` + header
+  `Authorization`, ketuk = penampil zoom) di Detail ODP dan sheet pin ODP di peta. **Unggah/ganti/hapus
+  juga bisa dari aplikasi** (Detail ODP → ikon kamera → Kamera/Galeri/Hapus) lewat
+  `POST|DELETE /api/v1/odps/{odp}/photo` (grup tulis `role:admin,operator,partner` + `BlockDemoWrites`,
+  aturan validasi dipakai bersama `OdpPhotoService::rules()`). Paket `image_picker` dikecilkan dulu di
+  perangkat (1600px, q88) supaya unggahan ringan di jaringan lapangan; **tanpa izin Android baru** —
+  Android 13+ memakai photo picker sistem dan kamera lewat intent bawaan.
+- Menghapus ODP ikut membuang berkas fotonya (`OdpController::destroy`).
+
 ## Halaman ODP (`odp.index`)
 
 Pusat pengelolaan ODP di luar peta — nav **ODP**, tepat di bawah Peta ONU. Terbuka untuk semua user
@@ -229,6 +260,9 @@ Scope v1: web saja (mobile/API belum).
 | PUT | `/map/odps/{odp}` | `map.odps.update` | Ubah nama/notes/koordinat/kunci ODP |
 | DELETE | `/map/odps/{odp}` | `map.odps.destroy` | Hapus ODP (link ONU ikut terhapus) |
 | POST | `/map/odps/{odp}/color` | `map.odps.color` | Warna pin ODP (bawaan se-PON-port; `random`/reset) |
+| POST | `/map/odps/{odp}/photo` | `map.odps.photo.store` | Unggah/ganti foto ODP (dikonversi ke WebP) |
+| DELETE | `/map/odps/{odp}/photo` | `map.odps.photo.destroy` | Hapus foto ODP |
+| GET | `/odp/{odp}/photo` | `odp.photo` | Sajikan berkas foto (ber-auth, disk privat) |
 | POST | `/onu-odp` | `onu-odp.assign` | Pasang/pindah/lepas ODP sebuah ONU |
 | GET | `/odp` | `odp.index` | Halaman pengelolaan ODP |
 | GET | `/odp/{odp}/onus` | `odp.onus` | JSON ONU terhubung + kandidat (modal Kelola ONU) |
@@ -251,6 +285,8 @@ Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
 | `GET /odps/{odp}` + `/odps/{odp}/onus` | Detail ODP (ONU di dalamnya + cari) |
 | `GET /map` | Tab Peta (pin ONU + pin ODP + garis + titik tengah) |
 | `POST /odps/{odp}/color` | Ganti warna pin ODP (Detail ODP & sheet pin di peta) |
+| `GET /odps/{odp}/photo` | Foto dokumentasi ODP (butuh header Authorization) |
+| `POST` / `DELETE /odps/{odp}/photo` | Unggah/ganti & hapus foto ODP dari aplikasi |
 | `GET /olts/{olt}/register/options` → `odps` | Dropdown "ODP (opsional)" di form registrasi |
 | `GET /olts/{olt}/onus/{slot}/{port}/{onuId}` → `odp_id`/`odp_name` | Baris ODP di detail ONU |
 

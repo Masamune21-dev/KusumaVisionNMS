@@ -63,4 +63,7 @@ class LucideIcons {
   static const IconData navigation = Icons.near_me_outlined;
   static const IconData palette = Icons.palette_outlined;
   static const IconData shuffle = Icons.shuffle_rounded;
+  static const IconData camera = Icons.photo_camera_outlined;
+  static const IconData image = Icons.image_outlined;
+  static const IconData imageOff = Icons.broken_image_outlined;
 }

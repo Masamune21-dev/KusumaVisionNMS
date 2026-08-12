@@ -5,6 +5,7 @@ namespace App\Services\Map;
 use App\Models\Odp;
 use App\Models\OnuMapPin;
 use App\Models\SnmpOlt;
+use App\Services\Odp\OdpPhotoService;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
 use App\Support\SmartOltSupport;
@@ -31,6 +32,7 @@ class OnuMapPayloadService
     public function __construct(
         private readonly OnuInventoryService $inventory,
         private readonly OnuOdpService $odpService,
+        private readonly OdpPhotoService $odpPhotos,
     ) {}
 
     /**
@@ -91,9 +93,11 @@ class OnuMapPayloadService
      *
      * @param  Collection<int, Odp>  $odps
      * @param  Collection<int, SnmpOlt>  $olts
+     * @param  bool  $apiPhotoUrls  true = URL foto memakai rute Sanctum (aplikasi Android),
+     *                              false = rute web ber-session
      * @return Collection<int, array<string, mixed>>
      */
-    public function odps(Collection $odps, Collection $olts): Collection
+    public function odps(Collection $odps, Collection $olts, bool $apiPhotoUrls = false): Collection
     {
         $meta = $this->oltMeta($olts);
         $connected = $this->odpService->connectedOnus($odps);
@@ -110,6 +114,8 @@ class OnuMapPayloadService
                 'longitude' => (float) $odp->longitude,
                 // Warna pin (null = default amber; fallback ditangani klien web & mobile).
                 'color' => $odp->color,
+                // Foto dokumentasi (null = belum ada); dilayani rute ber-auth, bukan disk publik.
+                'photo_url' => $this->odpPhotos->url($odp, $apiPhotoUrls),
                 'locked' => (bool) $odp->locked,
                 'notes' => $odp->notes,
                 'onus' => $connected[$odp->id] ?? [],

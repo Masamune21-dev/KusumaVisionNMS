@@ -2,6 +2,93 @@
 
 ## 2026-08-12
 
+### Foto dokumentasi ODP — unggah dari popup peta, auto-konversi WebP
+
+Permintaan owner: bisa unggah gambar ODP dari popup detail ODP di peta dan langsung tampil di situ,
+dengan konversi otomatis ke WebP (unggahnya PNG/JPG dsb). Disepakati: **satu foto per ODP** (unggah
+baru menimpa), tampil di peta + halaman ODP + aplikasi Android (Android lihat-saja), berkas
+**lewat rute ber-auth** — bukan `/storage` publik.
+
+Temuan yang menentukan caranya: **PHP di server ini tidak memuat GD maupun Imagick**, jadi konversi
+di dalam PHP tak mungkin tanpa memasang ekstensi baru — tapi biner **`cwebp` sudah terpasang**
+(dipakai skill snapshot). Dipilih jalur cwebp: tak menambah ekstensi PHP, dan gambar dari pengguna
+tidak didekode di dalam proses PHP.
+
+Created:
+
+- `database/migrations/2026_08_12_000002_add_photo_to_odps_table.php` — `odps.photo_path` nullable.
+- `app/Services/Odp/OdpPhotoService.php` — simpan/ganti/hapus foto di disk privat `local`
+  (`odp-photos/{odp}/{acak}.webp`), konversi lewat `cwebp` (Symfony Process), `url()` (rute web vs
+  Sanctum), `absolutePath()`, token cache `?v=`. Fallback: kalau cwebp tak ada/gagal, foto disimpan
+  apa adanya — fitur tidak mati. `-resize` hanya dipakai bila gambar melebihi `max_dimension`
+  (cwebp juga MEMPERBESAR gambar kecil kalau `-resize` selalu diberikan).
+- `resources/js/Components/Map/OdpPhotoField.vue` — pratinjau, unggah/ganti (progress %), hapus
+  (konfirmasi), lightbox. Dipakai kartu peta (mode `compact`) & modal halaman ODP.
+- `mobile/lib/core/widgets/odp_photo.dart` — penampil foto + viewer zoom; `Image.network` dengan
+  header `Authorization` karena berkasnya di rute ber-token.
+- `tests/Feature/OdpPhotoTest.php` — 6 test.
+
+Changed:
+
+- `OdpController` — `storePhoto`/`destroyPhoto`/`photo`, `photo_url` di prop halaman ODP, `destroy()`
+  ikut membuang berkas; `Api/V1/OdpController` — `photo()` + `photo_url` di serialize;
+  `OnuMapPayloadService::odps()` dapat parameter `apiPhotoUrls` (URL web vs Sanctum) dan mengirim
+  `photo_url`; `Api/V1/MapController` memakainya.
+- `routes/web.php` (`map.odps.photo.store|destroy`, `odp.photo`), `routes/api.php` (`api.odps.photo`).
+- `config/services.php` — blok `cwebp` (binary/quality/max_dimension/timeout).
+- `resources/js/Components/Map/OdpDetailCard.vue` (panel foto), `Pages/Odp/Index.vue` (thumbnail di
+  kolom nama + ikon kamera + modal), `lang/{id,en}/flash.php`, `resources/js/lang/{id,en}.json`.
+- Mobile: `models/{odp,map_data}.dart` (+`photo_url`), Detail ODP & sheet ODP di peta menampilkan foto,
+  `core/icons.dart` (image/imageOff), `pubspec.yaml` 1.4.0+19 → **1.4.1+20**.
+- `install.sh` — paket `webp` + tulis `99-kusumavision-uploads.ini` (16M/20M); `Dockerfile` — paket
+  `webp` (docker/php.ini sudah 20M); `scripts/check-requirements.sh` — cek cwebp & `upload_max_filesize`.
+- `docs/API.md`, `docs/handbook/16-peta-onu.md`, `CLAUDE.md`.
+
+Notes:
+
+- Test: `bash scripts/test.sh` **518 passed / 2758 assertions**, `npm test` 12 passed, `flutter analyze`
+  bersih. Test memakai PNG 1×1 asli (base64) karena `UploadedFile::fake()->image()` butuh GD yang
+  tak ada di server ini; assertion "hasil benar-benar WebP" (header `RIFF`) dilewati otomatis bila
+  biner cwebp tidak tersedia.
+- Server ini: `upload_max_filesize` PHP-FPM masih 2 MB (default) — foto HP 3–8 MB akan ditolak. Sudah
+  ditambah `/etc/php/8.3/fpm/conf.d/99-kusumavision-uploads.ini` (16M/20M) + reload php8.3-fpm.
+  nginx sudah `client_max_body_size 64M`.
+- Otorisasi murni lewat `PartnerOltScope` di route-model binding: partner yang menebak URL foto ODP
+  OLT lain dapat 404, bukan berkasnya.
+
+### Unggah foto ODP dari aplikasi Android (lanjutan)
+
+Owner bertanya apakah unggah bisa dari aplikasi juga — bisa, dan endpoint + konversinya sudah ada,
+tinggal jalur tulis untuk API dan pemilih berkas di Flutter.
+
+Changed:
+
+- `routes/api.php` + `Api/V1/OdpController` — `POST|DELETE /api/v1/odps/{odp}/photo` di grup tulis
+  (`role:admin,operator,partner` + `BlockDemoWrites`), memakai `OdpPhotoService` yang sama.
+- `app/Services/Odp/OdpPhotoService.php` — aturan validasi dipindah ke `rules()` statis supaya web &
+  API tak pernah berbeda batas format/ukurannya; `OdpController::storePhoto` ikut memakainya.
+- `mobile/pubspec.yaml` — paket `image_picker: ^1.1.2`, versi 1.4.1+20 → **1.5.0+21**.
+- `mobile/lib/core/api/nms_api.dart` — `uploadOdpPhoto()` (multipart + progres) & `deleteOdpPhoto()`.
+- `mobile/lib/features/odp/odp_detail_screen.dart` — ikon kamera di AppBar → sheet Kamera/Galeri/Hapus,
+  tombol "Tambah foto ODP" di kartu header saat foto belum ada, snackbar + invalidate
+  `odpDetailProvider`/`odpsProvider`/`mapDataProvider`.
+- `mobile/lib/core/icons.dart` — ikon `camera`.
+- `docs/API.md` (§3.9 bagian foto), `docs/handbook/16-peta-onu.md`, `CLAUDE.md`.
+
+Notes:
+
+- Test: `bash scripts/test.sh` **520 passed / 2772 assertions** (2 test API baru: unggah+hapus lewat
+  token, lalu penolakan demo 403 / ODP OLT lain 404 / non-gambar 422), `flutter analyze` bersih.
+- **Tak ada izin Android baru**: Android 13+ memakai photo picker sistem (tanpa izin penyimpanan) dan
+  kamera lewat intent bawaan (tanpa izin CAMERA) — AndroidManifest tidak berubah.
+- Foto dikecilkan dulu di perangkat (1600px, kualitas 88) supaya unggahan ringan di jaringan lapangan;
+  server tetap membatasi dimensi & mengonversi ke WebP, jadi hasil akhirnya identik dengan jalur web.
+- Deploy: `migrate --force` (kolom `photo_path`) dijalankan **sebelum** menyentuh kode yang membacanya
+  (belajar dari entri warna ODP di atas), lalu `route:cache` + `config:cache` + build aset +
+  `queue:restart` + reload php8.3-fpm. APK dibangun & dipublikasikan: **1.5.0 (versionCode 2021)**,
+  arm64 21,0 MB + arm32 18,7 MB di `public/downloads/`. Diverifikasi lewat `aapt2 dump badging`:
+  daftar `uses-permission` **tidak bertambah** dibanding rilis sebelumnya.
+
 ### Warna pin ODP di peta — manual & acak, disapu per PON port (web + Android)
 
 Permintaan owner: pin ODP semuanya kuning, sulit membedakan ODP milik port mana di peta. Warna kini

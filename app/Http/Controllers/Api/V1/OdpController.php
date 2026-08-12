@@ -4,22 +4,27 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Odp;
+use App\Services\Odp\OdpPhotoService;
 use App\Services\OnuOdpService;
 use App\Support\OdpColors;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * API ODP (Optical Distribution Point) untuk aplikasi Android: daftar ODP + ONU yang
- * terhubung di dalamnya (baca-saja), plus ganti warna pin ODP (satu-satunya aksi tulis;
- * CRUD ODP lain tetap web-only).
+ * terhubung di dalamnya (baca-saja), plus dua aksi tulis — ganti warna pin dan foto
+ * dokumentasi ODP. CRUD ODP selebihnya (tambah/ubah/hapus ODP) tetap web-only.
  *
  * Kepemilikan dijaga `PartnerOltScope` pada model `Odp` — partner hanya melihat ODP
  * milik OLT yang di-assign ke dirinya (route-model binding `{odp}` → 404 di luar itu).
  */
 class OdpController extends Controller
 {
-    public function __construct(private readonly OnuOdpService $service) {}
+    public function __construct(
+        private readonly OnuOdpService $service,
+        private readonly OdpPhotoService $photos,
+    ) {}
 
     /**
      * GET /api/v1/odps — daftar ODP.
@@ -96,7 +101,7 @@ class OdpController extends Controller
     }
 
     /**
-     * POST /api/v1/odps/{odp}/color — ganti warna pin ODP (satu-satunya endpoint TULIS ODP).
+     * POST /api/v1/odps/{odp}/color — ganti warna pin ODP.
      *
      * Body: `color` "#rrggbb" (null = reset ke default), `random` (server memilih warna
      * palet yang belum dipakai port lain di OLT ini), `apply_to_port` (bawaan true =
@@ -117,6 +122,52 @@ class OdpController extends Controller
     }
 
     /**
+     * GET /api/v1/odps/{odp}/photo — berkas foto ODP (WebP) untuk aplikasi.
+     *
+     * Bukan disk publik: berkas hanya keluar lewat rute ber-token ini, dan route-model
+     * binding kena `PartnerOltScope` → ODP di luar scope pengguna 404.
+     */
+    public function photo(Odp $odp): BinaryFileResponse
+    {
+        $path = $this->photos->absolutePath($odp);
+        abort_if($path === null, 404);
+
+        return response()->file($path, ['Cache-Control' => 'private, max-age=604800']);
+    }
+
+    /**
+     * POST /api/v1/odps/{odp}/photo — unggah/ganti foto ODP dari aplikasi (multipart,
+     * field `photo`). Satu foto per ODP: unggahan baru menimpa yang lama.
+     *
+     * Validasi & konversi WebP memakai jalur yang sama persis dengan web
+     * ({@see OdpPhotoService}), jadi batas format/ukuran tak pernah berbeda antar klien.
+     */
+    public function storePhoto(Request $request, Odp $odp): JsonResponse
+    {
+        $request->validate(OdpPhotoService::rules());
+
+        $this->photos->store($odp, $request->file('photo'));
+
+        return response()->json([
+            'data' => [
+                'id' => $odp->id,
+                'photo_url' => $this->photos->url($odp, api: true),
+                'ok' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * DELETE /api/v1/odps/{odp}/photo — hapus foto ODP.
+     */
+    public function destroyPhoto(Odp $odp): JsonResponse
+    {
+        $this->photos->delete($odp);
+
+        return response()->json(['data' => ['id' => $odp->id, 'photo_url' => null, 'ok' => true]]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serialize(Odp $odp): array
@@ -131,6 +182,7 @@ class OdpController extends Controller
             'latitude' => (float) $odp->latitude,
             'longitude' => (float) $odp->longitude,
             'color' => $odp->color,
+            'photo_url' => $this->photos->url($odp, api: true),
             'notes' => $odp->notes,
             'onu_count' => (int) ($odp->links_count ?? 0),
         ];

@@ -183,6 +183,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('/map/odps/{odp}', [OdpController::class, 'destroy'])->name('map.odps.destroy');
     // Warna pin ODP — rute terpisah karena bawaannya mewarnai satu PON port sekaligus.
     Route::post('/map/odps/{odp}/color', [OdpController::class, 'color'])->name('map.odps.color');
+    // Foto dokumentasi ODP (1 foto/ODP, dikonversi ke WebP). Berkasnya di disk privat dan
+    // hanya keluar lewat rute `odp.photo` di bawah — bukan /storage publik.
+    Route::post('/map/odps/{odp}/photo', [OdpController::class, 'storePhoto'])->name('map.odps.photo.store');
+    Route::delete('/map/odps/{odp}/photo', [OdpController::class, 'destroyPhoto'])->name('map.odps.photo.destroy');
+    Route::get('/odp/{odp}/photo', [OdpController::class, 'photo'])->name('odp.photo');
     Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
     // Halaman pengelolaan ODP — prefix rute sengaja `odp.*` (bukan `map.odps.index`) supaya
     // penanda menu aktif `map.*` milik Peta ONU tidak ikut menyala.

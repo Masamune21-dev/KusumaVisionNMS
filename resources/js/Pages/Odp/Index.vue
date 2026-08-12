@@ -9,6 +9,7 @@
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
 import OdpColorModal from '@/Components/Map/OdpColorModal.vue';
+import OdpPhotoField from '@/Components/Map/OdpPhotoField.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
@@ -22,7 +23,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { odpColor } from '@/lib/odpColors';
-import { MapPin, Palette, Pencil, Plus, Search, Trash2, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
+import { Camera, MapPin, Palette, Pencil, Plus, Search, Trash2, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -99,6 +100,10 @@ const portLabel = (odp) => (odp.slot === null || odp.port === null ? '—' : `${
 // warna disimpan, jadi menyimpan objeknya langsung akan basi.
 const colorOdpId = ref(null);
 const colorOdp = computed(() => props.odps.find((o) => o.id === colorOdpId.value) ?? null);
+
+// --- foto ODP (komponen yang sama dipakai kartu detail ODP di peta) ---
+const photoOdpId = ref(null);
+const photoOdp = computed(() => props.odps.find((o) => o.id === photoOdpId.value) ?? null);
 
 // Jumlah ODP se-PON-port — label saklar "terapkan ke satu port" di modal warna.
 const colorPortCount = computed(() => {
@@ -405,6 +410,9 @@ const mapHref = (odp) =>
                                         <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
                                             <Wifi class="h-4 w-4" />
                                         </IconButton>
+                                        <IconButton :title="$t('map.odp_photo_title')" @click="photoOdpId = odp.id">
+                                            <Camera class="h-4 w-4" :class="odp.photo_url ? 'text-cyan-300' : ''" />
+                                        </IconButton>
                                         <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
                                             <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
                                         </IconButton>
@@ -448,6 +456,14 @@ const mapHref = (odp) =>
                                             <span class="flex items-center gap-2">
                                                 <!-- Titik warna = warna pin ODP ini di peta. -->
                                                 <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: odpColor(odp) }"></span>
+                                                <img
+                                                    v-if="odp.photo_url"
+                                                    :src="odp.photo_url"
+                                                    :alt="odp.name"
+                                                    class="h-8 w-8 shrink-0 cursor-pointer rounded-md object-cover ring-1 ring-white/15"
+                                                    loading="lazy"
+                                                    @click="photoOdpId = odp.id"
+                                                />
                                                 {{ odp.name }}
                                             </span>
                                         </td>
@@ -463,6 +479,9 @@ const mapHref = (odp) =>
                                             <div class="flex justify-center gap-1.5">
                                                 <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
                                                     <Wifi class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton :title="$t('map.odp_photo_title')" @click="photoOdpId = odp.id">
+                                                    <Camera class="h-4 w-4" :class="odp.photo_url ? 'text-cyan-300' : ''" />
                                                 </IconButton>
                                                 <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
                                                     <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
@@ -660,6 +679,18 @@ const mapHref = (odp) =>
                         <MapPin class="h-4 w-4" /> {{ $t('odp.open_map') }}
                     </Link>
                     <SecondaryButton type="button" @click="closeManage">{{ $t('common.close') }}</SecondaryButton>
+                </div>
+            </div>
+        </Modal>
+
+        <!-- Foto ODP — komponen bersama dgn kartu detail ODP di peta. -->
+        <Modal :show="photoOdp !== null" max-width="lg" @close="photoOdpId = null">
+            <div v-if="photoOdp" class="p-6">
+                <h3 class="mb-1 text-lg font-semibold text-white">{{ photoOdp.name }}</h3>
+                <p class="mb-4 text-xs text-slate-400">{{ photoOdp.olt_name }} · {{ $t('odp.col_port') }} {{ portLabel(photoOdp) }}</p>
+                <OdpPhotoField :odp="photoOdp" />
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton @click="photoOdpId = null">{{ $t('common.close') }}</SecondaryButton>
                 </div>
             </div>
         </Modal>

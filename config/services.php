@@ -61,4 +61,14 @@ return [
         'rx_sample_retention_days' => (int) env('SNMP_POLLER_RX_RETENTION_DAYS', 90),
     ],
 
+    // Konversi foto ODP ke WebP. PHP di server ini tidak punya GD/Imagick, jadi
+    // konversi memakai biner `cwebp` (paket `webp`). Kalau binernya tak ada, foto
+    // tetap tersimpan dalam format aslinya (lihat App\Services\Odp\OdpPhotoService).
+    'cwebp' => [
+        'binary' => env('CWEBP_BINARY', 'cwebp'),
+        'quality' => (int) env('CWEBP_QUALITY', 82),
+        'max_dimension' => (int) env('CWEBP_MAX_DIMENSION', 1600),
+        'process_timeout' => (int) env('CWEBP_PROCESS_TIMEOUT', 30),
+    ],
+
 ];

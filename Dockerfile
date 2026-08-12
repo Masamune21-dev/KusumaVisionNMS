@@ -60,7 +60,7 @@ RUN install-php-extensions \
 # git+unzip (composer dist), snmp (net-snmp CLI, opsional untuk debug).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-        nginx supervisor postgresql-client git unzip curl ca-certificates snmp \
+        nginx supervisor postgresql-client git unzip curl ca-certificates snmp webp \
  && rm -rf /var/lib/apt/lists/* \
  && rm -f /etc/nginx/sites-enabled/default
 

@@ -3,7 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.4.0+19
+version: 1.5.0+21
 
 environment:
   sdk: ^3.12.2
@@ -58,6 +58,11 @@ dependencies:
   # fallback OSM). latlong2 menyediakan tipe LatLng-nya.
   flutter_map: ^8.3.1
   latlong2: ^0.10.1
+
+  # Ambil foto ODP dari kamera / galeri. Android 13+ memakai photo picker sistem
+  # (tanpa izin penyimpanan) dan kamera lewat intent bawaan (tanpa izin CAMERA),
+  # jadi tak ada izin baru di AndroidManifest.
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

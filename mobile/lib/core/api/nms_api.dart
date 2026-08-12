@@ -235,7 +235,25 @@ class NmsApi {
         (d) => d['data'] as Map<String, dynamic>,
       );
 
-  /// Ganti warna pin ODP di peta — satu-satunya aksi tulis ODP dari aplikasi.
+  /// Unggah / ganti foto dokumentasi ODP (multipart). Server yang mengonversi ke
+  /// WebP, jadi berkas dikirim apa adanya. Mengembalikan URL foto yang baru.
+  Future<String?> uploadOdpPhoto(
+    int odpId,
+    String filePath, {
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final form = FormData.fromMap({'photo': await MultipartFile.fromFile(filePath)});
+
+    return _run(
+      () => _dio.post('/odps/$odpId/photo', data: form, onSendProgress: onProgress),
+      (d) => d['data']?['photo_url'] as String?,
+    );
+  }
+
+  Future<void> deleteOdpPhoto(int odpId) =>
+      _run(() => _dio.delete('/odps/$odpId/photo'), (_) {});
+
+  /// Ganti warna pin ODP di peta.
   ///
   /// [color] null = kembali ke warna bawaan; [random] biar server memilih warna
   /// palet yang belum dipakai port lain; [applyToPort] (bawaan) mewarnai semua

@@ -86,6 +86,8 @@ Route::prefix('v1')->group(function () {
         Route::get('odps', [OdpController::class, 'index'])->name('api.odps.index');
         Route::get('odps/{odp}', [OdpController::class, 'show'])->name('api.odps.show');
         Route::get('odps/{odp}/onus', [OdpController::class, 'onus'])->name('api.odps.onus');
+        // Berkas foto ODP (disk privat) — hanya lewat rute ber-token ini.
+        Route::get('odps/{odp}/photo', [OdpController::class, 'photo'])->name('api.odps.photo');
 
         Route::get('map', [MapController::class, 'index'])->name('api.map.index');
 
@@ -114,9 +116,11 @@ Route::prefix('v1')->group(function () {
                 ->whereNumber(['slot', 'port', 'onuId'])
                 ->name('api.olts.onu.delete');
 
-            // Warna pin ODP di peta — satu-satunya aksi tulis ODP dari aplikasi
-            // (CRUD ODP & pin ONU tetap web-only).
+            // Warna pin & foto dokumentasi ODP — dua-duanya aksi tulis ODP dari aplikasi
+            // (tambah/ubah/hapus ODP dan pin ONU tetap web-only).
             Route::post('odps/{odp}/color', [OdpController::class, 'color'])->name('api.odps.color');
+            Route::post('odps/{odp}/photo', [OdpController::class, 'storePhoto'])->name('api.odps.photo.store');
+            Route::delete('odps/{odp}/photo', [OdpController::class, 'destroyPhoto'])->name('api.odps.photo.destroy');
         });
     });
 });

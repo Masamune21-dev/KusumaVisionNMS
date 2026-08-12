@@ -113,6 +113,23 @@ for extension in bcmath ctype curl dom fileinfo intl mbstring openssl pcntl pdo_
   check_php_extension "$extension"
 done
 
+printf "\n%s\n%s\n" "Opsional (info)" "---------------"
+# cwebp (paket 'webp'): mengonversi foto ODP ke WebP. Tanpa ini fitur tetap jalan,
+# foto hanya disimpan dalam format aslinya (lebih besar).
+if command -v cwebp >/dev/null 2>&1; then
+  ok "cwebp: $(cwebp -version 2>/dev/null | head -n1)"
+else
+  warn "cwebp tidak ditemukan (apt install webp) — foto ODP tak dikonversi ke WebP"
+fi
+# Foto dari HP umumnya 3–8 MB; default PHP 2M akan menolaknya.
+php_upload="$(php -r 'echo ini_get("upload_max_filesize");' 2>/dev/null || echo '?')"
+php_upload_mb="$(php -r '$v=ini_get("upload_max_filesize"); echo (int) $v * (stripos($v,"g") !== false ? 1024 : 1);' 2>/dev/null || echo 0)"
+if [ "${php_upload_mb:-0}" -ge 12 ] 2>/dev/null; then
+  ok "upload_max_filesize: $php_upload"
+else
+  warn "upload_max_filesize: $php_upload (disarankan ≥ 12M untuk foto ODP)"
+fi
+
 printf "\n%s\n%s\n" "Runtime artefak (info)" "----------------------"
 check_artifact "Go SNMP poller binary" "bin/kv-snmp-poller"
 check_artifact "Frontend build"        "public/build/manifest.json"
