@@ -8,6 +8,7 @@
  */
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import OdpColorModal from '@/Components/Map/OdpColorModal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
@@ -20,7 +21,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { MapPin, Pencil, Plus, Search, Trash2, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
+import { odpColor } from '@/lib/odpColors';
+import { MapPin, Palette, Pencil, Plus, Search, Trash2, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -29,6 +31,8 @@ const { t } = useI18n({ useScope: 'global' });
 const props = defineProps({
     odps: { type: Array, default: () => [] },
     olts: { type: Array, default: () => [] },
+    // Palet warna pin ODP (sumber: App\Support\OdpColors di server).
+    odp_color_palette: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -89,6 +93,22 @@ const { page: odpPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOd
     usePagination(filtered);
 
 const portLabel = (odp) => (odp.slot === null || odp.port === null ? '—' : `${odp.slot}/${odp.port}`);
+
+// --- warna pin ODP (modal yang sama dipakai kartu detail ODP di peta) ---
+// Simpan id lalu cari ulang dari prop: `odps` diganti utuh oleh partial reload sesudah
+// warna disimpan, jadi menyimpan objeknya langsung akan basi.
+const colorOdpId = ref(null);
+const colorOdp = computed(() => props.odps.find((o) => o.id === colorOdpId.value) ?? null);
+
+// Jumlah ODP se-PON-port — label saklar "terapkan ke satu port" di modal warna.
+const colorPortCount = computed(() => {
+    const odp = colorOdp.value;
+    if (!odp || odp.slot === null || odp.port === null) return 1;
+
+    return props.odps.filter(
+        (o) => o.snmp_olt_id === odp.snmp_olt_id && o.slot === odp.slot && o.port === odp.port,
+    ).length;
+});
 
 // --- tambah / edit (satu modal, satu form) ---
 const formOpen = ref(false);
@@ -375,12 +395,18 @@ const mapHref = (odp) =>
                             <article v-for="odp in pagedOdps" :key="odp.id" class="kv-mobile-card">
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
-                                        <h4 class="kv-mobile-card-title">{{ odp.name }}</h4>
+                                        <h4 class="kv-mobile-card-title flex items-center gap-1.5">
+                                            <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: odpColor(odp) }"></span>
+                                            {{ odp.name }}
+                                        </h4>
                                         <p class="kv-mobile-card-subtitle">{{ odp.olt_name }} · {{ $t('odp.col_port') }} {{ portLabel(odp) }}</p>
                                     </div>
                                     <div class="flex flex-shrink-0 gap-2">
                                         <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
                                             <Wifi class="h-4 w-4" />
+                                        </IconButton>
+                                        <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
+                                            <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
                                         </IconButton>
                                         <IconButton :title="$t('common.edit')" @click="openEdit(odp)">
                                             <Pencil class="h-4 w-4" />
@@ -418,7 +444,13 @@ const mapHref = (odp) =>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
                                     <tr v-for="odp in pagedOdps" :key="odp.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                        <td class="px-4 py-4 font-medium text-white">{{ odp.name }}</td>
+                                        <td class="px-4 py-4 font-medium text-white">
+                                            <span class="flex items-center gap-2">
+                                                <!-- Titik warna = warna pin ODP ini di peta. -->
+                                                <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: odpColor(odp) }"></span>
+                                                {{ odp.name }}
+                                            </span>
+                                        </td>
                                         <td class="px-4 py-4 text-sm text-slate-300">{{ odp.olt_name }}</td>
                                         <td class="px-4 py-4 text-sm tabular-nums text-slate-300">{{ portLabel(odp) }}</td>
                                         <td class="px-4 py-4 text-sm tabular-nums text-slate-300">{{ odp.onu_count }}</td>
@@ -431,6 +463,9 @@ const mapHref = (odp) =>
                                             <div class="flex justify-center gap-1.5">
                                                 <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
                                                     <Wifi class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
+                                                    <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
                                                 </IconButton>
                                                 <IconButton :title="$t('common.edit')" @click="openEdit(odp)">
                                                     <Pencil class="h-4 w-4" />
@@ -628,6 +663,16 @@ const mapHref = (odp) =>
                 </div>
             </div>
         </Modal>
+
+        <!-- Warna pin ODP — komponen bersama dgn kartu detail ODP di peta. -->
+        <OdpColorModal
+            v-if="colorOdp"
+            :show="true"
+            :odp="colorOdp"
+            :palette="odp_color_palette"
+            :port-count="colorPortCount"
+            @close="colorOdpId = null"
+        />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>

@@ -148,11 +148,20 @@ class NmsApi {
   // ---- ODP & Peta ----------------------------------------------------------
 
   /// Daftar ODP. `oltId` null = seluruh OLT dalam scope pengguna.
-  Future<List<Odp>> odps({int? oltId}) => _run(
+  Future<List<Odp>> odps({int? oltId}) async => (await odpsWithMeta(oltId: oltId)).items;
+
+  /// Sama seperti [odps] tapi ikut mengembalikan palet warna pin ODP dari
+  /// `meta.color_palette` (sumber tunggal ada di server).
+  Future<({List<Odp> items, List<String> palette})> odpsWithMeta({int? oltId}) => _run(
         () => _dio.get('/odps', queryParameters: {if (oltId != null) 'olt_id': oltId}),
-        (d) => ((d['data'] ?? []) as List)
-            .map((e) => Odp.fromJson(e as Map<String, dynamic>))
-            .toList(),
+        (d) => (
+          items: ((d['data'] ?? []) as List)
+              .map((e) => Odp.fromJson(e as Map<String, dynamic>))
+              .toList(),
+          palette: ((d['meta']?['color_palette'] ?? []) as List)
+              .map((e) => e.toString())
+              .toList(),
+        ),
       );
 
   Future<Odp> odp(int id) => _run(
@@ -224,5 +233,28 @@ class NmsApi {
   Future<Map<String, dynamic>> refreshPort(int oltId, int slot, int port) => _run(
         () => _dio.post('/olts/$oltId/ports/$slot/$port/refresh'),
         (d) => d['data'] as Map<String, dynamic>,
+      );
+
+  /// Ganti warna pin ODP di peta — satu-satunya aksi tulis ODP dari aplikasi.
+  ///
+  /// [color] null = kembali ke warna bawaan; [random] biar server memilih warna
+  /// palet yang belum dipakai port lain; [applyToPort] (bawaan) mewarnai semua
+  /// ODP di PON port yang sama.
+  Future<({String? color, int updated})> setOdpColor(
+    int odpId, {
+    String? color,
+    bool random = false,
+    bool applyToPort = true,
+  }) =>
+      _run(
+        () => _dio.post('/odps/$odpId/color', data: {
+          'color': color,
+          'random': random,
+          'apply_to_port': applyToPort,
+        }),
+        (d) => (
+          color: d['data']?['color'] as String?,
+          updated: (d['data']?['updated'] ?? 0) as int,
+        ),
       );
 }

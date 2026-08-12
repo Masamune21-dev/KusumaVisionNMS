@@ -19,6 +19,8 @@ const props = defineProps({
     placement: { type: Object, default: null },
     focus_pin_id: { type: [Number, null], default: null },
     focus_odp_id: { type: [Number, null], default: null },
+    // Palet warna pin ODP (sumber: App\Support\OdpColors di server).
+    odp_color_palette: { type: Array, default: () => [] },
 });
 
 const page = usePage();
@@ -36,6 +38,17 @@ const odpCardPos = ref(null);
 
 const selectedPin = computed(() => props.pins.find((p) => p.id === selectedPinId.value) ?? null);
 const selectedOdp = computed(() => props.odps.find((o) => o.id === selectedOdpId.value) ?? null);
+
+// Jumlah ODP se-PON-port dgn ODP terpilih — dipakai label saklar "terapkan ke satu port"
+// di modal warna (warna ODP normalnya seragam per port).
+const selectedOdpPortCount = computed(() => {
+    const odp = selectedOdp.value;
+    if (!odp || odp.slot == null || odp.port == null) return 1;
+
+    return props.odps.filter(
+        (o) => o.snmp_olt_id === odp.snmp_olt_id && o.slot === odp.slot && o.port === odp.port,
+    ).length;
+});
 
 // Kartu detail diposisikan absolut di atas pin; ikut bergeser saat peta dipan/zoom.
 const cardStyle = computed(() =>
@@ -218,7 +231,12 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
                     class="kv-pin-popup absolute z-[500] w-80 max-w-[calc(100vw-1.5rem)]"
                     :style="odpCardStyle"
                 >
-                    <OdpDetailCard :odp="selectedOdp" @close="closeOdpDetail" />
+                    <OdpDetailCard
+                        :odp="selectedOdp"
+                        :palette="odp_color_palette"
+                        :port-count="selectedOdpPortCount"
+                        @close="closeOdpDetail"
+                    />
                     <span class="kv-pin-popup__arrow"></span>
                 </div>
 

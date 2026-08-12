@@ -246,6 +246,7 @@ Ringkasan:
 | POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot`         | Reboot ONU                      |
 | POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name`           | Ubah nama/deskripsi ONU         |
 | DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}`                | Hapus (deregister) ONU dari OLT |
+| POST   | `/odps/{odp}/color`                                     | Warna pin ODP di peta (§3.9)    |
 
 Contoh hapus ONU (destruktif — deregistrasi permanen dari OLT; gated capability
 `supports_onu_delete`):
@@ -444,14 +445,23 @@ curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
       "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
       "name": "ODP BANGPE", "slot": 2, "port": 3,
       "latitude": -6.6129883, "longitude": 111.0610271,
+      "color": "#22d3ee",
       "notes": null, "onu_count": 6
     }
   ],
-  "meta": { "count": 22 }
+  "meta": {
+    "count": 22,
+    "color_palette": ["#f59e0b", "#fb923c", "…"],
+    "color_default": "#f59e0b"
+  }
 }
 ```
 
 `GET /odps/{odp}` mengembalikan satu ODP dengan bentuk yang sama.
+
+`color` null = pakai `meta.color_default`. `meta.color_palette` adalah daftar warna
+resmi dari server (`App\Support\OdpColors`) — klien menampilkannya apa adanya, jangan
+menyalin daftarnya ke dalam aplikasi.
 
 ### 3.7. `GET /odps/{odp}/onus` — ONU di dalam sebuah ODP
 
@@ -496,7 +506,8 @@ tengah default. **Query param:** `olt_id` (opsional).
     "odps": [
       { "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
         "name": "ODP BANGPE", "slot": 2, "port": 3,
-        "latitude": -6.61, "longitude": 111.06, "locked": true, "notes": null,
+        "latitude": -6.61, "longitude": 111.06, "color": "#22d3ee",
+        "locked": true, "notes": null,
         "onus": [ /* bentuk sama dengan /odps/{id}/onus */ ] }
     ],
     "olts": [{ "id": 1, "name": "OLT-C320-PATI" }],
@@ -509,10 +520,31 @@ tengah default. **Query param:** `olt_id` (opsional).
 `default_center` dihitung dari rata-rata pin ONU **dan** pin ODP (fallback: Pati),
 supaya peta tetap terbuka di area kerja meski ONU-nya belum di-pin.
 
-Peta di aplikasi bersifat **baca-saja**: menambah/menggeser pin & CRUD ODP tetap
-lewat dashboard web.
+Peta di aplikasi hampir sepenuhnya **baca-saja**: menambah/menggeser pin & CRUD ODP
+tetap lewat dashboard web — kecuali warna pin ODP (§3.9).
 
-### 3.9. `GET /alarms` — daftar alarm
+### 3.9. `POST /odps/{odp}/color` — warna pin ODP (tulis)
+
+Warna dipakai mengelompokkan ODP per PON port di peta, jadi **bawaannya mewarnai
+semua ODP di port yang sama**. Butuh role `admin`/`operator`/`partner`; akun `demo`
+ditolak 403, ODP di luar scope partner 404.
+
+| Field | Tipe | Arti |
+|-------|------|------|
+| `color` | string\|null | `#rrggbb` (case-insensitive). `null` = kembali ke warna bawaan. |
+| `random` | bool | `true` = server memilih warna palet yang belum dipakai port lain di OLT itu (mengabaikan `color`). |
+| `apply_to_port` | bool | Bawaan `true` = semua ODP di `(olt, slot, port)` yang sama. ODP tanpa slot/port selalu sendiri. |
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+  -d 'color=%2322d3ee&apply_to_port=1' \
+  https://nms.kusumavision.net/api/v1/odps/26/color
+# → { "data": { "id": 26, "color": "#22d3ee", "color_effective": "#22d3ee", "updated": 4 } }
+```
+
+`updated` = jumlah ODP yang ikut terwarnai. Hex tak valid → 422 (`errors.color`).
+
+### 3.10. `GET /alarms` — daftar alarm
 
 **Query params:**
 

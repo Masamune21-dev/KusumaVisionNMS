@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Odp;
 use App\Services\OnuOdpService;
+use App\Support\OdpColors;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * Read-only API ODP (Optical Distribution Point) untuk aplikasi Android:
- * daftar ODP + ONU yang terhubung di dalamnya.
+ * API ODP (Optical Distribution Point) untuk aplikasi Android: daftar ODP + ONU yang
+ * terhubung di dalamnya (baca-saja), plus ganti warna pin ODP (satu-satunya aksi tulis;
+ * CRUD ODP lain tetap web-only).
  *
  * Kepemilikan dijaga `PartnerOltScope` pada model `Odp` — partner hanya melihat ODP
  * milik OLT yang di-assign ke dirinya (route-model binding `{odp}` → 404 di luar itu).
@@ -54,7 +56,13 @@ class OdpController extends Controller
 
         return response()->json([
             'data' => $odps->all(),
-            'meta' => ['count' => $odps->count()],
+            'meta' => [
+                'count' => $odps->count(),
+                // Palet warna pin ODP dikirim dari server supaya daftar warnanya tak
+                // diduplikasi di aplikasi Android (sumber: App\Support\OdpColors).
+                'color_palette' => OdpColors::PALETTE,
+                'color_default' => OdpColors::DEFAULT,
+            ],
         ]);
     }
 
@@ -88,6 +96,27 @@ class OdpController extends Controller
     }
 
     /**
+     * POST /api/v1/odps/{odp}/color — ganti warna pin ODP (satu-satunya endpoint TULIS ODP).
+     *
+     * Body: `color` "#rrggbb" (null = reset ke default), `random` (server memilih warna
+     * palet yang belum dipakai port lain di OLT ini), `apply_to_port` (bawaan true =
+     * mewarnai semua ODP di PON port yang sama).
+     */
+    public function color(Request $request, Odp $odp): JsonResponse
+    {
+        $result = $this->service->applyColorInput($odp, $request->validate(OdpColors::RULES));
+
+        return response()->json([
+            'data' => [
+                'id' => $odp->id,
+                'color' => $result['color'],
+                'color_effective' => $result['color'] ?? OdpColors::DEFAULT,
+                'updated' => $result['updated'],
+            ],
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function serialize(Odp $odp): array
@@ -101,6 +130,7 @@ class OdpController extends Controller
             'port' => $odp->port,
             'latitude' => (float) $odp->latitude,
             'longitude' => (float) $odp->longitude,
+            'color' => $odp->color,
             'notes' => $odp->notes,
             'onu_count' => (int) ($odp->links_count ?? 0),
         ];

@@ -1,5 +1,78 @@
 # Worklog
 
+## 2026-08-12
+
+### Warna pin ODP di peta — manual & acak, disapu per PON port (web + Android)
+
+Permintaan owner: pin ODP semuanya kuning, sulit membedakan ODP milik port mana di peta. Warna kini
+bisa dipilih, dan mengganti warna satu ODP **otomatis mewarnai semua ODP di PON port yang sama**
+(mis. C300 slot 2 port 2) karena warna memang dipakai sebagai penanda kelompok port — bukan identitas
+per-ODP. Saklar di modal bisa dimatikan kalau satu ODP ingin beda sendiri.
+
+Keputusan desain yang diambil bersama owner: cakupan = toggle default se-port; "Acak" = server memilih
+dari palet dan **menghindari warna yang sudah dipakai port lain di OLT itu**; garis kabel ODP→ONU
+**tetap** hijau/merah status ONU (kalau ikut warna ODP, sinyal gangguan hilang); mobile cukup palet +
+acak (tanpa color picker HSV / paket baru).
+
+Created:
+
+- `database/migrations/2026_08_12_000001_add_color_to_odps_table.php` — `odps.color` string(7) nullable.
+  Null = warna bawaan, jadi ODP lama tampil persis seperti sebelumnya tanpa backfill.
+- `app/Support/OdpColors.php` — palet 16 warna (**sengaja tanpa hijau/merah**: keduanya sudah dipakai
+  pin ONU untuk online/offline), `DEFAULT`, `RULES` validasi bersama, `normalize()`, dan
+  `randomFor($oltId, $slot, $port)` yang memilih warna palet yang belum dipakai port lain di OLT itu
+  (palet habis → warna paling jarang dipakai).
+- `resources/js/lib/odpColors.js` + `mobile/lib/core/odp_colors.dart` — hanya default + `textOn()`
+  (kontras teks badge, palet punya `#e2e8f0` sampai `#a16207`). Daftar warnanya **tidak** diduplikasi.
+- `resources/js/Components/Map/OdpColorModal.vue` — palet + `<input type="color">` + Acak + Default +
+  saklar "terapkan ke semua ODP di port ini (n ODP)". Dipakai kartu peta **dan** halaman ODP.
+- `mobile/lib/features/odp/odp_color_sheet.dart` — bottom-sheet setara untuk Android.
+
+Changed:
+
+- `app/Services/OnuOdpService.php` — `setColor()` (bulk update per `(snmp_olt_id, slot, port)`, tetap
+  lewat `Odp::query()` supaya `PartnerOltScope` membatasi baris) + `applyColorInput()` (jembatan payload
+  web/API); `odpsForOlt()` ikut mengirim `color`.
+- `app/Http/Controllers/OdpController.php` — `color()` + prop `odp_color_palette`/`odp_color_default`;
+  rute `POST map.odps.color` (`back()`, jadi bisa dipanggil dari peta maupun halaman ODP).
+- `app/Http/Controllers/Api/V1/OdpController.php` — `color()` (**satu-satunya aksi tulis ODP dari
+  aplikasi**, grup `role:admin,operator,partner` + `BlockDemoWrites`), `color` di serialize, palet di
+  `meta.color_palette`/`color_default`.
+- `app/Services/Map/OnuMapPayloadService.php`, `app/Http/Controllers/OnuMapController.php` — `color`
+  ikut payload ODP (dipakai bersama web + `GET /api/v1/map`) + prop palet.
+- `resources/js/Components/Map/OnuMap.vue` — pin & badge memakai `odps.color`; **`sig` marker kini
+  memuat warna** (tanpa itu diff marker menganggap tak ada perubahan → pin tetap warna lama sampai
+  reload); aksen CSS badge/selected dibuat netral (putih) supaya cocok untuk semua warna.
+- `resources/js/Components/Map/OdpDetailCard.vue` — tombol **Warna**, titik judul/chip/bingkai kartu
+  ikut warna ODP. `Pages/Map/Index.vue` menghitung jumlah ODP se-port untuk label saklar.
+- `resources/js/Pages/Odp/Index.vue` — titik warna per baris (tabel + kartu mobile) + ikon palet.
+- `resources/js/Components/OnuOdpCell.vue` — titik warna ODP terpasang di kolom ODP tabel ONU.
+- `resources/js/lang/{id,en}.json`, `lang/{id,en}/flash.php` — 8 key `map.odp_color*` + `odp_color_updated`.
+- Mobile: `models/{odp,map_data}.dart` (+`color`), `core/api/nms_api.dart` (`odpsWithMeta()`,
+  `setOdpColor()`), `data/read_providers.dart` (`odpColorPaletteProvider`), `core/icons.dart`
+  (palette/shuffle), pin peta + sheet ODP + detail + daftar ODP memakai warnanya, `pubspec.yaml`
+  1.3.1+18 → **1.4.0+19** (versionCode wajib naik tiap rilis APK).
+- `docs/API.md` (§3.6 palet, §3.9 endpoint warna, §3.10 alarm bergeser), `docs/handbook/16-peta-onu.md`
+  (bagian "Warna pin ODP"), `CLAUDE.md`.
+
+Notes:
+
+- Test: `bash scripts/test.sh` **512 passed / 2714 assertions**, `npm test` 12 passed, `flutter analyze`
+  bersih, `vite build` sukses. Ditambah 11 test: sapuan se-port (port lain & OLT lain **tidak** ikut),
+  `apply_to_port=false`, reset ke default, ODP tanpa port, acak menghindari warna port tetangga, hex
+  invalid → 422, partner 404, demo 403, `color`+palet di prop Inertia & JSON API.
+- Rute API baru → **wajib `php artisan route:cache`** setelah deploy (`routes-v7.php` ter-cache; tanpa
+  itu endpoint warna 404 di produksi).
+- Warna sengaja disimpan per-ODP walau UI-nya per-port: ODP yang belum punya slot/port (belum ada ONU)
+  tetap bisa diwarnai, dan pengecualian satu ODP tetap mungkin tanpa tabel tambahan.
+- Deploy produksi: aset ter-build, migrasi jalan, `route:cache` ulang, `queue:restart`, ketiga daemon
+  RUNNING. **Pelajaran**: checkout ini produksi, jadi menyimpan PHP yang membaca kolom baru **sebelum**
+  migrasi dijalankan langsung membuat halaman peta 500 — tercatat 5 error antara 07:49–07:52 sampai
+  `migrate --force` jalan. Lain kali: migrasi dulu, baru sentuh kode yang membacanya.
+- APK rilis dibangun & dipublikasikan: `net.kusumavision.nms` **1.4.0 (versionCode 2019)** —
+  arm64 20,9 MB di `/downloads/kusumavision-nms.apk`, arm32 18,4 MB di
+  `/downloads/kusumavision-nms-arm32.apk` (verifikasi `aapt2 dump badging` + HTTP 200).
+
 ## 2026-08-10
 
 ### Test suite tak lagi bisa menyentuh database produksi (`scripts/test.sh`)

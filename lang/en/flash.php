@@ -36,6 +36,7 @@ return [
     'odp_saved' => 'ODP pin saved to the map.',
     'odp_updated' => 'ODP updated.',
     'odp_deleted' => 'ODP removed from the map.',
+    'odp_color_updated' => 'ODP pin colour updated (:count ODP).',
     'onu_odp_assigned' => 'ONU linked to the ODP.',
     'onu_odp_cleared' => 'ODP link removed from the ONU.',
     'onu_odp_link_failed' => ' (NOTE: the ONU is registered on the OLT, but linking the ODP FAILED — attach it manually from the ODP page. Reason: ',

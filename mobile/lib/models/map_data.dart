@@ -75,6 +75,7 @@ class MapOdp {
     required this.port,
     required this.latitude,
     required this.longitude,
+    required this.color,
     required this.notes,
     required this.onus,
   });
@@ -84,6 +85,9 @@ class MapOdp {
   final String name;
   final int? slot, port;
   final double latitude, longitude;
+
+  /// Warna pin ODP ("#rrggbb"); null = bawaan (lihat core/odp_colors.dart).
+  final String? color;
   final String? notes;
   final List<OdpOnu> onus;
 
@@ -100,6 +104,7 @@ class MapOdp {
         port: J.asIntN(j['port']),
         latitude: J.asDoubleN(j['latitude']) ?? 0,
         longitude: J.asDoubleN(j['longitude']) ?? 0,
+        color: J.asStrN(j['color']),
         notes: J.asStrN(j['notes']),
         onus: ((j['onus'] ?? []) as List)
             .map((e) => OdpOnu.fromJson(e as Map<String, dynamic>))

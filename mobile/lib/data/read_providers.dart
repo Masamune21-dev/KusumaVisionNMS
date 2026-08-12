@@ -51,6 +51,13 @@ final odpsProvider = FutureProvider.autoDispose<List<Odp>>(
   (ref) => ref.watch(nmsApiProvider).odps(),
 );
 
+/// Palet warna pin ODP dari server (`meta.color_palette` di `GET /odps`).
+/// Sengaja TANPA autoDispose: isinya statis, cukup diambil sekali per sesi saat
+/// lembar pemilih warna pertama kali dibuka.
+final odpColorPaletteProvider = FutureProvider<List<String>>(
+  (ref) async => (await ref.watch(nmsApiProvider).odpsWithMeta()).palette,
+);
+
 /// Detail satu ODP — dipakai saat masuk lewat deep-link (dari detail ONU),
 /// bukan dari daftar.
 final odpDetailProvider = FutureProvider.autoDispose.family<Odp, int>(

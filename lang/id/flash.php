@@ -36,6 +36,7 @@ return [
     'odp_saved' => 'Pin ODP tersimpan di peta.',
     'odp_updated' => 'ODP diperbarui.',
     'odp_deleted' => 'ODP dihapus dari peta.',
+    'odp_color_updated' => 'Warna pin ODP diperbarui (:count ODP).',
     'onu_odp_assigned' => 'ONU dikaitkan ke ODP.',
     'onu_odp_cleared' => 'Kaitan ODP dilepas dari ONU.',
     'onu_odp_link_failed' => ' (CATATAN: ONU sudah teregister di OLT, tetapi ODP GAGAL dikaitkan — pasang manual dari halaman ODP. Sebab: ',

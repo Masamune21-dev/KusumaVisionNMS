@@ -61,4 +61,6 @@ class LucideIcons {
   static const IconData locate = Icons.my_location_rounded;
   static const IconData filter = Icons.filter_alt_outlined;
   static const IconData navigation = Icons.near_me_outlined;
+  static const IconData palette = Icons.palette_outlined;
+  static const IconData shuffle = Icons.shuffle_rounded;
 }

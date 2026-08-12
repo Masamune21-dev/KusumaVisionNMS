@@ -80,7 +80,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('alarms', [AlarmController::class, 'index'])->name('api.alarms.index');
 
-        // ODP + Peta (baca-saja) — pin ONU/ODP untuk peta full-screen di aplikasi Android,
+        // ODP + Peta (baca-saja; ganti warna ODP ada di grup tulis di bawah) — pin ONU/ODP
+        // untuk peta full-screen di aplikasi Android,
         // dan daftar ODP beserta ONU di dalamnya. Kepemilikan dijaga PartnerOltScope.
         Route::get('odps', [OdpController::class, 'index'])->name('api.odps.index');
         Route::get('odps/{odp}', [OdpController::class, 'show'])->name('api.odps.show');
@@ -112,6 +113,10 @@ Route::prefix('v1')->group(function () {
             Route::delete('olts/{olt}/onus/{slot}/{port}/{onuId}', [OnuActionController::class, 'delete'])
                 ->whereNumber(['slot', 'port', 'onuId'])
                 ->name('api.olts.onu.delete');
+
+            // Warna pin ODP di peta — satu-satunya aksi tulis ODP dari aplikasi
+            // (CRUD ODP & pin ONU tetap web-only).
+            Route::post('odps/{odp}/color', [OdpController::class, 'color'])->name('api.odps.color');
         });
     });
 });

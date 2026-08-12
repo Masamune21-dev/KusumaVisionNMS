@@ -7,6 +7,7 @@ use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
+use App\Support\OdpColors;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,6 +41,7 @@ class OdpController extends Controller
                 'port' => $odp->port,
                 'latitude' => (float) $odp->latitude,
                 'longitude' => (float) $odp->longitude,
+                'color' => $odp->color,
                 'locked' => (bool) $odp->locked,
                 'notes' => $odp->notes,
                 'onu_count' => $odp->links_count,
@@ -53,6 +55,10 @@ class OdpController extends Controller
                 ->get(['id', 'name'])
                 ->map(fn (SnmpOlt $olt) => ['id' => $olt->id, 'name' => $olt->name])
                 ->values(),
+            // Palet warna pin ODP dikirim dari server (sumber kebenaran App\Support\OdpColors)
+            // supaya daftar warnanya tak diduplikasi di frontend.
+            'odp_color_palette' => OdpColors::PALETTE,
+            'odp_color_default' => OdpColors::DEFAULT,
         ]);
     }
 
@@ -189,6 +195,20 @@ class OdpController extends Controller
                 ? ($odp->locked ? __('flash.odp_locked') : __('flash.odp_unlocked'))
                 : __('flash.odp_updated'),
         );
+    }
+
+    /**
+     * Ganti warna pin ODP di peta (manual dari palet/hex, atau acak).
+     *
+     * Rute tersendiri (bukan menempel di update()) karena semantiknya berbeda: bawaannya
+     * mewarnai SEMUA ODP di PON port yang sama. Pakai back() supaya bisa dipanggil dari
+     * peta maupun halaman ODP.
+     */
+    public function color(Request $request, Odp $odp): RedirectResponse
+    {
+        $result = $this->service->applyColorInput($odp, $request->validate(OdpColors::RULES));
+
+        return back()->with('success', __('flash.odp_color_updated', ['count' => $result['updated']]));
     }
 
     public function destroy(Odp $odp): RedirectResponse

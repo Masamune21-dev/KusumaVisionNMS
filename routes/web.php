@@ -181,6 +181,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/map/odps', [OdpController::class, 'store'])->name('map.odps.store');
     Route::put('/map/odps/{odp}', [OdpController::class, 'update'])->name('map.odps.update');
     Route::delete('/map/odps/{odp}', [OdpController::class, 'destroy'])->name('map.odps.destroy');
+    // Warna pin ODP — rute terpisah karena bawaannya mewarnai satu PON port sekaligus.
+    Route::post('/map/odps/{odp}/color', [OdpController::class, 'color'])->name('map.odps.color');
     Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
     // Halaman pengelolaan ODP — prefix rute sengaja `odp.*` (bukan `map.odps.index`) supaya
     // penanda menu aktif `map.*` milik Peta ONU tidak ikut menyala.

@@ -2,12 +2,14 @@
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
+import OdpColorModal from '@/Components/Map/OdpColorModal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { odpColor } from '@/lib/odpColors';
 import { router, useForm } from '@inertiajs/vue3';
-import { Lock, LockOpen, MapPin, Pencil, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
+import { Lock, LockOpen, MapPin, Palette, Pencil, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -15,6 +17,10 @@ const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps({
     odp: { type: Object, required: true },
+    // Palet warna dari server (prop halaman `odp_color_palette`).
+    palette: { type: Array, default: () => [] },
+    // Jumlah ODP di PON port yang sama — label saklar "terapkan se-port" di modal warna.
+    portCount: { type: Number, default: 1 },
 });
 
 const emit = defineEmits(['close']);
@@ -24,6 +30,15 @@ const busy = ref(false);
 
 const onus = computed(() => props.odp.onus ?? []);
 const onlineCount = computed(() => onus.value.filter((o) => o.online).length);
+// Warna ODP mewarnai aksen kartu (titik judul, chip jumlah ONU, bingkai) supaya kartu
+// dan pin-nya di peta terbaca sebagai satu kesatuan.
+const color = computed(() => odpColor(props.odp));
+const accentChip = computed(() => ({
+    background: `${color.value}26`,
+    color: color.value,
+    boxShadow: `inset 0 0 0 1px ${color.value}55`,
+}));
+const colorOpen = ref(false);
 const googleHref = computed(() => `https://www.google.com/maps?q=${props.odp.latitude},${props.odp.longitude}`);
 
 // --- edit nama ODP ---
@@ -84,12 +99,15 @@ const deleteOdp = async () => {
 </script>
 
 <template>
-    <div class="flex flex-col gap-2.5 rounded-2xl border border-amber-400/25 bg-slate-950/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl">
+    <div
+        class="flex flex-col gap-2.5 rounded-2xl border bg-slate-950/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl"
+        :style="{ borderColor: `${color}40` }"
+    >
         <!-- Header -->
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
                 <div class="flex items-start gap-1.5">
-                    <span class="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm bg-amber-500 ring-1 ring-white/40"></span>
+                    <span class="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: color }"></span>
                     <h3 class="break-words text-sm font-semibold leading-snug text-white" :title="odp.name">{{ odp.name }}</h3>
                 </div>
                 <p class="mt-0.5 truncate text-[11px] text-slate-400">
@@ -103,7 +121,7 @@ const deleteOdp = async () => {
 
         <!-- Ringkasan -->
         <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 font-semibold text-amber-300 ring-1 ring-amber-500/30">
+            <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold" :style="accentChip">
                 {{ $t('map.odp_connected', { count: onus.length }) }}
             </span>
             <span v-if="onus.length" class="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
@@ -163,6 +181,9 @@ const deleteOdp = async () => {
                 <button type="button" class="kv-action-btn" :disabled="busy" @click="openEdit">
                     <Pencil class="h-4 w-4" /> {{ $t('map.edit_odp_name') }}
                 </button>
+                <button type="button" class="kv-action-btn" :disabled="busy" @click="colorOpen = true">
+                    <Palette class="h-4 w-4" :style="{ color }" /> {{ $t('map.odp_color') }}
+                </button>
                 <a :href="googleHref" target="_blank" rel="noopener" class="kv-action-btn">
                     <MapPin class="h-4 w-4" /> Maps
                 </a>
@@ -188,6 +209,9 @@ const deleteOdp = async () => {
                 </div>
             </div>
         </Modal>
+
+        <!-- Modal warna pin ODP -->
+        <OdpColorModal :show="colorOpen" :odp="odp" :palette="palette" :port-count="portCount" @close="colorOpen = false" />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </div>

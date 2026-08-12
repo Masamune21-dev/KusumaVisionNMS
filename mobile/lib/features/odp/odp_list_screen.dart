@@ -4,6 +4,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
+import '../../core/odp_colors.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -230,6 +231,9 @@ class OdpRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ikon memakai warna pin ODP di peta — daftar & peta jadi mudah dicocokkan.
+    final color = odpColorOf(odp.color);
+
     return GlassCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -238,10 +242,10 @@ class OdpRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.13),
+              color: color.withValues(alpha: 0.13),
               borderRadius: BorderRadius.circular(AppRadius.chip),
             ),
-            child: const Icon(LucideIcons.odp, size: 17, color: AppColors.warning),
+            child: Icon(LucideIcons.odp, size: 17, color: color),
           ),
           const SizedBox(width: 12),
           Expanded(

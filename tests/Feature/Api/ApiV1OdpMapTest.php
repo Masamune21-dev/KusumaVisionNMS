@@ -8,6 +8,7 @@ use App\Models\OnuOdpLink;
 use App\Models\Scopes\PartnerOltScope;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Support\OdpColors;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -87,6 +88,70 @@ class ApiV1OdpMapTest extends TestCase
             ->assertJsonPath('data.0.olt_name', 'OLT-C320-PATI')
             ->assertJsonPath('data.0.slot', 1)
             ->assertJsonPath('data.0.onu_count', 1);
+    }
+
+    public function test_odp_index_ships_the_colour_palette_for_the_app(): void
+    {
+        $olt = $this->makeOlt();
+        $this->makeOdp($olt)->forceFill(['color' => '#8b5cf6'])->save();
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->getJson('/api/v1/odps')
+            ->assertOk()
+            ->assertJsonPath('data.0.color', '#8b5cf6')
+            ->assertJsonPath('meta.color_default', OdpColors::DEFAULT)
+            ->assertJsonCount(count(OdpColors::PALETTE), 'meta.color_palette');
+    }
+
+    public function test_app_can_colour_a_whole_pon_port(): void
+    {
+        $olt = $this->makeOlt();
+        $target = $this->makeOdp($olt, 'ODP-1/1-A', 1, 1);
+        $sibling = $this->makeOdp($olt, 'ODP-1/1-B', 1, 1);
+        $otherPort = $this->makeOdp($olt, 'ODP-1/2', 1, 2);
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->postJson("/api/v1/odps/{$target->id}/color", ['color' => '#22d3ee'])
+            ->assertOk()
+            ->assertJsonPath('data.color', '#22d3ee')
+            ->assertJsonPath('data.updated', 2);
+
+        $this->assertSame('#22d3ee', $sibling->fresh()->color);
+        $this->assertNull($otherPort->fresh()->color);
+    }
+
+    public function test_app_colour_endpoint_rejects_demo_and_foreign_odp(): void
+    {
+        $mine = $this->makeOlt('OLT-MINE', '10.8.0.1');
+        $foreign = $this->makeOlt('OLT-FOREIGN', '10.8.0.2');
+        $myOdp = $this->makeOdp($mine, 'ODP-MINE');
+        $foreignOdp = $this->makeOdp($foreign, 'ODP-FOREIGN');
+
+        // Akun demo read-only (BlockDemoWrites) — sama seperti aksi tulis ONU.
+        $this->actingAs(User::factory()->demo()->create(), 'sanctum')
+            ->postJson("/api/v1/odps/{$myOdp->id}/color", ['color' => '#22d3ee'])
+            ->assertForbidden();
+
+        $partner = User::factory()->partner()->create();
+        $partner->partnerOlts()->sync([$mine->id]);
+
+        $this->actingAs($partner, 'sanctum')
+            ->postJson("/api/v1/odps/{$foreignOdp->id}/color", ['color' => '#22d3ee'])
+            ->assertNotFound();
+
+        $this->assertNull($myOdp->fresh()->color);
+        $this->assertNull($foreignOdp->fresh()->color);
+    }
+
+    public function test_map_payload_includes_odp_colour(): void
+    {
+        $olt = $this->makeOlt();
+        $this->makeOdp($olt)->forceFill(['color' => '#ec4899'])->save();
+
+        $this->actingAs(User::factory()->create(), 'sanctum')
+            ->getJson('/api/v1/map')
+            ->assertOk()
+            ->assertJsonPath('data.odps.0.color', '#ec4899');
     }
 
     public function test_odp_index_filters_by_olt_and_query(): void

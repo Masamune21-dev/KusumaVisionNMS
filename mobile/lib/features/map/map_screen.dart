@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/odp_colors.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/rx_power_badge.dart';
 import '../../core/widgets/status_chip.dart';
@@ -12,6 +13,7 @@ import '../../data/read_providers.dart';
 import '../../models/map_data.dart';
 import '../../models/odp.dart';
 import '../../theme/app_theme.dart';
+import '../odp/odp_color_sheet.dart';
 import 'map_providers.dart';
 
 const _tnum = [FontFeature.tabularFigures()];
@@ -284,7 +286,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
+  /// Ganti warna pin ODP dari peta (bawaan: se-PON-port, sama seperti web).
+  Future<void> _pickOdpColor(MapOdp odp) async {
+    final odps = ref.read(mapDataProvider).valueOrNull?.odps ?? const <MapOdp>[];
+    final siblings = odp.portLabel == null
+        ? 1
+        : odps
+            .where((o) => o.oltId == odp.oltId && o.slot == odp.slot && o.port == odp.port)
+            .length;
+
+    await showOdpColorSheet(
+      context,
+      odpId: odp.id,
+      odpName: odp.name,
+      currentColor: odp.color,
+      portLabel: odp.portLabel,
+      portCount: siblings < 1 ? 1 : siblings,
+    );
+  }
+
   void _showOdpSheet(MapOdp odp) {
+    final color = odpColorOf(odp.color);
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -299,10 +322,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.14),
+                    color: color.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(AppRadius.chip),
                   ),
-                  child: const Icon(LucideIcons.odp, size: 17, color: AppColors.warning),
+                  child: Icon(LucideIcons.odp, size: 17, color: color),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -354,16 +377,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  context.push('/odps/${odp.id}');
-                },
-                icon: const Icon(LucideIcons.odp, size: 18),
-                label: const Text('Buka halaman ODP'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      context.push('/odps/${odp.id}');
+                    },
+                    icon: const Icon(LucideIcons.odp, size: 18),
+                    label: const Text('Halaman ODP'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _pickOdpColor(odp);
+                  },
+                  icon: Icon(LucideIcons.palette, size: 18, color: color),
+                  label: const Text('Warna'),
+                ),
+              ],
             ),
           ],
         ),
@@ -519,13 +554,17 @@ class _OdpMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Warna pin dari `odps.color` (biasanya seragam per PON port); teks badge
+    // mengikuti kecerahannya supaya tetap terbaca di warna terang maupun gelap.
+    final color = odpColorOf(odp.color);
+
     return GestureDetector(
       onTap: onTap,
       child: Stack(
         children: [
-          const Align(
+          Align(
             alignment: Alignment.bottomCenter,
-            child: _PinGlyph(color: AppColors.warning),
+            child: _PinGlyph(color: color),
           ),
           Positioned(
             top: 0,
@@ -534,18 +573,18 @@ class _OdpMarker extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 19),
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
-                color: AppColors.warning,
+                color: color,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: const Color(0xCC000000), width: 1.2),
               ),
               child: Text(
                 '${odp.onus.length}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10.5,
                   height: 1.2,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF241A00),
+                  color: odpTextOn(color),
                   fontFeatures: _tnum,
                 ),
               ),

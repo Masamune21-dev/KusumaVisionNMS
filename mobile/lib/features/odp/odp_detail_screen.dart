@@ -4,6 +4,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
+import '../../core/odp_colors.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/aurora_background.dart';
 import '../../core/widgets/glass_card.dart';
@@ -14,6 +15,7 @@ import '../../data/read_providers.dart';
 import '../../models/odp.dart';
 import '../../theme/app_theme.dart';
 import '../map/map_providers.dart';
+import 'odp_color_sheet.dart';
 
 const _tnum = [FontFeature.tabularFigures()];
 
@@ -38,6 +40,27 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
     super.dispose();
   }
 
+  /// Ganti warna pin ODP (bawaan: se-PON-port, sama seperti web).
+  Future<void> _pickColor(Odp odp) async {
+    // Jumlah ODP se-port untuk label saklar — dari daftar ODP yang sudah dimuat;
+    // kalau daftarnya belum ada, cukup ODP ini.
+    final all = ref.read(odpsProvider).valueOrNull ?? const <Odp>[];
+    final siblings = odp.portLabel == null
+        ? 1
+        : all
+            .where((o) => o.oltId == odp.oltId && o.slot == odp.slot && o.port == odp.port)
+            .length;
+
+    await showOdpColorSheet(
+      context,
+      odpId: odp.id,
+      odpName: odp.name,
+      currentColor: odp.color,
+      portLabel: odp.portLabel,
+      portCount: siblings < 1 ? 1 : siblings,
+    );
+  }
+
   void _openOnMap(Odp odp) {
     if (!odp.hasCoordinates) return;
     ref.read(mapFocusProvider.notifier).state =
@@ -54,6 +77,12 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
       appBar: AppBar(
         title: Text(odp.valueOrNull?.name ?? 'Detail ODP'),
         actions: [
+          if (odp.valueOrNull != null)
+            IconButton(
+              tooltip: 'Warna pin ODP',
+              icon: Icon(LucideIcons.palette, size: 20, color: odpColorOf(odp.value!.color)),
+              onPressed: () => _pickColor(odp.value!),
+            ),
           if (odp.valueOrNull?.hasCoordinates ?? false)
             IconButton(
               tooltip: 'Lihat di peta',
@@ -201,14 +230,19 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
-                ),
-                child: const Icon(LucideIcons.odp, size: 20, color: AppColors.warning),
-              ),
+              // Ikon ODP memakai warna pin-nya di peta supaya mudah dicocokkan.
+              Builder(builder: (_) {
+                final color = odpColorOf(odp?.color);
+
+                return Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(AppRadius.chip),
+                  ),
+                  child: Icon(LucideIcons.odp, size: 20, color: color),
+                );
+              }),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

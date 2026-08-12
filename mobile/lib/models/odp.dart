@@ -12,6 +12,7 @@ class Odp {
     required this.port,
     required this.latitude,
     required this.longitude,
+    required this.color,
     required this.notes,
     required this.onuCount,
   });
@@ -25,6 +26,9 @@ class Odp {
   /// otomatis saat ONU pertama dikaitkan di web).
   final int? slot, port;
   final double? latitude, longitude;
+
+  /// Warna pin ODP di peta ("#rrggbb"); null = warna bawaan (lihat core/odp_colors.dart).
+  final String? color;
   final String? notes;
   final int onuCount;
 
@@ -42,6 +46,7 @@ class Odp {
         port: J.asIntN(j['port']),
         latitude: J.asDoubleN(j['latitude']),
         longitude: J.asDoubleN(j['longitude']),
+        color: J.asStrN(j['color']),
         notes: J.asStrN(j['notes']),
         onuCount: J.asInt(j['onu_count']),
       );

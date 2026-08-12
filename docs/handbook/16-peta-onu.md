@@ -121,7 +121,8 @@ kunci komposit yang sama dengan pin.
 **Data:**
 
 - Tabel `odps` (migrasi `2026_07_22_000001`): `snmp_olt_id` (per-OLT, ikut `PartnerOltScope` — partner
-  hanya lihat ODP di OLT miliknya), `name`, `latitude/longitude`, `notes`, `created_by`.
+  hanya lihat ODP di OLT miliknya), `name`, `latitude/longitude`, `color` (migrasi `2026_08_12_000001`,
+  lihat "Warna pin ODP"), `notes`, `created_by`.
 - Tabel `onu_odp_links` (migrasi `2026_07_22_000002`): `odp_id` + kunci ONU komposit
   `(snmp_olt_id, slot, port, onu_id)` — **unik 1 ODP per ONU** (assign ulang = pindah ODP),
   `serial_number` jangkar opsional.
@@ -132,7 +133,8 @@ kunci komposit yang sama dengan pin.
 
 **Di peta (`OnuMap.vue` + `OnuMapController::index` prop `odps`):**
 
-- Pin ODP = teardrop **kuning** (bentuk sama pin ONU) + badge angka jumlah ONU terhubung.
+- Pin ODP = teardrop **berwarna** (bentuk sama pin ONU, bawaan kuning) + badge angka jumlah ONU
+  terhubung — lihat "Warna pin ODP" di bawah.
 - **Garis kabel animasi ODP→ONU** (polyline dashed, aliran via `stroke-dashoffset` CSS) ke setiap ONU
   terhubung yang punya pin — warna garis ikut status ONU (hijau online / merah offline).
 - Klik pin ODP → kartu `Components/Map/OdpDetailCard.vue`: edit nama/notes, daftar ONU terhubung
@@ -166,6 +168,34 @@ belum punya port). Rule `odp_id` nullable ada di `OnuRegistrationService::rules(
 > membatalkan registrasi — hanya ditempel sebagai peringatan (`flash.onu_odp_link_failed`) lewat
 > `OnuOdpService::assignQuietly()`.
 
+## Warna pin ODP (Agu 2026)
+
+Warna dipakai untuk **mengelompokkan ODP per PON port** di peta, jadi bawaan aksinya menyapu satu port
+sekaligus.
+
+- **Simpan**: kolom `odps.color` (`#rrggbb`, nullable — null = warna bawaan `OdpColors::DEFAULT`
+  amber, jadi ODP lama tak berubah tampilan tanpa backfill).
+- **Palet**: `App\Support\OdpColors::PALETTE` (16 warna, **sengaja tanpa hijau/merah** karena keduanya
+  dipakai pin ONU untuk status). Ini **satu-satunya sumber daftar warna**: web menerimanya sebagai prop
+  Inertia `odp_color_palette` (halaman Peta & ODP), aplikasi Android lewat `meta.color_palette` di
+  `GET /api/v1/odps`. Jangan menyalin daftarnya ke JS/Dart — di klien hanya ada nilai default +
+  hitungan kontras (`resources/js/lib/odpColors.js`, `mobile/lib/core/odp_colors.dart`).
+- **Cakupan**: `OnuOdpService::setColor()` — `apply_to_port` (bawaan **true**) mewarnai semua ODP di
+  `(snmp_olt_id, slot, port)` yang sama lewat satu bulk update (tetap kena `PartnerOltScope`); ODP yang
+  belum punya slot/port hanya bisa mewarnai dirinya sendiri.
+- **Acak**: `OdpColors::randomFor()` memilih warna palet yang **belum dipakai port lain di OLT itu**
+  (kalau palet habis, warna yang paling jarang dipakai) — supaya antar-port tetap mudah dibedakan.
+  Dihitung di server agar web & aplikasi berperilaku sama.
+- **UI web**: tombol **Warna** di `OdpDetailCard` (peta) dan ikon palet per baris di halaman ODP, dua-duanya
+  membuka `Components/Map/OdpColorModal.vue` (palet + `<input type="color">` + Acak + Default + saklar
+  se-port). Submit `POST map.odps.color` dengan `only: ['odps', 'flash']` — prop `odps` ada di kedua
+  halaman itu, dan `flash` wajib ikut supaya toast tidak tersaring.
+- **UI mobile**: `mobile/lib/features/odp/odp_color_sheet.dart` (palet + Acak + saklar se-port; **tanpa**
+  hex bebas), dibuka dari AppBar Detail ODP maupun sheet pin ODP di peta.
+- ⚠️ Signature marker di `OnuMap.vue` (`renderOdps`) **harus memuat warna** — tanpa itu marker dianggap
+  tak berubah oleh diff dan pin tetap warna lama sampai halaman dimuat ulang.
+- Garis kabel ODP→ONU **tetap** hijau/merah status ONU (bukan warna ODP) supaya sinyal gangguan tak hilang.
+
 ## Halaman ODP (`odp.index`)
 
 Pusat pengelolaan ODP di luar peta — nav **ODP**, tepat di bawah Peta ONU. Terbuka untuk semua user
@@ -198,6 +228,7 @@ Scope v1: web saja (mobile/API belum).
 | POST | `/map/odps` | `map.odps.store` | Tambah ODP |
 | PUT | `/map/odps/{odp}` | `map.odps.update` | Ubah nama/notes/koordinat/kunci ODP |
 | DELETE | `/map/odps/{odp}` | `map.odps.destroy` | Hapus ODP (link ONU ikut terhapus) |
+| POST | `/map/odps/{odp}/color` | `map.odps.color` | Warna pin ODP (bawaan se-PON-port; `random`/reset) |
 | POST | `/onu-odp` | `onu-odp.assign` | Pasang/pindah/lepas ODP sebuah ONU |
 | GET | `/odp` | `odp.index` | Halaman pengelolaan ODP |
 | GET | `/odp/{odp}/onus` | `odp.onus` | JSON ONU terhubung + kandidat (modal Kelola ONU) |
@@ -212,13 +243,14 @@ Ditambahkan 29 Jul 2026 (APK 1.3.0+17). Navigasi bawah dirombak jadi
 (Alarm dibuka dari kartu di Akun/Dashboard, Pencarian dari ikon 🔍 di AppBar
 Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
 
-**Endpoint yang dipakai** (semua baca-saja, detail di `docs/API.md` §3.6–3.8):
+**Endpoint yang dipakai** (baca-saja kecuali warna ODP, detail di `docs/API.md` §3.6–3.9):
 
 | Endpoint | Dipakai layar |
 |----------|---------------|
 | `GET /odps` | Tab ODP (daftar + cari + filter OLT) |
 | `GET /odps/{odp}` + `/odps/{odp}/onus` | Detail ODP (ONU di dalamnya + cari) |
 | `GET /map` | Tab Peta (pin ONU + pin ODP + garis + titik tengah) |
+| `POST /odps/{odp}/color` | Ganti warna pin ODP (Detail ODP & sheet pin di peta) |
 | `GET /olts/{olt}/register/options` → `odps` | Dropdown "ODP (opsional)" di form registrasi |
 | `GET /olts/{olt}/onus/{slot}/{port}/{onuId}` → `odp_id`/`odp_name` | Baris ODP di detail ONU |
 
@@ -226,8 +258,9 @@ Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
   seperti web (`mt{s}.google.com/vt`, toggle Peta/Satelit) dengan **`fallbackUrl` OSM** dan
   User-Agent browser — kalau Google menolak permintaan dari aplikasi, peta tetap tergambar.
   Layar peta adalah cabang shell sehingga navbar melayang tetap terlihat di atas peta.
-- **Baca-saja**: menambah/menggeser pin dan CRUD ODP tetap di web. Aksi ONU (reboot/rename/hapus)
-  dibuka lewat Detail ONU dari sheet pin.
+- **Nyaris baca-saja**: menambah/menggeser pin dan CRUD ODP tetap di web. Satu-satunya aksi tulis ODP
+  dari aplikasi adalah **ganti warna pin** (`POST /odps/{odp}/color`, APK 1.4.0+19 — lihat "Warna pin
+  ODP"). Aksi ONU (reboot/rename/hapus) dibuka lewat Detail ONU dari sheet pin.
 - Fokus lintas-layar ("Lihat di peta" pada detail ODP) memakai state Riverpod `mapFocusProvider`,
   **bukan** query URL: tab peta hidup di `IndexedStack` sehingga rutenya tidak dibangun ulang
   saat berpindah tab.

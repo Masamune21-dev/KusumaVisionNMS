@@ -1,4 +1,5 @@
 <script setup>
+import { DEFAULT_ODP_COLOR, odpColor, textOn } from '@/lib/odpColors';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -9,7 +10,9 @@ const { t, locale } = useI18n({ useScope: 'global' });
 // Warna status ONU disederhanakan: hanya hijau (online) / merah (offline/LOS/dying-gasp).
 const ONLINE_COLOR = '#10b981'; // emerald-500
 const OFFLINE_COLOR = '#ef4444'; // red-500
-const ODP_COLOR = '#f59e0b'; // amber-500 — pin ODP kuning
+// Warna pin ODP kini per-ODP (kolom `odps.color`, biasanya seragam per PON port);
+// konstanta ini hanya nilai bawaan/legenda bila ODP belum diwarnai.
+const ODP_COLOR = DEFAULT_ODP_COLOR;
 
 const props = defineProps({
     pins: { type: Array, default: () => [] },
@@ -75,9 +78,11 @@ const buildIcon = (pin, selected) => {
     });
 };
 
-// Pin ODP — bentuk teardrop sama dgn pin ONU, warna kuning + badge jumlah ONU terhubung.
+// Pin ODP — bentuk teardrop sama dgn pin ONU, warna dari kolom `odps.color` (default amber)
+// + badge jumlah ONU terhubung. Warna teks badge ikut kecerahan warna pin supaya tetap terbaca.
 const buildOdpIcon = (odp, selected) => {
     const count = (odp.onus ?? []).length;
+    const color = odpColor(odp);
     const cls = ['kv-odp-pin'];
     if (selected) cls.push('kv-odp-pin--selected');
     if (odp.locked === false) cls.push('kv-pin--unlocked');
@@ -86,10 +91,10 @@ const buildOdpIcon = (odp, selected) => {
         html: `<div class="${cls.join(' ')}">
             <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
                 <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"
-                      fill="${ODP_COLOR}" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
+                      fill="${color}" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" />
                 <circle cx="12" cy="10" r="3" fill="#ffffff" />
             </svg>
-            ${count ? `<span class="kv-odp-pin__badge">${count}</span>` : ''}
+            ${count ? `<span class="kv-odp-pin__badge" style="background:${color};color:${textOn(color)}">${count}</span>` : ''}
         </div>`,
         iconSize: [26, 26],
         iconAnchor: [13, 24],
@@ -179,7 +184,9 @@ const renderOdps = () => {
 
         const selected = odp.id === props.selectedOdpId;
         const unlocked = odp.locked === false;
-        const sig = `${selected}|${unlocked}|${odp.name}|${(odp.onus ?? []).length}`;
+        // Warna ikut sig — tanpa ini marker dianggap "tak berubah" dan pin tetap warna lama
+        // sampai halaman dimuat ulang.
+        const sig = `${selected}|${unlocked}|${odp.name}|${(odp.onus ?? []).length}|${odpColor(odp)}`;
         const entry = odpMarkers.get(odp.id);
 
         if (entry) {
@@ -537,7 +544,8 @@ defineExpose({
     }
 }
 
-/* Pin ODP — teardrop kuning (sama bentuk dgn pin ONU) + badge jumlah ONU terhubung. */
+/* Pin ODP — teardrop (sama bentuk dgn pin ONU) + badge jumlah ONU terhubung. Warna isi
+   pin & badge disuntik inline dari `odps.color`, jadi aksen di sini dijaga netral. */
 .kv-odp-pin {
     position: relative;
     width: 26px;
@@ -553,7 +561,7 @@ defineExpose({
 
 .kv-odp-pin--selected svg {
     transform: scale(1.18);
-    filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.95)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.9)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 .kv-odp-pin__badge {
@@ -564,9 +572,10 @@ defineExpose({
     height: 15px;
     padding: 0 3px;
     border-radius: 9999px;
+    /* Fallback; ditimpa inline mengikuti warna ODP + kontras teksnya. */
     background: #0f172a;
-    border: 1px solid #f59e0b;
-    color: #fde68a;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    color: #ffffff;
     font-size: 10px;
     font-weight: 700;
     line-height: 13px;

@@ -8,6 +8,7 @@ use App\Models\OnuOdpLink;
 use App\Models\Scopes\PartnerOltScope;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Support\OdpColors;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Inertia;
 use Tests\TestCase;
@@ -177,6 +178,136 @@ class OdpTest extends TestCase
             ->assertRedirect(route('odp.index'));
 
         $this->assertSame('ODP-GANTI', $odp->fresh()->name);
+    }
+
+    public function test_color_applies_to_every_odp_on_the_same_pon_port_by_default(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $other = $this->makeOlt('OLT-B', '10.8.0.2');
+
+        $target = $this->makeOdp($olt, 'ODP-1/1-A', 1, 1);
+        $sibling = $this->makeOdp($olt, 'ODP-1/1-B', 1, 1);
+        $otherPort = $this->makeOdp($olt, 'ODP-1/2', 1, 2);
+        $otherOlt = $this->makeOdp($other, 'ODP-OLT-B', 1, 1);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->from(route('map.index'))
+            ->post(route('map.odps.color', $target), ['color' => '#22D3EE'])
+            ->assertRedirect(route('map.index'));
+
+        // Se-port ikut; port lain & OLT lain tidak tersentuh.
+        $this->assertSame('#22d3ee', $target->fresh()->color, 'Hex disimpan lowercase.');
+        $this->assertSame('#22d3ee', $sibling->fresh()->color);
+        $this->assertNull($otherPort->fresh()->color);
+        $this->assertNull($otherOlt->fresh()->color);
+    }
+
+    public function test_color_can_be_limited_to_a_single_odp_and_reset_to_default(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $target = $this->makeOdp($olt, 'ODP-A', 1, 1);
+        $sibling = $this->makeOdp($olt, 'ODP-B', 1, 1);
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->post(route('map.odps.color', $target), ['color' => '#8b5cf6', 'apply_to_port' => false])
+            ->assertRedirect();
+
+        $this->assertSame('#8b5cf6', $target->fresh()->color);
+        $this->assertNull($sibling->fresh()->color, 'apply_to_port=false tak boleh menyentuh tetangga.');
+
+        // color null = kembali ke warna bawaan (kolom dikosongkan).
+        $this->actingAs($admin)
+            ->post(route('map.odps.color', $target), ['color' => null, 'apply_to_port' => false])
+            ->assertRedirect();
+
+        $this->assertNull($target->fresh()->color);
+    }
+
+    public function test_color_of_an_odp_without_port_stays_on_itself(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $portless = $this->makeOdp($olt, 'ODP-BARU', null, null);
+        $ported = $this->makeOdp($olt, 'ODP-1/1', 1, 1);
+
+        // apply_to_port true, tapi ODP ini belum punya slot/port → hanya dirinya.
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('map.odps.color', $portless), ['color' => '#ec4899', 'apply_to_port' => true])
+            ->assertRedirect();
+
+        $this->assertSame('#ec4899', $portless->fresh()->color);
+        $this->assertNull($ported->fresh()->color);
+    }
+
+    public function test_random_color_avoids_colours_already_used_by_other_ports(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $target = $this->makeOdp($olt, 'ODP-1/1', 1, 1);
+
+        // Semua warna palet kecuali satu sudah dipakai port-port lain di OLT ini.
+        $palette = OdpColors::PALETTE;
+        $free = array_pop($palette);
+        foreach ($palette as $index => $hex) {
+            $this->makeOdp($olt, "ODP-TERPAKAI-{$index}", 1, $index + 2)->forceFill(['color' => $hex])->save();
+        }
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('map.odps.color', $target), ['random' => true])
+            ->assertRedirect();
+
+        $this->assertSame($free, $target->fresh()->color, 'Acak harus memilih warna yang belum dipakai port lain.');
+    }
+
+    public function test_color_rejects_invalid_hex(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $odp = $this->makeOdp($olt);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->post(route('map.odps.color', $odp), ['color' => 'merah'])
+            ->assertSessionHasErrors('color');
+
+        $this->assertNull($odp->fresh()->color);
+    }
+
+    public function test_partner_cannot_colour_odps_of_another_olt(): void
+    {
+        $mine = $this->makeOlt('OLT-MINE', '10.8.0.1');
+        $other = $this->makeOlt('OLT-OTHER', '10.8.0.2');
+        $this->makeOdp($mine, 'ODP-MINE');
+        $foreign = $this->makeOdp($other, 'ODP-OTHER');
+
+        $partner = User::factory()->partner()->create();
+        $partner->partnerOlts()->sync([$mine->id]);
+
+        // Route-model binding kena PartnerOltScope → 404, bukan 403.
+        $this->actingAs($partner)
+            ->post(route('map.odps.color', $foreign), ['color' => '#22d3ee'])
+            ->assertNotFound();
+
+        $this->assertNull($foreign->fresh()->color);
+    }
+
+    public function test_map_and_odp_pages_expose_colour_and_palette(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $this->makeOdp($olt)->forceFill(['color' => '#8b5cf6'])->save();
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->get(route('odp.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('odps.0.color', '#8b5cf6')
+                ->where('odp_color_default', OdpColors::DEFAULT)
+                ->has('odp_color_palette'));
+
+        $this->actingAs($admin)
+            ->get(route('map.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('odps.0.color', '#8b5cf6')
+                ->has('odp_color_palette'));
     }
 
     public function test_unlock_then_drag_then_lock_persists_new_coordinates(): void

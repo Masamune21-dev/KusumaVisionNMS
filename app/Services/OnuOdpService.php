@@ -6,6 +6,7 @@ use App\Models\Odp;
 use App\Models\OnuMapPin;
 use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
+use App\Support\OdpColors;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -26,7 +27,7 @@ class OnuOdpService
      * punya port (belum ada ONU) tetap muncul di semua port; portnya terisi otomatis
      * saat ONU pertama di-assign (lihat assign()).
      *
-     * @return array<int, array{id:int, name:string, slot:?int, port:?int}>
+     * @return array<int, array{id:int, name:string, slot:?int, port:?int, color:?string}>
      */
     public function odpsForOlt(SnmpOlt $olt, ?int $slot = null, ?int $port = null): array
     {
@@ -37,13 +38,15 @@ class OnuOdpService
                     ->orWhere(fn ($n) => $n->whereNull('slot')->whereNull('port'));
             }))
             ->orderBy('name')
-            ->get(['id', 'name', 'slot', 'port'])
+            ->get(['id', 'name', 'slot', 'port', 'color'])
             ->map(fn (Odp $odp) => [
                 'id' => $odp->id,
                 'name' => $odp->name,
                 // slot/port ikut supaya form registrasi bisa menyaring dropdown per-port di klien.
                 'slot' => $odp->slot,
                 'port' => $odp->port,
+                // Warna pin ODP (null = default) — untuk titik warna di kolom ODP tabel ONU.
+                'color' => $odp->color,
             ])
             ->all();
     }
@@ -147,6 +150,52 @@ class OnuOdpService
         } catch (\Throwable $e) {
             return $e->getMessage();
         }
+    }
+
+    /**
+     * Terapkan payload ganti warna (hasil validasi `OdpColors::RULES`) — jembatan bersama
+     * rute web `map.odps.color` dan REST API v1 `api.odps.color`.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{color: ?string, updated: int}
+     */
+    public function applyColorInput(Odp $odp, array $data): array
+    {
+        $color = ($data['random'] ?? false)
+            ? OdpColors::randomFor($odp->snmp_olt_id, $odp->slot, $odp->port)
+            : OdpColors::normalize($data['color'] ?? null);
+
+        // Bawaan true = perilaku UI: mewarnai satu port sekaligus.
+        $updated = $this->setColor($odp, $color, (bool) ($data['apply_to_port'] ?? true));
+
+        return ['color' => $color, 'updated' => $updated];
+    }
+
+    /**
+     * Set warna pin ODP. $color null ⇒ kembali ke warna default (amber).
+     *
+     * $applyToPort = true (bawaan UI) mewarnai SEMUA ODP di PON port yang sama — warna
+     * dipakai untuk mengelompokkan ODP per port di peta, jadi satu port normalnya sewarna.
+     * ODP yang belum punya slot/port (belum ada ONU) hanya bisa diwarnai sendiri.
+     *
+     * @return int jumlah ODP yang terwarnai
+     */
+    public function setColor(Odp $odp, ?string $color, bool $applyToPort): int
+    {
+        if ($applyToPort && $odp->slot !== null && $odp->port !== null) {
+            // Bulk update tetap lewat Odp::query() supaya PartnerOltScope ikut membatasi
+            // baris yang tersentuh (partner hanya OLT miliknya).
+            return Odp::query()
+                ->where('snmp_olt_id', $odp->snmp_olt_id)
+                ->where('slot', $odp->slot)
+                ->where('port', $odp->port)
+                ->update(['color' => $color]);
+        }
+
+        $odp->color = $color;
+        $odp->save();
+
+        return 1;
     }
 
     /**

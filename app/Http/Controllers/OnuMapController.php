@@ -11,6 +11,7 @@ use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\HsAirPo\HsAirPoCliService;
 use App\Services\Map\OnuMapPayloadService;
 use App\Services\ZteRemoteOnuService;
+use App\Support\OdpColors;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -77,6 +78,9 @@ class OnuMapController extends Controller
             'placement' => $this->placementFromRequest(),
             'focus_pin_id' => $focusPin['id'] ?? null,
             'focus_odp_id' => $focusOdp?->id,
+            // Palet warna pin ODP (sumber kebenaran App\Support\OdpColors) untuk modal warna.
+            'odp_color_palette' => OdpColors::PALETTE,
+            'odp_color_default' => OdpColors::DEFAULT,
         ]);
     }
 

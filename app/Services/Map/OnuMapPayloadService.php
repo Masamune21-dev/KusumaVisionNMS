@@ -108,6 +108,8 @@ class OnuMapPayloadService
                 'port' => $odp->port,
                 'latitude' => (float) $odp->latitude,
                 'longitude' => (float) $odp->longitude,
+                // Warna pin (null = default amber; fallback ditangani klien web & mobile).
+                'color' => $odp->color,
                 'locked' => (bool) $odp->locked,
                 'notes' => $odp->notes,
                 'onus' => $connected[$odp->id] ?? [],

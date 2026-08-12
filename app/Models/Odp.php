@@ -21,6 +21,7 @@ class Odp extends Model
         'port',
         'latitude',
         'longitude',
+        'color',
         'locked',
         'notes',
         'created_by',
