@@ -268,6 +268,101 @@ class HiosoSnmpDriverTest extends TestCase
     }
 
     /**
+     * Regresi utama (OLT-HIOSO-WIDOROKANDANG PON 1 & OLT-HIOSO-PEKALONGAN PON 3, Agu 2026): sebagian
+     * ONU tak dilaporkan DDM-nya oleh OLT (Rx `na` permanen) PADAHAL link-nya Up — CLI
+     * `show onu info epon 0/{PON} all` menampilkannya `Up` dengan uptime berjalan. Status online WAJIB
+     * diambil dari kolom link-state `.39`, bukan disimpulkan dari ada/tidaknya Rx.
+     */
+    public function test_link_state_up_keeps_onu_online_even_when_rx_is_na(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+        $link = '1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'rumah', "{$name}.1.4" => 'khoirul'],
+            $mac => ["{$mac}.1.3" => 'd05fafc56012', "{$mac}.1.4" => 'd05fafd2db41'],
+            $rx => ["{$rx}.1.3" => 'na', "{$rx}.1.4" => 'na'],
+            $link => ["{$link}.1.3" => '1', "{$link}.1.4" => '2'], // Up / Down
+        ]);
+
+        [$up, $down] = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($this->olt());
+
+        $this->assertTrue($up['online'], 'Link-state 1 = Up → online walau Rx `na` (DDM tak dilaporkan)');
+        $this->assertSame('Online', $up['phase_state']);
+        $this->assertNull($up['rx_power_dbm'], 'Rx memang tak tersedia → kolom Rx kosong, bukan angka palsu');
+
+        $this->assertFalse($down['online'], 'Link-state 2 = Down → offline');
+        $this->assertSame('Offline', $down['phase_state']);
+    }
+
+    /**
+     * Kebalikannya: link-state Down untuk ONU yang tadinya online tetap lewat debounce
+     * MAX_OFFLINE_STRIKES, supaya satu pembacaan buruk di link lossy tak membuat port berkedip.
+     */
+    public function test_link_state_down_is_debounced_for_previously_online_onu(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+        $link = '1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'Madun'],
+            $mac => ["{$mac}.1.3" => 'd05faf84994e'],
+            $rx => ["{$rx}.1.3" => 'na'],
+            $link => ["{$link}.1.3" => '2'],
+        ]);
+
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = [
+            'port_onus' => ['1_3' => ['onus' => [[
+                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -17.24, 'offline_strikes' => 0,
+            ]]]],
+        ];
+
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt)[0];
+
+        $this->assertTrue($onu['online'], 'Strike pertama link-state Down masih dalam jendela debounce');
+        $this->assertSame(1, $onu['offline_strikes']);
+    }
+
+    /**
+     * Rx `na` pada ONU yang link-nya Up hanya boleh membawa nilai lama ('snmp_stale') sebentar; setelah
+     * MAX_RX_NA_STRIKES kolom Rx dikosongkan supaya tak menampilkan angka redaman beku selamanya.
+     */
+    public function test_stale_rx_is_dropped_after_repeated_na_while_link_stays_up(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rx = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+        $link = '1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1';
+
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.1.3" => 'Madun'],
+            $mac => ["{$mac}.1.3" => 'd05faf84994e'],
+            $rx => ["{$rx}.1.3" => 'na'],
+            $link => ["{$link}.1.3" => '1'],
+        ]);
+
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = [
+            'port_onus' => ['1_3' => ['onus' => [[
+                'onu_key' => '1.3', 'online' => true, 'rx_power_dbm' => -17.24,
+                'rx_power_label' => '-17.24 dBm', 'rx_na_strikes' => 1,
+            ]]]],
+        ];
+
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnus($olt)[0];
+
+        $this->assertTrue($onu['online'], 'Link tetap Up → ONU tetap online');
+        $this->assertNull($onu['rx_power_dbm'], 'Rx `na` beruntun → berhenti membawa nilai lama');
+        $this->assertNull($onu['rx_power_source']);
+        $this->assertSame(2, $onu['rx_na_strikes']);
+    }
+
+    /**
      * Regresi anti-flap (OLT-HIOSO-PATI port 3, 1 ONU): satu poll dengan Rx `na` untuk ONU yang tadinya
      * online TIDAK boleh langsung menandainya offline — di link lossy ONU online sesekali melapor `na`
      * satu poll, dan pada port 1-ONU itu membuat seluruh port "flapping" down/up (memicu port_down palsu).

@@ -137,8 +137,16 @@ Bukti tambahan: OLT-side `show epon 0/N optical-ddm` confirms semua 4 PON physic
 **Pendekatan yang benar untuk daftar PON + status:**
 
 1. Walk OID name ONU (`.37.1`) → kumpulkan PON unik dari segmen pertama indeks
-2. Walk OID Rx ONU (`.8.1`) → tentukan ONU online (Rx valid) vs offline (Rx `na` atau 0)
-3. Status PON = Up bila ada ≥1 ONU online di PON itu; Down bila 0 ONU online tapi ada ONU registered
+2. Walk OID **link-state ONU (`.39.1`)** → `1` = Up (online), `2` = Down (offline)
+3. Walk OID Rx ONU (`.8.1`) → **nilai redaman saja**, bukan penentu status
+4. Status PON = Up bila ada ≥1 ONU online di PON itu; Down bila 0 ONU online tapi ada ONU registered
+
+> ⚠️ **Rx `na` ≠ offline** (terverifikasi live Agu 2026). Sebagian ONU tak dilaporkan DDM-nya oleh
+> OLT — Rx-nya `na` permanen padahal link-nya Up dan trafik jalan. Contoh: OLT-HIOSO-WIDOROKANDANG
+> PON 1 (10 ONU `Up` di CLI, hanya 2 punya Rx) dan OLT-HIOSO-PEKALONGAN PON 3. Menyimpulkan status
+> dari Rx membuat pelanggan aktif tampil "offline" di NMS dan memicu alarm palsu. Gunakan `.39.1`;
+> Rx valid boleh dipakai sebagai bukti pendukung online (cahaya sungguh diterima), tak pernah
+> sebaliknya.
 
 ### 4.3 ONU Table (canonical)
 
@@ -146,7 +154,9 @@ Bukti tambahan: OLT-side `show epon 0/N optical-ddm` confirms semua 4 PON physic
 |---|---|---|---|---|
 | **ONU name** | `1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1.{PON}.{ONU}` | STRING | Ya | label ONU (CLI `onu N name X`). Read via SNMP, write **via CLI** |
 | **ONU MAC** | `1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1.{PON}.{ONU}` | STRING | Ya | hex 12-char tanpa separator, mis. `"ec237bd78071"` → format ke `EC:23:7B:D7:80:71` |
-| **ONU Rx power** | `1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1.{PON}.{ONU}` | STRING | Ya | dBm sebagai string, mis. `"-20.36"`. Value `"na"` = ONU offline |
+| **ONU Rx power** | `1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1.{PON}.{ONU}` | STRING | Ya | dBm sebagai string, mis. `"-20.36"`. Value `"na"` = **DDM tak dilaporkan**, BUKAN bukti offline (lihat baris berikutnya) |
+| **ONU link-state** | `1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1.{PON}.{ONU}` | INTEGER | Ya | **`1` = Up, `2` = Down — sumber kebenaran status online.** Cocok 1:1 dengan kolom `Status` pada CLI `show onu info epon 0/{PON} all` |
+| ONU distance | `1.3.6.1.4.1.25355.3.2.6.3.2.1.25.1.{PON}.{ONU}` | INTEGER | Kandidat | jarak meter (mis. `1935`); `0` pada ONU Down. Berkorelasi dgn link-state tapi tak sebersih `.39` |
 | ONU LLID/ID | `1.3.6.1.4.1.25355.3.2.6.3.2.1.1.1.{PON}.{ONU}` | INTEGER | Kandidat | LLID logical identifier |
 | ONU MAC subtree | `1.3.6.1.4.1.25355.3.2.6.2.1.*` | various | **JANGAN walk** | walk full subtree = N kolom × N ONU × M port-index OID → puluhan ribu entry, sangat lambat. Pakai `.3.2.1.11.1` (STRING hex) sebagai gantinya |
 
@@ -298,18 +308,26 @@ show epon-nni ?
 
 | Kebutuhan | Command | Output |
 |---|---|---|
+| **Status semua ONU satu PON** | `show onu info epon 0/{PON} all` | tabel `OnuId / MacAddress / Status (Up\|Down) / Firmware / ChipId / Ge / Fe / Pots / CtcStatus / CtcVer / Activate / Uptime / Name` |
+| Status satu ONU | `show onu info epon 0/{PON} {1-64}` | sama, satu baris |
 | OLT laser TxPower per PON | `show epon 0/{PON} optical-ddm` | Temperature, Voltage, TxBias, TxPower |
 | Statistik PON | `show pon {1-4} statistic` | counter PON |
 | Versi firmware | `show version` | |
 | Uptime + system info | `show system` | |
 | Running config | `show running-config` | |
 
+`show onu info epon 0/{PON} all` adalah **acuan kebenaran status ONU** saat mendebug selisih dengan
+NMS (dipakai untuk memvalidasi OID link-state `.39.1`, lihat §4.3). Outputnya ber-pager
+`--- Enter Key To Continue ----` → kirim Enter untuk halaman berikutnya. `Status` (Up/Down) beda
+makna dari `Activate` (Yes/No = izin registrasi): ONU bisa `Activate Yes` tapi `Status Down`.
+
 **TIDAK ADA** command:
 - `show interface epon ...` → `Unknown command`
 - `show onu summary` → `Unknown command`
-- Per-ONU detail via CLI → tidak ada equivalent `show gpon onu detail-info` seperti ZTE
+- Per-ONU **optical** detail via CLI → tidak ada equivalent `show gpon onu detail-info` seperti ZTE
 
-Akibatnya: per-ONU detail (Tx, voltage, temperature, distance) tidak bisa diambil via CLI HA7304 ini. Kalau dibutuhkan, harus probe OID SNMP lanjutan.
+Akibatnya: per-ONU metric optical (Tx, voltage, temperature, distance) tidak bisa diambil via CLI
+HA7304 ini — hanya status/uptime lewat `show onu info`. Sisanya probe OID SNMP lanjutan.
 
 ### 5.5 Write Command (sudah divalidasi)
 
@@ -672,7 +690,8 @@ Ringkasan semua quirk yang sudah ditemukan, ditulis biar tidak terulang:
 | 5 | Banner login panjang | ~225 byte + IAC negotiation | timeout login prompt 15s, password 20s |
 | 6 | Nama ONU tidak boleh spasi | CLI HiOSO sanitasi alfanumerik+`_-.` | replace spasi dengan `_`, strip char invalid |
 | 7 | `show interface epon` tidak ada | firmware HA7304 tidak punya command itu | jangan asumsikan ZTE-style CLI; pakai `show epon 0/{N} optical-ddm` untuk OLT-side metric |
-| 8 | Per-ONU detail tidak bisa via CLI | tidak ada equivalent `show gpon onu detail-info` | seluruh info ONU ambil via SNMP saja |
+| 8 | Per-ONU metric optical tidak bisa via CLI | tidak ada equivalent `show gpon onu detail-info` | metric optical ambil via SNMP; **status** per-ONU ADA di CLI: `show onu info epon 0/{PON} all` (§5.4) |
+| 10 | Rx `na` pada ONU yang sebenarnya ONLINE → pelanggan aktif tampil offline + alarm palsu | OLT tak melaporkan DDM sebagian ONU (mis. tipe ONU tertentu); `na` bukan penanda link mati. Gejala live Agu 2026: WIDOROKANDANG PON 1 (10 ONU `Up` di CLI, 2 punya Rx), PEKALONGAN PON 3 | status online dari **link-state `.39.1`** (1=Up/2=Down), bukan dari Rx. Rx valid tetap dipakai sebagai bukti pendukung online; nilai Rx lama hanya dibawa `snmp_stale` sebentar lalu dikosongkan supaya tak menampilkan angka beku |
 | 9 | Walk seluruh tabel ONU terpotong di link WAN lossy → total ONU/PON melompat-lompat antar poll (kadang cuma nama/Rx sebagian) | tabel besar pada PON padat + link via port-forward drop paket di tengah walk; timeout/retry cukup tapi burst loss tetap memutus | walk **per-PON** (`{base}.{PON}`, mis. `.11.1.{PON}`) lalu gabung — walk kecil hampir selalu utuh (terverifikasi: full walk truncate, per-PON 27/27 6×). PLUS **carry-forward roster**: poll terpotong hanya menambah/update, tak pernah menghapus ONU dikenal (registrasi EPON stabil); lepas ONU setelah absen `MAX_MISSED_POLLS` (12) poll beruntun |
 
 ---

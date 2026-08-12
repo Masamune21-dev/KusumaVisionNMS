@@ -2,6 +2,59 @@
 
 ## 2026-08-12
 
+### HiOSO: status ONU dari link-state SNMP, bukan dari ada/tidaknya Rx
+
+Laporan owner: di OLT-HIOSO-WIDOROKANDANG beberapa pelanggan **redamannya tidak tampil di OLT tapi
+statusnya online semua di sana**, sedangkan NMS menandainya offline; hal sama di
+OLT-HIOSO-PEKALONGAN port 3. Terkonfirmasi: NMS menampilkan 2 online / 8 offline di WIDOROKANDANG
+PON 1 dan 0/1 online di PEKALONGAN PON 3.
+
+Sebabnya ada di driver: status online HiOSO **diturunkan dari nilai Rx** — `na`/`0` dianggap
+offline. Pengecekan live membuktikan asumsi itu salah: OLT memang melapor Rx `na` untuk sebagian
+ONU (seluruh baris DDM-nya `na`/`0.00`) **padahal link-nya Up**. CLI
+`show onu info epon 0/1 all` di WIDOROKANDANG menampilkan **10 dari 10 ONU `Up`** dengan uptime
+berjalan 13 hari. Jadi `na` = DDM tak dilaporkan, bukan penanda ONU mati.
+
+Kolom status yang benar dicari dengan menyisir kolom tabel ONU pada PON yang punya campuran Up/Down
+(OLT-HIOSO-NDOKATON PON 4, CLI: 2 ONU `Down`): **`.1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1.{PON}.{ONU}`
+= 1 Up / 2 Down**, tepat pada 2 ONU itu. Cocok 1:1 dengan CLI di semua OLT yang diperiksa, termasuk
+varian HA7302: PATI 60 Up/1 Down, KELING (HA7302) 117 Up/7 Down, PEKALONGAN PON 3 = Up. Kolom `.25`
+(distance, `0` saat Down) berkorelasi tapi tak sebersih `.39`.
+
+Changed:
+
+- `app/Services/Hioso/HiosoEponSnmpService.php` — konstanta `ONU_LINK_STATUS` (+ `LINK_UP`), walk
+  keempat (ber-scope per-PON & ber-target seperti walk lain) dan penentuan status dirombak:
+  online bila **link-state Up ATAU Rx valid** (cahaya diterima = bukti pendukung, tak pernah
+  sebaliknya); down teramati (link-state `2`, atau — pada firmware tanpa kolom itu — baris Rx `na`)
+  tetap lewat debounce `MAX_OFFLINE_STRIKES`; baris link-state DAN Rx sama-sama absen = walk
+  terpotong → status terakhir dipertahankan. Firmware tanpa kolom `.39` otomatis jatuh ke perilaku
+  lama (berbasis Rx). Baru: `MAX_RX_NA_STRIKES` + field `rx_na_strikes` — Rx lama hanya dibawa
+  `snmp_stale` 2 poll lalu kolom Rx dikosongkan, supaya ONU yang DDM-nya memang tak dilaporkan tak
+  menampilkan angka redaman beku selamanya.
+- `tests/Unit/HiosoSnmpDriverTest.php` — 3 test regresi: Rx `na` + link Up = tetap online (kasus
+  WIDOROKANDANG/PEKALONGAN), link Down untuk ONU yang tadinya online tetap kena debounce, dan Rx
+  stale berhenti dibawa setelah `na` beruntun.
+- `docs/SMARTOLT_HIOSO_GUIDE.md` — OID link-state + distance masuk tabel §4.3, algoritma scan §4.2
+  diperbaiki (+ peringatan "Rx `na` ≠ offline"), `show onu info epon 0/{PON} [all|{id}]` masuk daftar
+  read command §5.4 (acuan kebenaran status; ber-pager `Enter Key To Continue`; `Status` ≠
+  `Activate`), quirk #8 dikoreksi & quirk #10 ditambahkan.
+- `CLAUDE.md` — bullet HiOSO: 3 OID kanonik → 4, plus aturan "status dari link-state, bukan Rx".
+
+Notes:
+
+- Verifikasi live sesudah perbaikan (driver dijalankan langsung ke perangkat): WIDOROKANDANG PON 1
+  **10/10 online** (2 ONU ber-Rx, 8 tanpa Rx), PEKALONGAN 22/22 + PON 3 online — persis sama dengan
+  `show onu info`. OLT yang ONU-nya memang mati tetap offline (NDOKATON PON 4 = 2, PATI = 1,
+  KELING = 7), jadi perbaikan ini tidak menutupi gangguan sungguhan.
+- Sesudah `queue:restart`, worker sempat menyelesaikan satu job lama dan **menimpa** snapshot
+  PEKALONGAN dengan hasil kode lama; setelah worker benar-benar restart hasilnya menetap. Kalau
+  memverifikasi hasil poll tepat setelah restart, pastikan snapshot berasal dari proses baru
+  (mis. cek kehadiran field `rx_na_strikes`).
+- Efek samping yang diharapkan: alarm offline palsu untuk ~9 ONU tersebut akan ter-clear pada poll
+  berikutnya (kirim notifikasi pemulihan sekali).
+- Test: `bash scripts/test.sh` → 523 passed / 2783 assertions.
+
 ### Foto dokumentasi ODP — unggah dari popup peta, auto-konversi WebP
 
 Permintaan owner: bisa unggah gambar ODP dari popup detail ODP di peta dan langsung tampil di situ,
