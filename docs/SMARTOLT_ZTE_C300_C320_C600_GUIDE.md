@@ -460,6 +460,7 @@ Referensi vendor C600 (PDF di `docs/`): *C600 SNMP OID Management Guide*, *SNMP 
 | 7 | `write` C300 config besar hening ~30 s | `readUntilIdle(quiet=75s, cap=120s)` — berhenti saat prompt kembali |
 | 8 | Reboot kadang minta konfirmasi | scan output → auto-`y` |
 | 9 | `Test SNMP` menimpa `last_test_result` → ONU jadi 0 | **wajib `array_merge`** ke `last_test_result` |
+| 10 | Akun CLI privilege rendah mendarat di `ZXAN>` → `terminal length 0` ditolak `%Error 20200` | `login()` kirim `enable` bila prompt `>`; `enable` & `terminal length 0` best-effort (tak menggagalkan sesi) |
 
 ---
 

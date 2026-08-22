@@ -9,6 +9,15 @@ use RuntimeException;
 class ZteCliProvisioningExecutor
 {
     /**
+     * Perintah BEST-EFFORT: penolakannya tidak menggagalkan sesi. `terminal length 0` hanya
+     * mematikan pager (executor tetap auto-continue `--More--` bila pager hidup) dan `enable`
+     * hanya usaha naik privilege. Akun CLI ber-privilege rendah menolak keduanya dengan
+     * `%Error 20200 …` padahal `show` sesudahnya tetap berhasil — dulu itu membuat seluruh
+     * hasil ditandai gagal (mis. banner merah "gagal membaca running-config" di Configure ONU).
+     */
+    private const BEST_EFFORT_COMMANDS = ['enable', 'terminal length 0', 'ter len 0'];
+
+    /**
      * @param  bool  $largeOutput  true untuk perintah berukuran besar (mis. `show running-config`
      *                             seluruh OLT): baca dengan toleransi jeda & batas total jauh lebih
      *                             longgar supaya output tak terpotong di tengah.
@@ -186,6 +195,45 @@ class ZteCliProvisioningExecutor
             $output .= $this->readUntilIdle($connection);
         }
 
+        return $output.$this->enterPrivileged($connection, $olt, $output);
+    }
+
+    /**
+     * Naik ke privileged mode bila sesi mendarat di user-mode prompt (`ZXAN>`).
+     *
+     * Akun CLI ber-privilege rendah mendarat di `>`, dan di situ `terminal length 0`
+     * (pager off) ditolak `%Error 20200: Invalid input detected at '^' marker` — padahal
+     * hampir semua fitur CLI ZTE mendahului `show`-nya dengan perintah itu. Sifatnya
+     * BEST-EFFORT: `enable` dicoba sekali (password enable memakai password CLI bila
+     * diminta) dan penolakannya tidak menggagalkan sesi ({@see self::BEST_EFFORT_COMMANDS}),
+     * jadi OLT yang tak punya/tak butuh `enable` tetap berjalan seperti sebelumnya.
+     *
+     * @param  resource  $connection
+     */
+    private function enterPrivileged($connection, SnmpOlt $olt, string $loginOutput): string
+    {
+        if (! $this->hasUserModePrompt($loginOutput)) {
+            return '';
+        }
+
+        fwrite($connection, "enable\n");
+        $output = "\n> enable\n".$this->readUntilIdle($connection);
+
+        // Sebagian firmware meminta password enable; ZTE lazimnya menerima password CLI yang sama.
+        // Deteksi HARUS di ekor output (prompt `Password:`), bukan `str_contains` — banner login
+        // firmware ini memuat kata "password" ("% The password is not strong …").
+        if ($this->hasPasswordPrompt($output)) {
+            fwrite($connection, $olt->cli_password."\n");
+            $output .= $this->readUntilIdle($connection);
+
+            // Password enable ditolak → OLT mengulang prompt. Kosongkan dengan baris kosong
+            // supaya perintah berikutnya tidak ikut termakan sebagai percobaan password.
+            for ($i = 0; $i < 2 && $this->hasPasswordPrompt($output); $i++) {
+                fwrite($connection, "\n");
+                $output .= $this->readUntilIdle($connection);
+            }
+        }
+
         return $output;
     }
 
@@ -315,6 +363,10 @@ class ZteCliProvisioningExecutor
                 continue;
             }
 
+            if ($lastCommand !== null && in_array(strtolower($lastCommand), self::BEST_EFFORT_COMMANDS, true)) {
+                continue;
+            }
+
             $failures[] = ($lastCommand !== null && $lastCommand !== '')
                 ? "`{$lastCommand}` → {$trimmed}"
                 : $trimmed;
@@ -362,6 +414,20 @@ class ZteCliProvisioningExecutor
     private function hasCliPrompt(string $output): bool
     {
         return preg_match('/[\r\n][A-Za-z0-9_.()\/-]+(?:\(config[^\)]*\))?#\s*$/', $output) === 1;
+    }
+
+    private function hasPasswordPrompt(string $output): bool
+    {
+        return preg_match('/password\s*:\s*$/i', rtrim($output)) === 1;
+    }
+
+    /**
+     * Prompt user-mode ZTE (`ZXAN>`) di akhir output — lawan dari {@see self::hasCliPrompt()}
+     * yang hanya mengenali prompt privileged (`…#`).
+     */
+    private function hasUserModePrompt(string $output): bool
+    {
+        return preg_match('/(?:^|[\r\n])[A-Za-z0-9_.()\/-]+>[ \t]*$/', rtrim($output, "\r\n")) === 1;
     }
 
     private function stripPagerPrompts(string $output): string
