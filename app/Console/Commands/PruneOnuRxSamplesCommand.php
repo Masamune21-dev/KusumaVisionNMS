@@ -13,7 +13,7 @@ class PruneOnuRxSamplesCommand extends Command
 
     public function handle(): int
     {
-        $days = (int) ($this->option('days') ?? config('services.snmp_poller.rx_sample_retention_days', 90));
+        $days = (int) ($this->option('days') ?? config('services.snmp_poller.rx_sample_retention_days', 30));
 
         if ($days < 1) {
             $this->error('Retensi minimal 1 hari.');
