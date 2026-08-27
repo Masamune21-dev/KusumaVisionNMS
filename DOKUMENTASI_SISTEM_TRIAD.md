@@ -51,7 +51,7 @@ Sistem **KusumaVision Triad** adalah ekosistem perangkat lunak terintegrasi yang
                               │  - Redis DB 4 & 5           │
                               │  - CRM Pelanggan & Paket    │
                               │  - Otomasi Tagihan (14:00)  │
-                              │  - Auto-Isolir (01:00)      │
+                              │  - Auto-Isolir (14:00)      │
                               │  - Kasir & Rekening Bank    │
                               │  - WhatsApp Gateway (Fonnte)│
                               │  - Multi-Payment Gateway    │
@@ -150,8 +150,8 @@ Billing memiliki koneksi read-only ke database NMS dan MikroTik melalui konfigur
   - Mengirim pesan pengingat otomatis ke pelanggan yang tagihannya jatuh tempo hari ini (H-0) dan H-3 yang belum bayar.
 - Tombol **"Generate Tagihan Hari Ini"** di web `/invoices` untuk memicu generate manual kapan saja.
 
-#### 4. Otomasi Isolir Tunggakan (Pukul 01:00 Dini Hari)
-- Cron scheduler `billing:auto-isolate` berjalan setiap hari pukul **01:00 WIB**:
+#### 4. Otomasi Isolir Tunggakan (Pukul 14:00 Siang)
+- Cron scheduler `billing:auto-isolate` berjalan setiap hari pukul **14:00 WIB**:
   - Mengevaluasi semua invoice yang berstatus `unpaid`.
   - Jika `Hari Ini > (Jatuh Tempo + Grace Period)`:
     - Status pelanggan diubah menjadi `isolated`.
