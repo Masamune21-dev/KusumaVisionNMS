@@ -46,6 +46,7 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import Typed from 'typed.js';
+import { isLowPowerDevice, prefersReducedMotion } from '@/lib/perf';
 
 defineProps({
     canLogin: { type: Boolean },
@@ -59,42 +60,61 @@ const ParticleNetwork = defineAsyncComponent(
     () => import('@/Components/Shell/ParticleNetwork.vue'),
 );
 
-const reduceMotion = () =>
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = prefersReducedMotion;
+
+// Efek pointer (tilt/magnetic/spotlight) dibayar tiap mousemove dalam bentuk
+// forced layout + repaint. Di perangkat kelas bawah biayanya melebihi nilainya.
+const skipPointerFx = () => prefersReducedMotion() || isLowPowerDevice();
 
 /* ===== Directive: tilt 3D + parallax anak [data-depth] (mouse only) ===== */
 const vTilt = {
     mounted(el, binding) {
-        if (reduceMotion()) return;
+        if (skipPointerFx()) return;
         const strength = binding.value?.strength ?? 6;
+        // Anak [data-depth] & rect di-cache: querySelectorAll di dalam loop rAF
+        // dan getBoundingClientRect tiap mousemove memaksa layout berulang.
+        const depths = [...el.querySelectorAll('[data-depth]')].map((c) => ({
+            el: c,
+            d: parseFloat(c.dataset.depth) || 0,
+        }));
+        let rect = null;
         let raf = null;
+        // will-change hanya dinyalakan selama kursor di atas kartu; dibiarkan
+        // permanen ia menahan satu layer GPU per kartu sepanjang halaman hidup.
+        const onEnter = () => {
+            rect = el.getBoundingClientRect();
+            el.style.willChange = 'transform';
+        };
         const onMove = (e) => {
-            const r = el.getBoundingClientRect();
-            const px = (e.clientX - r.left) / r.width - 0.5;
-            const py = (e.clientY - r.top) / r.height - 0.5;
-            cancelAnimationFrame(raf);
+            if (!rect) rect = el.getBoundingClientRect();
+            const px = (e.clientX - rect.left) / rect.width - 0.5;
+            const py = (e.clientY - rect.top) / rect.height - 0.5;
+            if (raf) return;
             raf = requestAnimationFrame(() => {
+                raf = null;
                 el.style.transform = `perspective(1100px) rotateX(${(-py * strength).toFixed(2)}deg) rotateY(${(px * strength).toFixed(2)}deg)`;
-                el.querySelectorAll('[data-depth]').forEach((c) => {
-                    const d = parseFloat(c.dataset.depth) || 0;
+                for (const { el: c, d } of depths) {
                     c.style.transform = `translate3d(${(px * d * 22).toFixed(1)}px, ${(py * d * 22).toFixed(1)}px, 0)`;
-                });
+                }
             });
         };
         const onLeave = () => {
-            cancelAnimationFrame(raf);
+            if (raf) cancelAnimationFrame(raf);
+            raf = null;
+            rect = null;
             el.style.transform = 'perspective(1100px) rotateX(0deg) rotateY(0deg)';
-            el.querySelectorAll('[data-depth]').forEach((c) => {
-                c.style.transform = 'translate3d(0,0,0)';
-            });
+            for (const { el: c } of depths) c.style.transform = 'translate3d(0,0,0)';
+            // Lepas setelah transisi selesai supaya layer tidak menetap.
+            setTimeout(() => { el.style.willChange = 'auto'; }, 320);
         };
-        el.__tilt = { onMove, onLeave };
+        el.__tilt = { onEnter, onMove, onLeave };
+        el.addEventListener('mouseenter', onEnter);
         el.addEventListener('mousemove', onMove);
         el.addEventListener('mouseleave', onLeave);
     },
     unmounted(el) {
         if (!el.__tilt) return;
+        el.removeEventListener('mouseenter', el.__tilt.onEnter);
         el.removeEventListener('mousemove', el.__tilt.onMove);
         el.removeEventListener('mouseleave', el.__tilt.onLeave);
     },
@@ -103,28 +123,39 @@ const vTilt = {
 /* ===== Directive: magnetic (tombol mengikuti kursor) ===== */
 const vMagnetic = {
     mounted(el, binding) {
-        if (reduceMotion()) return;
+        if (skipPointerFx()) return;
         const strength = binding.value?.strength ?? 0.35;
+        let rect = null;
         let raf = null;
+        const onEnter = () => {
+            rect = el.getBoundingClientRect();
+            el.style.willChange = 'transform';
+        };
         const onMove = (e) => {
-            const r = el.getBoundingClientRect();
-            const x = e.clientX - r.left - r.width / 2;
-            const y = e.clientY - r.top - r.height / 2;
-            cancelAnimationFrame(raf);
+            if (!rect) rect = el.getBoundingClientRect();
+            const x = e.clientX - rect.left - rect.width / 2;
+            const y = e.clientY - rect.top - rect.height / 2;
+            if (raf) return;
             raf = requestAnimationFrame(() => {
+                raf = null;
                 el.style.transform = `translate(${(x * strength).toFixed(1)}px, ${(y * strength).toFixed(1)}px)`;
             });
         };
         const onLeave = () => {
-            cancelAnimationFrame(raf);
+            if (raf) cancelAnimationFrame(raf);
+            raf = null;
+            rect = null;
             el.style.transform = 'translate(0,0)';
+            setTimeout(() => { el.style.willChange = 'auto'; }, 280);
         };
-        el.__mag = { onMove, onLeave };
+        el.__mag = { onEnter, onMove, onLeave };
+        el.addEventListener('mouseenter', onEnter);
         el.addEventListener('mousemove', onMove);
         el.addEventListener('mouseleave', onLeave);
     },
     unmounted(el) {
         if (!el.__mag) return;
+        el.removeEventListener('mouseenter', el.__mag.onEnter);
         el.removeEventListener('mousemove', el.__mag.onMove);
         el.removeEventListener('mouseleave', el.__mag.onLeave);
     },
@@ -133,16 +164,40 @@ const vMagnetic = {
 /* ===== Directive: spotlight (radial highlight mengikuti kursor di kartu) ===== */
 const vSpotlight = {
     mounted(el) {
+        if (skipPointerFx()) return;
+        // Tanpa throttle, tiap mousemove mentah memanggil getBoundingClientRect
+        // (forced layout) lalu memicu repaint radial-gradient 420px.
+        let rect = null;
+        let raf = null;
+        let x = 0;
+        let y = 0;
+        const onEnter = () => { rect = el.getBoundingClientRect(); };
         const onMove = (e) => {
-            const r = el.getBoundingClientRect();
-            el.style.setProperty('--spot-x', `${e.clientX - r.left}px`);
-            el.style.setProperty('--spot-y', `${e.clientY - r.top}px`);
+            if (!rect) rect = el.getBoundingClientRect();
+            x = e.clientX - rect.left;
+            y = e.clientY - rect.top;
+            if (raf) return;
+            raf = requestAnimationFrame(() => {
+                raf = null;
+                el.style.setProperty('--spot-x', `${x}px`);
+                el.style.setProperty('--spot-y', `${y}px`);
+            });
         };
-        el.__spot = onMove;
+        const onLeave = () => {
+            if (raf) cancelAnimationFrame(raf);
+            raf = null;
+            rect = null;
+        };
+        el.__spot = { onEnter, onMove, onLeave };
+        el.addEventListener('mouseenter', onEnter);
         el.addEventListener('mousemove', onMove);
+        el.addEventListener('mouseleave', onLeave);
     },
     unmounted(el) {
-        if (el.__spot) el.removeEventListener('mousemove', el.__spot);
+        if (!el.__spot) return;
+        el.removeEventListener('mouseenter', el.__spot.onEnter);
+        el.removeEventListener('mousemove', el.__spot.onMove);
+        el.removeEventListener('mouseleave', el.__spot.onLeave);
     },
 };
 
@@ -429,6 +484,7 @@ const companyLinks = computed(() => [
 let lenis = null;
 let typed = null;
 let statsObserver = null;
+let cliObserver = null;
 const lenisRaf = (time) => lenis && lenis.raf(time * 1000);
 
 const onWindowScroll = () => {
@@ -478,6 +534,21 @@ onMounted(() => {
         }
     }
 
+    // Typewriter loop:true berjalan selamanya — termasuk saat hero sudah jauh
+    // di atas layar. Hentikan saat off-screen, lanjutkan saat kembali terlihat.
+    if (typed && cliEl.value) {
+        cliObserver = new IntersectionObserver(
+            (entries) => {
+                for (const en of entries) {
+                    if (en.isIntersecting) typed.start();
+                    else typed.stop();
+                }
+            },
+            { threshold: 0 },
+        );
+        cliObserver.observe(cliEl.value);
+    }
+
     // Stat counters animate when scrolled into view
     if (statsEl.value) {
         statsObserver = new IntersectionObserver(
@@ -499,14 +570,21 @@ onMounted(() => {
 
     gsap.registerPlugin(ScrollTrigger);
 
-    // Smooth scroll (sinkron dengan ScrollTrigger via ticker GSAP)
-    lenis = new Lenis({
-        duration: 1.1,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-    });
-    lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add(lenisRaf);
-    gsap.ticker.lagSmoothing(0);
+    // Smooth scroll (sinkron dengan ScrollTrigger via ticker GSAP).
+    // Dilewati di perangkat lemah — Lenis membuat posisi scroll jadi sub-piksel
+    // dan kontinu, sehingga tiap layer backdrop-blur di-blur ulang setiap frame.
+    // Scroll native tetap jalan, dan reveal di bawah tetap dipasang.
+    if (!isLowPowerDevice()) {
+        lenis = new Lenis({
+            duration: 1.1,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        });
+        lenis.on('scroll', ScrollTrigger.update);
+        gsap.ticker.add(lenisRaf);
+        // lagSmoothing(0) mematikan proteksi bawaan GSAP saat frame melambat —
+        // persis kebalikan dari yang dibutuhkan mesin lemah. Pakai default.
+        gsap.ticker.lagSmoothing(500, 33);
+    }
 
     // Hero intro ditangani via CSS (kelas .reveal-hero) agar tidak bergantung
     // pada chunk GSAP yang dimuat belakangan.
@@ -552,6 +630,7 @@ onBeforeUnmount(() => {
     stopGallery();
     typed?.destroy();
     statsObserver?.disconnect();
+    cliObserver?.disconnect();
     ScrollTrigger.getAll().forEach((t) => t.kill());
     gsap.ticker.remove(lenisRaf);
     if (lenis) {
@@ -1230,7 +1309,6 @@ onBeforeUnmount(() => {
 /* === Hero intro: animasi CSS murni (tidak bergantung GSAP) === */
 .reveal-hero {
     animation: kv-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-    will-change: opacity, transform;
 }
 @keyframes kv-hero-in {
     from {
@@ -1247,14 +1325,15 @@ onBeforeUnmount(() => {
 [data-reveal] {
     opacity: 0;
     transform: translateY(26px);
-    will-change: opacity, transform;
 }
 
 /* === Tilt & magnetic: smoothing transform === */
+/* will-change tidak dipasang di sini: directive v-tilt menyalakannya saat
+   kursor masuk dan melepasnya setelah keluar. Dibiarkan permanen, 37 kartu
+   menahan 37 layer GPU sepanjang halaman terbuka. */
 .kv-tilt {
     transform-style: preserve-3d;
     transition: transform 0.3s ease-out;
-    will-change: transform;
 }
 .kv-tilt [data-depth] {
     transition: transform 0.3s ease-out;
@@ -1263,7 +1342,6 @@ onBeforeUnmount(() => {
     transition:
         transform 0.25s cubic-bezier(0.33, 1, 0.68, 1),
         box-shadow 0.2s ease;
-    will-change: transform;
 }
 
 /* Crossfade antar screenshot di galeri "Tampilan Aplikasi" */

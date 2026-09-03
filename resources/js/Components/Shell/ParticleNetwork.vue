@@ -10,6 +10,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 // (sehingga singleton apa pun di sini akan ter-reset tiap navigasi → loadSlim
 // terpanggil lagi → register throw). Lihat resources/js/lib/particles.js.
 import { ensureParticlesEngine, nextParticlesId, tsParticles } from '@/lib/particles';
+import { isLowPowerDevice, prefersReducedMotion } from '@/lib/perf';
 
 const props = defineProps({
     // id dasar — dibedakan otomatis per mount, jadi cukup deskriptif saja.
@@ -18,6 +19,10 @@ const props = defineProps({
     quantity: { type: Number, default: 64 },
     // warna garis penghubung & node.
     linkColor: { type: String, default: '#38bdf8' },
+    // Efek "grab" mengikuti kursor. Wajib false untuk latar yang menutupi
+    // elemen interaktif (mis. app shell): tsParticles memaksa
+    // `pointer-events: initial` pada canvas-nya saat hover aktif.
+    interactive: { type: Boolean, default: true },
 });
 
 const el = ref(null);
@@ -26,13 +31,12 @@ const uid = nextParticlesId(props.id);
 let container = null;
 let destroyed = false;
 
-const reduceMotion = () =>
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 onMounted(async () => {
-    // Hormati pengguna yang mengurangi animasi — biarkan latar statis.
-    if (reduceMotion() || !el.value) return;
+    // Hormati pengguna yang mengurangi animasi, dan lewati sepenuhnya di
+    // perangkat kelas bawah — merasterisasi canvas full-bleed 60fps adalah
+    // beban terbesar halaman ini (≈74% CPU idle terukur), dan di GPU lemah
+    // itulah yang membuat scroll tersendat. Latar tetap rapi tanpa canvas.
+    if (prefersReducedMotion() || isLowPowerDevice() || !el.value) return;
 
     // Daftarkan engine sekali saja (idempoten lintas mount, dari module singleton).
     await ensureParticlesEngine();
@@ -45,8 +49,14 @@ onMounted(async () => {
         element: el.value,
         options: {
             fullScreen: { enable: false },
-            fpsLimit: 60,
-            detectRetina: true,
+            // Partikel bergerak sangat lambat (speed 0.7); 30fps tidak terlihat
+            // berbeda tapi memangkas separuh kerja rasterisasi.
+            fpsLimit: 30,
+            // Di Retina, detectRetina menggambar canvas pada 2x -> 4x piksel per
+            // frame. Untuk titik lembut & garis tipis selisihnya tak kasat mata.
+            detectRetina: false,
+            // hdr default true di engine v4; tidak berguna untuk latar dekoratif.
+            hdr: false,
             background: { color: 'transparent' },
             particles: {
                 number: {
@@ -76,9 +86,12 @@ onMounted(async () => {
                 size: { value: { min: 1, max: 2.6 } },
             },
             interactivity: {
-                detectsOn: 'window',
+                // 'window' membuat SETIAP mousemove di halaman (termasuk saat
+                // hero sudah jauh di atas) memicu hitung ulang link grab untuk
+                // semua partikel. Batasi ke area canvas-nya sendiri.
+                detectsOn: 'canvas',
                 events: {
-                    onHover: { enable: true, mode: 'grab' },
+                    onHover: { enable: props.interactive, mode: 'grab' },
                     onClick: { enable: false },
                     resize: { enable: true },
                 },
@@ -108,6 +121,18 @@ onBeforeUnmount(() => {
         :id="uid"
         ref="el"
         class="pointer-events-none absolute inset-0 h-full w-full"
+        :class="{ 'kv-particles--inert': !interactive }"
         aria-hidden="true"
     />
 </template>
+
+<style scoped>
+/* tsParticles menulis inline `pointer-events: initial` ke <canvas> miliknya
+ * (InteractivityEventListeners -> canvas.setPointerEvents) sehingga menembus
+ * `pointer-events-none` milik wrapper. Declaration !important dari stylesheet
+ * mengalahkan inline non-important, jadi latar dekoratif ini tidak pernah
+ * menelan klik elemen di bawahnya. */
+.kv-particles--inert :deep(canvas) {
+    pointer-events: none !important;
+}
+</style>
