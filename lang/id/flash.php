@@ -146,4 +146,6 @@ return [
     'gmaps_no_coords' => 'Koordinat tidak ditemukan di link. Pastikan ini link lokasi Google Maps.',
     'vlan_added' => 'VLAN :vlan berhasil ditambahkan ke :interface.',
     'cli_error_prefix' => 'Eksekusi CLI selesai dengan error: ',
+    'user_managed_by_sso' => 'Akun dibuat di KusumaVision SSO, bukan di sini. Buat identitasnya di sso.kusumavision.net lalu beri hak akses ke aplikasi ini.',
+    'user_olt_updated' => 'Penugasan OLT diperbarui.',
 ];

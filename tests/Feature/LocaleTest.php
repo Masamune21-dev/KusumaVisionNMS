@@ -5,11 +5,12 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Support\Locale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\SimulatesSso;
 use Tests\TestCase;
 
 class LocaleTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, SimulatesSso;
 
     public function test_guest_can_switch_locale_and_it_persists_in_session(): void
     {
@@ -64,13 +65,19 @@ class LocaleTest extends TestCase
 
     public function test_login_adopts_guest_chosen_locale(): void
     {
-        // Skenario: tamu klik ganti bahasa ke 'en' di layar login (mengisi
-        // session('locale')), lalu login ke akun ber-preferensi 'id'. Bahasa
-        // pilihan tamu harus diadopsi jadi preferensi akun → dashboard ikut 'en'.
-        $user = User::factory()->create(['locale' => 'id']);
+        // Skenario: tamu klik ganti bahasa ke 'en' di halaman publik (mengisi
+        // session('locale')), lalu login lewat SSO ke akun ber-preferensi 'id'.
+        // Bahasa pilihan tamu harus diadopsi jadi preferensi akun.
+        //
+        // Sejak login pindah ke IdP, adopsi ini terjadi di /sso/callback — bukan
+        // lagi di AuthenticatedSessionController. Session app ini bertahan selama
+        // perjalanan ke IdP dan kembali, jadi pilihan tamu tidak hilang.
+        $user = User::factory()->create(['locale' => 'id', 'email' => 'orang@example.test']);
 
-        $this->withSession(['locale' => 'en'])
-            ->post('/login', ['email' => $user->email, 'password' => 'password'])
+        $this->fakeIdpClaims(['email' => 'orang@example.test']);
+
+        $this->withSession([...$this->ssoRedirectSession(), 'locale' => 'en'])
+            ->get($this->ssoCallbackUrl())
             ->assertRedirect(route('dashboard', absolute: false));
 
         $this->assertSame('en', $user->fresh()->locale);
@@ -80,9 +87,11 @@ class LocaleTest extends TestCase
     {
         // Tanpa klik switcher (session tak punya 'locale'), preferensi akun
         // harus tetap dihormati — bukan tertimpa cookie/ambient tamu.
-        $user = User::factory()->create(['locale' => 'id']);
+        $user = User::factory()->create(['locale' => 'id', 'email' => 'orang@example.test']);
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $this->fakeIdpClaims(['email' => 'orang@example.test']);
+
+        $this->withSession($this->ssoRedirectSession())->get($this->ssoCallbackUrl());
 
         $this->assertSame('id', $user->fresh()->locale);
     }

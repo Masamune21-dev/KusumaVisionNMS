@@ -48,9 +48,8 @@ Route::post('/telegram/webhook/{bot?}', [TelegramWebhookController::class, 'hand
     ->name('telegram.webhook');
 
 Route::middleware('auth')->group(function () {
+    // Ubah nama/email/password/2FA dilakukan di IdP, bukan di sini.
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::get('/dashboard/search', DashboardSearchController::class)->name('dashboard.search');
     Route::post('/notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('notifications.read-all');

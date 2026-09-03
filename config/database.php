@@ -179,6 +179,26 @@ return [
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
         ],
 
+
+        /*
+         * Namespace bersama lintas-aplikasi untuk sesi hub SSO (Redis DB 6).
+         *
+         * Prefix dipatok 'kvsso:' dan sengaja TIDAK diturunkan dari APP_NAME —
+         * justru itu intinya: IdP, NMS, MikroTik, dan Billing harus melihat kunci
+         * yang persis sama.
+         */
+        'sso' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_SSO_DB', '6'),
+            'options' => [
+                'prefix' => 'kvsso:',
+            ],
+        ],
+
     ],
 
 ];

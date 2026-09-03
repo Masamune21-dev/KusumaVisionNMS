@@ -47,6 +47,43 @@ class HandleInertiaRequests extends Middleware
             'branding' => fn () => GeneralSetting::brandingPayload(),
             'locale' => app()->getLocale(),
             'locales' => Locale::options(),
+            'ecosystem' => $this->ecosystemPayload($request),
+            // Basis URL IdP, dipakai halaman yang menautkan ke pengaturan akun terpusat.
+            'ssoIssuer' => config('sso.issuer'),
+        ];
+    }
+
+    /**
+     * Daftar dashboard ekosistem untuk App Switcher.
+     *
+     * Hak akses dibaca dari klaim `apps` yang sudah tersimpan di session sejak
+     * callback SSO — TIDAK memanggil IdP per-request. Tanpa cara ini, setiap
+     * halaman akan menyeret satu panggilan HTTP lintas-origin.
+     *
+     * @return array{current:string, apps:array<int,array<string,mixed>>}|null
+     */
+    private function ecosystemPayload(Request $request): ?array
+    {
+        if ($request->user() === null) {
+            return null;
+        }
+
+        $granted = (array) $request->session()->get('sso.apps', []);
+        $current = (string) config('sso.client_id');
+
+        return [
+            'current' => $current,
+            'apps' => collect(config('sso.apps'))
+                ->map(fn (array $app, string $key) => [
+                    'key' => $key,
+                    'name' => $app['name'],
+                    'url' => $app['url'],
+                    'icon' => $app['icon'],
+                    'is_current' => $key === $current,
+                    'enabled' => in_array($key, $granted, true),
+                ])
+                ->values()
+                ->all(),
         ];
     }
 

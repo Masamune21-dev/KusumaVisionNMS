@@ -1227,7 +1227,13 @@
         "password": "Password",
         "save_changes": "Simpan Perubahan",
         "create": "Buat User",
-        "delete_msg": "Hapus user \"{name}\" ({email})? Tindakan ini permanen."
+        "delete_msg": "Hapus user \"{name}\" ({email})? Tindakan ini permanen.",
+        "add_at_sso": "Kelola akun di SSO",
+        "sso_notice": "Nama, email, password, role, dan hak akses aplikasi diatur terpusat di KusumaVision SSO. Halaman ini hanya mengatur OLT mana yang boleh diakses tiap orang.",
+        "sso_notice_link": "Buka panel pengguna SSO",
+        "identity_readonly": "Identitas dan role dikelola di KusumaVision SSO; nilainya disegarkan tiap kali orang ini login.",
+        "assign_title": "Penugasan OLT",
+        "assign_sub": "Tentukan OLT mana saja yang boleh diakses pengguna ini."
     },
     "auditlogs": {
         "title": "Audit Logs",
@@ -1287,7 +1293,11 @@
         "delete_button": "Hapus Akun",
         "delete_confirm_title": "Yakin ingin menghapus akun Anda?",
         "delete_confirm_sub": "Setelah akun dihapus, seluruh sumber daya dan datanya ikut terhapus permanen. Masukkan password Anda untuk mengonfirmasi penghapusan permanen akun.",
-        "password": "Password"
+        "password": "Password",
+        "managed_centrally": "Dikelola terpusat di KusumaVision SSO",
+        "managed_centrally_desc": "Nama, email, password, dan autentikasi dua faktor Anda berlaku untuk seluruh dashboard KusumaVision, jadi pengaturannya ada di satu tempat.",
+        "open_sso": "Buka pengaturan akun",
+        "emergency_session": "Anda masuk lewat jalur darurat. Sesi ini tidak terhubung ke pusat login — setelah SSO pulih, silakan logout lalu masuk seperti biasa."
     },
     "telegrambot": {
         "my_title": "Bot Telegram Saya",
@@ -1611,5 +1621,13 @@
         "add_title": "Beri label port",
         "edit_title": "Ubah label port",
         "hint": "Label hanya disimpan di NMS, tidak ditulis ke OLT."
+    },
+    "ecosystem": {
+        "title": "Ekosistem KusumaVision",
+        "subtitle": "Pindah dashboard tanpa login ulang",
+        "switch": "Pindah aplikasi",
+        "current": "Sedang dibuka",
+        "open": "Buka dashboard",
+        "no_access": "Tidak ada akses"
     }
 }

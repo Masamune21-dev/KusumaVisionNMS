@@ -36,6 +36,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'sso_user_id',
         'name',
         'email',
         'password',
