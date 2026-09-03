@@ -1,5 +1,53 @@
 # Worklog
 
+## 2026-08-29
+
+### Perbaikan nginx Kehabisan File Descriptor + Duplikasi Event Polling
+
+Dua gangguan produksi yang gejalanya dilaporkan bersamaan tapi penyebabnya terpisah: (1) halaman
+web tiba-tiba 500 setelah tab ditinggal lama, normal lagi begitu di-refresh; (2) event polling
+OLT yang gagal selalu tercatat dua kali.
+
+Changed:
+
+- `app/Jobs/PollOltJob.php` — event `rx_poll` tak lagi dicatat saat poll OLT-nya sendiri gagal.
+  Di jalur ZTE gerbangnya `$rxPollDue && ($snapshot['ok'] ?? false)`, di `pollViaScanner()`
+  (C-Data/HiOSO/HsAirPo) `$rxPollDue && $ok`. Sebelumnya satu kegagalan menghasilkan DUA baris:
+  `olt_poll` dan `rx_poll` dengan pesan error identik (jalur scanner) atau pesan kosong (jalur
+  ZTE, karena blok ONU/RX di-skip saat `$snapshot['ok']` false sehingga `$rxPowerError` tetap
+  null). Efeknya permanen selama OLT mati: `last_rx_polled_at` hanya maju kalau sukses, jadi RX
+  selamanya "due" dan duplikatnya terulang tiap siklus.
+
+Notes:
+
+- **Di luar repo — `/etc/nginx/nginx.conf`** (backup: `nginx.conf.bak-20260829-000754`): sumber
+  500 acak ternyata bukan aplikasi NMS sama sekali. Worker nginx mentok di soft limit 1024 FD
+  (`accept4() failed (24: Too many open files)` beruntun di `error.log`) karena vhost halaman
+  blokir Trust+/Komdigi di `103.189.249.88` membuka ulang `/var/www/trustpositif/index.html`
+  tiap request dan tiap stream HTTP/2 — terukur ±2.700 FD ke satu berkas 12 KB, satu worker
+  pegang 940. Worker yang penuh berhenti menerima koneksi BARU untuk seluruh vhost di server
+  ini (NMS, Billing, MikroTik, website, isolir). Itu sebabnya tab idle — yang koneksi
+  keepalive-nya sudah putus dan butuh `accept()` baru — kena 500, sedangkan refresh jatuh ke
+  worker lain yang masih longgar dan normal. Bukti bahwa ini di lapis nginx, bukan aplikasi:
+  access log vhost NMS nol 5xx, error log vhost NMS kosong, `laravel.log` bersih, php-fpm tak
+  pernah lapor `max_children`. Perbaikan: `worker_rlimit_nofile 65535`,
+  `worker_connections 768 -> 4096` (tiap koneksi butuh >=2 FD, jadi 768 mustahil tercapai), dan
+  `open_file_cache max=5000 inactive=60s` + `valid 30s` + `min_uses 2` supaya berkas statis yang
+  sama berbagi satu descriptor. Hasil setelah reload: FD trustpositif 2.700 -> 18, FD tertinggi
+  per worker 153/65535, nol `accept4()` error.
+- Sumber kegagalan polling yang sebenarnya (bukan bug NMS): **OLT-HIOSO-GEMBONG-2 (id 1220,
+  `103.189.249.172:2226`)** mati SNMP sejak 2026-08-16 10:42 — 434 event gagal/24 jam = 217
+  siklus x 2. Diprobe langsung: ping host bersih 0,7 ms dan port 2224 (GEMBONG-1) di IP yang
+  sama menjawab normal, tapi 2226 no response → port-forward UDP atau agen SNMP perangkatnya
+  mati. **OLT-HIOSO-GEMBONG-1 (id 1219)** 10 kegagalan/24 jam dengan `sysUpTime` 2 menit saat
+  dicek → OLT baru reboot, gagalnya sesaat. C-Data KELING (279/280/1103) 1-2 walk timeout
+  sepanjang hari, wajar.
+- Terverifikasi di produksi: siklus poll 07:17:58 untuk OLT 1220 kini menghasilkan tepat SATU
+  baris `olt_poll`, duplikat `rx_poll` hilang. `bash scripts/test.sh` 549 passed / 2890
+  assertions.
+
+---
+
 ## 2026-08-12
 
 ### HiOSO: status ONU dari link-state SNMP, bukan dari ada/tidaknya Rx

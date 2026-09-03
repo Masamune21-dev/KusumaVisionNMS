@@ -159,7 +159,11 @@ class PollOltJob implements ShouldQueue
             isset($snapshot['latency_ms']) ? (int) $snapshot['latency_ms'] : null,
         );
 
-        if ($rxPollDue) {
+        // Hanya catat event RX kalau poll OLT-nya sendiri berhasil. Saat OLT tak
+        // terjangkau, RX tak pernah sempat dijalankan dan `last_rx_polled_at` tak
+        // maju -> RX selamanya "due", jadi tiap siklus akan menghasilkan baris
+        // gagal KEDUA yang mengulang kegagalan yang sama seperti event olt_poll.
+        if ($rxPollDue && ($snapshot['ok'] ?? false)) {
             PollingEvent::log(
                 $olt->id,
                 PollingEvent::KIND_RX_POLL,
@@ -221,7 +225,10 @@ class PollOltJob implements ShouldQueue
         $alarms->evaluate($olt, $previousSnapshot);
 
         PollingEvent::log($olt->id, PollingEvent::KIND_OLT_POLL, $ok, $error);
-        if ($rxPollDue) {
+        // Rx non-ZTE ikut di dalam scan, jadi tak ada error RX yang terpisah: kalau
+        // scan-nya gagal, event olt_poll di atas sudah melaporkannya. Mencatatnya
+        // lagi di sini hanya menggandakan tiap kegagalan jadi dua baris identik.
+        if ($rxPollDue && $ok) {
             PollingEvent::log($olt->id, PollingEvent::KIND_RX_POLL, $ok, $error);
         }
     }
