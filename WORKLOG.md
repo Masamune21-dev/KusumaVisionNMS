@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-09-18
+
+### Branch publik dipisahkan dari integrasi internal
+
+`main` adalah rilis publik NMS yang harus bisa dijalankan siapa pun secara berdiri sendiri,
+cukup berbekal `.env.example` dan migrasi bawaan. Dua commit sebelumnya membawa masuk berkas
+yang hanya bermakna untuk deployment internal, jadi keduanya dicabut dari branch ini.
+
+Changed:
+- Autentikasi kembali ke bawaan Laravel Breeze (revert `5b9cff7`); rinciannya ada di pesan
+  commit revert tersebut. Pohon berkas hasilnya identik dengan `515bf2d`, kondisi terakhir
+  `main` sebelum commit itu masuk.
+- `DOKUMENTASI_SISTEM_TRIAD.md` dihapus. Berkas itu memetakan topologi deployment internal —
+  pembagian database, subnet, dan tata cara operasional antar aplikasi — bukan dokumentasi
+  produk NMS, sehingga tidak berguna bagi pengguna repo ini dan tidak layak dipublikasikan.
+
+Notes:
+- Riwayat sengaja TIDAK ditulis ulang. Repo ini sudah di-fork dan di-clone banyak orang;
+  force-push hanya membuat salinan mereka divergen tanpa benar-benar menghilangkan commit
+  lama, sebab GitHub tetap menyimpan objeknya selama masih ada fork yang merujuknya.
+- Saat mem-backport perbaikan dari branch internal ke `main`, pastikan cherry-pick tidak ikut
+  membawa berkas SSO atau dokumentasi deployment. Persis begitulah commit sebelumnya masuk.
+- `README.md`, `README.id.md`, dan `.env.example` tidak pernah menyebut integrasi internal,
+  jadi tidak ada yang perlu diubah di sana.
+
 ## 2026-08-29
 
 ### Perbaikan nginx Kehabisan File Descriptor + Duplikasi Event Polling
