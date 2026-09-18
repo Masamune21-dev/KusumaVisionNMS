@@ -1227,13 +1227,7 @@
         "password": "Password",
         "save_changes": "Save Changes",
         "create": "Create User",
-        "delete_msg": "Delete user \"{name}\" ({email})? This action is permanent.",
-        "add_at_sso": "Manage accounts in SSO",
-        "sso_notice": "Name, email, password, role, and app access are managed centrally in KusumaVision SSO. This page only controls which OLTs each person may access.",
-        "sso_notice_link": "Open the SSO user panel",
-        "identity_readonly": "Identity and role are managed in KusumaVision SSO; the values refresh each time this person signs in.",
-        "assign_title": "OLT assignment",
-        "assign_sub": "Choose which OLTs this user may access."
+        "delete_msg": "Delete user \"{name}\" ({email})? This action is permanent."
     },
     "auditlogs": {
         "title": "Audit Logs",
@@ -1293,11 +1287,7 @@
         "delete_button": "Delete Account",
         "delete_confirm_title": "Are you sure you want to delete your account?",
         "delete_confirm_sub": "Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.",
-        "password": "Password",
-        "managed_centrally": "Managed centrally at KusumaVision SSO",
-        "managed_centrally_desc": "Your name, email, password, and two-factor authentication apply across every KusumaVision dashboard, so they are configured in one place.",
-        "open_sso": "Open account settings",
-        "emergency_session": "You signed in through the emergency route. This session is not linked to the login hub — once SSO is back, log out and sign in normally."
+        "password": "Password"
     },
     "telegrambot": {
         "my_title": "My Telegram Bot",
@@ -1621,13 +1611,5 @@
         "add_title": "Add port label",
         "edit_title": "Edit port label",
         "hint": "The label is stored in the NMS only; it is not written to the OLT."
-    },
-    "ecosystem": {
-        "title": "KusumaVision Ecosystem",
-        "subtitle": "Switch dashboards without logging in again",
-        "switch": "Switch app",
-        "current": "Currently open",
-        "open": "Open dashboard",
-        "no_access": "No access"
     }
 }

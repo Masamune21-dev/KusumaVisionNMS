@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -71,44 +74,56 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Pembuatan akun tidak lagi dilakukan di sini.
-     *
-     * Identitas (nama, email, password, role) hidup di sso.kusumavision.net.
-     * Akun yang dibuat lokal tidak punya identitas di sana, jadi pemiliknya tidak
-     * akan pernah bisa login — baris lokal itu hanya akan jadi sampah yang
-     * membingungkan. Baris lokal dibuat otomatis saat pemiliknya login pertama
-     * kali lewat SSO ({@see \App\Http\Controllers\Auth\SsoController}).
-     */
     public function store(Request $request): RedirectResponse
-    {
-        return back()->with('error', __('flash.user_managed_by_sso'));
-    }
-
-    /**
-     * Yang masih boleh diubah di sini HANYA penugasan OLT — data operasional milik
-     * app ini.
-     *
-     * Nama, email, password, dan role sengaja diabaikan walau ikut terkirim:
-     * keempatnya milik IdP dan akan ditimpa ulang dari klaim SSO pada login
-     * berikutnya, jadi menyimpannya di sini hanya melahirkan dua sumber kebenaran
-     * yang cepat berbeda.
-     */
-    public function update(Request $request, User $user): RedirectResponse
     {
         $data = $request->validate($this->rules());
 
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'role' => $data['role'],
+            'password' => Hash::make($data['password']),
+        ]);
+
         $this->syncPartnerOlts($user, $data);
 
-        return back()->with('success', __('flash.user_olt_updated'));
+        return back()->with('success', __('flash.user_added'));
+    }
+
+    public function update(Request $request, User $user): RedirectResponse
+    {
+        $data = $request->validate($this->rules($user));
+
+        // Cegah admin terakhir menurunkan rolenya sendiri sehingga sistem terkunci.
+        if ($user->isAdmin() && $data['role'] !== UserRole::Admin->value && $this->isLastAdmin($user)) {
+            return back()->with('error', __('flash.cant_demote_last_admin'));
+        }
+
+        $user->name = $data['name'];
+        $user->email = $data['email'];
+        $user->role = $data['role'];
+
+        if (! empty($data['password'])) {
+            $user->password = Hash::make($data['password']);
+        }
+
+        $user->save();
+
+        $this->syncPartnerOlts($user, $data);
+
+        return back()->with('success', __('flash.user_updated'));
     }
 
     /**
      * @return array<string, array<int, mixed>>
      */
-    private function rules(): array
+    private function rules(?User $user = null): array
     {
         return [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'.($user ? ','.$user->id : '')],
+            'role' => ['required', Rule::enum(UserRole::class)],
+            'password' => [$user ? 'nullable' : 'required', Password::defaults()],
             'olt_ids' => ['nullable', 'array'],
             'olt_ids.*' => ['integer', 'exists:snmp_olts,id'],
         ];
@@ -148,11 +163,6 @@ class UserController extends Controller
             return back()->with('error', __('flash.cant_delete_last_admin'));
         }
 
-        // CATATAN: ini hanya menghapus baris LOKAL beserta penugasan OLT-nya.
-        // Identitasnya tetap hidup di sso.kusumavision.net — selama hak aksesnya ke
-        // app ini belum dicabut di sana, baris ini akan lahir kembali saat ia login.
-        // Untuk benar-benar mencabut akses, matikan grant-nya di IdP.
-        //
         // OLT privat milik user yang dihapus dikembalikan ke pool global (owner_user_id
         // null) agar tak jadi yatim/tak terlihat siapa pun. Pivot olt_user cascade otomatis.
         SnmpOlt::withoutGlobalScopes()

@@ -8,7 +8,6 @@ import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
-import AppSwitcher from '@/Components/Shell/AppSwitcher.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
@@ -139,7 +138,6 @@ onUnmounted(() => {
                 >
                     <Search class="h-4 w-4" />
                 </button>
-                <AppSwitcher />
                 <LanguageSwitcher />
                 <NotificationBell />
             </div>
@@ -296,7 +294,6 @@ onUnmounted(() => {
                     </button>
 
                     <div class="ml-auto flex items-center gap-3">
-                        <AppSwitcher />
                         <LanguageSwitcher />
                         <NotificationBell />
                         <UserMenu />
@@ -330,12 +327,8 @@ onUnmounted(() => {
             <!-- Page content -->
             <main class="kv-grid-bg relative flex-1">
                 <AuroraBackground />
-                <!-- Jaring partikel fixed di belakang konten semua halaman app.
-                     interactive=false wajib: canvas ini fixed inset-0 di dalam <main>
-                     (positioned + isolation) sehingga ikut menutupi header slot & footer
-                     yang static. Dengan hover aktif, tsParticles menyalakan
-                     pointer-events canvas dan seluruh tombol header jadi tak bisa diklik. -->
-                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" :interactive="false" />
+                <!-- Jaring partikel fixed di belakang konten semua halaman app -->
+                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" />
                 <Transition name="page" mode="out-in">
                     <div :key="page.component" class="relative min-w-0">
                         <slot />

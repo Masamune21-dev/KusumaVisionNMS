@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Enums\UserRole;
 use App\Models\AlarmEvent;
 use App\Models\Scopes\PartnerOltScope;
 use App\Models\SnmpOlt;
@@ -106,31 +105,17 @@ class OperatorOltScopeTest extends TestCase
     {
         $olt = $this->makeOlt('OLT-ASSIGNED', '10.8.5.1');
         $admin = User::factory()->admin()->create();
-        // Akun lahir dari SSO, bukan dari halaman ini — yang masih diatur di sini
-        // hanyalah OLT mana yang boleh ia akses.
-        $operator = User::factory()->create(['role' => UserRole::Operator]);
 
-        $this->actingAs($admin)->put(route('users.update', $operator), [
+        $this->actingAs($admin)->post(route('users.store'), [
+            'name' => 'Operator Scoped',
+            'email' => 'op.scoped@contoh.com',
+            'role' => 'operator',
+            'password' => 'password123',
             'olt_ids' => [$olt->id],
         ])->assertRedirect();
 
-        $this->assertSame([$olt->id], $operator->partnerOlts()->pluck('snmp_olts.id')->all());
-    }
-
-    public function test_users_cannot_be_created_from_this_app(): void
-    {
-        $admin = User::factory()->admin()->create();
-
-        $this->actingAs($admin)->post(route('users.store'), [
-            'name' => 'Operator Baru',
-            'email' => 'baru@contoh.com',
-            'role' => 'operator',
-            'password' => 'password123',
-        ])->assertSessionHas('error');
-
-        // Akun tanpa identitas di IdP tidak akan pernah bisa login, jadi tidak
-        // boleh lahir di sini sejak awal.
-        $this->assertDatabaseMissing('users', ['email' => 'baru@contoh.com']);
+        $created = User::where('email', 'op.scoped@contoh.com')->firstOrFail();
+        $this->assertSame([$olt->id], $created->partnerOlts()->pluck('snmp_olts.id')->all());
     }
 
     private function makeAlarm(SnmpOlt $olt, string $signature): AlarmEvent

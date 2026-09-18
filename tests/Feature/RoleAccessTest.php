@@ -47,28 +47,18 @@ class RoleAccessTest extends TestCase
         $this->actingAs($demo)->get(route('reports.index'))->assertOk();
     }
 
-    /**
-     * Role kini milik KusumaVision SSO dan ditimpa ulang dari klaim tiap login,
-     * jadi halaman ini mengabaikannya sepenuhnya — termasuk percobaan mengubahnya
-     * lewat request langsung. Penjaga "admin terakhir" pindah ke IdP
-     * (lihat SsoUserManagementTest di KusumaVisionSSO).
-     */
-    public function test_role_cannot_be_changed_from_this_app(): void
+    public function test_last_admin_cannot_be_demoted(): void
     {
         $admin = User::factory()->admin()->create();
 
         $this->actingAs($admin)
             ->put(route('users.update', $admin), [
-                'name' => 'Nama Lain',
-                'email' => 'lain@contoh.com',
+                'name' => $admin->name,
+                'email' => $admin->email,
                 'role' => 'operator',
-                'password' => 'password-baru-yang-panjang',
             ])
-            ->assertSessionHasNoErrors();
+            ->assertSessionHas('error');
 
-        $admin->refresh();
-        $this->assertTrue($admin->isAdmin());
-        $this->assertNotSame('Nama Lain', $admin->name);
-        $this->assertNotSame('lain@contoh.com', $admin->email);
+        $this->assertTrue($admin->fresh()->isAdmin());
     }
 }

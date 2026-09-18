@@ -146,6 +146,4 @@ return [
     'gmaps_no_coords' => 'No coordinates found in the link. Make sure it is a Google Maps location link.',
     'vlan_added' => 'VLAN :vlan added to :interface.',
     'cli_error_prefix' => 'CLI execution finished with an error: ',
-    'user_managed_by_sso' => 'Accounts are created in KusumaVision SSO, not here. Create the identity at sso.kusumavision.net, then grant it access to this app.',
-    'user_olt_updated' => 'OLT assignments updated.',
 ];

@@ -33,6 +33,5 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <env name="REDIS_SSO_DB" value="15"/>
     </php>
 </phpunit>

@@ -2,7 +2,6 @@
 
 use App\Http\Middleware\BlockDemoWrites;
 use App\Http\Middleware\ContentSecurityPolicy;
-use App\Http\Middleware\EnsureSsoSessionAlive;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetLocale;
@@ -31,9 +30,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             ContentSecurityPolicy::class,
             SetLocale::class,
-            // Ditempatkan SEBELUM HandleInertiaRequests supaya sesi yang sudah
-            // dicabut tidak sempat ikut membangun props halaman.
-            EnsureSsoSessionAlive::class,
             HandleInertiaRequests::class,
             BlockDemoWrites::class,
             AddLinkHeadersForPreloadedAssets::class,

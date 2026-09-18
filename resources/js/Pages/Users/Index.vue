@@ -7,11 +7,12 @@ import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDate } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ExternalLink, KeyRound, Pencil, Plus, Trash2, Users } from '@lucide/vue';
+import { Pencil, Plus, Trash2, Users } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -39,10 +40,13 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 const showModal = ref(false);
 const editingUser = ref(null);
 
-// Panel identitas terpusat; dipakai seluruh tautan "kelola akun" di halaman ini.
-const ssoUsersUrl = computed(() => `${page.props.ssoIssuer}/admin/users`);
+const defaultRole = computed(() => props.roleOptions[0]?.value ?? 'operator');
 
 const form = useForm({
+    name: '',
+    email: '',
+    role: defaultRole.value,
+    password: '',
     olt_ids: [],
 });
 
@@ -65,12 +69,10 @@ const roleBadgeClass = (value) => {
 };
 
 // Assignment OLT tersedia untuk partner (wajib membatasi) & operator (opsional membatasi).
-const showOltAssignment = computed(
-    () => editingUser.value?.role === 'partner' || editingUser.value?.role === 'operator',
-);
+const showOltAssignment = computed(() => form.role === 'partner' || form.role === 'operator');
 
 const oltAssignmentHint = computed(() =>
-    editingUser.value?.role === 'operator'
+    form.role === 'operator'
         ? t('users.assign_hint_operator')
         : t('users.assign_hint_partner'),
 );
@@ -109,8 +111,21 @@ const assignedCount = (user) => (user.assigned_olt_ids ?? []).length;
 const ownedCount = (user) => user.owned_olt_count ?? 0;
 const totalOltCount = (user) => user.total_olt_count ?? assignedCount(user);
 
+const openCreate = () => {
+    editingUser.value = null;
+    form.reset();
+    form.role = defaultRole.value;
+    form.olt_ids = [];
+    form.clearErrors();
+    showModal.value = true;
+};
+
 const openEdit = (user) => {
     editingUser.value = user;
+    form.name = user.name;
+    form.email = user.email;
+    form.role = user.role ?? defaultRole.value;
+    form.password = '';
     form.olt_ids = [...(user.assigned_olt_ids ?? [])];
     form.clearErrors();
     showModal.value = true;
@@ -123,11 +138,17 @@ const closeModal = () => {
 };
 
 const submit = () => {
-    // Hanya penugasan OLT yang dikirim; identitas milik IdP.
-    form.put(route('users.update', editingUser.value.id), {
-        preserveScroll: true,
-        onSuccess: () => closeModal(),
-    });
+    if (editingUser.value) {
+        form.put(route('users.update', editingUser.value.id), {
+            preserveScroll: true,
+            onSuccess: () => closeModal(),
+        });
+    } else {
+        form.post(route('users.store'), {
+            preserveScroll: true,
+            onSuccess: () => closeModal(),
+        });
+    }
 };
 
 const deleteUser = async (user) => {
@@ -154,30 +175,15 @@ const deleteUser = async (user) => {
                 <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
                     {{ $t('users.title') }}
                 </h2>
-                <a
-                    :href="ssoUsersUrl"
-                    class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-sky-500 sm:w-auto"
-                >
-                    <Plus class="h-4 w-4" />
-                    {{ $t('users.add_at_sso') }}
-                    <ExternalLink class="h-3.5 w-3.5" />
-                </a>
+                <PrimaryButton class="w-full sm:w-auto" @click="openCreate">
+                    <Plus class="mr-2 h-4 w-4" />
+                    {{ $t('users.add') }}
+                </PrimaryButton>
             </div>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
-
-                <!-- Identitas milik IdP; halaman ini hanya mengatur penugasan OLT. -->
-                <div class="mb-5 flex gap-3 rounded-lg border border-cyan-500/25 bg-cyan-500/[0.07] p-4 text-sm text-slate-300">
-                    <KeyRound class="h-5 w-5 flex-shrink-0 text-cyan-400" />
-                    <p class="leading-relaxed">
-                        {{ $t('users.sso_notice') }}
-                        <a :href="ssoUsersUrl" class="font-medium text-cyan-400 underline-offset-2 hover:underline">
-                            {{ $t('users.sso_notice_link') }}
-                        </a>
-                    </p>
-                </div>
 
                 <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
@@ -201,14 +207,10 @@ const deleteUser = async (user) => {
                         <h3 class="text-sm font-semibold text-white">{{ $t('users.empty_title') }}</h3>
                         <p class="mt-1 text-sm text-slate-500">{{ $t('users.empty_sub') }}</p>
                         <div class="mt-5">
-                            <a
-                                :href="ssoUsersUrl"
-                                class="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-sky-500"
-                            >
-                                <Plus class="h-4 w-4" />
-                                {{ $t('users.add_at_sso') }}
-                                <ExternalLink class="h-3.5 w-3.5" />
-                            </a>
+                            <PrimaryButton @click="openCreate">
+                                <Plus class="mr-2 h-4 w-4" />
+                                {{ $t('users.add') }}
+                            </PrimaryButton>
                         </div>
                     </div>
 
@@ -340,25 +342,52 @@ const deleteUser = async (user) => {
         <Modal :show="showModal" max-width="md" @close="closeModal">
             <form @submit.prevent="submit" class="p-6">
                 <h3 class="text-base font-semibold text-white">
-                    {{ $t('users.assign_title') }}
+                    {{ editingUser ? $t('users.edit') : $t('users.add') }}
                 </h3>
                 <p class="mt-1 text-sm text-slate-500">
-                    {{ $t('users.assign_sub') }}
+                    {{ editingUser ? $t('users.modal_edit_sub') : $t('users.modal_create_sub') }}
                 </p>
 
                 <div class="mt-5 space-y-4">
-                    <!-- Identitas ditampilkan apa adanya: sumber kebenarannya di IdP,
-                         dan nilainya ditimpa ulang tiap kali orangnya login lewat SSO. -->
-                    <div class="rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2.5">
-                        <p class="text-sm font-medium text-white">{{ editingUser?.name }}</p>
-                        <p class="truncate text-xs text-slate-500">{{ editingUser?.email }}</p>
-                        <span
-                            v-if="editingUser"
-                            :class="['mt-1.5 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', roleBadgeClass(editingUser.role)]"
+                    <div>
+                        <InputLabel for="name" :value="$t('users.col_name')" />
+                        <TextInput
+                            id="name"
+                            v-model="form.name"
+                            type="text"
+                            class="mt-1 block w-full"
+                            :placeholder="$t('users.name_placeholder')"
+                            autofocus
+                            autocomplete="name"
+                        />
+                        <InputError :message="form.errors.name" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="email" value="Email" />
+                        <TextInput
+                            id="email"
+                            v-model="form.email"
+                            type="email"
+                            class="mt-1 block w-full"
+                            placeholder="email@contoh.com"
+                            autocomplete="email"
+                        />
+                        <InputError :message="form.errors.email" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="role" value="Role" />
+                        <select
+                            id="role"
+                            v-model="form.role"
+                            class="mt-1 block w-full min-h-11 rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500"
                         >
-                            {{ roleLabel(editingUser.role) }}
-                        </span>
-                        <p class="mt-2 text-xs text-slate-500">{{ $t('users.identity_readonly') }}</p>
+                            <option v-for="option in roleOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                        <InputError :message="form.errors.role" class="mt-1" />
                     </div>
 
                     <!-- OLT yang di-assign (wajib untuk partner, opsional untuk operator) -->
@@ -394,6 +423,21 @@ const deleteUser = async (user) => {
                         <InputError :message="form.errors.olt_ids" class="mt-1" />
                     </div>
 
+                    <div>
+                        <InputLabel
+                            for="password"
+                            :value="editingUser ? $t('users.password_new') : $t('users.password')"
+                        />
+                        <TextInput
+                            id="password"
+                            v-model="form.password"
+                            type="password"
+                            class="mt-1 block w-full"
+                            placeholder="••••••••"
+                            autocomplete="new-password"
+                        />
+                        <InputError :message="form.errors.password" class="mt-1" />
+                    </div>
                 </div>
 
                 <div class="mt-6 grid gap-2 sm:flex sm:justify-end">
@@ -401,7 +445,7 @@ const deleteUser = async (user) => {
                         {{ $t('common.cancel') }}
                     </SecondaryButton>
                     <PrimaryButton type="submit" :disabled="form.processing">
-                        {{ $t('users.save_changes') }}
+                        {{ editingUser ? $t('users.save_changes') : $t('users.create') }}
                     </PrimaryButton>
                 </div>
             </form>
