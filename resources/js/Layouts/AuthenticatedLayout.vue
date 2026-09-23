@@ -327,8 +327,11 @@ onUnmounted(() => {
             <!-- Page content -->
             <main class="kv-grid-bg relative flex-1">
                 <AuroraBackground />
-                <!-- Jaring partikel fixed di belakang konten semua halaman app -->
-                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" />
+                <!-- Jaring partikel fixed di belakang konten semua halaman app.
+                     interactive=false wajib: canvas ini fixed inset-0 sehingga ikut menutupi
+                     header slot & footer yang static. Dengan hover aktif, tsParticles menyalakan
+                     pointer-events canvas dan seluruh tombol header jadi tak bisa diklik. -->
+                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" :interactive="false" />
                 <Transition name="page" mode="out-in">
                     <div :key="page.component" class="relative min-w-0">
                         <slot />

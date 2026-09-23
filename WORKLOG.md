@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-09-23
+
+### Tombol di header halaman tidak bisa diklik
+
+Fixed:
+- `AuthenticatedLayout.vue` — `<ParticleNetwork>` latar app kembali diberi `:interactive="false"`.
+  Tanpa itu tsParticles memaksa `pointer-events: initial` pada canvas `fixed inset-0`, yang
+  menutupi header slot halaman (tidak ber-`position`) sehingga tombol seperti **ADD OLT** di
+  kanan atas SmartOLT mati; tombol di badan halaman tetap jalan karena kontennya `relative`.
+  Dilaporkan pengguna repo publik lewat grup Telegram.
+
+Notes:
+- Regresi dari revert `bd22bd7` (18 Sep): perbaikan satu baris ini ikut terbungkus di commit
+  SSO `5b9cff7`, jadi ikut tercabut saat SSO di-revert. Hanya berkas layout ini yang membawa
+  perubahan non-SSO di commit tersebut; berkas lain sudah dicek.
+
 ## 2026-09-18
 
 ### Branch publik dipisahkan dari integrasi internal
