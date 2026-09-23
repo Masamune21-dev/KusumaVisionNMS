@@ -22,10 +22,10 @@ sudo mkdir -p KusumaVisionNMS
 sudo chown "$USER:$USER" KusumaVisionNMS
 git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
-sudo bash install.sh                 # interaktif (tanya APP_URL, DB, admin)
+sudo bash install.sh                 # interaktif (tanya bahasa, APP_URL, DB, admin)
 # atau non-interaktif:
 sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=rahasia \
-     bash install.sh --yes
+     bash install.sh --yes --lang en  # --lang en|id, default id
 ```
 
 Verifikasi kapan saja dengan [`scripts/check-requirements.sh`](../../scripts/check-requirements.sh)

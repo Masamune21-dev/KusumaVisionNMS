@@ -10,6 +10,7 @@
 # Pemakaian:
 #   sudo bash install.sh                 # interaktif
 #   sudo bash install.sh --yes           # non-interaktif (pakai default/env var)
+#   sudo bash install.sh --lang en       # bahasa bawaan aplikasi: en | id
 #
 # Konfigurasi via environment variable (opsional, untuk mode --yes):
 #   APP_URL=http://nms.example.com
@@ -17,6 +18,7 @@
 #   PHP_VERSION=8.3
 #   ADMIN_NAME="Admin"  ADMIN_EMAIL=admin@example.com  ADMIN_PASSWORD=...
 #   ENABLE_UFW=0|1
+#   APP_LOCALE=id|en                     # sama dengan --lang; default id
 #
 # Diuji untuk Ubuntu 22.04 / 24.04.
 #
@@ -44,6 +46,9 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
 ENABLE_UFW="${ENABLE_UFW:-0}"
 ASSUME_YES=0
+# Bahasa bawaan aplikasi (tamu & pengguna yang belum memilih). Tiap pengguna tetap bisa
+# menggantinya sendiri dari pemilih bahasa di aplikasi.
+APP_LOCALE="${APP_LOCALE:-}"
 
 # ---------------------------------------------------------------------------
 # Util logging
@@ -88,14 +93,19 @@ run_artisan() { (cd "$PROJECT_DIR" && "$PHP_CLI" artisan "$@"); }
 # ---------------------------------------------------------------------------
 # Parse argumen
 # ---------------------------------------------------------------------------
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     -y|--yes) ASSUME_YES=1 ;;
+    --lang=*) APP_LOCALE="${1#--lang=}" ;;
+    --lang)
+      [ $# -ge 2 ] || die "--lang butuh nilai: en | id"
+      APP_LOCALE="$2"; shift ;;
     -h|--help)
       awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
       exit 0 ;;
-    *) die "Argumen tidak dikenal: $arg (pakai --help)" ;;
+    *) die "Argumen tidak dikenal: $1 (pakai --help)" ;;
   esac
+  shift
 done
 
 # ---------------------------------------------------------------------------
@@ -113,6 +123,14 @@ PRIMARY_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -n "${APP_URL}" ] || APP_URL="http://${PRIMARY_IP:-localhost}"
 
 step "Konfigurasi deployment"
+if [ -z "$APP_LOCALE" ]; then
+  ask APP_LOCALE "Bahasa bawaan aplikasi / Default app language (id = Indonesia, en = English)" "id"
+fi
+APP_LOCALE="$(printf '%s' "$APP_LOCALE" | tr '[:upper:]' '[:lower:]')"
+case "$APP_LOCALE" in
+  id|en) ;;
+  *) die "Bahasa tidak dikenal: '$APP_LOCALE' (pilih id atau en)" ;;
+esac
 ask APP_URL       "URL aplikasi (APP_URL)"              "$APP_URL"
 ask DB_NAME       "Nama database PostgreSQL"            "$DB_NAME"
 ask DB_USER       "User database PostgreSQL"            "$DB_USER"
@@ -130,6 +148,7 @@ cat <<SUMMARY
 
   PROJECT_DIR : $PROJECT_DIR
   APP_URL     : $APP_URL
+  Bahasa      : $APP_LOCALE
   PHP         : ${PHP_VERSION}    Node: ${NODE_MAJOR}.x
   Database    : ${DB_NAME} (user ${DB_USER})
   App user    : ${APP_USER}
@@ -262,7 +281,7 @@ step "Menyiapkan .env"
 set_env APP_ENV production
 set_env APP_DEBUG false
 set_env APP_URL "$APP_URL"
-set_env APP_LOCALE id
+set_env APP_LOCALE "$APP_LOCALE"
 set_env LOG_LEVEL warning
 set_env DB_CONNECTION pgsql
 set_env DB_HOST 127.0.0.1

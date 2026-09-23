@@ -80,8 +80,11 @@ sudo mkdir -p KusumaVisionNMS && sudo chown "$USER:$USER" KusumaVisionNMS
 git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
-sudo bash install.sh             # interaktif (tanya APP_URL, DB, akun admin)
+sudo bash install.sh             # interaktif (tanya bahasa, APP_URL, DB, akun admin)
+sudo bash install.sh --lang en   # lewati pertanyaan bahasa: English jadi bahasa bawaan
 ```
+
+`--lang` (`en` atau `id`, default `id`) hanya menentukan bahasa bawaan untuk tamu dan pengguna baru; tiap pengguna tetap bisa mengganti bahasa dari aplikasi.
 
 Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requirements.sh`.
 

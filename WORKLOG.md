@@ -2,6 +2,21 @@
 
 ## 2026-09-23
 
+### Installer: pilihan bahasa bawaan
+
+Changed:
+- `install.sh` — bahasa bawaan aplikasi tidak lagi dipaku `APP_LOCALE=id`. Mode interaktif
+  menanyakannya di awal (default `id`); bisa dilewati dengan `--lang en|id` / `--lang=en` atau
+  env `APP_LOCALE`, termasuk untuk mode `--yes`. Nilai selain `id`/`en` langsung ditolak, dan
+  bahasa terpilih tampil di ringkasan konfigurasi. Parser argumen diganti `while/shift` agar
+  `--lang en` (dua argumen) terbaca.
+- `README.md`, `README.id.md`, `docs/handbook/04-instalasi-deploy.md` — pemakaian `--lang`.
+
+Notes:
+- Menjawab GitHub issue #1. `APP_LOCALE` hanya bawaan untuk tamu & pengguna yang belum
+  memilih; pilihan per pengguna (`users.locale`) tetap menang. Teks installer sendiri masih
+  berbahasa Indonesia.
+
 ### Data deployment internal dibersihkan dari dokumen publik
 
 Changed:
