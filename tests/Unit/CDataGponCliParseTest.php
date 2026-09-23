@@ -14,9 +14,9 @@ class CDataGponCliParseTest extends TestCase
          ID                      flag     state   state     state     down-cause
 ----------------------------------------------------------------------------------------
   0/0 1  1      CDTCAFD296DB     Active   Online  success   match     --         SERVER-PENJAWI
-  0/0 1  2      ZTEGC2C52215     Active   Online  success   match     reboot     Pak Muh Sidokerto
-  0/0 1  4      ZTEGC89FE178     Active   Online  success   match     dying-gasp Iman Saeronji Sidokerto/ Vlan 24
-  0/0 1  32     ZTEGCD7D32CF     Deactive Offline success   match     dying-gasp Mbah Wi Kunden Sidokerto
+  0/0 1  2      ZTEGC2C52215     Active   Online  success   match     reboot     Pak Budi Sukamaju
+  0/0 1  4      ZTEGC89FE178     Active   Online  success   match     dying-gasp Andi Wijaya Sukamaju/ Vlan 24
+  0/0 1  32     ZTEGCD7D32CF     Deactive Offline success   match     dying-gasp Mbah Siti Kulon Sukamaju
 ----------------------------------------------------------------------------------------
   Total: 31,  online: 31,  deactive: 0,  success: 31 , failed: 0
 TXT;
@@ -44,7 +44,7 @@ TXT;
     {
         $onus = (new CDataGponCliService)->parseOntInfo(self::SAMPLE);
 
-        $this->assertSame('Iman Saeronji Sidokerto/ Vlan 24', $onus[2]['name']);
+        $this->assertSame('Andi Wijaya Sukamaju/ Vlan 24', $onus[2]['name']);
         $this->assertSame('dying-gasp', $onus[2]['last_down_cause']);
     }
 

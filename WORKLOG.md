@@ -2,6 +2,23 @@
 
 ## 2026-09-23
 
+### Data deployment internal dibersihkan dari dokumen publik
+
+Changed:
+- `WORKLOG.md` dan `docs/` (INSTALLATION_STATUS, LOCAL_PRODUCTION_HARDENING, tiga dokumen
+  ZTE C600): IP publik OLT beserta port telnet/SNMP-nya, IP server, subnet admin, IP manajemen
+  OLT, dan IP LAN diganti placeholder (`<IP-OLT>`, `<subnet-admin>`, `<IP-LAN>`, dst.).
+  Community SNMP dan login telnet salah satu OLT HiOSO dihapus dari catatan; nama pelanggan
+  dan nama perusahaan mitra dianonimkan.
+- `tests/Unit/CDataGponCliParseTest.php`, `tests/Unit/CDataValueTest.php` — nama pelanggan asli
+  dari output perangkat diganti nama fiktif; struktur fixture tidak berubah.
+
+Notes:
+- Riwayat git tidak ditulis ulang (alasannya di entri 18 Sep), jadi nilai lama tetap terbaca
+  di commit terdahulu. Pengamannya ada di perangkat: ganti community/kredensial yang pernah
+  tercatat dan batasi akses port manajemen OLT. `SNMPREAD` di `SMARTOLT_HIOSO_GUIDE.md`
+  sengaja dibiarkan karena itu default vendor, bukan konfigurasi perangkat kita.
+
 ### Tombol di header halaman tidak bisa diklik
 
 Fixed:
@@ -64,7 +81,7 @@ Notes:
 - **Di luar repo — `/etc/nginx/nginx.conf`** (backup: `nginx.conf.bak-20260829-000754`): sumber
   500 acak ternyata bukan aplikasi NMS sama sekali. Worker nginx mentok di soft limit 1024 FD
   (`accept4() failed (24: Too many open files)` beruntun di `error.log`) karena vhost halaman
-  blokir Trust+/Komdigi di `103.189.249.88` membuka ulang `/var/www/trustpositif/index.html`
+  blokir Trust+/Komdigi di `<IP-OLT>` membuka ulang `/var/www/trustpositif/index.html`
   tiap request dan tiap stream HTTP/2 — terukur ±2.700 FD ke satu berkas 12 KB, satu worker
   pegang 940. Worker yang penuh berhenti menerima koneksi BARU untuk seluruh vhost di server
   ini (NMS, Billing, MikroTik, website, isolir). Itu sebabnya tab idle — yang koneksi
@@ -77,7 +94,7 @@ Notes:
   sama berbagi satu descriptor. Hasil setelah reload: FD trustpositif 2.700 -> 18, FD tertinggi
   per worker 153/65535, nol `accept4()` error.
 - Sumber kegagalan polling yang sebenarnya (bukan bug NMS): **OLT-HIOSO-GEMBONG-2 (id 1220,
-  `103.189.249.172:2226`)** mati SNMP sejak 2026-08-16 10:42 — 434 event gagal/24 jam = 217
+  `<IP-OLT>`)** mati SNMP sejak 2026-08-16 10:42 — 434 event gagal/24 jam = 217
   siklus x 2. Diprobe langsung: ping host bersih 0,7 ms dan port 2224 (GEMBONG-1) di IP yang
   sama menjawab normal, tapi 2226 no response → port-forward UDP atau agen SNMP perangkatnya
   mati. **OLT-HIOSO-GEMBONG-1 (id 1219)** 10 kegagalan/24 jam dengan `sysUpTime` 2 menit saat
@@ -746,7 +763,7 @@ Notes:
 ## 2026-07-29 — HiOSO HA7302: aksi CLI (reboot/enable-disable/delete/save) diaktifkan
 
 Lanjutan dari entri di bawah. Pemetaan LLID-datar→CLI **diverifikasi 1:1** dan aksi CLI HA7302
-dibuka. Kunci-kunci temuan live (HA7302CSM v7.76, `103.189.249.141:2223`):
+dibuka. Kunci-kunci temuan live (HA7302CSM v7.76, `<IP-OLT>`):
 
 - **`search mac-address {mac} mask 1`** (node `epon`) mengembalikan `OnuId` sebagai `pon:onu` (mis.
   `1/1:5`) — satu-satunya perintah listing CLI yang jalan (`show pon`/`show optical-ddm pon`/`show onu all`
@@ -782,9 +799,9 @@ Notes:
 ## 2026-07-29 — HiOSO varian HA7302 (HA7302CSM v7.76): monitoring SNMP + rename via SNMP SET
 
 Owner punya OLT HiOSO/V-Sol **2-port** yang berbeda dari HA7304 existing. Verifikasi live 2 unit:
-`103.189.249.196` = **HA7302CST v7.76→v7.89** (layout SNMP dirombak, MIB `web789`; ONU offline) dan
-`103.189.249.141` = **HA7302CSM v7.76** (120 ONU, 115 online). Telnet 2223 / SNMP UDP **2224** (bukan
-161 default — NAT), community `SNMPREAD`/`SNMPWRITE`, telnet `root`/`admin` + **2 lapis password ekstra**
+`<IP-OLT>` = **HA7302CST v7.76→v7.89** (layout SNMP dirombak, MIB `web789`; ONU offline) dan
+`<IP-OLT>` = **HA7302CSM v7.76** (120 ONU, 115 online). Telnet 2223 / SNMP UDP **2224** (bukan
+161 default — NAT), telnet dengan **2 lapis password ekstra** (kredensial tidak dicatat di repo)
 (Access + Enable, keduanya `admin`) yang tak ada di HA7304.
 
 Temuan kunci (terverifikasi live):
@@ -824,7 +841,7 @@ Changed:
 
 Notes:
 
-- **OLT ditambahkan ke sistem**: id=1222 `OLT HiOSO HA7302CSM` (`103.189.249.141:2224`), scan awal 121 ONU
+- **OLT ditambahkan ke sistem**: id=1222 `OLT HiOSO HA7302CSM` (`<IP-OLT>`), scan awal 121 ONU
   (115 online), 1 port agregat, faceplate model HA7302CSM. Polling aktif. Owner bisa rename/ubah/hapus di UI.
 - Seluruh 456 test suite hijau. Verifikasi live end-to-end via tinker (deteksi, getPorts, rename round-trip).
 
@@ -1473,7 +1490,7 @@ Changed:
 Notes:
 
 - **`ont security-mgmt` TIDAK ada di manual resmi C-Data** (FD16xx CLI V1.2/V2.2 di-grep penuh: nihil) — ditemukan via context-help `?` live di FD1608S-B1 (OLT 277 Pati). Klon sintaks ZTE: rule index 1-16, `mode {forward|discard}`, `protocol {web|https|telnet|ssh|ftp|snmp|tr069}`, `ingress-type {wan|lan|iphost0|iphost1}`, opsional `start-src-ip`/`end-src-ip`.
-- Verifikasi end-to-end live di ONT ZTE F660 (0/0/1:2, "Pak Muh Sidokerto"): sebelum rule — ping loss & port 80 timeout (langsung maupun via dst-nat MikroTik `103.189.249.163:1123`); sesudah rule — HTTP 200 dalam 0,09 dtk, `<title>F660</title>`. Push OMCI efek instan tanpa reboot, **dipatuhi juga ONT merk ZTE** di belakang OLT C-Data.
+- Verifikasi end-to-end live di ONT ZTE F660 (0/0/1:2, "<nama pelanggan>"): sebelum rule — ping loss & port 80 timeout (langsung maupun via dst-nat MikroTik `<IP-OLT>`); sesudah rule — HTTP 200 dalam 0,09 dtk, `<title>F660</title>`. Push OMCI efek instan tanpa reboot, **dipatuhi juga ONT merk ZTE** di belakang OLT C-Data.
 - Teknik probe read-only aman di CLI C-Data: kirim `cmd ?` TANPA CRLF lalu Ctrl-U (`\x15`) — kalau `?` + Enter, sisa baris tereksekusi begitu command valid.
 - Audit rule: `show current-config` di level enable (`show running-config` = Unknown command di V3).
 - Suite penuh: 388 passed, 1 failed pre-existing (ApiV1WriteTest — bukan regresi). Deploy: Vite build, `config:cache` + `route:cache`, `queue:restart`, reload php-fpm.
@@ -1938,7 +1955,7 @@ Notes:
 
 ### Parser running-config C320 gaya SmartOLT (bridge flow/ip-host/veip): baca tcont/gemport tanpa-nama + traffic-limit downstream-saja + round-trip aman
 
-User melapor konfig ONU di salah satu C320 (EL VALLE, `10.100.3.2` di server smartolt) "terlalu kompleks & beda" dari OLT-nya sendiri (PATI). Diambil live running-config satu ONU vendor ZTE (`ZTEGC4E6F92F`) & satu HWTC (`HWTC211D3BAF`) — ternyata dua-duanya di-provision gaya **SmartOLT** (model bridge): `tcont N profile P` & `gemport N tcont M` **tanpa token `name`**, `traffic-limit downstream` saja (tanpa upstream), dan layanan lewat `flow`/`gemport N flow M`/`ip-host`/`veip`/`switchport-bind`/`dhcp-ip` — bukan `wan-ip mode …`/`service Nama …` gaya PATI. Akibatnya parser lama menampilkan **tcont & gemport kosong**, `services`/`wan_ips` kosong, dan salah membaca `security-mgmt` (banyak entri ACL) jadi satu "Remote ONT".
+User melapor konfig ONU di salah satu C320 (EL VALLE, `<IP-mgmt-OLT>` di server smartolt) "terlalu kompleks & beda" dari OLT-nya sendiri (PATI). Diambil live running-config satu ONU vendor ZTE (`ZTEGC4E6F92F`) & satu HWTC (`HWTC211D3BAF`) — ternyata dua-duanya di-provision gaya **SmartOLT** (model bridge): `tcont N profile P` & `gemport N tcont M` **tanpa token `name`**, `traffic-limit downstream` saja (tanpa upstream), dan layanan lewat `flow`/`gemport N flow M`/`ip-host`/`veip`/`switchport-bind`/`dhcp-ip` — bukan `wan-ip mode …`/`service Nama …` gaya PATI. Akibatnya parser lama menampilkan **tcont & gemport kosong**, `services`/`wan_ips` kosong, dan salah membaca `security-mgmt` (banyak entri ACL) jadi satu "Remote ONT".
 
 Changed:
 
@@ -1968,7 +1985,7 @@ Notes:
 
 ### Diagnosa C600 "LAS GALERAS" tak bisa Detail/Konfigur ONU + graceful-fail sesi CLI & koreksi ejaan interface C600
 
-User memberi akses SSH ke server NMS kedua (host `smartolt`, Ubuntu 24.04) yang mengelola OLT **ZTE C600 "LAS GALERAS" (10.100.2.2)**. Gejala: **Detail ONU & Konfigur ONU C600 tidak bisa dibuka**. Diagnosa live (read-only): C600 **memblok CLI (telnet+SSH) dari IP server NMS (`10.40.58.2`)** — uji kontrol menentukan: C320 (10.100.3.2) di server yang sama menyajikan banner telnet (`Welcome to ZXAN product C320`) & SSH (`SSH-2.0-ZTE_SSH.1.0`), sedangkan C600 **hening total di port 22 & 23** (TCP nyambung, tanpa banner, menutup begitu diketik); SNMP 161/udp lancar. Jadi akar masalah = **ACL manajemen di perangkat C600**, bukan bug aplikasi. Namun aplikasi juga gagal tak anggun (broken pipe saat write → exception tak tertangkap → halaman 500), plus beberapa ejaan interface C600 yang keliru di parser CLI.
+User memberi akses SSH ke server NMS kedua (host `smartolt`, Ubuntu 24.04) yang mengelola OLT **ZTE C600 "LAS GALERAS" (`<IP-mgmt-OLT>`)**. Gejala: **Detail ONU & Konfigur ONU C600 tidak bisa dibuka**. Diagnosa live (read-only): C600 **memblok CLI (telnet+SSH) dari IP server NMS (`<IP-server-NMS>`)** — uji kontrol menentukan: C320 (`<IP-mgmt-OLT>`) di server yang sama menyajikan banner telnet (`Welcome to ZXAN product C320`) & SSH (`SSH-2.0-ZTE_SSH.1.0`), sedangkan C600 **hening total di port 22 & 23** (TCP nyambung, tanpa banner, menutup begitu diketik); SNMP 161/udp lancar. Jadi akar masalah = **ACL manajemen di perangkat C600**, bukan bug aplikasi. Namun aplikasi juga gagal tak anggun (broken pipe saat write → exception tak tertangkap → halaman 500), plus beberapa ejaan interface C600 yang keliru di parser CLI.
 
 Changed:
 
@@ -1983,7 +2000,7 @@ Notes:
 
 - Verifikasi live SNMP C600 (read-only): 64 port (slot 3/4/5/17 × 16), tabel ONU `.1082.500.20.2.1.2.1` (SN `.3`, online `.7`, model `.8`) & Rx ONU `.1082.500.20.2.2.2.1.10` (idx `{ifIndex}.{onu}.{port}`, sentinel `65535`) **cocok perangkat** — mapping C600 yang ada sudah benar. `name=null` karena operator memang tidak mengisi nama ONU (bukan bug).
 - Graceful-fail **dibuktikan runtime**: listener drop-session → executor mengembalikan `ok=false` + pesan `broken pipe (errno=32)` tanpa melempar exception. Suite penuh: **366 pass, 1 fail pre-existing** (`ApiV1WriteTest::refresh_port_non_zte` — route cache, bukan regresi). Pint bersih.
-- **Belum terverifikasi live** (menunggu ACL C600 dibuka untuk IP `10.40.58.2`): validitas perintah CLI C600 (`show gpon onu detail-info`, `show running-config interface`, `show onu running config`). Kolom SNMP C600 `.4/.9/.10/.13/.14` (kandidat admin-state/jarak) belum dipetakan — butuh cross-check CLI, jangan ditebak.
+- **Belum terverifikasi live** (menunggu ACL C600 dibuka untuk IP `<IP-server-NMS>`): validitas perintah CLI C600 (`show gpon onu detail-info`, `show running-config interface`, `show onu running config`). Kolom SNMP C600 `.4/.9/.10/.13/.14` (kandidat admin-state/jarak) belum dipetakan — butuh cross-check CLI, jangan ditebak.
 - Backend murni (siklus php-fpm), tak perlu `config:cache`. Deploy ke server C600 (`smartolt`) via `git pull` — server itu tertinggal di `0f5d057` dan akan naik ke commit terbaru sekalian.
 
 ### Fix switcher bahasa lintas Dashboard ↔ Welcome/Login (persist via cookie + adopsi saat login) + rapikan WORKLOG
@@ -2414,7 +2431,7 @@ Notes:
 
 **Permintaan user:** lanjut buat enable/disable untuk HiOSO; user minta command-line-nya dicari **langsung** dengan cek OLT live.
 
-Verifikasi live (context-help HA7304, OLT-HIOSO-PATI 103.189.249.163:2237 via probe telnet scratchpad):
+Verifikasi live (context-help HA7304, OLT-HIOSO-PATI `<IP-OLT>` via probe telnet scratchpad):
 - `EPON(epon_0/{PON})# onu {ONU} ?` → daftar subcommand memuat `activate`, `deactivate`, `admin` (Port admin config), `name`, `reboot`, dst.
 - `onu {ONU} activate ?` → `--Press Enter--` (command lengkap, **enable**).
 - `onu {ONU} deactivate ?` → `--Press Enter--` (command lengkap, **disable**).
@@ -3676,7 +3693,7 @@ SmartOLT. User menyediakan blueprint `docs/SMARTOLT_HIOSO_GUIDE.md` (referensi v
 lama). Scope yang disepakati: **B — read-only dulu** (deteksi vendor + daftar ONU + Rx di UI + ikut
 polling); aksi tulis (rename/reboot CLI) menyusul.
 
-**Verifikasi OID live (`103.189.249.161:2238`, v2c `SNMPREAD`):** sysObjectID `25355.4.3`, model
+**Verifikasi OID live (`<IP-OLT>`, v2c):** sysObjectID `25355.4.3`, model
 `HA7304/SN2018-03-00007`. Tiga OID ONU kanonik (index `.{PON}.{ONU}`, slot selalu 1) terbukti cocok
 dengan guide §4.3: nama `25355.3.2.6.3.2.1.37.1`, MAC `25355.3.2.6.3.2.1.11.1`, Rx `25355.3.2.6.14.2.1.8.1`.
 Catatan: **jangan walk** subtree `25355.3.2.6.2.1.*` (puluhan ribu entry — walk awal sempat nyangkut di
@@ -5099,7 +5116,7 @@ Changed:
 
 Notes:
 
-- Diagnosa dari OLT produksi teman (`OLT NOBLE NET`, C320 @192.168.2.10, lewat server `nms-kusuma`, **read-only**): raw `snmpbulkwalk` tabel ONU type mengembalikan **2060 ONU <1 detik**, slot 1 port 1–10 penuh (1/1=88 … 1/10=1, 1/16=60). Tapi cache NMS menaruh slot 1 port 1–15=0 dan menggelembungkan slot 2. **Total tetap 2060** — bukan ONU hilang, murni salah label. Pola pergeseran 1/P→2/(P+1) cocok 100% di 10 port (mis. 2/2: 93+88=181, 2/3: 128+47=175). Dikonfirmasi NetNumen GUI (Slot 1/GTGH Port 1 NGADIPIRO penuh) — decode `>>16/>>8` = kenyataan.
+- Diagnosa dari OLT produksi teman (milik mitra, C320, lewat server NMS mitra, **read-only**): raw `snmpbulkwalk` tabel ONU type mengembalikan **2060 ONU <1 detik**, slot 1 port 1–10 penuh (1/1=88 … 1/10=1, 1/16=60). Tapi cache NMS menaruh slot 1 port 1–15=0 dan menggelembungkan slot 2. **Total tetap 2060** — bukan ONU hilang, murni salah label. Pola pergeseran 1/P→2/(P+1) cocok 100% di 10 port (mis. 2/2: 93+88=181, 2/3: 128+47=175). Dikonfirmasi NetNumen GUI (Slot 1/GTGH Port 1 NGADIPIRO penuh) — decode `>>16/>>8` = kenyataan.
 - Slot 2 & port 16 selamat karena prefix-nya **di atas** rentang if-index port tertinggi (gpon_1/2/16 = 268504832) → tak ada match di portMap → pakai decode (benar).
 - Verifikasi lokal: `go vet`/`go test` (3 test) ok, `go build` statis ok (binary 2.67 MB), smoke test emit JSON valid; Pint passed; PHPUnit Unit 13 passed.
 - **Penting buat deploy teman:** `bin/kv-snmp-poller` di-gitignore → setelah `git pull` WAJIB rebuild (`go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller` atau `install.sh`), lalu `php artisan queue:restart` + re-poll OLT agar cache slot 1 terisi benar. Perubahan PHP cukup `php artisan config:cache` bila perlu (kode otomatis terpakai untuk refresh on-demand).
@@ -5691,10 +5708,10 @@ Changed:
 
 Notes (perubahan ini di tingkat sistem/server, di luar git — didokumentasikan di sini):
 
-- **IP publik** `103.189.249.86` di-bind ke `eth0` sebagai alamat sekunder. Server adalah LXC di Proxmox (jaringan di-manage PVE via `/etc/systemd/network/eth0.network`). Agar tak ditimpa PVE, IP ditaruh di drop-in `/etc/systemd/network/eth0.network.d/10-public-ip.conf` (`Address = 103.189.249.86/32`). Catatan: kalau container di-recreate dari panel Proxmox, IP perlu didaftarkan ulang di config container pada host.
+- **IP publik** `<IP-publik-server>` di-bind ke `eth0` sebagai alamat sekunder. Server adalah LXC di Proxmox (jaringan di-manage PVE via `/etc/systemd/network/eth0.network`). Agar tak ditimpa PVE, IP ditaruh di drop-in `/etc/systemd/network/eth0.network.d/10-public-ip.conf` (`Address = `<IP-publik-server>`/32`). Catatan: kalau container di-recreate dari panel Proxmox, IP perlu didaftarkan ulang di config container pada host.
 - **nginx** (`/etc/nginx/sites-available/kusumavision-nms` diganti, backup `.bak.*`): server `:80` redirect 301 ke HTTPS; server `:443 ssl http2` melayani app + WebSocket `/telnet-ws`. ACL `allow/deny` LAN lama **dihapus** karena setelah real-IP Cloudflare dipulihkan ACL itu akan memblokir semua pengunjung publik — penguncian origin dipindah ke firewall. Snippet `/etc/nginx/snippets/cloudflare-realip.conf` (`set_real_ip_from` semua rentang CF v4/v6 + `real_ip_header CF-Connecting-IP`) untuk memulihkan IP visitor asli di log/app/fail2ban. `fastcgi_param HTTPS on` + header HSTS ditambahkan.
 - **TLS**: Cloudflare Origin Certificate (SAN `nms.kusumavision.net`, valid s/d 2041) di `/etc/nginx/ssl/origin.{pem,key}` (key `600`). SSL mode Cloudflare **Full (strict)**. Sebelumnya 526 saat masih self-signed; setelah Origin Cert dipasang → HTTP/2 200.
-- **Firewall (UFW)**: 80/443 dibuka & dikunci hanya ke rentang IP resmi Cloudflare (v4+v6) + LAN privat + subnet admin `103.189.248.0/24`,`103.189.249.0/24`. SSH (22) tetap hanya LAN + subnet admin. SSH sudah hardened sebelumnya (`PasswordAuthentication no`, `PermitRootLogin without-password`, pubkey only).
+- **Firewall (UFW)**: 80/443 dibuka & dikunci hanya ke rentang IP resmi Cloudflare (v4+v6) + LAN privat + subnet admin `<subnet-admin>`. SSH (22) tetap hanya LAN + subnet admin. SSH sudah hardened sebelumnya (`PasswordAuthentication no`, `PermitRootLogin without-password`, pubkey only).
 - **fail2ban** dipasang (`jail.local`): jail `sshd` (efektif penuh, `/var/log/auth.log`, ban 2h), `nginx-http-auth`, `nginx-botsearch`; `ignoreip` mencakup LAN + subnet admin. Catatan: untuk trafik HTTP yang lewat Cloudflare, ban iptables atas IP visitor asli hanya efektif untuk akses langsung-ke-origin; untuk blokir abuse ber-proxy perlu action Cloudflare API / WAF.
 - **App**: `APP_URL=https://nms.kusumavision.net` (backup `.env.bak.*`), `php artisan config:cache`, `queue:restart`, restart daemon telnet-proxy.
 - **Verifikasi**: lokal `https://127.0.0.1` (Host header) → 200; via IP publik → 200; live `https://nms.kusumavision.net` → HTTP/2 **200** (Inertia + assets ke-render), `http://` → 301 ke https. fail2ban 3 jail aktif tanpa error.
@@ -5916,8 +5933,8 @@ Changed:
 
 Notes:
 
-- Server is configured for local production at `http://192.168.99.61`.
-- UFW default incoming policy is deny; SSH/HTTP are allowed from private LAN ranges plus `103.189.248.0/24` and `103.189.249.0/24`.
+- Server is configured for local production at `http://<IP-LAN>.
+- UFW default incoming policy is deny; SSH/HTTP are allowed from private LAN ranges plus `<subnet-admin>`.
 - SSH password authentication is disabled; access is key-only.
 - Verified with `npm run build`, `php artisan test`, `composer audit`, `npm audit --omit=dev`, and HTTP smoke tests.
 

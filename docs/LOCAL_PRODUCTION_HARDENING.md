@@ -6,7 +6,7 @@ debug output, SSH password login, dan port publik yang tidak perlu tetap tertutu
 
 ## Current Baseline
 
-- App URL: `http://192.168.99.61`
+- App URL: `http://<IP-LAN>
 - Web root: `/var/www/KusumaVisionNMS/public`
 - Runtime: Nginx, PHP-FPM 8.3, PostgreSQL, Redis, Supervisor
 - Queue: `php artisan queue:work redis --tries=1`
@@ -21,7 +21,7 @@ debug output, SSH password login, dan port publik yang tidak perlu tetap tertutu
 ```dotenv
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=http://192.168.99.61
+APP_URL=http://<IP-LAN>
 LOG_LEVEL=warning
 SESSION_DRIVER=redis
 SESSION_ENCRYPT=true
@@ -81,8 +81,7 @@ Baseline penting:
   - `10.0.0.0/8`
   - `172.16.0.0/12`
   - `192.168.0.0/16`
-  - `103.189.248.0/24`
-  - `103.189.249.0/24`
+  - `<subnet-admin>`
 
 Validate and reload:
 
@@ -166,14 +165,12 @@ Allowed inbound traffic:
 ufw allow from 192.168.0.0/16 to any port 22 proto tcp comment 'SSH private LAN'
 ufw allow from 10.0.0.0/8 to any port 22 proto tcp comment 'SSH private LAN'
 ufw allow from 172.16.0.0/12 to any port 22 proto tcp comment 'SSH private LAN'
-ufw allow from 103.189.248.0/24 to any port 22 proto tcp comment 'SSH trusted public subnet'
-ufw allow from 103.189.249.0/24 to any port 22 proto tcp comment 'SSH trusted public subnet'
+ufw allow from <SUBNET_ADMIN> to any port 22 proto tcp comment 'SSH trusted public subnet'
 
 ufw allow from 192.168.0.0/16 to any port 80 proto tcp comment 'KusumaVision HTTP private LAN'
 ufw allow from 10.0.0.0/8 to any port 80 proto tcp comment 'KusumaVision HTTP private LAN'
 ufw allow from 172.16.0.0/12 to any port 80 proto tcp comment 'KusumaVision HTTP private LAN'
-ufw allow from 103.189.248.0/24 to any port 80 proto tcp comment 'KusumaVision HTTP trusted public subnet'
-ufw allow from 103.189.249.0/24 to any port 80 proto tcp comment 'KusumaVision HTTP trusted public subnet'
+ufw allow from <SUBNET_ADMIN> to any port 80 proto tcp comment 'KusumaVision HTTP trusted public subnet'
 ```
 
 Check:
@@ -222,9 +219,9 @@ npm audit --omit=dev --audit-level=moderate
 ## Smoke Tests
 
 ```bash
-curl -sS -o /dev/null -w 'home %{http_code}\n' http://192.168.99.61/
-curl -sS -o /dev/null -w 'dashboard %{http_code} %{redirect_url}\n' http://192.168.99.61/dashboard
-curl -sS -o /dev/null -w '.env %{http_code}\n' http://192.168.99.61/.env
+curl -sS -o /dev/null -w 'home %{http_code}\n' http://<IP-LAN>/
+curl -sS -o /dev/null -w 'dashboard %{http_code} %{redirect_url}\n' http://<IP-LAN>/dashboard
+curl -sS -o /dev/null -w '.env %{http_code}\n' http://<IP-LAN>/.env
 systemctl is-active nginx php8.3-fpm postgresql redis-server supervisor ssh.socket
 supervisorctl status
 ```

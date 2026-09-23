@@ -8,7 +8,7 @@ This document explains how SmartOLT discovers unconfigured ONUs on a ZTE TITAN C
 
 SmartOLT uses **SNMPv2c over UDP port 161** to retrieve unconfigured ONUs. It does not use Telnet for this particular operation (the C600 CLI does not expose an equivalent `show ... uncfg`).
 
-- OLT management address: `10.100.2.2`
+- OLT management address: `<IP-mgmt-OLT>`
 - Protocol: SNMPv2c, Transport: UDP/161
 
 ## Confirmed ZTE SNMP Table

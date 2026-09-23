@@ -4,7 +4,7 @@ Sumber data untuk **Visualisasi Chassis / Refresh Hardware** pada OLT ZTE C600. 
 di C600 tidak ter-parse oleh `ZteCardUplinkService::parseCards()` (format berbeda dari C300/C320),
 sehingga daftar kartu dibaca langsung dari SNMP.
 
-Semua OID di bawah **diverifikasi live** ke `ZXA10 C600 V1.2.2` (LAS GALERAS, `10.100.2.2`, SNMPv2c)
+Semua OID di bawah **diverifikasi live** ke `ZXA10 C600 V1.2.2` (LAS GALERAS, `<IP-mgmt-OLT>`, SNMPv2c)
 pada 18 Jul 2026 — cocok 100% dengan hasil `snmpbulkwalk`.
 
 ## Tabel

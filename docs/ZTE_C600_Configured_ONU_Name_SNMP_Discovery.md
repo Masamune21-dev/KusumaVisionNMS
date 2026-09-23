@@ -7,7 +7,7 @@ from an Ubuntu server, then re-verified live against LAS GALERAS (ZXA10 C600 V1.
 
 ## Environment
 
-- OLT: ZTE TITAN C600, mgmt `10.100.2.2`, SNMPv2c/UDP 161.
+- OLT: ZTE TITAN C600, mgmt `<IP-mgmt-OLT>`, SNMPv2c/UDP 161.
 - Index convention across these tables: `<column>.<PON-ifIndex>.<ONU-ID>` (same `{ifIndex}.{onuId}`
   as the ONU table `1082.500.20.2.1.2.1`).
 

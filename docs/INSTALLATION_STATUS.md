@@ -34,7 +34,7 @@ Update production lokal: 2026-05-28
 
 The application is configured for:
 
-- Production local URL: `http://192.168.99.61`
+- Production local URL: `http://<IP-LAN>
 - Laravel environment: `production`
 - Debug mode: off
 - PostgreSQL database: `kusumavision_nms`
@@ -52,9 +52,9 @@ The `.env` file is ignored by Git and permissioned as `640 root:www-data`.
 - Nginx serves only `/var/www/KusumaVisionNMS/public`.
 - Nginx denies dotfiles and common sensitive file extensions.
 - Nginx security headers enabled: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy`.
-- Nginx HTTP allow-list includes private LAN ranges plus `103.189.248.0/24` and `103.189.249.0/24`.
+- Nginx HTTP allow-list includes private LAN ranges plus `<subnet-admin>`.
 - UFW is active with default incoming deny and outgoing allow.
-- UFW allows SSH `22/tcp` and HTTP `80/tcp` from private LAN ranges plus `103.189.248.0/24` and `103.189.249.0/24`.
+- UFW allows SSH `22/tcp` and HTTP `80/tcp` from private LAN ranges plus `<subnet-admin>`.
 - SSH is key-only: `PasswordAuthentication no`.
 - Root SSH login is restricted to key authentication: `PermitRootLogin prohibit-password`.
 - X11 forwarding is disabled.
@@ -85,7 +85,7 @@ The `.env` file is ignored by Git and permissioned as `640 root:www-data`.
 The app is served by Nginx and PHP-FPM:
 
 ```bash
-curl -I http://192.168.99.61/
+curl -I http://<IP-LAN>/
 ```
 
 Process checks:

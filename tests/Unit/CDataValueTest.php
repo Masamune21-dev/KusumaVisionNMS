@@ -65,8 +65,8 @@ class CDataValueTest extends TestCase
         );
         // Label boleh mengandung `/` dan spasi (mis. catatan VLAN).
         $this->assertSame(
-            ['slot' => 0, 'port' => 1, 'onu_id' => 4, 'label' => 'Iman Saeronji Sidokerto/ Vlan 24'],
-            CDataValue::parseGponOnuName('gpon 0/0/1 onu 4 Iman Saeronji Sidokerto/ Vlan 24'),
+            ['slot' => 0, 'port' => 1, 'onu_id' => 4, 'label' => 'Andi Wijaya Sukamaju/ Vlan 24'],
+            CDataValue::parseGponOnuName('gpon 0/0/1 onu 4 Andi Wijaya Sukamaju/ Vlan 24'),
         );
         $this->assertSame(
             ['slot' => 1, 'port' => 2, 'onu_id' => 9, 'label' => null],
