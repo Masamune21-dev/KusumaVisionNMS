@@ -225,9 +225,9 @@ Parser: strip semua karakter non-hex, validasi panjang === 12, split per 2 karak
 ```text
 > [tunggu banner ~2-5 detik]
 > [tunggu "Username:" sampai 15 detik]
-> kirim: nockusuma\r\n          # username
+> kirim: <username CLI>\r\n          # username
 > [tunggu "Password:" sampai 20 detik]
-> kirim: kajen000\r\n            # password
+> kirim: <kata sandi CLI — lihat pengaturan OLT di NMS>\r\n            # password
 > [prompt: EPON>]                # user mode
 ```
 

@@ -1,5 +1,13 @@
 # Worklog
 
+## 2026-09-24 — Docs: contoh sesi telnet HiOSO memakai placeholder
+
+### Changed
+
+- `docs/SMARTOLT_HIOSO_GUIDE.md` §5.1: username & kata sandi di contoh alur login telnet diganti
+  placeholder (`<username CLI>`, `<kata sandi CLI — …>`). Kredensial CLI OLT hanya disimpan
+  terenkripsi di pengaturan OLT (`snmp_olts.cli_password`), tidak pernah di dokumentasi.
+
 ## 2026-09-23
 
 ### Installer: pilihan bahasa bawaan
