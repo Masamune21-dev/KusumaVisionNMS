@@ -1,5 +1,34 @@
 # Worklog
 
+## 2026-09-26 — Installer: pesan ikut bahasa yang dipilih (EN/ID)
+
+### Changed
+
+- `install.sh` — seluruh pesan installer (langkah, OK/WARN/ERROR, pertanyaan, ringkasan
+  konfigurasi, ringkasan akhir) kini dwibahasa lewat helper `t "id" "en"`. Bahasa yang dipilih
+  dipakai untuk installer **sekaligus** `APP_LOCALE` aplikasi. Pertanyaan bahasa dipindah ke
+  paling awal (sebelum "Pemeriksaan awal") dan diulang bila jawabannya bukan `id`/`en`; `--lang`
+  / env `APP_LOCALE` / `--yes` (default `id`) tetap sama. `--help` kini dari fungsi `usage()`
+  dwibahasa (sebelum bahasa dipilih ditebak dari `LC_ALL`/`LC_MESSAGES`/`LANG`: `id*` →
+  Indonesia, selain itu Inggris) dan tetap membaca `--lang` walau ditulis setelah `--help`.
+- `scripts/check-requirements.sh` — keluaran dwibahasa. Bahasa diambil dari `--lang`, env
+  `APP_LOCALE` (dikirim `install.sh`), `APP_LOCALE` di `.env`, lalu locale shell.
+- `README.md`, `README.id.md`, `docs/handbook/04-instalasi-deploy.md` — `--lang` kini juga
+  mengatur bahasa installer.
+
+### Fixed
+
+- Ringkasan akhir `install.sh` mencetak kode warna mentah (`\033[1;32m…`) karena ditulis lewat
+  heredoc; kini `printf %b`.
+
+### Notes
+
+- Tindak lanjut GitHub issue #1 (joeshua, 26 Sep): d65b46c hanya mengatur bahasa aplikasi,
+  teks installer masih Indonesia. Diuji tanpa menyentuh sistem: `apt-get` diganti shim yang
+  langsung gagal + `PROJECT_DIR` tiruan — prompt `en`/`id`/salah ketik, `--yes --lang=EN`,
+  `--yes` tanpa `--lang`, non-root (`runuser -u nobody`), `--help` per locale, argumen salah.
+  `check-requirements.sh` versi baru menghasilkan 36 baris OK/MISS/WARN, sama dengan versi lama.
+
 ## 2026-09-24 — Docs: contoh sesi telnet HiOSO memakai placeholder
 
 ### Changed

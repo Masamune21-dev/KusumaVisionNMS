@@ -2,11 +2,14 @@
 #
 # check-requirements.sh — Verifikasi requirement & status deployment KusumaVision NMS.
 #
-#   bash scripts/check-requirements.sh
+#   bash scripts/check-requirements.sh [--lang en|id]
 #
 # Bagian "Tools" & "PHP extensions" bersifat WAJIB (mempengaruhi exit code).
 # Bagian "Runtime" & "Services" bersifat informatif (warning, tidak menggagalkan)
 # karena bisa dijalankan sebelum deploy. Exit 0 bila semua requirement wajib OK.
+#
+# Bahasa keluaran: --lang, lalu env APP_LOCALE (dikirim install.sh), lalu APP_LOCALE
+# di .env, lalu locale shell (id* = Indonesia, selain itu Inggris).
 #
 set -u
 
@@ -20,6 +23,23 @@ export COMPOSER_NO_INTERACTION=1
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+UI_LANG="${APP_LOCALE:-}"
+case "${1:-}" in
+  --lang=*) UI_LANG="${1#--lang=}" ;;
+  --lang)   UI_LANG="${2:-}" ;;
+esac
+if [ -z "$UI_LANG" ] && [ -r "$PROJECT_DIR/.env" ]; then
+  UI_LANG="$(sed -n -E 's/^APP_LOCALE="?([A-Za-z]+)"?.*/\1/p' "$PROJECT_DIR/.env" | tail -n1)"
+fi
+UI_LANG="$(printf '%s' "$UI_LANG" | tr '[:upper:]' '[:lower:]')"
+case "$UI_LANG" in
+  id|en) ;;
+  *) case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in id*) UI_LANG="id" ;; *) UI_LANG="en" ;; esac ;;
+esac
+
+# t "teks Indonesia" "English text" -> cetak sesuai UI_LANG.
+t() { if [ "$UI_LANG" = "en" ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
 failures=0
 warnings=0
 
@@ -27,6 +47,9 @@ c_green="\033[1;32m"; c_red="\033[1;31m"; c_yellow="\033[1;33m"; c_reset="\033[0
 ok()   { printf "${c_green}[OK]${c_reset}   %s\n" "$*"; }
 miss() { printf "${c_red}[MISS]${c_reset} %s\n" "$*"; failures=$((failures + 1)); }
 warn() { printf "${c_yellow}[WARN]${c_reset} %s\n" "$*"; warnings=$((warnings + 1)); }
+
+# section "Judul" -> judul bagian bergaris bawah sepanjang judulnya.
+section() { printf "\n%s\n%s\n" "$1" "$(printf '%s' "$1" | sed 's/./-/g')"; }
 
 # version_ge "3.10" "3.2"  -> true jika $1 >= $2
 version_ge() {
@@ -53,7 +76,7 @@ extract_version() {
 check_tool() {
   local label="$1" cmd="$2" min="${3:-}" ver
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    miss "$label: '$cmd' tidak ditemukan"
+    miss "$label: '$cmd' $(t "tidak ditemukan" "not found")"
     return
   fi
   ver="$(extract_version "$cmd")"
@@ -61,10 +84,10 @@ check_tool() {
     if version_ge "$ver" "$min"; then
       ok "$label: $ver (min $min)"
     else
-      miss "$label: $ver < minimal $min"
+      miss "$label: $ver < $(t "minimal" "minimum") $min"
     fi
   else
-    ok "$label: ${ver:-terpasang}"
+    ok "$label: ${ver:-$(t "terpasang" "installed")}"
   fi
 }
 
@@ -79,26 +102,26 @@ check_php_extension() {
 
 check_artifact() {
   local label="$1" path="$2"
-  if [ -e "$PROJECT_DIR/$path" ]; then ok "$label ($path)"; else warn "$label tidak ada ($path)"; fi
+  if [ -e "$PROJECT_DIR/$path" ]; then ok "$label ($path)"; else warn "$label $(t "tidak ada" "missing") ($path)"; fi
 }
 
 check_service() {
   local label="$1" svc="$2"
-  command -v systemctl >/dev/null 2>&1 || { warn "$label: systemctl tidak tersedia"; return; }
-  if systemctl is-active --quiet "$svc"; then ok "$label: aktif"; else warn "$label: tidak aktif ($svc)"; fi
+  command -v systemctl >/dev/null 2>&1 || { warn "$label: $(t "systemctl tidak tersedia" "systemctl not available")"; return; }
+  if systemctl is-active --quiet "$svc"; then ok "$label: $(t "aktif" "active")"; else warn "$label: $(t "tidak aktif" "inactive") ($svc)"; fi
 }
 
 check_supervisor() {
   local prog="$1" state
-  command -v supervisorctl >/dev/null 2>&1 || { warn "supervisor: tidak terpasang"; return; }
+  command -v supervisorctl >/dev/null 2>&1 || { warn "supervisor: $(t "tidak terpasang" "not installed")"; return; }
   state="$(supervisorctl status "$prog" 2>/dev/null | awk '{print $2}')"
-  if [ "$state" = "RUNNING" ]; then ok "daemon $prog: RUNNING"; else warn "daemon $prog: ${state:-tidak terdaftar}"; fi
+  if [ "$state" = "RUNNING" ]; then ok "daemon $prog: RUNNING"; else warn "daemon $prog: ${state:-$(t "tidak terdaftar" "not registered")}"; fi
 }
 
 printf "%s\n" "KusumaVision NMS — requirement & deployment check"
 printf "%s\n" "================================================="
 
-printf "\n%s\n%s\n" "Tools (wajib)" "-------------"
+section "$(t "Tools (wajib)" "Tools (required)")"
 check_tool "PHP"               php       8.2
 check_tool "Composer"          composer  2
 check_tool "Node.js"           node      20
@@ -108,18 +131,19 @@ check_tool "PostgreSQL client" psql      14
 check_tool "Redis CLI"         redis-cli
 check_tool "SNMP walk"         snmpwalk
 
-printf "\n%s\n%s\n" "PHP extensions (wajib)" "----------------------"
+section "$(t "PHP extensions (wajib)" "PHP extensions (required)")"
 for extension in bcmath ctype curl dom fileinfo intl mbstring openssl pcntl pdo_pgsql pdo_sqlite redis snmp tokenizer xml zip; do
   check_php_extension "$extension"
 done
 
-printf "\n%s\n%s\n" "Opsional (info)" "---------------"
+section "$(t "Opsional (info)" "Optional (info)")"
 # cwebp (paket 'webp'): mengonversi foto ODP ke WebP. Tanpa ini fitur tetap jalan,
 # foto hanya disimpan dalam format aslinya (lebih besar).
 if command -v cwebp >/dev/null 2>&1; then
   ok "cwebp: $(cwebp -version 2>/dev/null | head -n1)"
 else
-  warn "cwebp tidak ditemukan (apt install webp) — foto ODP tak dikonversi ke WebP"
+  warn "$(t "cwebp tidak ditemukan (apt install webp) — foto ODP tak dikonversi ke WebP" \
+            "cwebp not found (apt install webp) — ODP photos won't be converted to WebP")"
 fi
 # Foto dari HP umumnya 3–8 MB; default PHP 2M akan menolaknya.
 php_upload="$(php -r 'echo ini_get("upload_max_filesize");' 2>/dev/null || echo '?')"
@@ -127,18 +151,22 @@ php_upload_mb="$(php -r '$v=ini_get("upload_max_filesize"); echo (int) $v * (str
 if [ "${php_upload_mb:-0}" -ge 12 ] 2>/dev/null; then
   ok "upload_max_filesize: $php_upload"
 else
-  warn "upload_max_filesize: $php_upload (disarankan ≥ 12M untuk foto ODP)"
+  warn "upload_max_filesize: $php_upload $(t "(disarankan ≥ 12M untuk foto ODP)" "(≥ 12M recommended for ODP photos)")"
 fi
 
-printf "\n%s\n%s\n" "Runtime artefak (info)" "----------------------"
+section "$(t "Runtime artefak (info)" "Runtime artifacts (info)")"
 check_artifact "Go SNMP poller binary" "bin/kv-snmp-poller"
 check_artifact "Frontend build"        "public/build/manifest.json"
-check_artifact "File .env"             ".env"
+check_artifact "$(t "File .env" ".env file")" ".env"
 if [ -f "$PROJECT_DIR/.env" ]; then
-  if grep -qE '^APP_KEY=base64:' "$PROJECT_DIR/.env"; then ok "APP_KEY ter-set"; else warn "APP_KEY belum di-generate (php artisan key:generate)"; fi
+  if grep -qE '^APP_KEY=base64:' "$PROJECT_DIR/.env"; then
+    ok "$(t "APP_KEY ter-set" "APP_KEY is set")"
+  else
+    warn "$(t "APP_KEY belum di-generate (php artisan key:generate)" "APP_KEY not generated yet (php artisan key:generate)")"
+  fi
 fi
 
-printf "\n%s\n%s\n" "Services (info)" "---------------"
+section "Services (info)"
 check_service "PostgreSQL" postgresql
 check_service "Redis"      redis-server
 check_service "Nginx"      nginx
@@ -147,11 +175,13 @@ check_supervisor kusumavision-worker
 check_supervisor kusumavision-scheduler
 check_supervisor kusumavision-telnet-proxy
 
-printf "\n%s\n%s\n" "Ringkasan" "---------"
-if [ "$warnings" -gt 0 ]; then printf "${c_yellow}%d peringatan (info, tidak menggagalkan).${c_reset}\n" "$warnings"; fi
+section "$(t "Ringkasan" "Summary")"
+if [ "$warnings" -gt 0 ]; then
+  printf "${c_yellow}%s${c_reset}\n" "$(t "$warnings peringatan (info, tidak menggagalkan)." "$warnings warning(s) (info only, not a failure).")"
+fi
 if [ "$failures" -eq 0 ]; then
-  printf "${c_green}Semua requirement wajib terpenuhi.${c_reset}\n"
+  printf "${c_green}%s${c_reset}\n" "$(t "Semua requirement wajib terpenuhi." "All required checks passed.")"
   exit 0
 fi
-printf "${c_red}%d requirement wajib perlu diperbaiki.${c_reset}\n" "$failures"
+printf "${c_red}%s${c_reset}\n" "$(t "$failures requirement wajib perlu diperbaiki." "$failures required check(s) need fixing.")"
 exit 1

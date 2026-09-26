@@ -81,10 +81,10 @@ git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
 sudo bash install.sh             # interaktif (tanya bahasa, APP_URL, DB, akun admin)
-sudo bash install.sh --lang en   # lewati pertanyaan bahasa: English jadi bahasa bawaan
+sudo bash install.sh --lang en   # lewati pertanyaan bahasa: installer & aplikasi berbahasa Inggris
 ```
 
-`--lang` (`en` atau `id`, default `id`) hanya menentukan bahasa bawaan untuk tamu dan pengguna baru; tiap pengguna tetap bisa mengganti bahasa dari aplikasi.
+`--lang` (`en` atau `id`, default `id`) menentukan bahasa pesan installer sekaligus bahasa bawaan aplikasi untuk tamu dan pengguna baru; tiap pengguna tetap bisa mengganti bahasa dari aplikasi. Semua opsi: `sudo bash install.sh --help`.
 
 Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requirements.sh`.
 

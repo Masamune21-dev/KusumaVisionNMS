@@ -25,7 +25,7 @@ cd KusumaVisionNMS
 sudo bash install.sh                 # interaktif (tanya bahasa, APP_URL, DB, admin)
 # atau non-interaktif:
 sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=rahasia \
-     bash install.sh --yes --lang en  # --lang en|id, default id
+     bash install.sh --yes --lang en  # --lang en|id (bahasa installer + bawaan app), default id
 ```
 
 Verifikasi kapan saja dengan [`scripts/check-requirements.sh`](../../scripts/check-requirements.sh)

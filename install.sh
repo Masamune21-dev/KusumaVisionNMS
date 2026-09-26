@@ -7,18 +7,11 @@
 # poller, menjalankan migrasi, dan mendaftarkan daemon (worker, scheduler,
 # telnet proxy) + nginx site. Aman dijalankan ulang (idempotent sebisanya).
 #
-# Pemakaian:
-#   sudo bash install.sh                 # interaktif
-#   sudo bash install.sh --yes           # non-interaktif (pakai default/env var)
-#   sudo bash install.sh --lang en       # bahasa bawaan aplikasi: en | id
+# Pemakaian & daftar environment variable: sudo bash install.sh --help
+# (teks bantuan ada di fungsi usage() di bawah, dalam bahasa Indonesia & Inggris).
 #
-# Konfigurasi via environment variable (opsional, untuk mode --yes):
-#   APP_URL=http://nms.example.com
-#   DB_NAME=kusumavision_nms  DB_USER=kusumavision  DB_PASSWORD=...
-#   PHP_VERSION=8.3
-#   ADMIN_NAME="Admin"  ADMIN_EMAIL=admin@example.com  ADMIN_PASSWORD=...
-#   ENABLE_UFW=0|1
-#   APP_LOCALE=id|en                     # sama dengan --lang; default id
+# Bahasa yang dipilih (--lang / APP_LOCALE / pertanyaan pertama) dipakai untuk pesan
+# installer SEKALIGUS menjadi bahasa bawaan aplikasi.
 #
 # Diuji untuk Ubuntu 22.04 / 24.04.
 #
@@ -46,12 +39,20 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 
 ENABLE_UFW="${ENABLE_UFW:-0}"
 ASSUME_YES=0
+SHOW_HELP=0
 # Bahasa bawaan aplikasi (tamu & pengguna yang belum memilih). Tiap pengguna tetap bisa
 # menggantinya sendiri dari pemilih bahasa di aplikasi.
 APP_LOCALE="${APP_LOCALE:-}"
 
+# Bahasa pesan installer. Sampai bahasa dipilih (galat argumen, --help) ditebak dari
+# locale shell; setelah dipilih, UI_LANG = APP_LOCALE.
+case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in
+  id*) UI_LANG="id" ;;
+  *)   UI_LANG="en" ;;
+esac
+
 # ---------------------------------------------------------------------------
-# Util logging
+# Util logging & bahasa
 # ---------------------------------------------------------------------------
 c_reset="\033[0m"; c_blue="\033[1;34m"; c_green="\033[1;32m"; c_yellow="\033[1;33m"; c_red="\033[1;31m"
 step()  { printf "\n${c_blue}==> %s${c_reset}\n" "$*"; }
@@ -59,6 +60,12 @@ info()  { printf "    %s\n" "$*"; }
 ok()    { printf "${c_green}[OK]${c_reset}   %s\n" "$*"; }
 warn()  { printf "${c_yellow}[WARN]${c_reset} %s\n" "$*"; }
 die()   { printf "${c_red}[ERROR]${c_reset} %s\n" "$*" >&2; exit 1; }
+
+# t "teks Indonesia" "English text" -> cetak sesuai UI_LANG.
+t() { if [ "$UI_LANG" = "en" ]; then printf '%s' "$2"; else printf '%s' "$1"; fi; }
+
+# row "Label" "nilai" -> baris ringkasan rata kiri (lebar label beda per bahasa).
+row() { printf '  %-15s: %s\n' "$1" "$2"; }
 
 confirm() {
   # confirm "pertanyaan" [default Y/n]
@@ -75,6 +82,64 @@ ask() {
   if [ "$ASSUME_YES" = "1" ]; then printf -v "$__var" '%s' "$__default"; return; fi
   read -r -p "$__prompt${__default:+ [$__default]}: " __val || true
   printf -v "$__var" '%s' "${__val:-$__default}"
+}
+
+usage() {
+  if [ "$UI_LANG" = "en" ]; then
+    cat <<'USAGE'
+Usage: sudo bash install.sh [options]
+
+Installs KusumaVision NMS on a fresh Ubuntu 22.04 / 24.04 server: runtimes (PHP,
+Composer, Node, PostgreSQL, Redis, Nginx, Supervisor, Go, Net-SNMP), database and
+.env, frontend and Go poller builds, migrations, daemons and the nginx site.
+Safe to re-run.
+
+Options:
+  -y, --yes        non-interactive (use defaults / environment variables)
+  --lang en|id     language of the installer and default language of the app
+                   (default id; every user can still switch it in the app)
+  -h, --help       show this help
+
+Environment variables (optional, mainly for --yes):
+  APP_URL=http://nms.example.com
+  DB_NAME=kusumavision_nms  DB_USER=kusumavision  DB_PASSWORD=...
+  PHP_VERSION=8.3
+  ADMIN_NAME="Admin"  ADMIN_EMAIL=admin@example.com  ADMIN_PASSWORD=...
+  ENABLE_UFW=0|1
+  APP_LOCALE=en|id                     same as --lang
+
+Examples:
+  sudo bash install.sh --lang en                 # interactive, in English
+  sudo bash install.sh --yes --lang en           # non-interactive, in English
+USAGE
+  else
+    cat <<'USAGE'
+Pemakaian: sudo bash install.sh [opsi]
+
+Memasang KusumaVision NMS di server Ubuntu 22.04 / 24.04 yang masih kosong: runtime
+(PHP, Composer, Node, PostgreSQL, Redis, Nginx, Supervisor, Go, Net-SNMP), database
+dan .env, build frontend & Go poller, migrasi, daemon, dan nginx site.
+Aman dijalankan ulang.
+
+Opsi:
+  -y, --yes        non-interaktif (pakai default / environment variable)
+  --lang id|en     bahasa installer sekaligus bahasa bawaan aplikasi
+                   (default id; tiap pengguna tetap bisa menggantinya di aplikasi)
+  -h, --help       tampilkan bantuan ini
+
+Environment variable (opsional, terutama untuk --yes):
+  APP_URL=http://nms.example.com
+  DB_NAME=kusumavision_nms  DB_USER=kusumavision  DB_PASSWORD=...
+  PHP_VERSION=8.3
+  ADMIN_NAME="Admin"  ADMIN_EMAIL=admin@example.com  ADMIN_PASSWORD=...
+  ENABLE_UFW=0|1
+  APP_LOCALE=id|en                     sama dengan --lang
+
+Contoh:
+  sudo bash install.sh                           # interaktif
+  sudo bash install.sh --yes --lang id           # non-interaktif
+USAGE
+  fi
 }
 
 # Set/replace KEY=value di file .env (escape karakter sed).
@@ -98,71 +163,90 @@ while [ $# -gt 0 ]; do
     -y|--yes) ASSUME_YES=1 ;;
     --lang=*) APP_LOCALE="${1#--lang=}" ;;
     --lang)
-      [ $# -ge 2 ] || die "--lang butuh nilai: en | id"
+      [ $# -ge 2 ] || die "$(t "--lang butuh nilai: en | id" "--lang needs a value: en | id")"
       APP_LOCALE="$2"; shift ;;
-    -h|--help)
-      awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
-      exit 0 ;;
-    *) die "Argumen tidak dikenal: $1 (pakai --help)" ;;
+    -h|--help) SHOW_HELP=1 ;;
+    *) die "$(t "Argumen tidak dikenal: $1 (pakai --help)" "Unknown argument: $1 (see --help)")" ;;
   esac
   shift
 done
 
+if [ -n "$APP_LOCALE" ]; then
+  APP_LOCALE="$(printf '%s' "$APP_LOCALE" | tr '[:upper:]' '[:lower:]')"
+  case "$APP_LOCALE" in
+    id|en) UI_LANG="$APP_LOCALE" ;;
+    *) die "$(t "Bahasa tidak dikenal: '$APP_LOCALE' (pilih id atau en)" "Unknown language: '$APP_LOCALE' (choose en or id)")" ;;
+  esac
+fi
+
+if [ "$SHOW_HELP" = "1" ]; then usage; exit 0; fi
+
+# ---------------------------------------------------------------------------
+# Bahasa — ditanyakan paling awal supaya seluruh pesan berikutnya ikut bahasa ini
+# ---------------------------------------------------------------------------
+if [ -z "$APP_LOCALE" ]; then
+  if [ "$ASSUME_YES" = "1" ]; then
+    APP_LOCALE="id"
+  else
+    step "Bahasa / Language"
+    info "id = Bahasa Indonesia"
+    info "en = English"
+    while :; do
+      read -r -p "    Pilih bahasa / Choose language [id]: " APP_LOCALE || true
+      APP_LOCALE="$(printf '%s' "${APP_LOCALE:-id}" | tr '[:upper:]' '[:lower:]')"
+      case "$APP_LOCALE" in id|en) break ;; esac
+      warn "Ketik id atau en / Please type en or id"
+    done
+  fi
+  UI_LANG="$APP_LOCALE"
+fi
+
 # ---------------------------------------------------------------------------
 # Pra-syarat dasar
 # ---------------------------------------------------------------------------
-step "Pemeriksaan awal"
-[ "$(id -u)" -eq 0 ] || die "Jalankan sebagai root: sudo bash install.sh"
-[ -f "$PROJECT_DIR/artisan" ] || die "Tidak menemukan artisan di $PROJECT_DIR — jalankan dari root repo."
+step "$(t "Pemeriksaan awal" "Preflight checks")"
+[ "$(id -u)" -eq 0 ] || die "$(t "Jalankan sebagai root: sudo bash install.sh" "Run as root: sudo bash install.sh")"
+[ -f "$PROJECT_DIR/artisan" ] || die "$(t "Tidak menemukan artisan di $PROJECT_DIR — jalankan dari root repo." "artisan not found in $PROJECT_DIR — run this from the repository root.")"
 . /etc/os-release 2>/dev/null || true
-[ "${ID:-}" = "ubuntu" ] || warn "OS terdeteksi '${ID:-unknown}', skrip ini dirancang untuk Ubuntu."
-ok "Root + repo terdeteksi di $PROJECT_DIR (Ubuntu ${VERSION_ID:-?})"
+[ "${ID:-}" = "ubuntu" ] || warn "$(t "OS terdeteksi '${ID:-unknown}', skrip ini dirancang untuk Ubuntu." "Detected OS '${ID:-unknown}'; this script is designed for Ubuntu.")"
+ok "$(t "Root + repo terdeteksi di $PROJECT_DIR (Ubuntu ${VERSION_ID:-?})" "Running as root, repository at $PROJECT_DIR (Ubuntu ${VERSION_ID:-?})")"
 
 # IP utama untuk default APP_URL
 PRIMARY_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 [ -n "${APP_URL}" ] || APP_URL="http://${PRIMARY_IP:-localhost}"
 
-step "Konfigurasi deployment"
-if [ -z "$APP_LOCALE" ]; then
-  ask APP_LOCALE "Bahasa bawaan aplikasi / Default app language (id = Indonesia, en = English)" "id"
-fi
-APP_LOCALE="$(printf '%s' "$APP_LOCALE" | tr '[:upper:]' '[:lower:]')"
-case "$APP_LOCALE" in
-  id|en) ;;
-  *) die "Bahasa tidak dikenal: '$APP_LOCALE' (pilih id atau en)" ;;
-esac
-ask APP_URL       "URL aplikasi (APP_URL)"              "$APP_URL"
-ask DB_NAME       "Nama database PostgreSQL"            "$DB_NAME"
-ask DB_USER       "User database PostgreSQL"            "$DB_USER"
+step "$(t "Konfigurasi deployment" "Deployment settings")"
+ask APP_URL       "$(t "URL aplikasi (APP_URL)"   "Application URL (APP_URL)")"  "$APP_URL"
+ask DB_NAME       "$(t "Nama database PostgreSQL" "PostgreSQL database name")"   "$DB_NAME"
+ask DB_USER       "$(t "User database PostgreSQL" "PostgreSQL database user")"   "$DB_USER"
 if [ -z "$DB_PASSWORD" ]; then
   if [ "$ASSUME_YES" = "1" ]; then
     DB_PASSWORD="$(openssl rand -base64 18 2>/dev/null | tr -d '/+=' | cut -c1-20)"
-    info "Password DB digenerate otomatis."
+    info "$(t "Password DB digenerate otomatis." "Database password generated automatically.")"
   else
-    ask DB_PASSWORD "Password database (kosong = generate otomatis)" ""
+    ask DB_PASSWORD "$(t "Password database (kosong = generate otomatis)" "Database password (leave empty to generate one)")" ""
     [ -n "$DB_PASSWORD" ] || DB_PASSWORD="$(openssl rand -base64 18 2>/dev/null | tr -d '/+=' | cut -c1-20)"
   fi
 fi
 
-cat <<SUMMARY
-
-  PROJECT_DIR : $PROJECT_DIR
-  APP_URL     : $APP_URL
-  Bahasa      : $APP_LOCALE
-  PHP         : ${PHP_VERSION}    Node: ${NODE_MAJOR}.x
-  Database    : ${DB_NAME} (user ${DB_USER})
-  App user    : ${APP_USER}
-  UFW         : $([ "$ENABLE_UFW" = "1" ] && echo "aktif" || echo "lewati")
-
-SUMMARY
-confirm "Lanjutkan instalasi dengan konfigurasi di atas?" "Y" || die "Dibatalkan."
+printf '\n'
+row "PROJECT_DIR"              "$PROJECT_DIR"
+row "APP_URL"                  "$APP_URL"
+row "$(t "Bahasa" "Language")" "$APP_LOCALE"
+row "PHP"                      "${PHP_VERSION}    Node: ${NODE_MAJOR}.x"
+row "Database"                 "${DB_NAME} (user ${DB_USER})"
+row "App user"                 "${APP_USER}"
+row "UFW"                      "$([ "$ENABLE_UFW" = "1" ] && t "aktif" "enabled" || t "lewati" "skipped")"
+printf '\n'
+confirm "$(t "Lanjutkan instalasi dengan konfigurasi di atas?" "Continue the installation with the settings above?")" "Y" \
+  || die "$(t "Dibatalkan." "Cancelled.")"
 
 export DEBIAN_FRONTEND=noninteractive
 
 # ---------------------------------------------------------------------------
 # 1. Paket dasar + repo
 # ---------------------------------------------------------------------------
-step "Memasang paket dasar & menambah repository"
+step "$(t "Memasang paket dasar & menambah repository" "Installing base packages & adding repositories")"
 apt-get update -y
 apt-get install -y ca-certificates curl gnupg lsb-release software-properties-common \
   apt-transport-https unzip git openssl acl
@@ -181,12 +265,12 @@ if [ ! -f /etc/apt/keyrings/nodesource.gpg ]; then
 fi
 
 apt-get update -y
-ok "Repository siap"
+ok "$(t "Repository siap" "Repositories ready")"
 
 # ---------------------------------------------------------------------------
 # 2. Runtime
 # ---------------------------------------------------------------------------
-step "Memasang runtime (PHP ${PHP_VERSION}, PostgreSQL, Redis, Nginx, Supervisor, Go, SNMP, Node)"
+step "$(t "Memasang runtime" "Installing runtimes") (PHP ${PHP_VERSION}, PostgreSQL, Redis, Nginx, Supervisor, Go, SNMP, Node)"
 apt-get install -y \
   php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-common \
   php${PHP_VERSION}-bcmath php${PHP_VERSION}-curl php${PHP_VERSION}-intl \
@@ -218,15 +302,15 @@ systemctl enable --now postgresql redis-server nginx supervisor "php${PHP_VERSIO
 if [ -x "/usr/bin/${PHP_CLI}" ]; then
   update-alternatives --set php "/usr/bin/${PHP_CLI}" >/dev/null 2>&1 || true
 fi
-ok "Runtime terpasang (CLI php: $(${PHP_CLI} -r 'echo PHP_VERSION;' 2>/dev/null || echo '?'))"
+ok "$(t "Runtime terpasang" "Runtimes installed") (CLI php: $(${PHP_CLI} -r 'echo PHP_VERSION;' 2>/dev/null || echo '?'))"
 
 # Composer
-step "Memasang Composer"
+step "$(t "Memasang Composer" "Installing Composer")"
 if ! command -v composer >/dev/null 2>&1; then
   EXPECTED="$(curl -fsSL https://composer.github.io/installer.sig)"
   curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
   ACTUAL="$("$PHP_CLI" -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
-  [ "$EXPECTED" = "$ACTUAL" ] || die "Checksum installer Composer tidak cocok."
+  [ "$EXPECTED" = "$ACTUAL" ] || die "$(t "Checksum installer Composer tidak cocok." "Composer installer checksum mismatch.")"
   "$PHP_CLI" /tmp/composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
   rm -f /tmp/composer-setup.php
 fi
@@ -235,7 +319,7 @@ ok "Composer: $(composer --version 2>/dev/null | head -n1)"
 # ---------------------------------------------------------------------------
 # 3. Database PostgreSQL
 # ---------------------------------------------------------------------------
-step "Menyiapkan database PostgreSQL"
+step "$(t "Menyiapkan database PostgreSQL" "Setting up the PostgreSQL database")"
 DB_PASSWORD_SQL="${DB_PASSWORD//\'/\'\'}"
 sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
@@ -254,29 +338,29 @@ fi
 sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";" >/dev/null
 # PostgreSQL 15+: butuh hak di schema public
 sudo -u postgres psql -d "${DB_NAME}" -c "GRANT ALL ON SCHEMA public TO \"${DB_USER}\";" >/dev/null 2>&1 || true
-ok "Database ${DB_NAME} & user ${DB_USER} siap"
+ok "$(t "Database ${DB_NAME} & user ${DB_USER} siap" "Database ${DB_NAME} and user ${DB_USER} ready")"
 
 # ---------------------------------------------------------------------------
 # 4. Dependensi aplikasi
 # ---------------------------------------------------------------------------
-step "Memasang dependensi PHP (composer)"
+step "$(t "Memasang dependensi PHP (composer)" "Installing PHP dependencies (composer)")"
 # .env harus ada sebelum composer install agar post-script (package:discover) bisa boot.
 [ -f "$PROJECT_DIR/.env" ] || cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
 (cd "$PROJECT_DIR" && COMPOSER_ALLOW_SUPERUSER=1 "$PHP_CLI" "$(command -v composer)" install --no-dev --optimize-autoloader --no-interaction)
 
-step "Memasang dependensi & build frontend (npm)"
+step "$(t "Memasang dependensi & build frontend (npm)" "Installing dependencies & building the frontend (npm)")"
 if [ -f "$PROJECT_DIR/package-lock.json" ]; then
   (cd "$PROJECT_DIR" && npm ci)
 else
   (cd "$PROJECT_DIR" && npm install)
 fi
 (cd "$PROJECT_DIR" && npm run build)
-ok "Frontend ter-build (public/build)"
+ok "$(t "Frontend ter-build (public/build)" "Frontend built (public/build)")"
 
 # ---------------------------------------------------------------------------
 # 5. .env + APP_KEY
 # ---------------------------------------------------------------------------
-step "Menyiapkan .env"
+step "$(t "Menyiapkan .env" "Preparing .env")"
 [ -f "$PROJECT_DIR/.env" ] || cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
 set_env APP_ENV production
 set_env APP_DEBUG false
@@ -301,12 +385,12 @@ set_env TELNET_PROXY_PORT 6002
 set_env TELNET_PROXY_WS_URL /telnet-ws
 
 grep -qE '^APP_KEY=base64:' "$PROJECT_DIR/.env" || run_artisan key:generate --force
-ok ".env dikonfigurasi (production)"
+ok "$(t ".env dikonfigurasi (production)" ".env configured (production)")"
 
 # ---------------------------------------------------------------------------
 # 6. Build Go SNMP poller
 # ---------------------------------------------------------------------------
-step "Build Go SNMP poller (statis)"
+step "$(t "Build Go SNMP poller (statis)" "Building the Go SNMP poller (static)")"
 # CGO_ENABLED=0 -> binary self-contained (tak tergantung glibc), aman dipindah antar
 # server. -mod=mod karena repo punya folder vendor/ (PHP) di root. -trimpath + -s -w
 # memperkecil & menstabilkan build.
@@ -316,22 +400,23 @@ chmod +x "$PROJECT_DIR/bin/kv-snmp-poller"
 # Smoke test: pastikan binary benar-benar jalan & emit JSON. Kalau tidak, PollOltJob
 # akan diam-diam fallback ke PHP -> ketahuan sekarang, bukan pas produksi.
 if KV_SNMP_COMMUNITY=public "$PROJECT_DIR/bin/kv-snmp-poller" --host 127.0.0.1 --timeout 1s --retries 0 2>/dev/null | grep -q '"ok"'; then
-  ok "bin/kv-snmp-poller terbangun & berfungsi (emit JSON)"
+  ok "$(t "bin/kv-snmp-poller terbangun & berfungsi (emit JSON)" "bin/kv-snmp-poller built and working (emits JSON)")"
 else
-  warn "bin/kv-snmp-poller terbangun TAPI tidak emit JSON — poll akan fallback ke PHP. Cek: file bin/kv-snmp-poller; jalankan manual untuk lihat error."
+  warn "$(t "bin/kv-snmp-poller terbangun TAPI tidak emit JSON — poll akan fallback ke PHP. Cek: file bin/kv-snmp-poller; jalankan manual untuk lihat error." \
+            "bin/kv-snmp-poller was built BUT does not emit JSON — polling will fall back to PHP. Check: file bin/kv-snmp-poller; run it manually to see the error.")"
 fi
 
 # ---------------------------------------------------------------------------
 # 7. Migrasi
 # ---------------------------------------------------------------------------
-step "Menjalankan migrasi database"
+step "$(t "Menjalankan migrasi database" "Running database migrations")"
 run_artisan migrate --force
-ok "Migrasi selesai"
+ok "$(t "Migrasi selesai" "Migrations complete")"
 
 # ---------------------------------------------------------------------------
 # 8. Permission
 # ---------------------------------------------------------------------------
-step "Mengatur permission"
+step "$(t "Mengatur permission" "Setting permissions")"
 chown -R "${APP_USER}:${APP_USER}" "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache"
 chmod -R ug+rwX "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache"
 # .env hanya boleh dibaca root + grup www-data
@@ -339,12 +424,12 @@ chown root:"${APP_USER}" "$PROJECT_DIR/.env"
 chmod 640 "$PROJECT_DIR/.env"
 # storage symlink agar logo upload bisa diakses publik
 run_artisan storage:link >/dev/null 2>&1 || true
-ok "Permission diatur (.env = 640 root:${APP_USER})"
+ok "$(t "Permission diatur" "Permissions set") (.env = 640 root:${APP_USER})"
 
 # ---------------------------------------------------------------------------
 # 9. Nginx
 # ---------------------------------------------------------------------------
-step "Mengonfigurasi Nginx"
+step "$(t "Mengonfigurasi Nginx" "Configuring Nginx")"
 SERVER_NAME="$(printf '%s' "$APP_URL" | sed -E 's#^https?://##; s#/.*$##')"
 PHP_SOCK="/run/php/php${PHP_VERSION}-fpm.sock"
 NGINX_SITE="/etc/nginx/sites-available/kusumavision-nms"
@@ -414,12 +499,12 @@ ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/kusumavision-nms
 [ -e /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default || true
 nginx -t
 systemctl reload nginx
-ok "Nginx aktif (root ${PROJECT_DIR}/public, /telnet-ws → :6002)"
+ok "$(t "Nginx aktif" "Nginx active") (root ${PROJECT_DIR}/public, /telnet-ws → :6002)"
 
 # ---------------------------------------------------------------------------
 # 10. Supervisor (worker, scheduler, telnet proxy)
 # ---------------------------------------------------------------------------
-step "Mendaftarkan daemon Supervisor"
+step "$(t "Mendaftarkan daemon Supervisor" "Registering Supervisor daemons")"
 PHP_BIN="$(command -v "$PHP_CLI" || command -v php)"
 write_supervisor() {
   local name="$1" cmd="$2"
@@ -442,36 +527,38 @@ write_supervisor "kusumavision-telnet-proxy" "${PHP_BIN} ${PROJECT_DIR}/artisan 
 
 supervisorctl reread
 supervisorctl update
-ok "Daemon worker, scheduler, telnet-proxy terdaftar"
+ok "$(t "Daemon worker, scheduler, telnet-proxy terdaftar" "Daemons registered: worker, scheduler, telnet-proxy")"
 
 # ---------------------------------------------------------------------------
 # 11. Cache produksi
 # ---------------------------------------------------------------------------
-step "Membangun cache produksi (config/route/view)"
+step "$(t "Membangun cache produksi (config/route/view)" "Building production caches (config/route/view)")"
 run_artisan optimize:clear >/dev/null 2>&1 || true
 run_artisan optimize
 # artisan dijalankan sbg root -> kembalikan ownership cache ke www-data
 chown -R "${APP_USER}:${APP_USER}" "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache"
 run_artisan queue:restart >/dev/null 2>&1 || true
 supervisorctl restart kusumavision-telnet-proxy >/dev/null 2>&1 || true
-ok "Cache produksi siap"
+ok "$(t "Cache produksi siap" "Production caches ready")"
 
 # ---------------------------------------------------------------------------
 # 12. Akun admin
 # ---------------------------------------------------------------------------
-step "Akun administrator"
+step "$(t "Akun administrator" "Administrator account")"
 if [ "$ASSUME_YES" = "1" ] && [ -z "$ADMIN_EMAIL" ]; then
-  info "Mode --yes tanpa ADMIN_EMAIL → lewati. Buat manual nanti: php artisan user:create"
-elif confirm "Buat akun admin sekarang?" "Y"; then
-  ask ADMIN_NAME     "Nama admin"  "${ADMIN_NAME:-Administrator}"
-  ask ADMIN_EMAIL    "Email admin" "${ADMIN_EMAIL:-admin@${SERVER_NAME}}"
-  if [ -z "$ADMIN_PASSWORD" ]; then ask ADMIN_PASSWORD "Password admin" ""; fi
+  info "$(t "Mode --yes tanpa ADMIN_EMAIL → lewati. Buat manual nanti: php artisan user:create" \
+            "--yes without ADMIN_EMAIL → skipped. Create one later: php artisan user:create")"
+elif confirm "$(t "Buat akun admin sekarang?" "Create an admin account now?")" "Y"; then
+  ask ADMIN_NAME     "$(t "Nama admin" "Admin name")"   "${ADMIN_NAME:-Administrator}"
+  ask ADMIN_EMAIL    "$(t "Email admin" "Admin email")" "${ADMIN_EMAIL:-admin@${SERVER_NAME}}"
+  if [ -z "$ADMIN_PASSWORD" ]; then ask ADMIN_PASSWORD "$(t "Password admin" "Admin password")" ""; fi
   if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
     run_artisan user:create --name="$ADMIN_NAME" --email="$ADMIN_EMAIL" --password="$ADMIN_PASSWORD" \
       && sudo -u postgres psql -d "$DB_NAME" -c "UPDATE users SET role='admin', email_verified_at=now() WHERE email='${ADMIN_EMAIL//\'/\'\'}';" >/dev/null 2>&1 || true
-    ok "Admin dibuat: $ADMIN_EMAIL (role admin)"
+    ok "$(t "Admin dibuat: $ADMIN_EMAIL (role admin)" "Admin created: $ADMIN_EMAIL (role admin)")"
   else
-    warn "Email/password kosong → admin tidak dibuat. Jalankan: php artisan user:create"
+    warn "$(t "Email/password kosong → admin tidak dibuat. Jalankan: php artisan user:create" \
+              "Empty email/password → no admin created. Run: php artisan user:create")"
   fi
 fi
 
@@ -479,12 +566,12 @@ fi
 # 13. UFW (opsional)
 # ---------------------------------------------------------------------------
 if [ "$ENABLE_UFW" = "1" ]; then
-  step "Mengonfigurasi UFW (SSH + HTTP)"
+  step "$(t "Mengonfigurasi UFW (SSH + HTTP)" "Configuring UFW (SSH + HTTP)")"
   apt-get install -y ufw
   ufw allow OpenSSH || ufw allow 22/tcp
   ufw allow 80/tcp
   ufw --force enable
-  ok "UFW aktif (22, 80)"
+  ok "$(t "UFW aktif (22, 80)" "UFW enabled (22, 80)")"
 fi
 
 # ---------------------------------------------------------------------------
@@ -493,30 +580,30 @@ fi
 step "Smoke test"
 HOME_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1/" || echo 000)"
 DASH_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1/dashboard" || echo 000)"
-info "GET /          → ${HOME_CODE} (harap 200)"
-info "GET /dashboard → ${DASH_CODE} (harap 302 ke /login)"
-bash "$PROJECT_DIR/scripts/check-requirements.sh" || true
+info "GET /          → ${HOME_CODE} $(t "(harap 200)" "(expected 200)")"
+info "GET /dashboard → ${DASH_CODE} $(t "(harap 302 ke /login)" "(expected 302 to /login)")"
+APP_LOCALE="$APP_LOCALE" bash "$PROJECT_DIR/scripts/check-requirements.sh" || true
 
+# printf %b (bukan heredoc) supaya kode warna \033 benar-benar ditafsirkan.
+printf '\n%b\n' "${c_green}============================================================${c_reset}"
+printf '%b%s%b\n' "${c_green} " "$(t "KusumaVision NMS terpasang." "KusumaVision NMS is installed.")" "${c_reset}"
+printf '%b\n\n' "${c_green}============================================================${c_reset}"
+row "URL"                                        "${APP_URL}"
+row "Project dir"                                "${PROJECT_DIR}"
+row "Database"                                   "${DB_NAME} / ${DB_USER}"
+row "DB password"                                "${DB_PASSWORD}"
+if [ -n "$ADMIN_EMAIL" ]; then row "Admin login" "${ADMIN_EMAIL}"; fi
+printf '\n'
+row "$(t "Cek daemon" "Daemon status")"          "supervisorctl status"
+row "$(t "Log aplikasi" "App log")"              "storage/logs/laravel.log"
+row "$(t "Buat user lain" "Add more users")"     "cd ${PROJECT_DIR} && php artisan user:create"
 cat <<DONE
-
-${c_green}============================================================${c_reset}
-${c_green} KusumaVision NMS terpasang.${c_reset}
-${c_green}============================================================${c_reset}
-
-  URL            : ${APP_URL}
-  Project dir    : ${PROJECT_DIR}
-  Database       : ${DB_NAME} / ${DB_USER}
-  DB password    : ${DB_PASSWORD}
-  $( [ -n "$ADMIN_EMAIL" ] && echo "Admin login    : ${ADMIN_EMAIL}" )
-
-  Cek daemon     : supervisorctl status
-  Log aplikasi   : storage/logs/laravel.log
-  Buat user lain : cd ${PROJECT_DIR} && php artisan user:create
-  HTTPS (opsional, disarankan):
+  $(t "HTTPS (opsional, disarankan):" "HTTPS (optional, recommended):")
     sudo apt install -y certbot python3-certbot-nginx
     sudo certbot --nginx -d <domain>
 
-  PENTING: simpan DB password di atas. Setelah ubah .env/config jalankan:
+  $(t "PENTING: simpan DB password di atas. Setelah ubah .env/config jalankan:" \
+      "IMPORTANT: keep the DB password above. After changing .env/config, run:")
     php artisan config:cache && php artisan queue:restart
     supervisorctl restart kusumavision-telnet-proxy
 

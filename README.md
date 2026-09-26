@@ -81,10 +81,10 @@ git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
 sudo bash install.sh             # interactive (asks for language, APP_URL, DB, admin account)
-sudo bash install.sh --lang en   # skip the language prompt: English as the default UI language
+sudo bash install.sh --lang en   # skip the language prompt: installer and app in English
 ```
 
-`--lang` (`en` or `id`, default `id`) only sets the default language for guests and new users; everyone can still switch languages from the app.
+`--lang` (`en` or `id`, default `id`) sets the language of the installer's own messages and the app's default language for guests and new users; everyone can still switch languages from the app. `sudo bash install.sh --help` lists every option.
 
 The script is idempotent and safe to re-run. Verify with `bash scripts/check-requirements.sh`.
 
