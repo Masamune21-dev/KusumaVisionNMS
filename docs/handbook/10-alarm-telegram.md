@@ -198,10 +198,33 @@ OLT C-Data via `CDataOltScanner` (sinkron — EPON SNMP cepat, GPON V3 CLI ~10 d
 `uc:{scope}` = tombol "Cek Ulang", scope 0 = semua OLT ZTE); dan tombol "🔄 Reboot ONU" di detail ONU
 (lihat blok di atas — konfirmasi dua langkah, gated `supports_reboot`).
 
+### Jaringan — IPv4 dipaksa, dan ini bukan opsional
+
+`TelegramNotifier::http()` dan `TelegramWebhookManager::http()` memasang
+`CURLOPT_IPRESOLVE = CURL_IPRESOLVE_V4`, `connectTimeout(5)`, dan `retry(3, 500, throw: false)`.
+
+Alasannya kejadian nyata: di host yang **IPv6-nya tidak tersambung ke internet** (umum di
+container/VPS), `api.telegram.org` tetap punya record AAAA. glibc mengembalikan alamat IPv6 lebih dulu, cURL
+mencobanya, dan baru menyerah setelah 10 detik dengan `cURL error 28`. Akibatnya alarm OLT
+gagal terkirim berulang-ulang — dan **alarm tidak punya kesempatan kedua**: kalau
+pengirimannya gagal, kabar itu hilang, bukan tertunda.
+
+Opsional di sisi server: `precedence ::ffff:0:0/96 100` di `/etc/gai.conf` membuat IPv4
+didahulukan untuk seluruh proses. Di container Proxmox, `/etc/resolv.conf` ditulis ulang setiap
+container start — atur nameserver dari host (`pct set <ctid> --nameserver …`), bukan dari dalam.
+
 ### Catatan keamanan
 - `bot_token` & `webhook_secret` terenkripsi + `$hidden`.
 - Gerbang webhook adalah secret token header — jangan log token/secret.
 - Bila handler error, dicatat ke log tapi tetap balas 200 (cegah retry loop Telegram).
+- **Setiap pesan galat yang memuat URL Telegram wajib lewat `redactToken()`.** URL API
+  Telegram memuat bot token di dalam path-nya (`/bot<id>:<secret>/…`), dan pesan galat cURL
+  menyertakan URL lengkap — sehingga token pernah tertulis polos di `laravel.log`.
+  Penyaringnya dipakai di `notify()`, `apiCall()`, `TelegramWebhookManager::call()`, dan
+  `TelegramWebhookController`.
+- Berkas log ber-mode **0640** (`config/logging.php` channel `single` & `daily`; samakan
+  `create` di konfigurasi logrotate bila ada). Bawaan Laravel 0664 berarti terbaca setiap
+  user lokal di server.
 
 ## Selanjutnya
 

@@ -1,9 +1,8 @@
 <script setup>
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import FlashMessages from '@/Components/Shell/FlashMessages.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
-import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
@@ -12,12 +11,6 @@ import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, Waypoints, WifiOff } from '@lucide/vue';
-
-// Jaring partikel (sama seperti hero Welcome) sebagai latar seluruh halaman app.
-// Chunk async (lihat catatan di Welcome.vue) agar key manifest tidak hilang saat build.
-const ParticleNetwork = defineAsyncComponent(
-    () => import('@/Components/Shell/ParticleNetwork.vue'),
-);
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -114,7 +107,13 @@ onUnmounted(() => {
 <template>
     <!-- Scroll di level dokumen (bukan container dalam) supaya screenshot full-page
          merekam seluruh halaman utuh; elemen yang "menempel" pakai sticky, bukan fixed. -->
-    <div class="flex min-h-screen flex-col bg-slate-950 lg:flex-row">
+    <!-- Latar statis (grid + cahaya atas). Dulu jaring partikel tsParticles + aurora yang
+         beranimasi terus di setiap halaman — di laptop kelas menengah itu memakan CPU/GPU
+         sepanjang waktu walau layar diam. -->
+    <div class="kv-grid-stage flex min-h-screen flex-col lg:flex-row text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-white">
+        <div class="kv-grid-pattern" aria-hidden="true"></div>
+        <div class="kv-top-light" aria-hidden="true"></div>
+        <div class="kv-ambient-glow" aria-hidden="true"></div>
         <!-- Mobile top bar (sticky, tetap terlihat saat scroll) -->
         <div class="sticky top-0 z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
             <button
@@ -182,11 +181,13 @@ onUnmounted(() => {
                     <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/20 px-5 backdrop-blur-sm">
                         <Link
                             :href="route('dashboard')"
+                            prefetch
+                            :cache-for="['30s', '1m']"
                             class="flex items-center gap-3 overflow-hidden"
                             @click="sidebarOpen = false"
                         >
                             <div class="relative flex-shrink-0">
-                                <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                                <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400" />
                             </div>
                             <div v-if="showSidebarContent" class="min-w-0">
                                 <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>
@@ -211,6 +212,8 @@ onUnmounted(() => {
                                 v-for="link in navLinks"
                                 :key="link.name"
                                 :href="link.href"
+                                prefetch
+                                :cache-for="['30s', '1m']"
                                 class="group relative flex items-center rounded-xl text-[14px] font-semibold transition-all"
                                 :class="[
                                     isActive(link)
@@ -325,13 +328,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Page content -->
-            <main class="kv-grid-bg relative flex-1">
-                <AuroraBackground />
-                <!-- Jaring partikel fixed di belakang konten semua halaman app.
-                     interactive=false wajib: canvas ini fixed inset-0 sehingga ikut menutupi
-                     header slot & footer yang static. Dengan hover aktif, tsParticles menyalakan
-                     pointer-events canvas dan seluruh tombol header jadi tak bisa diklik. -->
-                <ParticleNetwork id="kv-app-particles" class="!fixed inset-0" :quantity="64" :interactive="false" />
+            <main class="relative z-10 flex-1">
                 <Transition name="page" mode="out-in">
                     <div :key="page.component" class="relative min-w-0">
                         <slot />

@@ -1,5 +1,46 @@
 # Worklog
 
+## 2026-09-27 — Performa: Riwayat RX per Jam, Muatan Awal, Latar Statis, Peta Ribuan Pin
+
+### Changed
+
+- **Riwayat RX diringkas per jam.** Tabel baru `onu_rx_hourly` (min/avg/max + jumlah sampel per ONU
+  per jam) diisi `optical:aggregate-rx` tiap jam (menit ke-5). `OnuRxSample::seriesFor()` memilih
+  sumbernya sendiri: rentang 7/30 hari dari ringkasan, 24 jam dari sampel mentah. Retensi sampel mentah
+  bawaan 30 → **3 hari** (`SNMP_POLLER_RX_RETENTION_DAYS`), ringkasan 45 hari
+  (`SNMP_POLLER_RX_HOURLY_RETENTION_DAYS`). `optical:prune-rx` menolak jalan selama ringkasan belum
+  mencapai batas pemangkasan, jadi agregasi yang macet membuat tabel tumbuh, bukan riwayat hilang.
+  Dengan ribuan ONU, tabel mentah dulu tumbuh ke puluhan juta baris.
+- **Muatan awal halaman** — enam komponen grafik (`StatCard`, `OnuStatusDonut`, `PollingTrendCard`,
+  `RxTrendCard`, `OnuDetail`, `PortDetail`) memuat apexcharts lewat `defineAsyncComponent`; ikon Lucide
+  digabung ke satu chunk `vendor-icons`. Terukur di `manifest.json`: Dashboard 1.127 → 590 KB
+  (22 → 7 berkas); halaman ONU per port 36 → 19 berkas. Dijaga `tests/Feature/BundelAsetTest.php`.
+- **Latar aplikasi statis**: jaring partikel tsParticles + aurora yang beranimasi terus di setiap
+  halaman diganti pola grid + cahaya atas statis (`kv-grid-stage`). Tabel ONU memakai `kv-table-card`
+  opak tanpa `backdrop-blur`. Halaman depan (Welcome) tidak berubah.
+- **Prefetch** tautan sidebar & paginasi (`cache-for` 30 dtk–1 mnt).
+- **Peta ONU ribuan pin**: marker DOM hanya untuk pin di layar (maks 350), selebihnya titik di satu
+  kanvas; garis ODP→ONU diam digabung jadi polyline kanvas, animasi aliran hanya untuk ODP terpilih.
+  Terukur (Chromium, CPU 4× lebih lambat, 5.000 pin + 800 ODP): 1 → 60 fps, mount 10,3 → 1,7 dtk.
+
+### Created
+
+- `GET /healthz` (tanpa auth) — status DB & Redis untuk pemantauan uptime (200 / 503).
+
+### Fixed
+
+- Tautan kembali (ikon saja) di halaman ONU per port C-Data/HiOSO/HsAirPo kini ber-`title` + `aria-label`.
+- `phpunit.xml` mengalihkan `APP_CONFIG_CACHE`/`APP_ROUTES_CACHE`/`APP_EVENTS_CACHE` supaya test tak
+  pernah memakai cache config produksi.
+
+### Notes
+
+- **Upgrade**: jalankan `php artisan migrate` (tabel `onu_rx_hourly`; Docker menjalankannya otomatis).
+  Scheduler mengejar riwayat lama 48 jam per jalan (30 hari ≈ 15 jam); untuk langsung lengkap jalankan
+  sekali `php artisan optical:aggregate-rx --hours=720`. Selama belum terkejar, grafik 7/30 hari bisa
+  bolong dan pemangkasan sampel mentah dilewati otomatis.
+- `bash scripts/test.sh` 546 lulus (2861 assertion), `npm test` 12, `npm run build` OK.
+
 ## 2026-09-27 — Pengerasan Keamanan: Partner, Telnet, Proxy, Demo, ACS, Telegram, Dependensi
 
 ### Fixed

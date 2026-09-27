@@ -20,6 +20,7 @@ defineProps({
             <Link
                 v-else
                 :href="link.url"
+                prefetch
                 preserve-scroll
                 preserve-state
                 class="inline-flex min-h-10 items-center justify-center rounded-lg border px-3 py-2 text-sm transition-colors"

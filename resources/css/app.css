@@ -74,12 +74,72 @@
         @apply mx-auto max-w-5xl px-4 sm:px-6 lg:px-8;
     }
 
+    /* === Stage Utama Dashboard Grid === */
+    .kv-grid-stage {
+        position: relative;
+        background-color: #0b1329;
+        background-image:
+            radial-gradient(ellipse 80% 80% at 50% -20%, rgba(14, 165, 233, 0.25), transparent 70%),
+            linear-gradient(180deg, #0d1938 0%, #0b1329 45%, #080e1f 100%);
+        min-height: 100vh;
+        width: 100%;
+    }
+
+    /* Grid Lines Pattern Layer (Terlihat Jelas Penuh di Seluruh Layar Tanpa Masking) */
+    .kv-grid-pattern {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background-size: 32px 32px;
+        background-image:
+            linear-gradient(to right, rgba(56, 189, 248, 0.15) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(56, 189, 248, 0.15) 1px, transparent 1px);
+    }
+
+    /* Efek Pendaran Cahaya di Tengah Atas (Top-Center Ambient Spotlight yang Hidup) */
+    .kv-top-light {
+        position: fixed;
+        top: -120px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 950px;
+        max-width: 95vw;
+        height: 480px;
+        z-index: 0;
+        pointer-events: none;
+        background: radial-gradient(
+            ellipse at center top,
+            rgba(6, 182, 212, 0.40) 0%,
+            rgba(14, 165, 233, 0.22) 40%,
+            rgba(99, 102, 241, 0.12) 65%,
+            transparent 85%
+        );
+        filter: blur(55px);
+    }
+
+    .kv-ambient-glow {
+        position: fixed;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 600px;
+        height: 220px;
+        z-index: 0;
+        pointer-events: none;
+        background: radial-gradient(
+            ellipse at center top,
+            rgba(34, 211, 238, 0.50) 0%,
+            rgba(56, 189, 248, 0.25) 45%,
+            transparent 80%
+        );
+        filter: blur(40px);
+    }
+
     /* === Dark base background (wavy grid lives in <GridWaves/>) === */
     .kv-grid-bg {
         position: relative;
-        isolation: isolate;
-        background-color: #060f1c;
-        background-image: linear-gradient(180deg, #0a1626 0%, #060f1c 50%, #03070f 100%);
+        background-color: transparent;
     }
 
     /* === Dark glass surfaces === */
@@ -198,7 +258,7 @@
 
     /* === Kartu statistik ringkas (label + angka) — dipakai lintas halaman monitoring === */
     .kv-stat {
-        @apply rounded-lg border border-white/10 bg-slate-900/10 p-5 shadow-sm shadow-black/30 backdrop-blur-xl;
+        @apply rounded-lg border border-white/10 bg-slate-900/60 p-5 shadow-sm shadow-black/30;
     }
 
     /* === Mobile data cards === */
@@ -240,6 +300,15 @@
 
     .kv-table-desktop {
         @apply hidden overflow-x-auto md:block;
+    }
+
+    .kv-table-desktop table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .kv-table-card {
+        @apply rounded-lg border border-white/10 bg-slate-900/95 shadow-xl shadow-black/40;
     }
 
     .kv-glass-panel,

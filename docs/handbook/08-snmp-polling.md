@@ -120,11 +120,45 @@ Lapor jumlah dispatched/skipped.
   menulis nilai yang di-preserve. Dipakai histogram distribusi (ONU Monitoring) & grafik tren
   (ONU Detail, `OnuRxSample::seriesFor`).
 
+### Ringkasan per jam (`optical:aggregate-rx`)
+
+`Schedule::hourlyAt(5)`. Merangkum `onu_rx_samples` menjadi satu baris per ONU per jam di
+`onu_rx_hourly` (min/avg/max + `sample_count`). Idempoten lewat `upsert` pada kunci unik.
+
+Dua perilaku yang disengaja dan mudah disalahpahami:
+
+- **Jam terakhir diproses ulang**, bukan dilewati. Saat sebuah jam pertama kali dirangkum,
+  sebagian sampelnya bisa jadi belum masuk.
+- **Jam yang sedang berjalan sengaja dilewati** — datanya belum lengkap.
+
+Default 48 jam per eksekusi supaya backfill panjang tidak menahan scheduler; `--hours`
+eksplisit menaikkan batas itu sendiri.
+
 ### Retensi RX (`optical:prune-rx`)
-`PruneOnuRxSamplesCommand` menghapus sample `onu_rx_samples` melewati masa retensi (default
-`config('services.snmp_poller.rx_sample_retention_days')` = 90, env `SNMP_POLLER_RX_RETENTION_DAYS`;
-override `--days=`). Hapus bertahap (pilih id → `whereIn`, portabel sqlite/pgsql). Dijadwalkan
-harian 03:15 di `routes/console.php`.
+
+`PruneOnuRxSamplesCommand` memangkas **dua** tabel sekaligus, dijadwalkan harian 03:15.
+
+| Tabel | Retensi | Env |
+|---|---|---|
+| `onu_rx_samples` (mentah) | **3 hari** | `SNMP_POLLER_RX_RETENTION_DAYS` |
+| `onu_rx_hourly` (ringkasan) | **45 hari** | `SNMP_POLLER_RX_HOURLY_RETENTION_DAYS` |
+
+Override per jalan lewat `--days=`. Hapus bertahap (pilih id → `whereIn`, portabel
+sqlite/pgsql).
+
+**3 hari aman dipersingkat karena prune menolak jalan melewati jam yang belum terangkum.**
+Jadi agregasi yang macet membuat tabel mentah *tumbuh*, bukan membuat riwayat *hilang* —
+mode kegagalan yang jauh lebih mudah diperbaiki. 3 hari, bukan 1, sebagai margin.
+
+### Dari mana grafik membaca datanya
+
+`OnuRxSample::seriesFor()` **memilih sumbernya sendiri**: rentang yang menjangkau lebih jauh
+dari umur sampel mentah dilayani `OnuRxHourly`, dengan bentuk keluaran identik (`polled_at` +
+`rx_power_dbm`, plus min/max).
+
+Artinya `SmartOltController` dan `ZteOnuDetailService` tidak
+perlu tahu tabel mana yang sedang dibaca. **Jangan query `onu_rx_samples` langsung** untuk
+rentang panjang — itu akan memulangkan riwayat kosong untuk permintaan 30 hari.
 
 ### Struktur `port_onus` di cache
 Lihat [02 — Arsitektur](02-arsitektur.md#cache-live-state-snmp_oltslast_test_result). ONU dibucket

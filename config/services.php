@@ -58,7 +58,17 @@ return [
         'retries' => (int) env('SNMP_POLLER_RETRIES', 2),
         'walk_mode' => env('SNMP_POLLER_WALK_MODE', 'bulk'),
         'max_repetitions' => (int) env('SNMP_POLLER_MAX_REPETITIONS', 10),
-        'rx_sample_retention_days' => (int) env('SNMP_POLLER_RX_RETENTION_DAYS', 30),
+        // Sampel MENTAH hanya dipakai grafik 24 jam; rentang 7 & 30 hari dilayani
+        // ringkasan per jam (onu_rx_hourly). 3 hari, bukan 1, sebagai margin —
+        // dan aman dipersingkat karena prune menolak jalan melewati jam yang
+        // belum terangkum, jadi agregasi yang macet membuat tabel tumbuh, bukan
+        // membuat riwayat hilang.
+        'rx_sample_retention_days' => (int) env('SNMP_POLLER_RX_RETENTION_DAYS', 3),
+        // Rentang terpanjang yang bisa diminta UI adalah 30 hari; 45 memberi
+        // margin tanpa menumpuk baris yang tak pernah dibaca. Sebagai gambaran, 5.000 ONU:
+        // tiap 30 hari retensi di sini berharga ~3,6 juta baris — retensi panjang
+        // di tabel per jam justru bisa lebih besar dari tabel mentahnya.
+        'rx_hourly_retention_days' => (int) env('SNMP_POLLER_RX_HOURLY_RETENTION_DAYS', 45),
     ],
 
     // Konversi foto ODP ke WebP. PHP di server ini tidak punya GD/Imagick, jadi

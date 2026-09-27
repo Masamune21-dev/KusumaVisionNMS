@@ -7,8 +7,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
-import VueApexCharts from 'vue3-apexcharts';
+import { defineAsyncComponent, computed, onBeforeUnmount, reactive, ref } from 'vue';
+// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
+// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
+// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
+// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 const { t } = useI18n({ useScope: 'global' });
 

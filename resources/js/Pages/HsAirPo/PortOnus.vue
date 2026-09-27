@@ -218,7 +218,7 @@ const viewOnMap = (onu) => {
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-3">
-                    <Link :href="route('hsairpo-olt.detail', olt.id)" class="text-slate-400 hover:text-white">
+                    <Link :href="route('hsairpo-olt.detail', olt.id)" :title="$t('common.back')" :aria-label="$t('common.back')" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
                     </Link>
                     <div>
@@ -260,7 +260,7 @@ const viewOnMap = (onu) => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
 
-                <div class="kv-glass-panel">
+                <div class="kv-table-card">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
                             <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.onu_on_port', { slot, port }) }}</h3>

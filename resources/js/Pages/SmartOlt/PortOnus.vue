@@ -501,7 +501,7 @@ const rxBadgeClass = (value) => {
                     </p>
                 </div>
                 <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:items-center sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <div v-if="navPorts.length > 1" class="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/40 p-1 backdrop-blur-xl">
+                    <div v-if="navPorts.length > 1" class="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 p-1">
                         <button
                             type="button"
                             class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-300 transition-colors enabled:hover:bg-white/5 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
@@ -593,7 +593,7 @@ const rxBadgeClass = (value) => {
                 </div>
 
                 <!-- ONU table card -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-table-card">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">

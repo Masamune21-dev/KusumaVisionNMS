@@ -17,7 +17,8 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `smartolt_interface_statuses` | `SmartOltInterfaceStatus` | Status interface uplink/GPON + metrik optik/trafik |
 | `alarm_events` | `AlarmEvent` | Alarm aktif/cleared |
 | `polling_events` | `PollingEvent` | Log tiap polling/test/provisioning (untuk tren dashboard) |
-| `onu_rx_samples` | `OnuRxSample` | Time-series RX power per ONU (histogram distribusi & grafik tren) |
+| `onu_rx_samples` | `OnuRxSample` | Time-series RX power per ONU, **mentah** — histogram distribusi & grafik 24 jam |
+| `onu_rx_hourly` | `OnuRxHourly` | Ringkasan min/avg/max per jam — grafik 7 & 30 hari |
 | `onu_map_pins` | `OnuMapPin` | Pin ONU di Peta (referensi OLT/slot/port/onu + koordinat + field pelanggan) |
 | `odps` | `Odp` | Pin ODP/splitter lapangan di Peta (per-OLT: nama, koordinat, notes) |
 | `onu_odp_links` | `OnuOdpLink` | Relasi ONU↔ODP (kunci komposit ONU, unik 1 ODP/ONU) |
@@ -131,9 +132,29 @@ untuk tren.
 ### `onu_rx_samples`
 Time-series RX power per ONU: `snmp_olt_id`, `slot/port/onu_id`, `serial_number`, `rx_power_dbm`,
 `polled_at` (tanpa `timestamps`). Composite index `onu_rx_samples_lookup_idx`. Diisi `PollOltJob`
-saat RX poll sukses; dibaca via `OnuRxSample::seriesFor()` (grafik tren ONU Detail). Retensi via
-command `optical:prune-rx` (lihat [08 — SNMP & Polling](08-snmp-polling.md)). Tanpa `DemoScope` —
-isolasi cukup lewat OLT (route ke ONU Detail di-bind ke `SnmpOlt` yang sudah ter-scope).
+saat RX poll sukses; dibaca via `OnuRxSample::seriesFor()` (grafik tren ONU Detail). Retensi
+**3 hari** via command `optical:prune-rx` (lihat [08 — SNMP & Polling](08-snmp-polling.md)).
+Tanpa `DemoScope` — isolasi cukup lewat OLT (route ke ONU Detail di-bind ke `SnmpOlt` yang
+sudah ter-scope).
+
+Tabel ini **hanya melayani grafik 24 jam**. Rentang 7 & 30 hari dilayani `onu_rx_hourly`.
+
+### `onu_rx_hourly`
+Ringkasan per jam: satu baris per ONU per jam berisi `rx_min_dbm`, `rx_avg_dbm`,
+`rx_max_dbm`, dan `sample_count`. Kunci uniknya (ONU + jam) membuat pengisiannya idempoten
+lewat `upsert`. Retensi **45 hari**.
+
+**Min & max ikut disimpan, bukan avg saja**, dan itu bukan kelebihan data: lonjakan redaman
+sesaat justru gejala yang dicari teknisi, dan rata-rata per jam akan menelannya.
+
+Kenapa tabel ini ada: dengan ribuan ONU × ~213 sampel/hari × retensi 30 hari, `onu_rx_samples`
+tumbuh ke **puluhan juta baris dan belasan GB** — sebagian besar ukuran database NMS, dan dump
+cadangan harian ikut membengkak. Padahal grafik 7 & 30 hari tidak pernah butuh kepadatan
+sepadat itu.
+
+Perhatikan keseimbangannya: dengan 5.000 ONU, **tiap 30 hari retensi di tabel per jam
+berharga ~3,6 juta baris**. Retensi panjang di sini justru bisa menghasilkan tabel yang
+lebih besar daripada tabel mentahnya.
 
 ### `telegram_settings` (singleton)
 `enabled`, `bot_token(enc)`, `chat_id` (boleh banyak, dipisah spasi/koma), `webhook_secret(enc)`,

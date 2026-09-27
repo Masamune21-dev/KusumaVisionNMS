@@ -25,7 +25,7 @@ const props = defineProps({
     },
 });
 
-const base = 'inline-flex h-11 w-11 items-center justify-center rounded-lg border bg-slate-900/60 backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9';
+const base = 'inline-flex h-11 w-11 items-center justify-center rounded-lg border bg-slate-800/80 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9';
 
 const variants = {
     default: 'border-white/10 text-slate-300 hover:border-white/20 hover:bg-slate-800/80 hover:text-white focus:ring-slate-500',

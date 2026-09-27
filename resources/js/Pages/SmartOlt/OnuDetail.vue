@@ -9,9 +9,13 @@ import {
     Activity, ArrowLeft, ChevronDown, Clock, Fingerprint, Gauge, ListChecks,
     RefreshCw, Settings, Signal, Terminal, Zap,
 } from '@lucide/vue';
-import { computed } from 'vue';
+import { defineAsyncComponent, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import VueApexCharts from 'vue3-apexcharts';
+// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
+// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
+// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
+// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -26,6 +26,31 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+// Health check endpoint (tanpa auth, dipakai monitoring server / uptime)
+Route::get('/healthz', function () {
+    $dbOk = false;
+    $redisOk = false;
+    try {
+        \Illuminate\Support\Facades\DB::connection()->getPdo();
+        $dbOk = true;
+    } catch (\Throwable) {}
+
+    try {
+        \Illuminate\Support\Facades\Redis::connection()->ping();
+        $redisOk = true;
+    } catch (\Throwable) {}
+
+    $healthy = $dbOk && $redisOk;
+
+    return response()->json([
+        'status' => $healthy ? 'ok' : 'degraded',
+        'app' => config('app.name'),
+        'database' => $dbOk,
+        'redis' => $redisOk,
+        'timestamp' => now()->toIso8601String(),
+    ], $healthy ? 200 : 503);
+})->name('healthz');
+
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
