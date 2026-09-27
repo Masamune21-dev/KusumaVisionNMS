@@ -287,6 +287,12 @@ class OnuOdpService
                 'interface' => $live['interface'] ?? null,
                 'name' => $live['customer_name'] ?? null,
                 'online' => (bool) ($live['online'] ?? false),
+                // Sebab ONU turun (LOS / DyingGasp / Nonaktif) ikut, supaya daftar
+                // ONU di dalam ODP tak berhenti di kata "offline" — datanya sudah
+                // ada di hasil findOne(), jadi tak menambah query/dekode.
+                'phase_state' => $live['phase_state'] ?? null,
+                'last_down_cause' => $live['last_down_cause'] ?? null,
+                'admin_state' => $live['admin_state'] ?? null,
                 'has_live' => $live !== null,
                 // RX ikut supaya kartu ODP (web) & daftar ONU dalam ODP (aplikasi Android)
                 // bisa menampilkan level sinyal tanpa request tambahan — datanya sudah ada

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <ellipse cx="120" cy="158" rx="76" ry="8" fill="#22D3EE" fill-opacity=".08"/>
+  <!-- Jaringan node samar -->
+  <g stroke="#2A3B5C" stroke-width="2" stroke-linecap="round">
+    <path d="M40 60 L84 40 L128 66 M84 40 L96 100 L40 60 M128 66 L176 44 L204 90 L150 116 L128 66 M96 100 L150 116"/>
+  </g>
+  <g fill="#1B2A46" stroke="#2A3B5C" stroke-width="2">
+    <circle cx="40" cy="60" r="7"/><circle cx="84" cy="40" r="7"/><circle cx="176" cy="44" r="7"/><circle cx="204" cy="90" r="7"/><circle cx="96" cy="100" r="7"/>
+  </g>
+  <!-- Kaca pembesar -->
+  <circle cx="132" cy="96" r="34" fill="#0C1524" fill-opacity=".85" stroke="#22D3EE" stroke-width="5"/>
+  <circle cx="132" cy="96" r="24" stroke="#22D3EE" stroke-opacity=".18" stroke-width="2"/>
+  <path d="M157 121 L186 150" stroke="#22D3EE" stroke-width="10" stroke-linecap="round"/>
+  <path d="M157 121 L186 150" stroke="#0E7490" stroke-width="4" stroke-linecap="round" stroke-opacity=".6"/>
+  <!-- Tanda tanya -->
+  <path d="M123 88 a9 9 0 1 1 13 8 c-3 2 -4 4 -4 7" stroke="#E8EEF7" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="132" cy="112" r="2.6" fill="#E8EEF7"/>
+</svg>

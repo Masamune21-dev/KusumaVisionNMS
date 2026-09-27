@@ -69,6 +69,7 @@ class FcmAlarmNotifier
         // Penerima: admin + operator tanpa-assignment (semua OLT) + operator/partner
         // yang di-assign ke OLT ini. Yang di-scope tak menerima alarm di luar assignment.
         $tokens = FcmDeviceToken::query()
+            ->deliverable()
             ->whereIn('user_id', $this->recipientUserIds($olt))
             ->pluck('token')
             ->all();
@@ -156,7 +157,7 @@ class FcmAlarmNotifier
      */
     public function broadcast(string $title, string $body): array
     {
-        $tokens = FcmDeviceToken::query()->pluck('token')->all();
+        $tokens = FcmDeviceToken::query()->deliverable()->pluck('token')->all();
         $res = $this->sendTest($tokens, $title, $body);
 
         $setting = FcmSetting::instance();

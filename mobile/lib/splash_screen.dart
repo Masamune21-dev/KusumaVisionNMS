@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import 'core/widgets/aurora_background.dart';
+import 'core/widgets/kv_art.dart';
 import 'core/widgets/pulse_logo.dart';
 import 'theme/app_theme.dart';
 
@@ -12,7 +12,7 @@ class SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 1.05,
         child: SafeArea(
           child: Center(
@@ -27,7 +27,8 @@ class SplashScreen extends StatelessWidget {
                 Text('KusumaVision',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                               color: AppColors.text,
-                              shadows: [const Shadow(color: Color(0x6622D3EE), blurRadius: 22)],
+                              // Cahaya cyan hanya di tema gelap; di atas putih jadi noda.
+                          shadows: [if (AppColors.isDark) const Shadow(color: Color(0x6622D3EE), blurRadius: 22)],
                             ))
                     .animate(delay: 220.ms)
                     .fadeIn(duration: AppMotion.base)
@@ -48,7 +49,7 @@ class SplashScreen extends StatelessWidget {
                   width: 132,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.pill),
-                    child: const LinearProgressIndicator(
+                    child: LinearProgressIndicator(
                       minHeight: 3,
                       backgroundColor: AppColors.surfaceAlt,
                     ),

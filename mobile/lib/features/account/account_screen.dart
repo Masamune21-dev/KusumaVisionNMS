@@ -10,11 +10,12 @@ import '../../core/api/api_exception.dart';
 import '../../core/env.dart';
 import '../../core/fcm/fcm_service.dart';
 import '../../core/providers.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/read_providers.dart';
 import '../../models/user.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/theme_controller.dart';
 import '../auth/auth_controller.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
@@ -102,7 +103,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Akun')),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.7,
         child: ListView(
           padding: EdgeInsets.fromLTRB(16, topInset, 16, bottomInset),
@@ -114,9 +115,13 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             seq(1, _AlarmTile(onTap: () => context.push('/alarms'))),
             const SizedBox(height: 14),
 
+            // --- Tampilan: tema ---
+            seq(2, const _ThemeCard()),
+            const SizedBox(height: 14),
+
             // --- Notifikasi / tes push ---
             seq(
-              2,
+              3,
               GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -155,7 +160,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
             // --- Info aplikasi ---
             seq(
-              3,
+              4,
               GlassCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,7 +193,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
 
             // --- Logout (dipisah, warna danger) ---
             seq(
-              4,
+              5,
               OutlinedButton.icon(
                 onPressed: _logout,
                 icon: const Icon(LucideIcons.logOut, size: 18),
@@ -235,7 +240,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(width: 92, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
+            SizedBox(width: 92, child: Text(k, style: TextStyle(color: AppColors.muted, fontSize: 13))),
             Expanded(
               child: Text(v,
                   style: mono
@@ -246,7 +251,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
               InkWell(
                 onTap: () => _copy(k, v),
                 borderRadius: BorderRadius.circular(8),
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.all(6),
                   child: Icon(LucideIcons.copy, size: 15, color: AppColors.faint),
                 ),
@@ -312,7 +317,7 @@ class _AlarmTile extends ConsumerWidget {
                   style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
             ),
           const SizedBox(width: 6),
-          const Icon(LucideIcons.chevronRight, size: 18, color: AppColors.faint),
+          Icon(LucideIcons.chevronRight, size: 18, color: AppColors.faint),
         ],
       ),
     );
@@ -332,7 +337,6 @@ class _ProfileCard extends StatelessWidget {
     final roleColor = admin ? AppColors.primary : AppColors.secondary;
 
     return GlassCard(
-      blur: true,
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
       child: Column(
         children: [
@@ -347,7 +351,7 @@ class _ProfileCard extends StatelessWidget {
               radius: 36,
               backgroundColor: AppColors.bgElevated,
               child: Text(initial,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontFamily: AppFont.display,
                       color: AppColors.primary,
                       fontSize: 30,
@@ -412,6 +416,67 @@ class _RoleChip extends StatelessWidget {
         const SizedBox(width: 6),
         Text(label, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w700)),
       ]),
+    );
+  }
+}
+
+/// Pilihan tema: Ikuti sistem / Terang / Gelap. Tersimpan di perangkat dan
+/// langsung berlaku tanpa memuat ulang halaman.
+class _ThemeCard extends ConsumerWidget {
+  const _ThemeCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    final t = Theme.of(context).textTheme;
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(AppRadius.chip),
+              ),
+              child: Icon(LucideIcons.palette, size: 16, color: AppColors.primary),
+            ),
+            const SizedBox(width: 10),
+            Text('Tampilan', style: t.titleMedium),
+          ]),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<ThemeMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(
+                    value: ThemeMode.system,
+                    label: Text('Sistem'),
+                    icon: Icon(LucideIcons.system, size: 16)),
+                ButtonSegment(
+                    value: ThemeMode.light, label: Text('Terang'), icon: Icon(LucideIcons.sun, size: 16)),
+                ButtonSegment(
+                    value: ThemeMode.dark, label: Text('Gelap'), icon: Icon(LucideIcons.moon, size: 16)),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) => ref.read(themeModeProvider.notifier).set(s.first),
+              style: SegmentedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                selectedBackgroundColor: AppColors.primary.withValues(alpha: 0.16),
+                selectedForegroundColor: AppColors.primary,
+                foregroundColor: AppColors.muted,
+                side: BorderSide(color: AppColors.borderStrong),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('"Sistem" mengikuti mode gelap/terang HP.',
+              style: t.bodySmall?.copyWith(color: AppColors.faint)),
+        ],
+      ),
     );
   }
 }

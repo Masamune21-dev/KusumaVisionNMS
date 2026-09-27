@@ -53,7 +53,13 @@ class NmsApi {
   Future<AppUser> me() =>
       _run(() => _dio.get('/me'), (d) => AppUser.fromJson(d['data'] as Map<String, dynamic>));
 
-  Future<void> logout() => _run(() => _dio.post('/auth/logout'), (_) {});
+  /// Cabut token login; [fcmToken] ikut dicabut supaya ponsel ini berhenti menerima alarm.
+  Future<void> logout({String? fcmToken}) => _run(
+        () => _dio.post('/auth/logout', data: {
+          if (fcmToken != null && fcmToken.isNotEmpty) 'fcm_token': fcmToken,
+        }),
+        (_) {},
+      );
 
   // ---- Perangkat FCM -------------------------------------------------------
 

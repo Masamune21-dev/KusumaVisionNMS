@@ -181,6 +181,11 @@ Output mencetak token sekali. Pakai sebagai `Authorization: Bearer <token>`.
 
 `POST /api/v1/auth/logout` → menghapus token yang sedang dipakai. Token tak lagi valid.
 
+Token push FCM ponsel itu ikut dicabut: yang didaftarkan lewat sesi ini (kolom
+`fcm_device_tokens.personal_access_token_id`, FK cascade) dan `fcm_token` opsional di body
+(dikirim aplikasi ≥1.8.5, menutup baris lama yang belum terkait sesi). Sesi yang kedaluwarsa
+dibuang harian (`sanctum:prune-expired`), token push-nya ikut terhapus.
+
 ```json
 { "data": { "message": "Token dicabut." } }
 ```
@@ -484,6 +489,7 @@ status live dari snapshot polling terakhir.
       "snmp_olt_id": 2, "slot": 2, "port": 3, "onu_id": 80,
       "serial_number": "ZTEGCF0995D0", "interface": "gpon-onu_1/2/3:80",
       "name": "#2310095708 Ika Kulon Studio", "online": true, "has_live": true,
+      "phase_state": "Working", "last_down_cause": "DyingGasp", "admin_state": "active",
       "rx_power_dbm": -25.852, "rx_power_label": "-25.852 dBm",
       "latitude": null, "longitude": null
     }
@@ -493,6 +499,8 @@ status live dari snapshot polling terakhir.
 ```
 
 - `has_live: false` ⇒ ONU tak ada lagi di snapshot OLT (kaitan ODP-nya basi), bukan sekadar offline.
+- `phase_state`/`last_down_cause`/`admin_state` = sebab ONU turun apa adanya dari OLT
+  (lihat §3.4) — null pada family yang tak melaporkannya.
 - `latitude`/`longitude` berasal dari **pin peta ONU** (null bila ONU belum di-pin).
 
 ### 3.8. `GET /map` — payload peta (pin ONU + pin ODP)
@@ -510,7 +518,8 @@ tengah default. **Query param:** `olt_id` (opsional).
         "latitude": -6.7, "longitude": 111.0, "customer_name": "Bu Sri",
         "address": null, "phone": null, "notes": null,
         "rx_power_dbm": -21.5, "rx_power_label": "-21.50 dBm",
-        "online": true, "has_live": true }
+        "online": true, "phase_state": "Working", "last_down_cause": null,
+        "admin_state": "active", "has_live": true }
     ],
     "odps": [
       { "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",

@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
@@ -7,9 +5,9 @@ import '../../theme/app_theme.dart';
 /// Kartu permukaan ter-elevasi — dasar visual seluruh UI (glassmorphism v2).
 ///
 /// Depth dibangun lewat perbedaan warna surface vs bg + shadow lembut + sheen
-/// gradient tipis (bukan border tebal). Secara default **tanpa BackdropFilter**
-/// agar daftar panjang (ribuan ONU) tetap mulus. Set [blur] = true HANYA untuk
-/// kartu hero tunggal (login/dashboard) supaya aurora latar tembus jadi frosted.
+/// gradient tipis (bukan border tebal). **Tanpa BackdropFilter** — latar
+/// aplikasi statis ([KvBackdrop]) sehingga blur tak menambah apa pun selain
+/// biaya GPU tiap frame.
 class GlassCard extends StatefulWidget {
   const GlassCard({
     super.key,
@@ -18,7 +16,6 @@ class GlassCard extends StatefulWidget {
     this.onTap,
     this.accent,
     this.radius = AppRadius.card,
-    this.blur = false,
   });
 
   final Widget child;
@@ -28,9 +25,6 @@ class GlassCard extends StatefulWidget {
   /// Warna aksen opsional (glow + garis tepi) untuk kartu terpilih/terfokus.
   final Color? accent;
   final double radius;
-
-  /// Frosted glass (aurora latar tembus). Pakai hemat — hanya kartu hero.
-  final bool blur;
 
   @override
   State<GlassCard> createState() => _GlassCardState();
@@ -46,20 +40,11 @@ class _GlassCardState extends State<GlassCard> {
 
     final decoration = BoxDecoration(
       borderRadius: br,
-      gradient: widget.blur
-          ? LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.surfaceHi.withValues(alpha: 0.72),
-                AppColors.surface.withValues(alpha: 0.55),
-              ],
-            )
-          : const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [AppColors.surfaceHi, AppColors.surface],
-            ),
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [AppColors.surfaceHi, AppColors.surface],
+      ),
       border: Border.all(
         color: accent?.withValues(alpha: 0.45) ?? AppColors.border,
         width: accent != null ? 1.2 : 1,
@@ -72,7 +57,7 @@ class _GlassCardState extends State<GlassCard> {
     // Isi kartu dibiarkan LEBAR PENUH (Padding langsung) agar crossAxisAlignment
     // (center/start) bekerja benar. Sebelumnya dibungkus Stack → isi menyusut &
     // menempel kiri-atas sehingga konten yang seharusnya center jadi rata-kiri.
-    Widget inner = Material(
+    final inner = Material(
       type: MaterialType.transparency,
       child: InkWell(
         onTap: widget.onTap,
@@ -83,13 +68,6 @@ class _GlassCardState extends State<GlassCard> {
         child: Padding(padding: widget.padding, child: widget.child),
       ),
     );
-
-    if (widget.blur) {
-      inner = BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: inner,
-      );
-    }
 
     Widget card = DecoratedBox(
       decoration: decoration,

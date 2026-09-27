@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <ellipse cx="120" cy="156" rx="82" ry="9" fill="#FB7185" fill-opacity=".08"/>
+  <!-- Kabel fiber putus -->
+  <path d="M18 120 C 50 120, 64 96, 96 96" stroke="#2A3B5C" stroke-width="10" stroke-linecap="round"/>
+  <path d="M18 120 C 50 120, 64 96, 96 96" stroke="#22D3EE" stroke-width="3" stroke-linecap="round"/>
+  <path d="M222 120 C 190 120, 176 96, 144 96" stroke="#2A3B5C" stroke-width="10" stroke-linecap="round"/>
+  <path d="M222 120 C 190 120, 176 96, 144 96" stroke="#22D3EE" stroke-width="3" stroke-linecap="round" stroke-opacity=".35"/>
+  <circle cx="98" cy="96" r="6" fill="#22D3EE"/>
+  <circle cx="98" cy="96" r="13" fill="#22D3EE" fill-opacity=".15"/>
+  <circle cx="142" cy="96" r="5" fill="#2A3B5C"/>
+  <!-- Percikan putus -->
+  <g stroke="#FB7185" stroke-width="2.6" stroke-linecap="round">
+    <path d="M120 70 v-14"/><path d="M104 74 l-8 -10"/><path d="M136 74 l8 -10"/>
+  </g>
+  <!-- Lencana peringatan -->
+  <circle cx="120" cy="134" r="20" fill="#17233C" stroke="#FB7185" stroke-width="2.4"/>
+  <path d="M120 124 v12" stroke="#FB7185" stroke-width="3.4" stroke-linecap="round"/>
+  <circle cx="120" cy="143" r="2.2" fill="#FB7185"/>
+  <circle cx="44" cy="52" r="2.4" fill="#22D3EE" fill-opacity=".5"/>
+  <circle cx="200" cy="40" r="2" fill="#FB7185" fill-opacity=".5"/>
+</svg>

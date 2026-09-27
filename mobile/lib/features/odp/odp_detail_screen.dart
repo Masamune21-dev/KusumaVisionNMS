@@ -7,9 +7,10 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/odp_colors.dart';
+import '../../core/onu_status.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/odp_photo.dart';
 import '../../core/widgets/rx_power_badge.dart';
@@ -64,19 +65,19 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(LucideIcons.camera, color: AppColors.primary),
+              leading: Icon(LucideIcons.camera, color: AppColors.primary),
               title: const Text('Kamera'),
               onTap: () => Navigator.pop(sheetContext, 'camera'),
             ),
             ListTile(
-              leading: const Icon(LucideIcons.image, color: AppColors.primary),
+              leading: Icon(LucideIcons.image, color: AppColors.primary),
               title: const Text('Galeri'),
               onTap: () => Navigator.pop(sheetContext, 'gallery'),
             ),
             if (odp.photoUrl != null)
               ListTile(
-                leading: const Icon(LucideIcons.trash, color: AppColors.danger),
-                title: const Text('Hapus foto', style: TextStyle(color: AppColors.danger)),
+                leading: Icon(LucideIcons.trash, color: AppColors.danger),
+                title: Text('Hapus foto', style: TextStyle(color: AppColors.danger)),
                 onTap: () => Navigator.pop(sheetContext, 'delete'),
               ),
           ],
@@ -219,7 +220,7 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.5,
         child: RefreshIndicator(
           onRefresh: () async {
@@ -277,7 +278,7 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
                     child: Row(
                       children: [
                         Text('${rows.length} ONU',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.text,
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
@@ -290,7 +291,7 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
                             borderRadius: BorderRadius.circular(AppRadius.pill),
                           ),
                           child: Text('$online online',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: AppColors.success,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -305,7 +306,7 @@ class _OdpDetailScreenState extends ConsumerState<OdpDetailScreen> {
                             message: all.isEmpty
                                 ? 'Belum ada ONU yang dikaitkan ke ODP ini.'
                                 : 'Tidak ada ONU cocok.',
-                            icon: LucideIcons.router,
+                            art: all.isEmpty ? KvArt.empty : KvArt.search,
                           )
                         : AnimationLimiter(
                             child: ListView.separated(
@@ -453,7 +454,7 @@ class _Header extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     fontFeatures: _tnum)),
             const SizedBox(width: 5),
-            Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+            Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11)),
           ],
         ),
       );
@@ -495,7 +496,7 @@ class _OnuRow extends StatelessWidget {
                   '#${onu.onuId} · ${onu.serialNumber ?? onu.interface ?? '-'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
                 ),
               ],
@@ -508,8 +509,15 @@ class _OnuRow extends StatelessWidget {
               // ONU yang kaitannya masih ada tapi sudah hilang dari OLT ditandai
               // khusus supaya tidak terbaca sekadar "offline".
               onu.hasLive
-                  ? StatusChip.online(onu.online, dense: true)
-                  : const StatusChip(
+                  ? StatusChip.onu(
+                      OnuStatus.resolve(
+                        online: onu.online,
+                        phaseState: onu.phaseState,
+                        lastDownCause: onu.lastDownCause,
+                        adminState: onu.adminState,
+                      ),
+                      dense: true)
+                  : StatusChip(
                       label: 'Tak ada di OLT', color: AppColors.faint, dense: true),
               const SizedBox(height: 6),
               RxPowerBadge(dbm: onu.rxPowerDbm, online: onu.online),

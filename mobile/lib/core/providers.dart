@@ -10,11 +10,11 @@ import 'storage/secure_storage.dart';
 /// Penyimpanan aman token/user. `encryptedSharedPreferences: true` memakai
 /// EncryptedSharedPreferences (AES-256, Jetpack Security) — mode yang
 /// direkomendasikan, lebih kuat dari default RSA-wrapped prefs.
-final secureStoreProvider = Provider<SecureStore>(
-  (ref) => SecureStore(const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  )),
+const kSecureStorage = FlutterSecureStorage(
+  aOptions: AndroidOptions(encryptedSharedPreferences: true),
 );
+
+final secureStoreProvider = Provider<SecureStore>((ref) => SecureStore(kSecureStorage));
 
 /// Dio terkonfigurasi: base URL, header JSON, Bearer token dari AuthController,
 /// dan penanganan 401 (paksa logout).

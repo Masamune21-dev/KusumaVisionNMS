@@ -6,9 +6,10 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/format.dart';
+import '../../core/onu_status.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/odp_chip.dart';
 import '../../core/widgets/rx_power_badge.dart';
@@ -101,10 +102,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      // Jala node-fiber + animasi kini aktif juga di sini — dulu dimatikan demi
-      // daftar panjang, tapi painter aurora sudah murah (tanpa blur raksasa,
-      // repaint terquantisasi ~18fps + RepaintBoundary) jadi aman.
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.5,
         child: RefreshIndicator(
         onRefresh: () async => ref.refresh(portOnusProvider(_arg).future),
@@ -123,7 +121,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                   child: TextField(
                     controller: _search,
                     decoration: InputDecoration(
-                      hintText: 'Cari SN / nama / interface',
+                      hintText: 'Cari SN / nama / status',
                       prefixIcon: const Icon(LucideIcons.search, size: 19),
                       isDense: true,
                       suffixIcon: _filter.isEmpty
@@ -145,7 +143,7 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                   child: Row(
                     children: [
                       Text('${onus.length} ONU',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppColors.text, fontSize: 12.5, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
                       const SizedBox(width: 8),
                       Container(
@@ -155,20 +153,24 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
                           borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                         child: Text('$online online',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
                       ),
                       const Spacer(),
-                      const Icon(LucideIcons.refreshCw, size: 12, color: AppColors.faint),
+                      Icon(LucideIcons.refreshCw, size: 12, color: AppColors.faint),
                       const SizedBox(width: 4),
                       Text(Fmt.relative(res.refreshedAt),
-                          style: const TextStyle(color: AppColors.faint, fontSize: 11.5)),
+                          style: TextStyle(color: AppColors.faint, fontSize: 11.5)),
                     ],
                   ),
                 ),
+                // Rincian ONU yang tidak online, dikelompokkan per sebab yang
+                // dilaporkan OLT (LOS vs Dying Gasp vs Nonaktif) — tiga hal yang
+                // penanganannya beda total, jadi jumlahnya ditampilkan di muka.
+                _StatusBreakdown(onus: onus),
                 Expanded(
                   child: onus.isEmpty
-                      ? const EmptyState(message: 'Tidak ada ONU cocok.', icon: LucideIcons.router)
+                      ? const EmptyState(message: 'Tidak ada ONU cocok.', art: KvArt.search)
                       : AnimationLimiter(
                           child: ListView.separated(
                             padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
@@ -198,6 +200,9 @@ class _PortOnusScreenState extends ConsumerState<PortOnusScreen> {
     return list.where((o) {
       final hay = [
         o.serialNumber, o.mac, o.name, o.customerName, o.interface, o.odpName,
+        // Label status ikut jadi kata kunci: ketik "los" / "dying" / "nonaktif"
+        // untuk menyaring ONU yang turun dengan sebab tertentu.
+        OnuStatus.of(o).label,
       ].whereType<String>().join(' ').toLowerCase();
       return hay.contains(_filter);
     }).toList();
@@ -211,6 +216,8 @@ class _OnuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final status = OnuStatus.of(onu);
+
     return GlassCard(
       accent: highlight ? AppColors.primary : null,
       onTap: () => context.push(
@@ -221,11 +228,10 @@ class _OnuRow extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: (onu.online ? AppColors.success : AppColors.danger).withValues(alpha: 0.12),
+              color: status.color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.chip),
             ),
-            child: Icon(LucideIcons.router,
-                size: 16, color: onu.online ? AppColors.success : AppColors.danger),
+            child: Icon(LucideIcons.router, size: 16, color: status.color),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -241,7 +247,7 @@ class _OnuRow extends StatelessWidget {
                   '#${onu.onuId} · ${onu.serialNumber ?? onu.mac ?? '-'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
+                  style: TextStyle(color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
                 ),
                 if (onu.odpName != null) ...[
                   const SizedBox(height: 5),
@@ -254,11 +260,55 @@ class _OnuRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              StatusChip.online(onu.online, dense: true),
+              StatusChip.onu(status, dense: true),
               const SizedBox(height: 6),
               RxPowerBadge(dbm: onu.rxPowerDbm, online: onu.online),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rincian ONU yang tidak online, dikelompokkan per sebab yang dilaporkan OLT.
+///
+/// Penanganan tiap sebab beda total — LOS berarti fiber/konektor (tim harus
+/// turun), Dying Gasp berarti listrik pelanggan padam (tak perlu turun),
+/// Nonaktif berarti memang sengaja dimatikan — jadi jumlahnya ditampilkan di
+/// muka, bukan tersembunyi di balik kata "offline". Tidak tampil sama sekali
+/// bila seluruh ONU online.
+class _StatusBreakdown extends StatelessWidget {
+  const _StatusBreakdown({required this.onus});
+  final List<Onu> onus;
+
+  @override
+  Widget build(BuildContext context) {
+    // LinkedHashMap: urutan kemunculan dipertahankan, dan status pertama yang
+    // muncul (paling atas di daftar) juga tampil pertama di ringkasan.
+    final counts = <String, ({OnuStatus status, int count})>{};
+    for (final onu in onus) {
+      final status = OnuStatus.of(onu);
+      if (status.online) continue;
+      final prev = counts[status.label];
+      counts[status.label] = (status: status, count: (prev?.count ?? 0) + 1);
+    }
+
+    if (counts.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final e in counts.values)
+            StatusChip(
+              label: '${e.count} ${e.status.label}',
+              color: e.status.color,
+              icon: e.status.icon,
+              dense: true,
+            ),
         ],
       ),
     );

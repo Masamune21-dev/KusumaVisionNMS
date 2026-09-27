@@ -71,6 +71,9 @@ class OdpOnu {
     required this.interface,
     required this.name,
     required this.online,
+    required this.phaseState,
+    required this.lastDownCause,
+    required this.adminState,
     required this.hasLive,
     required this.rxPowerDbm,
     required this.rxPowerLabel,
@@ -81,6 +84,10 @@ class OdpOnu {
   final int oltId, slot, port, onuId;
   final String? serialNumber, interface, name;
   final bool online;
+
+  /// Sebab ONU turun apa adanya dari OLT (LOS / DyingGasp / OffLine / …) —
+  /// diterjemahkan ke status tampilan oleh `core/onu_status.dart`.
+  final String? phaseState, lastDownCause, adminState;
 
   /// False = ONU tak ditemukan di snapshot OLT (mis. sudah dihapus dari OLT
   /// tapi kaitan ODP-nya belum dibersihkan).
@@ -108,6 +115,9 @@ class OdpOnu {
         interface: J.asStrN(j['interface']),
         name: J.asStrN(j['name']),
         online: J.asBool(j['online']),
+        phaseState: J.asStrN(j['phase_state']),
+        lastDownCause: J.asStrN(j['last_down_cause']),
+        adminState: J.asStrN(j['admin_state']),
         hasLive: J.asBool(j['has_live']),
         rxPowerDbm: J.asDoubleN(j['rx_power_dbm']),
         rxPowerLabel: J.asStrN(j['rx_power_label']),

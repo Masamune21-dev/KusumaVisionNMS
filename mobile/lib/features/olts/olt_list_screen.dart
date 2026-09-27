@@ -6,7 +6,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/format.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/pulse_dot.dart';
 import '../../core/widgets/stagger.dart';
@@ -39,7 +39,7 @@ class OltListScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         title: const Text('Inventory OLT'),
       ),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.7,
         child: RefreshIndicator(
           onRefresh: () async => ref.refresh(oltsProvider.future),
@@ -52,7 +52,7 @@ class OltListScreen extends ConsumerWidget {
               if (list.isEmpty) {
                 return ListView(children: const [
                   SizedBox(height: 120),
-                  EmptyState(message: 'Belum ada OLT terdaftar.', icon: LucideIcons.server),
+                  EmptyState(message: 'Belum ada OLT terdaftar.', art: KvArt.empty),
                 ]);
               }
               return AnimationLimiter(
@@ -92,7 +92,7 @@ class OltCard extends StatelessWidget {
                   color: AppColors.secondary.withValues(alpha: 0.13),
                   borderRadius: BorderRadius.circular(AppRadius.chip),
                 ),
-                child: const Icon(LucideIcons.server, color: AppColors.secondary, size: 19),
+                child: Icon(LucideIcons.server, color: AppColors.secondary, size: 19),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -226,7 +226,7 @@ class _MiniStat extends StatelessWidget {
                     fontWeight: FontWeight.w800, fontSize: 14, color: color, fontFeatures: _tnum)),
           ]),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.faint, fontSize: 11)),
+          Text(label, style: TextStyle(color: AppColors.faint, fontSize: 11)),
           if (progress != null) ...[
             const SizedBox(height: 7),
             ClipRRect(

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <ellipse cx="120" cy="160" rx="70" ry="8" fill="#34D399" fill-opacity=".1"/>
+  <!-- Gelombang sinyal -->
+  <g stroke="#34D399" stroke-linecap="round" fill="none">
+    <path d="M62 60 a70 70 0 0 1 116 0" stroke-width="3" stroke-opacity=".25"/>
+    <path d="M76 70 a52 52 0 0 1 88 0" stroke-width="3" stroke-opacity=".45"/>
+  </g>
+  <!-- Perisai -->
+  <path d="M120 58 L160 72 V104 C160 130 142 146 120 154 C98 146 80 130 80 104 V72 Z" fill="#17233C" stroke="#34D399" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M120 70 L148 80 V104 C148 122 136 134 120 140 Z" fill="#34D399" fill-opacity=".12"/>
+  <path d="M104 106 L116 118 L138 94" stroke="#34D399" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <g stroke="#22D3EE" stroke-width="2" stroke-linecap="round">
+    <path d="M190 104 v10 M185 109 h10"/>
+    <path d="M48 118 v8 M44 122 h8" stroke-opacity=".6"/>
+  </g>
+  <circle cx="200" cy="58" r="2.4" fill="#34D399" fill-opacity=".6"/>
+  <circle cx="40" cy="80" r="2" fill="#22D3EE" fill-opacity=".5"/>
+</svg>

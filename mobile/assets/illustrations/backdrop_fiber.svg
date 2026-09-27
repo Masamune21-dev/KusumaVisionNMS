@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" fill="none">
+  <!-- Pola latar: serat optik mengalir dari kiri-atas ke kanan, dengan node splitter.
+       Satu warna (#22D3EE) — opasitas diatur di aplikasi. -->
+  <g stroke="#22D3EE" stroke-linecap="round">
+    <path d="M-10 40 C 80 30, 120 90, 210 80 S 330 20, 410 50" stroke-width="1.4" stroke-opacity=".55"/>
+    <path d="M-10 70 C 70 64, 130 120, 210 80" stroke-width="1.1" stroke-opacity=".4"/>
+    <path d="M210 80 C 250 110, 300 140, 410 130" stroke-width="1.1" stroke-opacity=".4"/>
+    <path d="M210 80 C 240 150, 290 190, 410 200" stroke-width="1" stroke-opacity=".3"/>
+    <path d="M-10 150 C 60 140, 110 180, 170 200 S 280 250, 410 240" stroke-width="1" stroke-opacity=".25"/>
+    <path d="M300 136 C 320 170, 340 185, 360 230" stroke-width=".9" stroke-opacity=".25" stroke-dasharray="3 5"/>
+    <path d="M110 108 C 90 150, 60 175, 30 230" stroke-width=".9" stroke-opacity=".25" stroke-dasharray="3 5"/>
+  </g>
+  <g fill="#22D3EE">
+    <circle cx="210" cy="80" r="9" fill-opacity=".12"/>
+    <circle cx="210" cy="80" r="4" fill-opacity=".85"/>
+    <circle cx="110" cy="108" r="2.6" fill-opacity=".6"/>
+    <circle cx="300" cy="136" r="3" fill-opacity=".6"/>
+    <circle cx="352" cy="36" r="2.4" fill-opacity=".55"/>
+    <circle cx="170" cy="200" r="2.4" fill-opacity=".4"/>
+    <circle cx="360" cy="230" r="2" fill-opacity=".4"/>
+    <circle cx="30" cy="230" r="2" fill-opacity=".35"/>
+    <circle cx="60" cy="34" r="1.8" fill-opacity=".45"/>
+  </g>
+  <g fill="#22D3EE" fill-opacity=".18">
+    <circle cx="40" cy="110" r="1"/><circle cx="70" cy="110" r="1"/><circle cx="40" cy="130" r="1"/><circle cx="70" cy="130" r="1"/>
+    <circle cx="330" cy="80" r="1"/><circle cx="360" cy="80" r="1"/><circle cx="330" cy="100" r="1"/><circle cx="360" cy="100" r="1"/><circle cx="390" cy="80" r="1"/><circle cx="390" cy="100" r="1"/>
+    <circle cx="240" cy="220" r="1"/><circle cx="270" cy="220" r="1"/><circle cx="240" cy="240" r="1"/><circle cx="270" cy="240" r="1"/>
+  </g>
+</svg>

@@ -39,6 +39,9 @@ class LucideIcons {
   static const IconData server = Icons.dns_outlined;
   static const IconData serverFilled = Icons.dns_rounded;
   static const IconData wifiOff = Icons.wifi_off_rounded;
+  static const IconData wifi = Icons.wifi_rounded;
+  static const IconData laptop = Icons.devices_outlined;
+  static const IconData cable = Icons.settings_ethernet_rounded;
   static const IconData signal = Icons.settings_input_antenna_rounded;
   static const IconData activity = Icons.monitor_heart_outlined;
   static const IconData zap = Icons.bolt_rounded;
@@ -47,6 +50,7 @@ class LucideIcons {
   static const IconData restart = Icons.restart_alt_rounded;
   static const IconData x = Icons.close_rounded;
   static const IconData shieldCheck = Icons.verified_user_outlined;
+  static const IconData hash = Icons.tag_rounded;
   static const IconData copy = Icons.copy_rounded;
   static const IconData smartphone = Icons.smartphone_outlined;
   static const IconData trash = Icons.delete_outline_rounded;
@@ -62,8 +66,17 @@ class LucideIcons {
   static const IconData filter = Icons.filter_alt_outlined;
   static const IconData navigation = Icons.near_me_outlined;
   static const IconData palette = Icons.palette_outlined;
+  static const IconData sun = Icons.light_mode_outlined;
+  static const IconData moon = Icons.dark_mode_outlined;
+  static const IconData system = Icons.brightness_auto_outlined;
   static const IconData shuffle = Icons.shuffle_rounded;
   static const IconData camera = Icons.photo_camera_outlined;
   static const IconData image = Icons.image_outlined;
   static const IconData imageOff = Icons.broken_image_outlined;
+
+  // --- Status ONU (phase state / penyebab down dari OLT) ---
+  static const IconData powerOff = Icons.power_settings_new_rounded;
+  static const IconData unlink = Icons.link_off_rounded;
+  static const IconData ban = Icons.block_rounded;
+  static const IconData sync = Icons.sync_rounded;
 }

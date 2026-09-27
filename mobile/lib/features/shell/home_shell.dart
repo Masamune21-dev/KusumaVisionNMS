@@ -1,5 +1,3 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
@@ -32,39 +30,37 @@ class HomeShell extends StatelessWidget {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          // Tanpa BackdropFilter: peta (tab Peta) digambar di bawah navbar karena
+          // `extendBody`, jadi blur dihitung ulang tiap frame selama peta digeser —
+          // mahal di HP kelas bawah. Latar dibuat hampir pekat sebagai gantinya.
           child: ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.pill),
-            child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: Container(
-                height: 64,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.surfaceHi.withValues(alpha: 0.82),
-                      AppColors.bgElevated.withValues(alpha: 0.86),
-                    ],
-                  ),
-                  border: Border.all(color: AppColors.borderStrong),
-                  boxShadow: const [
-                    BoxShadow(color: Color(0x55000000), blurRadius: 24, offset: Offset(0, 10)),
+            child: Container(
+              height: 64,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.surfaceHi.withValues(alpha: 0.95),
+                    AppColors.bgElevated.withValues(alpha: 0.97),
                   ],
                 ),
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _items.length; i++)
-                      Expanded(
-                        child: _NavButton(
-                          item: _items[i],
-                          selected: i == shell.currentIndex,
-                          onTap: () => shell.goBranch(i, initialLocation: i == shell.currentIndex),
-                        ),
+                border: Border.all(color: AppColors.borderStrong),
+                boxShadow: AppShadow.floating(),
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _items.length; i++)
+                    Expanded(
+                      child: _NavButton(
+                        item: _items[i],
+                        selected: i == shell.currentIndex,
+                        onTap: () => shell.goBranch(i, initialLocation: i == shell.currentIndex),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),

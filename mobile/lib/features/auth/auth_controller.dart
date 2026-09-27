@@ -4,6 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/api_exception.dart';
+import '../../core/fcm/fcm_service.dart';
 import '../../core/providers.dart';
 import '../../models/user.dart';
 
@@ -101,8 +102,10 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    // Token push dikirim bersama logout: server mencabutnya selagi sesi masih sah.
+    final pushToken = await _ref.read(fcmServiceProvider).currentToken();
     try {
-      await _ref.read(nmsApiProvider).logout();
+      await _ref.read(nmsApiProvider).logout(fcmToken: pushToken);
     } catch (_) {}
     await _ref.read(secureStoreProvider).clear();
     state = const AuthState(status: AuthStatus.unauthenticated);

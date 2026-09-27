@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\FcmDeviceToken;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -60,11 +61,33 @@ class AuthController extends Controller
     }
 
     /**
-     * POST /api/v1/auth/logout — cabut token yang sedang dipakai.
+     * POST /api/v1/auth/logout — cabut token yang sedang dipakai, beserta token
+     * push FCM ponsel itu supaya alarm berhenti terkirim ke ponsel yang sudah keluar.
+     *
+     * Token push dicabut dari dua arah: yang terkait sesi ini (didaftarkan lewat
+     * sesi yang sama, juga ikut FK cascade) dan `fcm_token` yang dikirim aplikasi
+     * ≥1.8.5 — menutup baris lama yang belum terkait sesi mana pun.
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $data = $request->validate([
+            'fcm_token' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $user = $request->user();
+        $session = $user->currentAccessToken();
+
+        FcmDeviceToken::query()
+            ->where('user_id', $user->id)
+            ->where(function ($q) use ($session, $data) {
+                $q->where('personal_access_token_id', $session->getKey());
+                if (filled($data['fcm_token'] ?? null)) {
+                    $q->orWhere('token', $data['fcm_token']);
+                }
+            })
+            ->delete();
+
+        $session->delete();
 
         return response()->json(['data' => ['message' => 'Token dicabut.']]);
     }

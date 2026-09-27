@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-09-28 — Aplikasi Android 1.8.5+29: Dua Tema, Tampilan Baru, Sebab Offline, Push Berhenti Setelah Logout
+
+### Changed
+
+- **Aplikasi Android 1.5.0+21 → 1.8.5+29.** Dua tema (Gelap/Terang/Ikuti sistem, kartu **Tampilan** di
+  Akun); latar statis + ilustrasi serat optik (pengganti aurora beranimasi, `aurora_background.dart`
+  dihapus); Dashboard ditata ulang dengan hero kesehatan jaringan; detail ONU ditata ulang (hero,
+  fakta teknis, nama pelanggan dirapikan: pembungkus `12$$…$$` dibuang, ID pelanggan `#…` jadi
+  lencana, deskripsi otomatis `ONU-x:y` disembunyikan); logo, ikon launcher & ikon notifikasi baru;
+  layar login baru. Sheet di tab Peta tak lagi tertutup navbar.
+- **Status ONU menyebut sebabnya** (LOS / Dying Gasp / LOF / …), bukan cuma "Offline" — API peta &
+  ONU dalam ODP kini mengirim `phase_state`, `last_down_cause`, `admin_state` (`docs/API.md`).
+- **Titik awal peta** (web & aplikasi): bukan lagi rata-rata koordinat (jatuh di tengah dua wilayah
+  berjauhan), melainkan kelompok titik terpadat; "wilayah utama" opsional lewat `MAP_HOME_LAT`/
+  `MAP_HOME_LNG` (`config/services.php` → `map`). Tanpa titik sama sekali: tampilan Indonesia.
+
+### Fixed
+
+- **Ponsel yang sudah logout tetap menerima push alarm.** Token push FCM kini terkait sesi login
+  aplikasi (`fcm_device_tokens.personal_access_token_id`, FK cascade): logout, sesi yang dicabut, atau
+  kedaluwarsa (`sanctum:prune-expired` harian 03:40) ikut menghapus token push-nya; pengirim alarm
+  hanya menyasar sesi yang masih sah (`FcmDeviceToken::deliverable()`). Logout aplikasi mengirim
+  `fcm_token` supaya baris lama yang belum terkait ikut dicabut.
+
+### Notes
+
+- **Upgrade**: `php artisan migrate` (kolom `personal_access_token_id`), lalu bangun APK baru
+  (`bin/build-apk.sh`). APK lama tetap bisa login; token push-nya terkait sesi saat aplikasi dibuka.
+- `flutter analyze` bersih, `flutter test` 27 lulus; `bash scripts/test.sh` 607 lulus (3659 assertion)
+  termasuk `PushStopsAfterLogoutTest` & `MapDefaultCenterTest`. Data uji memakai nama fiktif.
+
 ## 2026-09-28 — Dua Tema (Gelap/Terang/Ikuti Sistem), Tampilan Baku, Sidebar Berkelompok, Halaman PON Port
 
 ### Created

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150" fill="none">
+  <!-- OLT → serat → splitter ODP → rumah pelanggan dengan ONU -->
+  <ellipse cx="160" cy="136" rx="150" ry="8" fill="#22D3EE" fill-opacity=".06"/>
+  <!-- OLT (rak) -->
+  <rect x="14" y="48" width="58" height="80" rx="8" fill="#17233C" stroke="#2A3B5C" stroke-width="2"/>
+  <g fill="#0C1524" stroke="#2A3B5C" stroke-width="1.5">
+    <rect x="22" y="58" width="42" height="14" rx="3"/><rect x="22" y="78" width="42" height="14" rx="3"/><rect x="22" y="98" width="42" height="14" rx="3"/>
+  </g>
+  <g fill="#34D399"><circle cx="30" cy="65" r="2.2"/><circle cx="30" cy="85" r="2.2"/><circle cx="30" cy="105" r="2.2"/></g>
+  <g fill="#22D3EE"><rect x="38" y="63" width="20" height="4" rx="2"/><rect x="38" y="83" width="20" height="4" rx="2"/><rect x="38" y="103" width="14" height="4" rx="2" fill-opacity=".6"/></g>
+  <!-- Serat feeder -->
+  <path d="M72 86 C 104 86, 112 70, 146 70" stroke="#22D3EE" stroke-width="3" stroke-linecap="round"/>
+  <!-- Splitter / ODP -->
+  <circle cx="160" cy="70" r="20" fill="#22D3EE" fill-opacity=".12"/>
+  <rect x="146" y="58" width="28" height="24" rx="6" fill="#17233C" stroke="#22D3EE" stroke-width="2.4"/>
+  <path d="M151 70 h5 M156 70 l9 -6 M156 70 h9 M156 70 l9 6" stroke="#22D3EE" stroke-width="1.8" stroke-linecap="round"/>
+  <g fill="#22D3EE"><circle cx="166" cy="64" r="1.8"/><circle cx="166" cy="70" r="1.8"/><circle cx="166" cy="76" r="1.8"/></g>
+  <!-- Serat distribusi -->
+  <g stroke-width="2.2" stroke-linecap="round">
+    <path d="M174 64 C 200 60, 214 40, 238 40" stroke="#38BDF8"/>
+    <path d="M174 70 C 204 70, 220 80, 244 82" stroke="#38BDF8"/>
+    <path d="M174 76 C 196 88, 210 118, 232 120" stroke="#38BDF8" stroke-opacity=".7"/>
+  </g>
+  <!-- Rumah + ONU -->
+  <g stroke="#2A3B5C" stroke-width="2" stroke-linejoin="round">
+    <path d="M240 40 l18 -14 l18 14 v18 h-36 Z" fill="#17233C"/>
+    <path d="M246 82 l18 -14 l18 14 v18 h-36 Z" fill="#17233C"/>
+    <path d="M234 120 l18 -14 l18 14 v18 h-36 Z" fill="#17233C"/>
+  </g>
+  <g fill="#34D399"><circle cx="258" cy="48" r="3.4"/><circle cx="264" cy="90" r="3.4"/><circle cx="252" cy="128" r="3.4"/></g>
+  <g fill="#34D399" fill-opacity=".2"><circle cx="258" cy="48" r="7"/><circle cx="264" cy="90" r="7"/><circle cx="252" cy="128" r="7"/></g>
+  <!-- Sinyal -->
+  <g stroke="#22D3EE" stroke-linecap="round" stroke-width="2">
+    <path d="M292 30 a10 10 0 0 1 0 14" stroke-opacity=".7"/><path d="M298 25 a17 17 0 0 1 0 24" stroke-opacity=".4"/>
+  </g>
+</svg>

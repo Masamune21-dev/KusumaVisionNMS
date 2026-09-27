@@ -9,7 +9,7 @@ import '../../core/format.dart';
 import '../../core/json.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
@@ -70,8 +70,7 @@ class _UnconfiguredScreenState extends ConsumerState<UnconfiguredScreen> {
             ),
         ],
       ),
-      body: AuroraBackground(
-        animate: false,
+      body: KvBackdrop(
         intensity: 0.5,
         child: RefreshIndicator(
         onRefresh: () async => ref.refresh(unconfiguredProvider(widget.oltId).future),
@@ -85,7 +84,7 @@ class _UnconfiguredScreenState extends ConsumerState<UnconfiguredScreen> {
                   SizedBox(height: 80),
                   EmptyState(
                     message: 'Tidak ada ONU unconfigured.\nTekan tombol refresh untuk discovery live.',
-                    icon: LucideIcons.searchCheck,
+                    art: KvArt.clear,
                   ),
                 ],
               );
@@ -100,7 +99,7 @@ class _UnconfiguredScreenState extends ConsumerState<UnconfiguredScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text('${res.onus.length} ONU · refresh ${Fmt.relative(res.refreshedAt)}',
-                          style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                          style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
                     );
                   }
                   return staggeredItem(
@@ -140,7 +139,7 @@ class _UnconfiguredCard extends StatelessWidget {
               color: AppColors.warning.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(LucideIcons.plugZap, color: AppColors.warning, size: 20),
+            child: Icon(LucideIcons.plugZap, color: AppColors.warning, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -154,7 +153,7 @@ class _UnconfiguredCard extends StatelessWidget {
                     if (slot != null && port != null) 'Port $slot/$port',
                     if (model != null) model,
                   ].join(' · '),
-                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
               ],
             ),

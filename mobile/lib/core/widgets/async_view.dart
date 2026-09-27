@@ -5,6 +5,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../theme/app_theme.dart';
+import 'kv_art.dart';
 import 'glass_card.dart';
 
 /// Render seragam untuk AsyncValue: skeleton loading, error+retry, atau data.
@@ -120,16 +121,9 @@ class ErrorRetry extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(LucideIcons.wifiOff, color: AppColors.danger, size: 34),
-            ),
+            const KvIllustration(KvArt.error, width: 190),
             const SizedBox(height: 16),
-            const Text('Gagal memuat data',
+            Text('Gagal memuat data',
                 style: TextStyle(color: AppColors.text, fontSize: 15, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             Text(
@@ -137,7 +131,7 @@ class ErrorRetry extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+              style: TextStyle(color: AppColors.muted, fontSize: 12.5),
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 18),
@@ -155,37 +149,23 @@ class ErrorRetry extends StatelessWidget {
 }
 
 class EmptyState extends StatelessWidget {
-  const EmptyState({super.key, required this.message, this.icon = LucideIcons.inbox});
+  const EmptyState({super.key, required this.message, this.art = KvArt.empty});
 
   final String message;
-  final IconData icon;
+
+  /// Ilustrasi keadaan: kosong, pencarian nihil, atau semuanya beres.
+  final KvArt art;
 
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    Widget badge = Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.surfaceHi.withValues(alpha: 0.8),
-            AppColors.surface.withValues(alpha: 0.6),
-          ],
-        ),
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.borderStrong),
-        boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.12, blur: 26),
-      ),
-      child: Icon(icon, color: AppColors.muted, size: 34),
-    );
+    Widget badge = KvIllustration(art, width: 200);
     // Melayang lembut (naik-turun) — dimatikan saat reduced-motion.
     if (!reduce) {
       badge = badge
           .animate(onPlay: (c) => c.repeat(reverse: true))
-          .moveY(begin: 0, end: -7, duration: 1900.ms, curve: Curves.easeInOut);
+          .moveY(begin: 0, end: -6, duration: 2200.ms, curve: Curves.easeInOut);
     }
 
     return Center(
@@ -195,11 +175,11 @@ class EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             badge,
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.4),
+              style: TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.4),
             ),
           ],
         ),

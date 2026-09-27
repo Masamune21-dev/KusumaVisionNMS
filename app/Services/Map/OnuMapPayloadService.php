@@ -153,21 +153,72 @@ class OnuMapPayloadService
     }
 
     /**
-     * Titik tengah default peta = rata-rata koordinat pin (fallback: Pati, Jawa Tengah).
+     * Titik awal peta dari titik-titik (pin ONU dan/atau ODP) yang terlihat pengguna.
      *
-     * @param  array<int, array<string, mixed>>  $pins
+     * Bukan rata-rata koordinat: bila titik tersebar di beberapa wilayah yang berjauhan,
+     * rata-ratanya jatuh di tengah-tengah — area yang bukan area kerja siapa pun. Urutannya:
+     *  1. satu titik saja → pusatkan ke titik itu (zoom dekat);
+     *  2. "wilayah utama" diisi (`services.map`, env MAP_HOME_*) dan ada titik dalam radiusnya
+     *     → buka di sana;
+     *  3. selain itu → kelompok terpadat (sel grid 0,1° ≈ 11 km dengan titik terbanyak).
+     * Tanpa titik sama sekali: wilayah utama bila diisi, kalau tidak tampilan seluruh Indonesia.
+     *
+     * @param  array<int, array<string, mixed>>  $pins  baris ber-`latitude`/`longitude`
      * @return array{lat: float, lng: float, zoom: int}
      */
     public function defaultCenter(array $pins): array
     {
-        if ($pins === []) {
-            return ['lat' => -6.7559, 'lng' => 111.0381, 'zoom' => 11];
+        $homeLat = config('services.map.home_lat');
+        $homeLng = config('services.map.home_lng');
+        $home = is_numeric($homeLat) && is_numeric($homeLng)
+            ? ['lat' => (float) $homeLat, 'lng' => (float) $homeLng, 'zoom' => (int) config('services.map.home_zoom', 12)]
+            : null;
+        $radiusKm = (float) config('services.map.home_radius_km', 20);
+
+        $points = [];
+        foreach ($pins as $p) {
+            if (is_numeric($p['latitude'] ?? null) && is_numeric($p['longitude'] ?? null)) {
+                $points[] = [(float) $p['latitude'], (float) $p['longitude']];
+            }
         }
 
-        $lat = array_sum(array_column($pins, 'latitude')) / count($pins);
-        $lng = array_sum(array_column($pins, 'longitude')) / count($pins);
+        if ($points === []) {
+            return $home ?? ['lat' => -2.5, 'lng' => 118.0, 'zoom' => 5];
+        }
 
-        return ['lat' => $lat, 'lng' => $lng, 'zoom' => count($pins) === 1 ? 15 : 12];
+        if (count($points) === 1) {
+            return ['lat' => $points[0][0], 'lng' => $points[0][1], 'zoom' => 15];
+        }
+
+        if ($home !== null) {
+            foreach ($points as [$lat, $lng]) {
+                if ($this->distanceKm($lat, $lng, $home['lat'], $home['lng']) <= $radiusKm) {
+                    return $home;
+                }
+            }
+        }
+
+        $cells = [];
+        foreach ($points as [$lat, $lng]) {
+            $cells[round($lat, 1).','.round($lng, 1)][] = [$lat, $lng];
+        }
+        uasort($cells, fn (array $a, array $b) => count($b) <=> count($a));
+        $densest = reset($cells);
+
+        return [
+            'lat' => array_sum(array_column($densest, 0)) / count($densest),
+            'lng' => array_sum(array_column($densest, 1)) / count($densest),
+            'zoom' => 13,
+        ];
+    }
+
+    /** Jarak dua koordinat (km) — pendekatan equirectangular, cukup untuk skala kabupaten. */
+    private function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $x = deg2rad($lng2 - $lng1) * cos(deg2rad(($lat1 + $lat2) / 2));
+        $y = deg2rad($lat2 - $lat1);
+
+        return sqrt($x * $x + $y * $y) * 6371;
     }
 
     /**
@@ -215,6 +266,12 @@ class OnuMapPayloadService
             'rx_power_dbm' => $live['rx_power_dbm'] ?? null,
             'rx_power_label' => $live['rx_power_label'] ?? null,
             'online' => (bool) ($live['online'] ?? false),
+            // Sebab ONU turun apa adanya dari snapshot (LOS / DyingGasp / OffLine +
+            // last-down-cause) — dipakai kartu detail pin untuk membedakan fiber
+            // putus dari listrik pelanggan padam. Warna marker tetap hijau/merah.
+            'phase_state' => $live['phase_state'] ?? null,
+            'last_down_cause' => $live['last_down_cause'] ?? null,
+            'admin_state' => $live['admin_state'] ?? null,
             'has_live' => $live !== null,
         ];
     }

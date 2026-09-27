@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/odp_colors.dart';
+import '../../core/onu_status.dart';
 import '../../core/widgets/async_view.dart';
 import '../../core/widgets/odp_photo.dart';
 import '../../core/widgets/rx_power_badge.dart';
@@ -33,6 +36,115 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _map = MapController();
+
+  /// Lapisan turunan (filter + garis + marker + titik) — dibangun ulang hanya saat
+  /// data atau filter berubah. Membangunnya di tiap `build` membuat [PolylineLayer]
+  /// menerima list baru sehingga cache proyeksinya selalu terbuang.
+  _MapLayers? _layers;
+
+  _MapLayers _layersFor(MapData map, int? oltId, bool showOnus, bool showOdps) {
+    final cached = _layers;
+    if (cached != null &&
+        identical(cached.source, map) &&
+        cached.oltId == oltId &&
+        cached.showOnus == showOnus &&
+        cached.showOdps == showOdps) {
+      return cached;
+    }
+
+    final pins = showOnus
+        ? map.pins.where((p) => oltId == null || p.oltId == oltId).toList()
+        : <MapPin>[];
+    final odps = showOdps
+        ? map.odps.where((o) => oltId == null || o.oltId == oltId).toList()
+        : <MapOdp>[];
+
+    return _layers = _MapLayers(
+      source: map,
+      oltId: oltId,
+      showOnus: showOnus,
+      showOdps: showOdps,
+      pins: pins,
+      odps: odps,
+      cables: _cables(odps),
+      // `Alignment.topCenter` = widget digambar DI ATAS titik, jadi ujung pin harus
+      // berada di dasar-tengah kotak marker (lihat _PinGlyph).
+      odpMarkers: [
+        for (final odp in odps)
+          Marker(
+            point: LatLng(odp.latitude, odp.longitude),
+            // Lebih lebar/tinggi dari glyph supaya badge di kanan-atas muat tanpa
+            // memotong pinnya.
+            width: 48,
+            height: 44,
+            alignment: Alignment.topCenter,
+            child: _OdpMarker(odp: odp, onTap: () => _showOdpSheet(odp)),
+          ),
+      ],
+      pinMarkers: [
+        for (final pin in pins)
+          Marker(
+            point: LatLng(pin.latitude, pin.longitude),
+            width: 38,
+            height: 38,
+            alignment: Alignment.topCenter,
+            child: _OnuMarker(pin: pin, onTap: () => _showPinSheet(pin)),
+          ),
+      ],
+      // Titik ONU dulu, ODP belakangan → ODP tergambar di atas.
+      dots: [
+        for (final pin in pins)
+          CircleMarker(
+            point: LatLng(pin.latitude, pin.longitude),
+            radius: 4.5,
+            color: pin.online ? AppColors.success : AppColors.danger,
+            borderColor: const Color(0xE6FFFFFF),
+            borderStrokeWidth: 1,
+          ),
+        for (final odp in odps)
+          CircleMarker(
+            point: LatLng(odp.latitude, odp.longitude),
+            radius: 6.5,
+            color: odpColorOf(odp.color),
+            borderColor: const Color(0xE6FFFFFF),
+            borderStrokeWidth: 1.5,
+          ),
+      ],
+    );
+  }
+
+  /// Ketuk peta di mode titik: buka pin/ODP terdekat dalam radius sentuh jari.
+  /// (Di mode marker, ketukan pada pin sudah ditangkap GestureDetector-nya sendiri.)
+  void _onMapTap(TapPosition tap, LatLng _) {
+    final layers = _layers;
+    final at = tap.relative;
+    if (layers == null || at == null) return;
+
+    final camera = _map.camera;
+    const reach = 24.0 * 24.0;
+    double best = reach;
+    Object? hit;
+
+    void consider(Object item, double lat, double lng) {
+      final d = camera.latLngToScreenOffset(LatLng(lat, lng)) - at;
+      final dist = d.dx * d.dx + d.dy * d.dy;
+      if (dist < best) {
+        best = dist;
+        hit = item;
+      }
+    }
+
+    for (final p in layers.pins) {
+      consider(p, p.latitude, p.longitude);
+    }
+    for (final o in layers.odps) {
+      consider(o, o.latitude, o.longitude);
+    }
+
+    final target = hit;
+    if (target is MapPin) _showPinSheet(target);
+    if (target is MapOdp) _showOdpSheet(target);
+  }
 
   /// Fokus yang diminta layar lain tapi belum sempat diterapkan (peta belum siap).
   MapFocus? _pending;
@@ -84,12 +196,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         value: data,
         onRetry: () => ref.refresh(mapDataProvider),
         data: (map) {
-          final pins = showOnus
-              ? map.pins.where((p) => oltId == null || p.oltId == oltId).toList()
-              : <MapPin>[];
-          final odps = showOdps
-              ? map.odps.where((o) => oltId == null || o.oltId == oltId).toList()
-              : <MapOdp>[];
+          final layers = _layersFor(map, oltId, showOnus, showOdps);
 
           return Stack(
             children: [
@@ -101,6 +208,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   minZoom: 3,
                   maxZoom: 19,
                   backgroundColor: AppColors.bg,
+                  onTap: _onMapTap,
                   onMapReady: () {
                     _ready = true;
                     final pending = _pending;
@@ -112,69 +220,112 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
                 children: [
                   _tileLayer(style),
-                  if (odps.isNotEmpty) PolylineLayer(polylines: _cables(odps)),
-                  // `Alignment.topCenter` = widget digambar DI ATAS titik, jadi ujung
-                  // pin harus berada di dasar-tengah kotak marker (lihat _PinGlyph).
-                  if (odps.isNotEmpty)
-                    MarkerLayer(
-                      markers: [
-                        for (final odp in odps)
-                          Marker(
-                            point: LatLng(odp.latitude, odp.longitude),
-                            // Lebih lebar/tinggi dari glyph (34+3,5 garis tepi) supaya
-                            // badge di kanan-atas muat tanpa memotong pinnya.
-                            width: 48,
-                            height: 44,
-                            alignment: Alignment.topCenter,
-                            child: _OdpMarker(odp: odp, onTap: () => _showOdpSheet(odp)),
-                          ),
-                      ],
-                    ),
-                  if (pins.isNotEmpty)
-                    MarkerLayer(
-                      markers: [
-                        for (final pin in pins)
-                          Marker(
-                            point: LatLng(pin.latitude, pin.longitude),
-                            width: 38,
-                            height: 38,
-                            alignment: Alignment.topCenter,
-                            child: _OnuMarker(pin: pin, onTap: () => _showPinSheet(pin)),
-                          ),
-                      ],
-                    ),
+                  if (layers.cables.isNotEmpty) PolylineLayer(polylines: layers.cables),
+                  _PinLayer(layers: layers, kind: _PinLayerKind.dots),
+                  _PinLayer(layers: layers, kind: _PinLayerKind.odps),
+                  _PinLayer(layers: layers, kind: _PinLayerKind.pins),
                 ],
               ),
               _TopBar(
                 olts: map.olts,
                 selectedOltId: oltId,
-                style: style,
-                showOnus: showOnus,
-                showOdps: showOdps,
-                pinCount: pins.length,
-                odpCount: odps.length,
+                pinCount: layers.pins.length,
+                odpCount: layers.odps.length,
                 onPickOlt: (id) => ref.read(mapOltFilterProvider.notifier).state = id,
-                onCycleStyle: () {
-                  final next = MapTileStyle
-                      .values[(style.index + 1) % MapTileStyle.values.length];
-                  ref.read(mapTileStyleProvider.notifier).state = next;
-                },
-                onToggleOnus: () =>
-                    ref.read(mapShowOnusProvider.notifier).state = !showOnus,
-                onToggleOdps: () =>
-                    ref.read(mapShowOdpsProvider.notifier).state = !showOdps,
+                onLayers: _showLayersSheet,
                 onRefresh: () => ref.invalidate(mapDataProvider),
-                onRecenter: () =>
-                    _map.move(LatLng(map.centerLat, map.centerLng), map.centerZoom),
+              ),
+              // Legenda warna pin (kiri-bawah) + tombol pusatkan ulang (kanan-bawah),
+              // tepat di atas navbar melayang. `padding.bottom` di sini SUDAH memuat
+              // tinggi navbar (Scaffold shell ber-`extendBody`), jadi cukup ditambah jarak.
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: MediaQuery.of(context).padding.bottom + 12,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const _Legend(),
+                    const Spacer(),
+                    _FloatingIconButton(
+                      icon: LucideIcons.navigation,
+                      tooltip: 'Pusatkan ulang',
+                      onTap: () => _map.move(LatLng(map.centerLat, map.centerLng), map.centerZoom),
+                    ),
+                  ],
+                ),
               ),
               if (map.isEmpty)
-                const Positioned(
+                Positioned(
                   left: 24,
                   right: 24,
-                  bottom: 140,
-                  child: _EmptyHint(),
+                  // Di atas baris legenda (±44 px) + jarak.
+                  bottom: MediaQuery.of(context).padding.bottom + 72,
+                  child: const _EmptyHint(),
                 ),
             ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Sheet "Lapisan peta": tampilkan/sembunyikan ONU & ODP, pilih gaya tile.
+  void _showLayersSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      // Di atas navbar shell (tab Peta hidup di navigator cabang, di bawah navbar).
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final style = ref.watch(mapTileStyleProvider);
+          final showOnus = ref.watch(mapShowOnusProvider);
+          final showOdps = ref.watch(mapShowOdpsProvider);
+          final t = Theme.of(context).textTheme;
+
+          return _SheetShell(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Lapisan peta', style: t.titleMedium),
+                const SizedBox(height: 6),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: Icon(LucideIcons.router, color: AppColors.success),
+                  title: const Text('Pin ONU pelanggan'),
+                  value: showOnus,
+                  onChanged: (v) => ref.read(mapShowOnusProvider.notifier).state = v,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: Icon(LucideIcons.odp, color: kDefaultOdpColor),
+                  title: const Text('Pin ODP + kabel'),
+                  value: showOdps,
+                  onChanged: (v) => ref.read(mapShowOdpsProvider.notifier).state = v,
+                ),
+                const SizedBox(height: 10),
+                Text('Gaya peta', style: t.labelMedium?.copyWith(color: AppColors.muted)),
+                const SizedBox(height: 8),
+                SegmentedButton<MapTileStyle>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final s in MapTileStyle.values)
+                      ButtonSegment(value: s, label: Text(s.label)),
+                  ],
+                  selected: {style},
+                  onSelectionChanged: (v) => ref.read(mapTileStyleProvider.notifier).state = v.first,
+                  style: SegmentedButton.styleFrom(
+                    minimumSize: const Size(0, 44),
+                    selectedBackgroundColor: AppColors.primary.withValues(alpha: 0.16),
+                    selectedForegroundColor: AppColors.primary,
+                    foregroundColor: AppColors.muted,
+                    side: BorderSide(color: AppColors.borderStrong),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -236,8 +387,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void _showPinSheet(MapPin pin) {
     showModalBottomSheet<void>(
       context: context,
+      // Di atas navbar shell (tab Peta hidup di navigator cabang, di bawah navbar).
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SheetShell(
+      builder: (sheet) => _SheetShell(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,13 +403,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
-                StatusChip.online(pin.online, dense: true),
+                StatusChip.onu(
+                    OnuStatus.resolve(
+                      online: pin.online,
+                      phaseState: pin.phaseState,
+                      lastDownCause: pin.lastDownCause,
+                      adminState: pin.adminState,
+                    ),
+                    dense: true),
               ],
             ),
             const SizedBox(height: 4),
             Text(
               [pin.oltName, pin.interface].whereType<String>().join(' · '),
-              style: const TextStyle(
+              style: TextStyle(
                   color: AppColors.muted, fontSize: 12.5, fontFeatures: _tnum),
             ),
             const SizedBox(height: 12),
@@ -273,7 +433,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               const Spacer(),
               FilledButton.icon(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheet);
                   context.push(
                       '/olts/${pin.oltId}/ports/${pin.slot}/${pin.port}/onus/${pin.onuId}');
                 },
@@ -311,9 +471,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      // Di atas navbar shell (tab Peta hidup di navigator cabang, di bawah navbar).
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _SheetShell(
+      builder: (sheet) => _SheetShell(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,13 +504,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           odp.oltName,
                           if (odp.portLabel != null) 'Port ${odp.portLabel}',
                         ].whereType<String>().join(' · '),
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
                 Text('${odp.onlineCount}/${odp.onus.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppColors.primary,
                         fontWeight: FontWeight.w800,
                         fontFeatures: _tnum)),
@@ -361,7 +523,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ],
             const SizedBox(height: 12),
             if (odp.onus.isEmpty)
-              const Text('Belum ada ONU yang dikaitkan.',
+              Text('Belum ada ONU yang dikaitkan.',
                   style: TextStyle(color: AppColors.muted, fontSize: 12.5))
             else
               ConstrainedBox(
@@ -370,11 +532,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: odp.onus.length,
-                  separatorBuilder: (_, __) => const Divider(height: 14, color: AppColors.border),
+                  separatorBuilder: (_, __) => Divider(height: 14, color: AppColors.border),
                   itemBuilder: (_, i) => _OdpOnuTile(
                     onu: odp.onus[i],
                     onTap: () {
-                      Navigator.pop(context);
+                      Navigator.pop(sheet);
                       final o = odp.onus[i];
                       context.push(
                           '/olts/${o.oltId}/ports/${o.slot}/${o.port}/onus/${o.onuId}');
@@ -388,7 +550,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pop(context);
+                      Navigator.pop(sheet);
                       context.push('/odps/${odp.id}');
                     },
                     icon: const Icon(LucideIcons.odp, size: 18),
@@ -398,7 +560,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.pop(sheet);
                     _pickOdpColor(odp);
                   },
                   icon: Icon(LucideIcons.palette, size: 18, color: color),
@@ -427,10 +589,96 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             child: Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: AppColors.text)),
+                style: TextStyle(fontSize: 12, color: AppColors.text)),
           ),
         ]),
       );
+}
+
+/// Hasil turunan data peta untuk satu kombinasi filter (lihat `_layersFor`).
+class _MapLayers {
+  _MapLayers({
+    required this.source,
+    required this.oltId,
+    required this.showOnus,
+    required this.showOdps,
+    required this.pins,
+    required this.odps,
+    required this.cables,
+    required this.odpMarkers,
+    required this.pinMarkers,
+    required this.dots,
+  });
+
+  final MapData source;
+  final int? oltId;
+  final bool showOnus, showOdps;
+  final List<MapPin> pins;
+  final List<MapOdp> odps;
+  final List<Polyline> cables;
+  final List<Marker> odpMarkers, pinMarkers;
+  final List<CircleMarker> dots;
+
+  /// Batas pin di layar yang masih digambar sebagai widget pin. Di atas itu (zoom
+  /// jauh) semua pin digambar sebagai titik oleh satu painter — ratusan widget pin
+  /// yang dibangun ulang tiap frame saat peta digeser itulah yang membuat aplikasi
+  /// macet sampai muncul dialog "tidak merespons".
+  static const markerLimit = 120;
+
+  MapCamera? _camera;
+  bool _markers = true;
+
+  /// Mode marker bila pin di layar ≤ [markerLimit]. Dihitung sekali per posisi kamera
+  /// (ketiga [_PinLayer] berbagi hasilnya) dan berhenti menghitung begitu lewat batas.
+  bool useMarkers(MapCamera camera) {
+    if (identical(camera, _camera)) return _markers;
+    final bounds = camera.visibleBounds;
+    var visible = 0;
+    bool over() {
+      for (final p in pins) {
+        if (!bounds.contains(LatLng(p.latitude, p.longitude))) continue;
+        if (++visible > markerLimit) return true;
+      }
+      for (final o in odps) {
+        if (!bounds.contains(LatLng(o.latitude, o.longitude))) continue;
+        if (++visible > markerLimit) return true;
+      }
+      return false;
+    }
+
+    _camera = camera;
+    return _markers = !over();
+  }
+}
+
+enum _PinLayerKind { dots, odps, pins }
+
+/// Satu lapisan pin yang memilih sendiri wujudnya mengikuti kamera: titik (mode
+/// jauh) atau widget pin (mode dekat). [MarkerLayer] sudah membuang marker di luar
+/// layar, jadi di mode dekat hanya pin yang terlihat yang dibangun.
+class _PinLayer extends StatelessWidget {
+  const _PinLayer({required this.layers, required this.kind});
+
+  final _MapLayers layers;
+  final _PinLayerKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final markers = layers.useMarkers(MapCamera.of(context));
+
+    return switch (kind) {
+      _PinLayerKind.dots when !markers && layers.dots.isNotEmpty => CircleLayer(
+        circles: layers.dots,
+      ),
+      _PinLayerKind.odps when markers && layers.odpMarkers.isNotEmpty => MarkerLayer(
+        markers: layers.odpMarkers,
+      ),
+      _PinLayerKind.pins when markers && layers.pinMarkers.isNotEmpty => MarkerLayer(
+        markers: layers.pinMarkers,
+      ),
+      _ => const SizedBox.shrink(),
+    };
+  }
 }
 
 /// Panel kaca pembungkus bottom-sheet.
@@ -447,24 +695,28 @@ class _SheetShell extends StatelessWidget {
         color: AppColors.bgElevated,
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: AppColors.borderStrong),
-        boxShadow: const [
-          BoxShadow(color: Color(0x66000000), blurRadius: 26, offset: Offset(0, 12)),
-        ],
+        boxShadow: AppShadow.floating(blur: 26, dy: 12),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 38,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: AppColors.border,
-              borderRadius: BorderRadius.circular(999),
+      // Material transparan sendiri: riak sentuh (InkWell/ListTile) digambar di
+      // Material terdekat — tanpa ini jatuh ke Material sheet DI BAWAH warna panel
+      // ini, jadi tak terlihat (dan SwitchListTile memicu assertion).
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 38,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
             ),
-          ),
-          child,
-        ],
+            child,
+          ],
+        ),
       ),
     );
   }
@@ -495,7 +747,7 @@ class _OdpOnuTile extends StatelessWidget {
                 Text('#${onu.onuId} · ${onu.serialNumber ?? '-'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11.5, color: AppColors.faint, fontFeatures: _tnum)),
               ],
             ),
@@ -509,10 +761,12 @@ class _OdpOnuTile extends StatelessWidget {
 
 /// Bentuk pin dasar, ujungnya menempel di dasar kotak marker.
 ///
-/// **Jangan pakai `Icon(..., shadows: [...])`**: di sebagian perangkat (renderer
-/// Impeller) bayangan ber-blur pada glyph ikon ter-render sebagai blok hitam pekat
-/// yang menutupi pinnya. Kontras terhadap citra satelit didapat dari ikon gelap
-/// sedikit lebih besar di belakang (garis tepi, tanpa blur).
+/// Dilukis langsung dengan [CustomPaint] — dulu dua `Icon` bertumpuk, artinya dua
+/// tata-letak glyph font per pin per frame saat peta digeser.
+///
+/// **Jangan pakai bayangan ber-blur**: di sebagian perangkat (renderer Impeller)
+/// bayangan blur pada glyph ter-render sebagai blok hitam pekat. Kontras terhadap
+/// citra satelit didapat dari garis tepi gelap tanpa blur.
 class _PinGlyph extends StatelessWidget {
   const _PinGlyph({required this.color});
 
@@ -524,14 +778,46 @@ class _PinGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      children: [
-        Icon(Icons.location_on, size: size + 3.5, color: const Color(0xCC000000)),
-        Icon(Icons.location_on, size: size, color: color),
-      ],
-    );
+    return CustomPaint(size: const Size(size * 0.8, size), painter: _PinPainter(color));
   }
+}
+
+/// Teardrop pin (kepala bulat r=8 di (12,10), ujung di (12,22.5) pada kotak 24×24,
+/// sama dengan pin peta web) + titik putih di tengah kepala.
+class _PinPainter extends CustomPainter {
+  const _PinPainter(this.color);
+
+  final Color color;
+
+  static final ui.Path _shape = ui.Path()
+    ..moveTo(12, 22.5)
+    ..cubicTo(9.5, 20.2, 4, 15, 4, 10)
+    ..arcToPoint(const Offset(20, 10), radius: const Radius.circular(8))
+    ..cubicTo(20, 15, 14.5, 20.2, 12, 22.5)
+    ..close();
+
+  static final Paint _outline = Paint()
+    ..color = const Color(0xCC000000)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.2
+    ..strokeJoin = StrokeJoin.round;
+
+  static final Paint _dot = Paint()..color = Colors.white;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Skala seragam dari tinggi; kotak 24×24 dipusatkan horizontal, ujung di dasar.
+    final scale = size.height / 23.5;
+    canvas
+      ..translate(size.width / 2 - 12 * scale, 0)
+      ..scale(scale);
+    canvas.drawPath(_shape, _outline);
+    canvas.drawPath(_shape, Paint()..color = color);
+    canvas.drawCircle(const Offset(12, 10), 3, _dot);
+  }
+
+  @override
+  bool shouldRepaint(_PinPainter old) => old.color != color;
 }
 
 /// Pin ONU: hijau (online) / merah (offline) — sama seperti peta web.
@@ -602,31 +888,33 @@ class _OdpMarker extends StatelessWidget {
   }
 }
 
-/// Bar kontrol melayang di atas peta: filter OLT, ganti tile, lapisan, refresh.
+/// Panel kaca kecil untuk kontrol yang melayang di atas peta (pil, atau
+/// lingkaran bila [circle]).
+BoxDecoration _floatingDecoration({bool circle = false}) => BoxDecoration(
+      color: AppColors.bgElevated.withValues(alpha: 0.94),
+      shape: circle ? BoxShape.circle : BoxShape.rectangle,
+      borderRadius: circle ? null : BorderRadius.circular(AppRadius.pill),
+      border: Border.all(color: AppColors.borderStrong),
+      boxShadow: AppShadow.floating(blur: 14, dy: 4),
+    );
+
+/// Bar kontrol peta — satu baris: filter OLT + jumlah, Lapisan, Muat ulang.
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.olts,
     required this.selectedOltId,
-    required this.style,
-    required this.showOnus,
-    required this.showOdps,
     required this.pinCount,
     required this.odpCount,
     required this.onPickOlt,
-    required this.onCycleStyle,
-    required this.onToggleOnus,
-    required this.onToggleOdps,
+    required this.onLayers,
     required this.onRefresh,
-    required this.onRecenter,
   });
 
   final List<MapOlt> olts;
   final int? selectedOltId;
-  final MapTileStyle style;
-  final bool showOnus, showOdps;
   final int pinCount, odpCount;
   final ValueChanged<int?> onPickOlt;
-  final VoidCallback onCycleStyle, onToggleOnus, onToggleOdps, onRefresh, onRecenter;
+  final VoidCallback onLayers, onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -634,102 +922,114 @@ class _TopBar extends StatelessWidget {
       top: MediaQuery.of(context).padding.top + 8,
       left: 12,
       right: 12,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.bgElevated.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(color: AppColors.borderStrong),
-            ),
-            child: Row(
-              children: [
-                const Icon(LucideIcons.filter, size: 15, color: AppColors.faint),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int?>(
-                      value: olts.any((o) => o.id == selectedOltId) ? selectedOltId : null,
-                      isDense: true,
-                      isExpanded: true,
-                      borderRadius: BorderRadius.circular(AppRadius.control),
-                      dropdownColor: AppColors.bgElevated,
-                      style: const TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text),
-                      items: [
-                        const DropdownMenuItem(value: null, child: Text('Semua OLT')),
-                        for (final olt in olts)
-                          DropdownMenuItem(value: olt.id, child: Text(olt.name)),
-                      ],
-                      onChanged: onPickOlt,
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.only(left: 12, right: 12),
+              decoration: _floatingDecoration(),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.filter, size: 15, color: AppColors.faint),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int?>(
+                        value: olts.any((o) => o.id == selectedOltId) ? selectedOltId : null,
+                        isDense: true,
+                        isExpanded: true,
+                        borderRadius: BorderRadius.circular(AppRadius.control),
+                        dropdownColor: AppColors.bgElevated,
+                        style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                        items: [
+                          const DropdownMenuItem(value: null, child: Text('Semua OLT')),
+                          for (final olt in olts)
+                            DropdownMenuItem(value: olt.id, child: Text(olt.name)),
+                        ],
+                        onChanged: onPickOlt,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Text('$pinCount ONU · $odpCount ODP',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.faint, fontFeatures: _tnum)),
-              ],
+                  const SizedBox(width: 6),
+                  Text('$pinCount ONU · $odpCount ODP',
+                      style: TextStyle(fontSize: 11, color: AppColors.faint, fontFeatures: _tnum)),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _ctl(LucideIcons.router, 'ONU', active: showOnus, onTap: onToggleOnus),
-              const SizedBox(width: 6),
-              _ctl(LucideIcons.odp, 'ODP', active: showOdps, onTap: onToggleOdps),
-              const SizedBox(width: 6),
-              _ctl(LucideIcons.layers, style.label, active: true, onTap: onCycleStyle),
-              const SizedBox(width: 6),
-              _iconCtl(LucideIcons.navigation, onRecenter),
-              const SizedBox(width: 6),
-              _iconCtl(LucideIcons.refreshCw, onRefresh),
-            ],
-          ),
+          const SizedBox(width: 8),
+          _FloatingIconButton(icon: LucideIcons.layers, tooltip: 'Lapisan peta', onTap: onLayers),
+          const SizedBox(width: 8),
+          _FloatingIconButton(icon: LucideIcons.refreshCw, tooltip: 'Muat ulang', onTap: onRefresh),
         ],
       ),
     );
   }
+}
 
-  Widget _ctl(IconData icon, String label, {required bool active, required VoidCallback onTap}) {
-    final color = active ? AppColors.primary : AppColors.faint;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.bgElevated.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-              color: active ? color.withValues(alpha: 0.45) : AppColors.borderStrong),
+/// Tombol ikon bulat 44 px yang melayang di atas peta.
+class _FloatingIconButton extends StatelessWidget {
+  const _FloatingIconButton({required this.icon, required this.tooltip, required this.onTap});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Ink(
+            width: 44,
+            height: 44,
+            decoration: _floatingDecoration(circle: true),
+            child: Icon(icon, size: 19, color: AppColors.text),
+          ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(label,
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color)),
-        ]),
       ),
     );
   }
+}
 
-  Widget _iconCtl(IconData icon, VoidCallback onTap) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: AppColors.bgElevated.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: AppColors.borderStrong),
+/// Legenda warna pin — sama dengan legenda peta web.
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget item(Color c, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: c,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1),
+            ),
           ),
-          child: Icon(icon, size: 15, color: AppColors.muted),
-        ),
-      );
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.muted)),
+        ]);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: _floatingDecoration(),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        item(AppColors.success, 'Online'),
+        const SizedBox(width: 10),
+        item(AppColors.danger, 'Offline'),
+        const SizedBox(width: 10),
+        item(kDefaultOdpColor, 'ODP'),
+      ]),
+    );
+  }
 }
 
 class _EmptyHint extends StatelessWidget {
@@ -744,7 +1044,7 @@ class _EmptyHint extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.card),
         border: Border.all(color: AppColors.borderStrong),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Icon(LucideIcons.mapPin, size: 18, color: AppColors.faint),
           SizedBox(width: 10),

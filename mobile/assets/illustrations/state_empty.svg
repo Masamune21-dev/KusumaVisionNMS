@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" fill="none">
+  <ellipse cx="120" cy="156" rx="78" ry="9" fill="#22D3EE" fill-opacity=".08"/>
+  <!-- Kotak ODP terbuka, kosong -->
+  <path d="M62 92 L120 118 L178 92 L178 146 L120 168 L62 146 Z" fill="#17233C" stroke="#2A3B5C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M120 118 L120 168" stroke="#2A3B5C" stroke-width="2"/>
+  <path d="M62 92 L120 66 L178 92 L120 118 Z" fill="#0C1524" stroke="#2A3B5C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M62 92 L40 72 L98 46 L120 66" fill="#1B2A46" stroke="#2A3B5C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M178 92 L200 72 L142 46 L120 66" fill="#1B2A46" stroke="#2A3B5C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- Serat menjuntai keluar -->
+  <path d="M96 108 C 90 80, 70 60, 58 34" stroke="#22D3EE" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="58" cy="34" r="4" fill="#22D3EE"/>
+  <path d="M146 108 C 156 86, 170 70, 186 58" stroke="#38BDF8" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1 6"/>
+  <!-- Kilau -->
+  <g stroke="#22D3EE" stroke-width="2" stroke-linecap="round">
+    <path d="M196 24 v10 M191 29 h10"/>
+    <path d="M36 118 v8 M32 122 h8" stroke-opacity=".6"/>
+  </g>
+  <circle cx="212" cy="112" r="2.5" fill="#38BDF8" fill-opacity=".7"/>
+  <circle cx="28" cy="58" r="2" fill="#38BDF8" fill-opacity=".5"/>
+</svg>

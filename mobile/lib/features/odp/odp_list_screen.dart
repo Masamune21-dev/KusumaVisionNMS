@@ -6,7 +6,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/odp_colors.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
@@ -43,7 +43,7 @@ class _OdpListScreenState extends ConsumerState<OdpListScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('ODP')),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.55,
         child: RefreshIndicator(
           onRefresh: () async => ref.refresh(odpsProvider.future),
@@ -110,7 +110,7 @@ class _OdpListScreenState extends ConsumerState<OdpListScreen> {
                     child: Row(
                       children: [
                         Text('${rows.length} ODP',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppColors.text,
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
@@ -123,7 +123,7 @@ class _OdpListScreenState extends ConsumerState<OdpListScreen> {
                             borderRadius: BorderRadius.circular(AppRadius.pill),
                           ),
                           child: Text('${rows.fold<int>(0, (a, e) => a + e.onuCount)} ONU',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: AppColors.primary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -135,7 +135,7 @@ class _OdpListScreenState extends ConsumerState<OdpListScreen> {
                   Expanded(
                     child: rows.isEmpty
                         ? const EmptyState(
-                            message: 'Tidak ada ODP cocok.', icon: LucideIcons.odp)
+                            message: 'Tidak ada ODP cocok.', art: KvArt.search)
                         : AnimationLimiter(
                             child: ListView.separated(
                               padding: EdgeInsets.fromLTRB(16, 6, 16, bottomInset),
@@ -263,7 +263,7 @@ class OdpRow extends StatelessWidget {
                       .join(' · '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.muted, fontSize: 12, fontFeatures: _tnum),
                 ),
               ],
@@ -278,14 +278,14 @@ class OdpRow extends StatelessWidget {
               border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
             ),
             child: Text('${odp.onuCount} ONU',
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                     fontFeatures: _tnum)),
           ),
           const SizedBox(width: 6),
-          const Icon(LucideIcons.chevronRight, size: 18, color: AppColors.faint),
+          Icon(LucideIcons.chevronRight, size: 18, color: AppColors.faint),
         ],
       ),
     );

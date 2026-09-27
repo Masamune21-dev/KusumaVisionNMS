@@ -7,6 +7,7 @@ use App\Models\FcmDeviceToken;
 use App\Services\Fcm\FcmAlarmNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Registrasi & pencabutan token perangkat FCM (aplikasi Android).
@@ -16,7 +17,8 @@ class DeviceController extends Controller
 {
     /**
      * POST /api/v1/devices — daftarkan/segarkan token perangkat.
-     * Token unik: bila sudah ada, di-rebind ke user saat ini.
+     * Token unik: bila sudah ada, di-rebind ke user & sesi login saat ini —
+     * sesi itulah yang menentukan kapan ponsel ini berhenti dikirimi alarm.
      */
     public function store(Request $request): JsonResponse
     {
@@ -26,10 +28,13 @@ class DeviceController extends Controller
             'platform' => ['nullable', 'string', 'max:32'],
         ]);
 
+        $session = $request->user()->currentAccessToken();
+
         FcmDeviceToken::updateOrCreate(
             ['token' => $data['token']],
             [
                 'user_id' => $request->user()->id,
+                'personal_access_token_id' => $session instanceof PersonalAccessToken ? $session->getKey() : null,
                 'device_name' => $data['device_name'] ?? null,
                 'platform' => $data['platform'] ?? 'android',
                 'last_seen_at' => now(),
@@ -68,6 +73,7 @@ class DeviceController extends Controller
         }
 
         $tokens = FcmDeviceToken::query()
+            ->deliverable()
             ->where('user_id', $request->user()->id)
             ->pluck('token')
             ->all();

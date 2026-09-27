@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/pulse_logo.dart';
 import '../../theme/app_theme.dart';
@@ -41,7 +41,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final t = Theme.of(context).textTheme;
 
     return Scaffold(
-      body: AuroraBackground(
+      body: KvBackdrop(
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -58,16 +58,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 20),
                     Text('KusumaVision NMS',
                         style: t.headlineSmall?.copyWith(
-                          shadows: [const Shadow(color: Color(0x5522D3EE), blurRadius: 20)],
+                          // Cahaya cyan hanya di tema gelap; di atas putih jadi noda.
+                          shadows: [if (AppColors.isDark) const Shadow(color: Color(0x5522D3EE), blurRadius: 20)],
                         )).animate(delay: 120.ms).fadeIn().slideY(begin: 0.3, curve: AppMotion.enter),
                     const SizedBox(height: 6),
                     Text('Monitoring & provisioning FTTH GPON',
                             style: t.bodyMedium?.copyWith(color: AppColors.muted))
                         .animate(delay: 200.ms)
                         .fadeIn(),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 18),
+                    // Ilustrasi alur jaringan OLT → ODP → pelanggan.
+                    const KvIllustration(KvArt.loginHero, width: 300)
+                        .animate(delay: 260.ms)
+                        .fadeIn(duration: AppMotion.slow)
+                        .slideY(begin: 0.12, curve: AppMotion.enter),
+                    const SizedBox(height: 18),
                     GlassCard(
-                      blur: true,
                       padding: const EdgeInsets.all(20),
                       child: Form(
                         key: _formKey,
@@ -112,7 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             FilledButton(
                               onPressed: auth.busy ? null : _submit,
                               child: auth.busy
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       height: 20,
                                       width: 20,
                                       child: CircularProgressIndicator(
@@ -142,6 +148,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
+
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner(this.message);
   final String message;
@@ -157,7 +164,7 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(LucideIcons.alertTriangle, color: AppColors.danger, size: 16),
+          Icon(LucideIcons.alertTriangle, color: AppColors.danger, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(message,

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#070D18</color>
+    <color name="ic_launcher_background">#0891B2</color>
+    <!-- Warna aksen notifikasi (lingkaran ikon kecil & nama aplikasi di bilah notifikasi). -->
+    <color name="notification_accent">#0891B2</color>
 </resources>

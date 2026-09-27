@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 130" fill="none">
+  <!-- Perangkat ONU/ONT tampak depan. Lampu PWR/PON/LOS TIDAK digambar di sini —
+       aplikasi menumpuknya sebagai widget di (110,85) (133,85) (156,85) supaya
+       warnanya mengikuti status ONU dan bisa berkedip. -->
+  <ellipse cx="100" cy="118" rx="86" ry="7" fill="#22D3EE" fill-opacity=".08"/>
+  <!-- Antena -->
+  <rect x="42" y="6" width="9" height="46" rx="4.5" fill="#1B2A46" stroke="#2A3B5C" stroke-width="2"/>
+  <rect x="149" y="6" width="9" height="46" rx="4.5" fill="#1B2A46" stroke="#2A3B5C" stroke-width="2"/>
+  <!-- Kabel fiber masuk dari kiri -->
+  <path d="M0 116 C 10 116, 8 92, 22 92" stroke="#2A3B5C" stroke-width="7" stroke-linecap="round"/>
+  <path d="M0 116 C 10 116, 8 92, 22 92" stroke="#22D3EE" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Badan -->
+  <rect x="20" y="46" width="160" height="58" rx="13" fill="#17233C" stroke="#2A3B5C" stroke-width="2"/>
+  <rect x="26" y="51" width="148" height="6" rx="3" fill="#1B2A46"/>
+  <!-- Logo & sablon -->
+  <rect x="34" y="66" width="36" height="4.5" rx="2.25" fill="#22D3EE" fill-opacity=".85"/>
+  <rect x="34" y="75" width="24" height="3" rx="1.5" fill="#2A3B5C"/>
+  <rect x="34" y="82" width="30" height="3" rx="1.5" fill="#2A3B5C"/>
+  <!-- Panel lampu -->
+  <rect x="96" y="76" width="74" height="18" rx="9" fill="#0C1524" stroke="#2A3B5C" stroke-width="1.5"/>
+  <!-- Kaki -->
+  <rect x="40" y="104" width="20" height="5" rx="2.5" fill="#2A3B5C"/>
+  <rect x="140" y="104" width="20" height="5" rx="2.5" fill="#2A3B5C"/>
+</svg>

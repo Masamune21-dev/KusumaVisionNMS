@@ -13,4 +13,8 @@ Schedule::command('olts:poll')->everyMinute()->withoutOverlapping();
 // jamnya terangkum, kalau tidak riwayat panjangnya hilang permanen.
 Schedule::command('optical:aggregate-rx')->hourlyAt(5)->withoutOverlapping();
 Schedule::command('optical:prune-rx')->dailyAt('03:15')->withoutOverlapping();
+
+// Sesi aplikasi yang kedaluwarsa (sanctum.expiration) dibuang — token push FCM
+// yang terkait ikut terhapus lewat FK cascade, jadi ponselnya berhenti dikirimi alarm.
+Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('03:40');
 Schedule::command('olts:backup-config')->dailyAt('02:30')->withoutOverlapping();

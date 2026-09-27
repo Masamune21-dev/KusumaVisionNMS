@@ -3,8 +3,7 @@ description: "KusumaVision NMS — aplikasi Android pendamping untuk monitoring 
 publish_to: 'none'
 
 # versionName+versionCode APK. Bump saat rilis.
-version: 1.5.0+21
-
+version: 1.8.5+29
 environment:
   sdk: ^3.12.2
 
@@ -64,26 +63,39 @@ dependencies:
   # jadi tak ada izin baru di AndroidManifest.
   image_picker: ^1.1.2
 
+  # Render ilustrasi & pola latar SVG (assets/illustrations/) — tajam di semua
+  # kepadatan layar, jauh lebih kecil dari PNG berlapis resolusi.
+  flutter_svg: ^2.0.17
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
 
-# Ikon launcher Android — mengikuti logo web (logomark cyan #22d3ee + glow di
-# navy #070D18, lihat resources/js/Components/ApplicationLogo.vue). Sumber PNG
-# di assets/icon/ di-render dari SVG yang sama. Regenerasi:
+# Ikon launcher Android — logomark «K» daun KusumaVision dengan simpul jaringan
+# (lib/core/widgets/nms_logo.dart), putih di atas gradien cyan. Ikon lama (logo
+# bawaan Laravel) diganti 25 Sep 2026.
+# Semua PNG di assets/icon/ + ic_notification dirender dari painter itu:
+#   RENDER_ICONS=1 flutter test test/tools/render_icons_test.dart
 #   dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#070D18"
+  adaptive_icon_background: "assets/icon/icon_background.png"
   adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  # Ikon bertema (Android 13+): launcher mewarnai siluet ini sesuai wallpaper.
+  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
   min_sdk_android: 21
 
 flutter:
   uses-material-design: true
+
+  # Ilustrasi & pola latar (SVG buatan sendiri, bertema jaringan fiber — tanpa
+  # lisensi pihak ketiga). Dirender lewat flutter_svg, lihat core/widgets/kv_art.dart.
+  assets:
+    - assets/illustrations/
 
   # Font bundle (offline-first, variable-weight). fontWeight dipetakan ke axis
   # `wght` otomatis oleh engine untuk font variable — cukup deklarasi 1 aset.

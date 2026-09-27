@@ -21,6 +21,9 @@ class MapPin {
     required this.rxPowerDbm,
     required this.rxPowerLabel,
     required this.online,
+    required this.phaseState,
+    required this.lastDownCause,
+    required this.adminState,
     required this.hasLive,
   });
 
@@ -33,6 +36,9 @@ class MapPin {
   final double? rxPowerDbm;
   final String? rxPowerLabel;
   final bool online, hasLive;
+
+  /// Sebab ONU turun apa adanya dari OLT — lihat `core/onu_status.dart`.
+  final String? phaseState, lastDownCause, adminState;
 
   String get title {
     final c = customerName;
@@ -60,6 +66,9 @@ class MapPin {
         rxPowerDbm: J.asDoubleN(j['rx_power_dbm']),
         rxPowerLabel: J.asStrN(j['rx_power_label']),
         online: J.asBool(j['online']),
+        phaseState: J.asStrN(j['phase_state']),
+        lastDownCause: J.asStrN(j['last_down_cause']),
+        adminState: J.asStrN(j['admin_state']),
         hasLive: J.asBool(j['has_live']),
       );
 }
@@ -158,9 +167,9 @@ class MapData {
       olts: ((j['olts'] ?? []) as List)
           .map((e) => MapOlt.fromJson(e as Map<String, dynamic>))
           .toList(),
-      centerLat: J.asDoubleN(center['lat']) ?? -6.7559,
-      centerLng: J.asDoubleN(center['lng']) ?? 111.0381,
-      centerZoom: J.asDoubleN(center['zoom']) ?? 11,
+      centerLat: J.asDoubleN(center['lat']) ?? -2.5,
+      centerLng: J.asDoubleN(center['lng']) ?? 118.0,
+      centerZoom: J.asDoubleN(center['zoom']) ?? 5,
     );
   }
 }

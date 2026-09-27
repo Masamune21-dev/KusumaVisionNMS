@@ -71,6 +71,16 @@ return [
         'rx_hourly_retention_days' => (int) env('SNMP_POLLER_RX_HOURLY_RETENTION_DAYS', 45),
     ],
 
+    // Titik awal Peta ONU/ODP (web & aplikasi). "Wilayah utama" opsional: bila diisi, peta
+    // membuka di sini selama pengguna punya pin/ODP dalam radiusnya; kalau tidak, peta membuka
+    // di kelompok titik terpadat milik pengguna. Lihat OnuMapPayloadService::defaultCenter().
+    'map' => [
+        'home_lat' => env('MAP_HOME_LAT'),
+        'home_lng' => env('MAP_HOME_LNG'),
+        'home_zoom' => (int) env('MAP_HOME_ZOOM', 12),
+        'home_radius_km' => (float) env('MAP_HOME_RADIUS_KM', 20),
+    ],
+
     // Konversi foto ODP ke WebP. PHP di server ini tidak punya GD/Imagick, jadi
     // konversi memakai biner `cwebp` (paket `webp`). Kalau binernya tak ada, foto
     // tetap tersimpan dalam format aslinya (lihat App\Services\Odp\OdpPhotoService).

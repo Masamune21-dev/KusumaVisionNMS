@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
@@ -91,7 +91,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Pencarian global')),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.65,
         child: Column(
           children: [
@@ -134,14 +134,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Expanded(
               child: query.trim().length < 2
                   ? const EmptyState(
-                      message: 'Ketik minimal 2 karakter untuk mencari.', icon: LucideIcons.search)
+                      message: 'Ketik minimal 2 karakter untuk mencari.', art: KvArt.search)
                   : AsyncView<List<SearchResult>>(
                       value: results,
                       onRetry: () => ref.refresh(searchProvider),
                       data: (list) {
                         if (list.isEmpty) {
                           return const EmptyState(
-                              message: 'Tidak ada hasil.', icon: LucideIcons.searchX);
+                              message: 'Tidak ada hasil.', art: KvArt.search);
                         }
                         return AnimationLimiter(
                           child: ListView.separated(
@@ -200,7 +200,7 @@ class _ResultRow extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(LucideIcons.chevronRight, color: AppColors.faint, size: 18),
+          Icon(LucideIcons.chevronRight, color: AppColors.faint, size: 18),
         ],
       ),
     );

@@ -49,6 +49,9 @@ class MapController extends Controller
             'rx_power_dbm' => $pin['rx_power_dbm'],
             'rx_power_label' => $pin['rx_power_label'],
             'online' => $pin['online'],
+            'phase_state' => $pin['phase_state'],
+            'last_down_cause' => $pin['last_down_cause'],
+            'admin_state' => $pin['admin_state'],
             'has_live' => $pin['has_live'],
         ])->values();
 

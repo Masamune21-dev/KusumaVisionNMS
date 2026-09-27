@@ -7,7 +7,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/format.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/pulse_dot.dart';
 import '../../core/widgets/signal_ring.dart';
@@ -42,7 +42,7 @@ class OltDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.55,
         child: RefreshIndicator(
           onRefresh: () async => ref.refresh(oltDetailProvider(oltId).future),
@@ -83,7 +83,6 @@ class _Body extends StatelessWidget {
         seq(
           0,
           GlassCard(
-            blur: true,
             padding: const EdgeInsets.all(18),
             child: Row(
               children: [
@@ -100,7 +99,7 @@ class _Body extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge),
                       const SizedBox(height: 6),
                       Text(s.familyLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppColors.secondary, fontSize: 12.5, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       _ReachChip(reachable: s.reachable),
@@ -142,7 +141,7 @@ class _Body extends StatelessWidget {
         const SizedBox(height: 20),
         SectionTitle('PON Port', icon: LucideIcons.network),
         if (detail.ports.isEmpty)
-          const GlassCard(child: Text('Belum ada data port.', style: TextStyle(color: AppColors.muted)))
+          GlassCard(child: Text('Belum ada data port.', style: TextStyle(color: AppColors.muted)))
         else
           AnimationLimiter(
             child: Column(
@@ -167,7 +166,7 @@ class _Body extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 118, child: Text(k, style: const TextStyle(color: AppColors.muted, fontSize: 13))),
+            SizedBox(width: 118, child: Text(k, style: TextStyle(color: AppColors.muted, fontSize: 13))),
             Expanded(
                 child: Text(v,
                     style: TextStyle(fontSize: 13, height: 1.35, fontFeatures: mono ? _tnum : null))),
@@ -187,7 +186,7 @@ class _Body extends StatelessWidget {
                   style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 19, fontFeatures: _tnum)),
             ),
             const SizedBox(height: 3),
-            Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 11.5)),
+            Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11.5)),
           ],
         ),
       );
@@ -244,7 +243,7 @@ class _PortRow extends StatelessWidget {
                   Text(port.description!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11.5)),
+                      style: TextStyle(color: AppColors.muted, fontSize: 11.5)),
                 ],
                 if (share != null) ...[
                   const SizedBox(height: 7),
@@ -254,7 +253,7 @@ class _PortRow extends StatelessWidget {
                       value: share.clamp(0.0, 1.0),
                       minHeight: 4,
                       backgroundColor: AppColors.surfaceAlt,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                      valueColor: AlwaysStoppedAnimation(AppColors.primary),
                     ),
                   ),
                 ],
@@ -263,10 +262,10 @@ class _PortRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text('${port.onuOnline}/${port.onuTotal}',
-              style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
-          const Text(' ONU', style: TextStyle(color: AppColors.faint, fontSize: 11.5)),
+              style: TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: _tnum)),
+          Text(' ONU', style: TextStyle(color: AppColors.faint, fontSize: 11.5)),
           const SizedBox(width: 4),
-          const Icon(LucideIcons.chevronRight, color: AppColors.faint, size: 18),
+          Icon(LucideIcons.chevronRight, color: AppColors.faint, size: 18),
         ],
       ),
     );

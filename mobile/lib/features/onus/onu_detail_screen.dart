@@ -1,24 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/api/api_exception.dart';
-import '../../core/format.dart';
+import '../../core/onu_status.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
-import '../../core/widgets/odp_chip.dart';
-import '../../core/widgets/pulse_dot.dart';
-import '../../core/widgets/rx_power_badge.dart';
-import '../../core/widgets/status_chip.dart';
 import '../../data/read_providers.dart';
 import '../../models/onu.dart';
 import '../../theme/app_theme.dart';
 import '../auth/auth_controller.dart';
-
-const _tnum = [FontFeature.tabularFigures()];
+import 'onu_detail_parts.dart';
 
 class OnuDetailScreen extends ConsumerStatefulWidget {
   const OnuDetailScreen({
@@ -57,7 +53,7 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: const Color(0xFF241A00)),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warning, foregroundColor: AppColors.onWarning),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Reboot'),
           ),
@@ -155,210 +151,83 @@ class _OnuDetailScreenState extends ConsumerState<OnuDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Detail ONU')),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.5,
         child: RefreshIndicator(
-        onRefresh: () async => ref.refresh(onuDetailProvider(_arg).future),
-        color: AppColors.primary,
-        backgroundColor: AppColors.surfaceAlt,
-        child: AsyncView<Onu>(
-          value: data,
-          onRetry: () => ref.refresh(onuDetailProvider(_arg)),
-          data: (o) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              _Header(onu: o),
-              const SizedBox(height: 14),
-              SectionTitle('Informasi', icon: LucideIcons.info),
-              _Info(onu: o),
-              if (canReboot || canRename) ...[
-                const SizedBox(height: 18),
-                Row(
-                  children: [
-                    if (canRename)
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _busy ? null : () => _rename(o),
-                          icon: const Icon(LucideIcons.edit, size: 18),
-                          label: const Text('Ubah nama'),
-                        ),
-                      ),
-                    if (canRename && canReboot) const SizedBox(width: 12),
-                    if (canReboot)
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _busy ? null : _reboot,
-                          icon: _busy
-                              ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Icon(LucideIcons.restart, size: 18),
-                          label: const Text('Reboot'),
-                          style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.warning, foregroundColor: const Color(0xFF241A00)),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-              if (canDelete) ...[
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _delete(o),
-                  icon: const Icon(LucideIcons.trash, size: 18),
-                  label: const Text('Hapus ONU dari OLT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.danger,
-                    side: BorderSide(color: AppColors.danger.withValues(alpha: 0.55)),
+          onRefresh: () async => ref.refresh(onuDetailProvider(_arg).future),
+          color: AppColors.primary,
+          backgroundColor: AppColors.surfaceAlt,
+          child: AsyncView<Onu>(
+            value: data,
+            onRetry: () => ref.refresh(onuDetailProvider(_arg)),
+            data: (o) {
+              final status = OnuStatus.of(o);
+              // Masuk sekali: fade + naik halus, di-stagger antar seksi.
+              Widget seq(int i, Widget child) => child
+                  .animate(delay: (i * 60).ms)
+                  .fadeIn(duration: AppMotion.base)
+                  .slideY(begin: 0.08, curve: AppMotion.enter);
+
+              final actions = <Widget>[
+                if (canRename)
+                  OnuActionTile(
+                    icon: LucideIcons.edit,
+                    label: 'Ubah nama',
+                    color: AppColors.secondary,
+                    onTap: _busy ? null : () => _rename(o),
                   ),
-                ),
-              ],
-            ],
+                if (canReboot)
+                  OnuActionTile(
+                    icon: LucideIcons.restart,
+                    label: 'Reboot',
+                    color: AppColors.warning,
+                    busy: _busy,
+                    onTap: _busy ? null : _reboot,
+                  ),
+              ];
+
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                children: [
+                  seq(0, OnuHero(onu: o, status: status)),
+                  const SizedBox(height: 12),
+                  seq(1, OnuPathCard(onu: o, status: status)),
+                  const SizedBox(height: 18),
+                  seq(2, SectionTitle('Sinyal optik', icon: LucideIcons.signal)),
+                  seq(2, OnuSignalCard(onu: o, status: status)),
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    seq(3, SectionTitle('Aksi', icon: LucideIcons.zap)),
+                    seq(
+                      3,
+                      GlassCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                        child: Row(children: actions),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  seq(4, SectionTitle('Info teknis', icon: LucideIcons.info)),
+                  seq(4, OnuFactGrid(facts: onuFacts(o))),
+                  if (canDelete) ...[
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _delete(o),
+                      icon: const Icon(LucideIcons.trash, size: 18),
+                      label: const Text('Hapus ONU dari OLT'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.danger,
+                        side: BorderSide(color: AppColors.danger.withValues(alpha: 0.55)),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
         ),
       ),
-      ),
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onu});
-  final Onu onu;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = onu.online ? AppColors.success : AppColors.danger;
-    return GlassCard(
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(11),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.13),
-                      borderRadius: BorderRadius.circular(AppRadius.chip),
-                    ),
-                    child: Icon(LucideIcons.router, color: color, size: 24),
-                  ),
-                  Positioned(
-                    right: -3,
-                    top: -3,
-                    child: PulseDot(color: color, size: 9, pulse: onu.online),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(onu.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17, letterSpacing: -0.3)),
-                    const SizedBox(height: 3),
-                    Text('${onu.interface ?? 'ONU ${onu.onuId}'} · ${onu.oltName ?? ''}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              StatusChip.online(onu.online),
-              RxPowerBadge(dbm: onu.rxPowerDbm, online: onu.online),
-              if (onu.rxMarginal && onu.online)
-                const StatusChip(
-                    label: 'RX marginal', color: AppColors.warning, icon: LucideIcons.alertTriangle),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Info extends StatelessWidget {
-  const _Info({required this.onu});
-  final Onu onu;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <(String, String?, bool)>[
-      ('Serial Number', onu.serialNumber, true),
-      ('MAC', onu.mac, true),
-      ('Tipe ONU', onu.typeName, false),
-      ('Nama', onu.name, false),
-      ('Deskripsi', onu.description, false),
-      ('Pelanggan', onu.customerName, false),
-      ('Admin state', onu.adminState, false),
-      ('Phase state', onu.phaseState, false),
-      ('RX power', onu.online ? Fmt.rx(onu.rxPowerDbm) : '— (offline)', true),
-      ('Penyebab down', onu.lastDownCause, false),
-      ('Slot / Port / ID', '${onu.slot} / ${onu.port} / ${onu.onuId}', true),
-    ].where((r) => (r.$2 ?? '').trim().isNotEmpty).toList();
-
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        children: [
-          // ODP dipisah dari baris teks biasa karena berupa chip yang bisa
-          // ditekan untuk membuka halaman ODP-nya.
-          if (onu.odpName != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(
-                    width: 130,
-                    child: Text('ODP', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                  ),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: OdpChip(name: onu.odpName!, odpId: onu.odpId, dense: false),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0 || onu.odpName != null) const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 130,
-                    child: Text(rows[i].$1, style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-                  ),
-                  Expanded(
-                    child: SelectableText(
-                      rows[i].$2!,
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600, height: 1.3,
-                          fontFeatures: rows[i].$3 ? _tnum : null),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}

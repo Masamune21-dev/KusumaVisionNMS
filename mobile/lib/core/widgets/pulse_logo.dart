@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
-import '../icons.dart';
+import 'nms_logo.dart';
 
-/// Lambang menara memancar sinyal — cincin konsentris menyebar & memudar
-/// mengelilingi badge kaca berisi ikon tower. Metafora OLT/FTTH memancar.
+/// Ikon aplikasi (logomark NMS di kotak cyan — sama dengan ikon launcher) yang
+/// dikelilingi cincin konsentris menyebar & memudar: sinyal yang dipancarkan.
 /// Reusable di Splash & Login. Hormati reduced-motion (cincin diam).
 class PulseLogo extends StatefulWidget {
-  const PulseLogo({super.key, this.size = 104, this.icon = LucideIcons.radioTower});
+  const PulseLogo({super.key, this.size = 104});
 
   final double size;
-  final IconData icon;
 
   @override
   State<PulseLogo> createState() => _PulseLogoState();
@@ -38,7 +37,7 @@ class _PulseLogoState extends State<PulseLogo> with SingleTickerProviderStateMix
     if (reduce && _c.isAnimating) _c.stop();
     if (!reduce && !_c.isAnimating) _c.repeat();
 
-    final badge = widget.size * 0.44;
+    final badge = widget.size * 0.5;
     return SizedBox(
       width: widget.size,
       height: widget.size,
@@ -55,23 +54,12 @@ class _PulseLogoState extends State<PulseLogo> with SingleTickerProviderStateMix
               ),
             ),
           ),
-          Container(
-            width: badge,
-            height: badge,
+          DecoratedBox(
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.primary.withValues(alpha: 0.22),
-                  AppColors.secondary.withValues(alpha: 0.10),
-                ],
-              ),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.5), width: 1.2),
-              boxShadow: AppShadow.glow(AppColors.primary, alpha: 0.4, blur: 26),
+              borderRadius: BorderRadius.circular(badge * 0.26),
+              boxShadow: AppShadow.glow(NmsBrand.cyanLight, alpha: 0.4, blur: 26),
             ),
-            child: Icon(widget.icon, color: AppColors.primary, size: badge * 0.5),
+            child: NmsAppIcon(size: badge, radiusFactor: 0.26),
           ),
         ],
       ),

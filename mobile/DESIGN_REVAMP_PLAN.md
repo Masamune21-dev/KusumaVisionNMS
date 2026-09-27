@@ -1,5 +1,11 @@
 # Rencana Rombak Total UI/UX — Aplikasi Mobile KusumaVision NMS
 
+> ⚠️ **Pembaruan 25 Sep 2026:** latar aurora + node-fiber beranimasi **dihapus** atas permintaan user —
+> diganti latar statis `KvBackdrop` + ilustrasi SVG sendiri (`core/widgets/kv_art.dart`,
+> `assets/illustrations/`). Keputusan "dark-only" di bawah **dibatalkan**: dua tema (Gelap/Terang/Ikuti sistem) sudah
+> terpasang — palet `AppPalette` di `theme/app_theme.dart`.
+> Bagian dokumen ini yang menyebut aurora/mesh sudah tidak berlaku.
+>
 > Status: **rencana** (belum dieksekusi). Disusun dengan skill `ui-ux-pro-max` + riset library/font Flutter.
 > Tema produk: monitoring & provisioning **OLT/ONU FTTH GPON** untuk ISP.
 

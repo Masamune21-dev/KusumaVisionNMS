@@ -26,6 +26,9 @@ Future<bool?> showOdpColorSheet(
 }) {
   return showModalBottomSheet<bool>(
     context: context,
+    // Navigator root: dipanggil juga dari tab Peta, yang navigatornya ada di bawah
+    // navbar shell — tanpa ini tombol Simpan tertutup navbar.
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
     builder: (_) => OdpColorSheet(
@@ -130,7 +133,7 @@ class _OdpColorSheetState extends ConsumerState<OdpColorSheet> {
                 decoration: BoxDecoration(
                   color: preview,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white70, width: 1.6),
+                  border: Border.all(color: AppColors.borderStrong, width: 1.6),
                 ),
                 child: Icon(LucideIcons.odp, size: 17, color: odpTextOn(preview)),
               ),
@@ -148,7 +151,7 @@ class _OdpColorSheetState extends ConsumerState<OdpColorSheet> {
                       ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -165,7 +168,7 @@ class _OdpColorSheetState extends ConsumerState<OdpColorSheet> {
             ),
             error: (e, _) => Text(
               e is ApiException ? e.message : 'Gagal memuat palet warna.',
-              style: const TextStyle(color: AppColors.danger, fontSize: 12.5),
+              style: TextStyle(color: AppColors.danger, fontSize: 12.5),
             ),
             data: (colors) => Wrap(
               spacing: 10,
@@ -193,14 +196,14 @@ class _OdpColorSheetState extends ConsumerState<OdpColorSheet> {
                 'Terapkan ke semua ODP di port ${widget.portLabel} (${widget.portCount} ODP)',
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Matikan bila hanya ODP ini yang ingin berbeda.',
                 style: TextStyle(color: AppColors.muted, fontSize: 11.5),
               ),
             ),
           ] else ...[
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'ODP ini belum punya port PON, jadi warnanya hanya berlaku untuk dirinya sendiri.',
               style: TextStyle(color: AppColors.muted, fontSize: 11.5),
             ),
@@ -223,10 +226,10 @@ class _OdpColorSheetState extends ConsumerState<OdpColorSheet> {
               FilledButton(
                 onPressed: _busy ? null : () => _submit(color: _selected),
                 child: _busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                       )
                     : const Text('Simpan'),
               ),
@@ -258,7 +261,7 @@ class _Swatch extends StatelessWidget {
           color: color,
           borderRadius: BorderRadius.circular(AppRadius.chip),
           border: Border.all(
-            color: selected ? Colors.white : Colors.white24,
+            color: selected ? AppColors.text : AppColors.borderStrong,
             width: selected ? 2.4 : 1,
           ),
         ),

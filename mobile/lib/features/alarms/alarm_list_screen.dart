@@ -6,7 +6,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 
 import '../../core/format.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/stagger.dart';
 import '../../data/read_providers.dart';
@@ -36,7 +36,7 @@ class AlarmListScreen extends ConsumerWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(backgroundColor: Colors.transparent, title: const Text('Alarm')),
-      body: AuroraBackground(
+      body: KvBackdrop(
         intensity: 0.6,
         child: Column(
           children: [
@@ -99,7 +99,7 @@ class AlarmListScreen extends ConsumerWidget {
                     if (res.alarms.isEmpty) {
                       return ListView(children: const [
                         SizedBox(height: 70),
-                        EmptyState(message: 'Tidak ada alarm aktif.', icon: LucideIcons.checkCircle),
+                        EmptyState(message: 'Tidak ada alarm aktif.', art: KvArt.clear),
                       ]);
                     }
                     return AnimationLimiter(
@@ -195,7 +195,7 @@ class _AlarmCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(LucideIcons.user, size: 12, color: AppColors.primary),
+                      Icon(LucideIcons.user, size: 12, color: AppColors.primary),
                       const SizedBox(width: 5),
                       Expanded(
                         child: Text(
@@ -212,7 +212,7 @@ class _AlarmCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(LucideIcons.server, size: 12, color: AppColors.faint),
+                    Icon(LucideIcons.server, size: 12, color: AppColors.faint),
                     const SizedBox(width: 5),
                     Expanded(
                       child: Text(

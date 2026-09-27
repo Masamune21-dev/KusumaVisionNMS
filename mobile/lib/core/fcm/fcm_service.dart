@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers.dart';
+import '../widgets/nms_logo.dart';
 
 /// Handler pesan latar belakang (harus top-level). Sistem sudah menampilkan
 /// notifikasi tray untuk pesan ber-`notification`; di sini cukup no-op.
@@ -26,6 +28,9 @@ class FcmService {
 
   final Ref _ref;
 
+  /// Satu langganan saja — dulu tiap login menambah listener onTokenRefresh baru.
+  StreamSubscription<String>? _refreshSub;
+
   static bool available = false;
   static final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
 
@@ -41,8 +46,11 @@ class FcmService {
     try {
       await Firebase.initializeApp();
 
+      // `ic_notification` (siluet putih logomark), BUKAN `ic_launcher`: Android 5+
+      // membuang semua warna ikon kecil notifikasi, jadi ikon launcher berwarna
+      // tampil sebagai kotak putih polos.
       const initSettings = InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
       );
       await _local.initialize(initSettings);
       await _local
@@ -74,6 +82,8 @@ class FcmService {
             'Alarm Jaringan',
             importance: Importance.high,
             priority: Priority.high,
+            icon: '@drawable/ic_notification',
+            color: NmsBrand.cyan,
           ),
         ),
         payload: jsonEncode(m.data),
@@ -94,19 +104,39 @@ class FcmService {
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) await _register(token);
 
-      FirebaseMessaging.instance.onTokenRefresh.listen((t) => _register(t));
+      _refreshSub ??= FirebaseMessaging.instance.onTokenRefresh.listen((t) => _register(t));
     } catch (e) {
       debugPrint('FCM onLogin gagal: $e');
     }
   }
 
-  /// Saat logout: cabut token perangkat di server.
+  /// Token push perangkat ini, untuk dikirim bersama permintaan logout supaya
+  /// server mencabutnya SELAGI sesi masih sah.
+  Future<String?> currentToken() async {
+    if (!available) return null;
+    try {
+      return await FirebaseMessaging.instance.getToken();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Setelah keluar (atau sesi dicabut server): buang token push di sisi Firebase.
+  ///
+  /// Dulu di sini aplikasi memanggil `DELETE /devices` — padahal token login
+  /// sudah dicabut lebih dulu, jadi selalu 401 dan server terus mengirim alarm
+  /// ke ponsel yang sudah logout. Pencabutan di server kini ikut `POST
+  /// /auth/logout`; di sini token dihapus di Firebase agar kiriman yang masih
+  /// tersisa pun ditolak FCM. Login berikutnya mendapat token baru.
   Future<void> onLogout() async {
     if (!available) return;
     try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null) await _ref.read(nmsApiProvider).deleteDevice(token);
-    } catch (_) {}
+      await _refreshSub?.cancel();
+      _refreshSub = null;
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (e) {
+      debugPrint('FCM onLogout gagal: $e');
+    }
   }
 
   Future<void> _register(String token) async {

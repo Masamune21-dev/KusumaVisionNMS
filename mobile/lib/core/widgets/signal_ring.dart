@@ -12,16 +12,25 @@ class SignalRing extends StatelessWidget {
     required this.percent,
     this.size = 132,
     this.stroke = 11,
-    this.color = AppColors.success,
+    this.color,
     this.trackColor,
+    this.textColor,
+    this.caption,
   });
 
   /// 0..100.
   final double percent;
   final double size;
   final double stroke;
-  final Color color;
+  /// Warna busur; null = hijau sukses tema aktif.
+  final Color? color;
   final Color? trackColor;
+
+  /// Warna angka di tengah; null = sama dengan [color] (mis. putih di atas header).
+  final Color? textColor;
+
+  /// Keterangan kecil di bawah angka (mis. "online").
+  final String? caption;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +43,7 @@ class SignalRing extends StatelessWidget {
           painter: _RingPainter(
             value: v,
             stroke: stroke,
-            color: color,
+            color: color ?? AppColors.success,
             track: trackColor ?? AppColors.surfaceAlt.withValues(alpha: 0.6),
           ),
         );
@@ -59,15 +68,22 @@ class SignalRing extends StatelessWidget {
             children: [
               if (reduce)
                 Text('${percent.toStringAsFixed(0)}%',
-                    style: _centerStyle(t, color))
+                    style: _centerStyle(t, textColor ?? color ?? AppColors.success))
               else
                 TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: percent.clamp(0, 100)),
                   duration: const Duration(milliseconds: 1100),
                   curve: AppMotion.enter,
-                  builder: (_, v, __) =>
-                      Text('${v.toStringAsFixed(0)}%', style: _centerStyle(t, color)),
+                  builder: (_, v, __) => Text('${v.toStringAsFixed(0)}%',
+                      style: _centerStyle(t, textColor ?? color ?? AppColors.success)),
                 ),
+              if (caption != null)
+                Text(caption!,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: (textColor ?? AppColors.muted).withValues(alpha: 0.75))),
             ],
           ),
         ],

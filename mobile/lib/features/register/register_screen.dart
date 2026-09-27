@@ -7,7 +7,7 @@ import 'package:kusumavision_nms/core/icons.dart';
 import '../../core/api/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/async_view.dart';
-import '../../core/widgets/aurora_background.dart';
+import '../../core/widgets/kv_art.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../data/read_providers.dart';
 import '../../theme/app_theme.dart';
@@ -138,7 +138,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             child: SingleChildScrollView(
               child: SelectableText(script,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.5, color: AppColors.text)),
+                  style: TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.5, color: AppColors.text)),
             ),
           ),
           actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
@@ -210,8 +210,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Registrasi ONU')),
-      body: AuroraBackground(
-        animate: false,
+      body: KvBackdrop(
         intensity: 0.45,
         child: AsyncView<Map<String, dynamic>>(
         value: options,
@@ -221,7 +220,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           if (caps['supports_provisioning'] != true) {
             return const EmptyState(
               message: 'Registrasi hanya didukung OLT ZTE.',
-              icon: LucideIcons.alertTriangle,
+              art: KvArt.error,
             );
           }
           _initFrom((data['defaults'] ?? {}) as Map<String, dynamic>);
@@ -305,7 +304,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         label: const Text('Preview'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.secondary,
-                          side: const BorderSide(color: AppColors.border),
+                          side: BorderSide(color: AppColors.border),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
@@ -343,7 +342,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
           child: Text(
             text,
-            style: const TextStyle(fontSize: 12.5, height: 1.4, color: AppColors.secondary),
+            style: TextStyle(fontSize: 12.5, height: 1.4, color: AppColors.secondary),
           ),
         ),
       );
@@ -364,7 +363,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           labelText: 'ODP (opsional)',
           isDense: true,
           helperText: odps.isEmpty ? 'Belum ada ODP di port ini' : null,
-          helperStyle: const TextStyle(fontSize: 11, color: AppColors.faint),
+          helperStyle: TextStyle(fontSize: 11, color: AppColors.faint),
         ),
         items: [
           const DropdownMenuItem<int?>(value: null, child: Text('—')),

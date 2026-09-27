@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../onu_status.dart';
 
 /// Chip status kecil berwarna (online/offline, up/down, severity, dll).
 ///
@@ -21,13 +22,19 @@ class StatusChip extends StatelessWidget {
   final IconData? icon;
   final bool dense;
 
-  factory StatusChip.online(bool online, {bool dense = false}) => online
-      ? StatusChip(label: 'Online', color: AppColors.success, dense: dense)
-      : StatusChip(label: 'Offline', color: AppColors.danger, dense: dense);
+  /// Status ONU sesuai laporan OLT — Online, atau sebab turunnya (LOS, Dying
+  /// Gasp, Nonaktif, …). Lihat [OnuStatus]. ONU online tetap memakai titik
+  /// menyala; status lain memakai ikon supaya bedanya tidak hanya lewat warna.
+  factory StatusChip.onu(OnuStatus status, {bool dense = false}) => StatusChip(
+        label: status.label,
+        color: status.color,
+        icon: status.online ? null : status.icon,
+        dense: dense,
+      );
 
   factory StatusChip.reachable(bool up) => up
-      ? const StatusChip(label: 'Reachable', color: AppColors.success)
-      : const StatusChip(label: 'Down', color: AppColors.danger);
+      ? StatusChip(label: 'Reachable', color: AppColors.success)
+      : StatusChip(label: 'Down', color: AppColors.danger);
 
   @override
   Widget build(BuildContext context) {

@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/fcm/fcm_service.dart';
+import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   // Tangkap SEMUA error startup agar aplikasi tak "langsung close" tanpa jejak —
@@ -29,7 +30,12 @@ Future<void> main() async {
       debugPrint('FCM init gagal (diabaikan): $e\n$s');
     }
 
-    runApp(const ProviderScope(child: KusumaVisionApp()));
+    final themeMode = await ThemeController.load();
+
+    runApp(ProviderScope(
+      overrides: [initialThemeModeProvider.overrideWithValue(themeMode)],
+      child: const KusumaVisionApp(),
+    ));
   }, (error, stack) {
     // Error fatal sebelum/di luar widget tree → tampilkan layar error.
     runApp(_FatalErrorApp(error: error, stack: stack));
