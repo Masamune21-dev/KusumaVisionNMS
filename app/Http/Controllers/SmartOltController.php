@@ -528,7 +528,8 @@ class SmartOltController extends Controller
                 'tr069_enabled' => false,
                 'acs_url' => $acs['url'],
                 'acs_username' => $acs['username'],
-                'acs_password' => $acs['password'],
+                'acs_password' => '',
+                'acs_password_set' => $acs['password'] !== '',
                 'remote_ont_enabled' => false,
                 'remote_ont_id' => 1,
                 'remote_ont_mode' => 'forward',
@@ -553,7 +554,8 @@ class SmartOltController extends Controller
                 'mgmt_host' => 2,
                 'acs_url' => $acs['url'],
                 'acs_username' => $acs['username'],
-                'acs_password' => $acs['password'],
+                'acs_password' => '',
+                'acs_password_set' => $acs['password'] !== '',
                 'remote_ont_enabled' => false,
             ],
             // Pre-fill template standar untuk mode Lanjutan (editor granular):
@@ -583,7 +585,8 @@ class SmartOltController extends Controller
                 'tr069' => false,
                 'acs_url' => $acs['url'],
                 'acs_username' => $acs['username'],
-                'acs_password' => $acs['password'],
+                'acs_password' => '',
+                'acs_password_set' => $acs['password'] !== '',
                 'remote_ont' => false,
                 'remote_ont_id' => 1,
                 'remote_ont_mode' => 'forward',
@@ -611,7 +614,9 @@ class SmartOltController extends Controller
 
     public function update(Request $request, SnmpOlt $olt): RedirectResponse
     {
-        $olt->update($this->withoutEmptySecrets($this->validated($request, $olt)));
+        $data = $this->withoutEmptySecrets($this->validated($request, $olt));
+        $this->authorizeOltUpdate($olt, $request->user(), $data);
+        $olt->update($data);
 
         return redirect()
             ->route('smartolt.index')
@@ -630,6 +635,8 @@ class SmartOltController extends Controller
 
     public function test(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
     {
+        $this->authorizeOltConnectionTest($olt, request()->user());
+
         $result = $client->test($olt);
 
         // Test hanya cek koneksi (ok/driver/latency/system) — TIDAK memuat ports/port_onus.
@@ -1223,8 +1230,14 @@ class SmartOltController extends Controller
                 return response()->json(['error' => 'Pool mgmt-IP tidak terbaca dari OLT atau sudah penuh.'], 422);
             }
 
-            // Preset TR069 (ACS url/username/password) dari OLT → registrasi konsisten dgn ONU lain.
-            return response()->json([...$next, ...$pool->tr069Preset($olt, $fresh)]);
+            // Preset TR069 (ACS url/username) dari OLT → registrasi konsisten dgn ONU lain.
+            // Password ACS tidak dikirim ke klien: bila terbaca di OLT hanya
+            // ditandai `acs_password_set`; server memakai password dari Pengaturan ACS.
+            $preset = $pool->tr069Preset($olt, $fresh);
+            $preset['acs_password_set'] = ($preset['acs_password'] ?? '') !== '' && $preset['acs_password'] !== null;
+            unset($preset['acs_password']);
+
+            return response()->json([...$next, ...$preset]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -1238,6 +1251,8 @@ class SmartOltController extends Controller
      */
     public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, OnuRegistrationService $registration): JsonResponse
     {
+        AcsSetting::fillRequestPassword($request);
+
         // C600 = builder Model B lewat OnuRegistrationService. Preview toleran form parsial:
         // builder C600 melempar bila field wajib kosong → tampilkan pesan alih-alih 500.
         if (SmartOltSupport::isC600($olt)) {
@@ -1255,6 +1270,9 @@ class SmartOltController extends Controller
 
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, OnuOdpService $odps): RedirectResponse
     {
+        // Password ACS diisi server bila form mengirim kosong.
+        AcsSetting::fillRequestPassword($request);
+
         // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
         if (SmartOltSupport::isC600($olt)) {
             $execute = $request->boolean('execute');
@@ -1787,6 +1805,8 @@ class SmartOltController extends Controller
      */
     private function validatedAdvancedProvisioning(Request $request, SnmpOlt $olt): array
     {
+        AcsSetting::fillRequestPassword($request, 'config.acs_password');
+
         $validated = $request->validate([
             'serial_number' => ['required', 'string', 'max:64'],
             'slot' => ['required', 'integer', 'between:1,255'],
@@ -1924,6 +1944,9 @@ class SmartOltController extends Controller
             'cli_transport' => $olt->cli_transport,
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
+            // Kolom koneksi (IP/port/SNMP/CLI) terkunci untuk partner pada OLT
+            // global yang di-assign — ditegakkan server (ManagesOltOwnership::authorizeOltUpdate).
+            'connection_locked' => ! (bool) auth()->user()?->canEditOltConnection($olt),
             'polling_enabled' => (bool) $olt->polling_enabled,
             // Efektif per-penerima: partner lihat saklar webhook-nya sendiri (pivot),
             // admin/operator lihat saklar OLT.

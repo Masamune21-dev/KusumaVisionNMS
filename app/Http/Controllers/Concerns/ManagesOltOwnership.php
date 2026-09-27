@@ -44,4 +44,62 @@ trait ManagesOltOwnership
             abort_unless($user->ownsOlt($olt), 403, 'Anda hanya boleh menghapus OLT milik Anda sendiri.');
         }
     }
+
+    /**
+     * Kolom koneksi OLT yang dikunci untuk partner pada OLT global
+     * yang di-assign: alamat, port, komunitas SNMP, transport & kredensial CLI.
+     *
+     * @var list<string>
+     */
+    protected const OLT_CONNECTION_FIELDS = [
+        'ip', 'snmp_port', 'snmp_version', 'snmp_read_community', 'snmp_write_community',
+        'cli_transport', 'cli_port', 'cli_username', 'cli_password',
+    ];
+
+    /**
+     * Guard update OLT (semua family). Partner boleh mengubah nama,
+     * vendor, polling, dsb. pada OLT global yang di-assign, tetapi setiap upaya
+     * mengganti kolom koneksi (IP/port/SNMP/CLI) ditolak 403 — kecuali OLT itu
+     * privat miliknya. Staf Pusat tidak dibatasi.
+     *
+     * @param  array<string, mixed>  $data  payload tervalidasi (setelah secret kosong dibuang)
+     */
+    protected function authorizeOltUpdate(SnmpOlt $olt, ?User $user, array $data): void
+    {
+        if (! $user || $user->canEditOltConnection($olt)) {
+            return;
+        }
+
+        foreach (self::OLT_CONNECTION_FIELDS as $field) {
+            if (! array_key_exists($field, $data)) {
+                continue;
+            }
+
+            $incoming = $data[$field];
+            $current = $olt->{$field};
+
+            // Normalisasi: port/angka dibandingkan sebagai string agar "23" == 23.
+            if ((string) ($incoming ?? '') !== (string) ($current ?? '')) {
+                abort(403, 'Parameter koneksi OLT global (IP, port, SNMP, kredensial CLI) hanya boleh diubah oleh staf Pusat.');
+            }
+        }
+    }
+
+    /**
+     * Guard uji koneksi/probe OLT: partner hanya pada OLT miliknya.
+     */
+    protected function authorizeOltConnectionTest(SnmpOlt $olt, ?User $user): void
+    {
+        if ($user && ! $user->canEditOltConnection($olt)) {
+            abort(403, 'Uji koneksi OLT global hanya boleh dilakukan staf Pusat atau pemilik OLT.');
+        }
+    }
+
+    /**
+     * Guard akses rahasia OLT (CLI telnet, isi backup running-config).
+     */
+    protected function authorizeOltSecretAccess(SnmpOlt $olt, ?User $user): void
+    {
+        abort_unless((bool) $user?->canAccessOltSecrets($olt), 403, 'Akses CLI/backup OLT ini hanya untuk staf Pusat atau pemilik OLT.');
+    }
 }

@@ -5,7 +5,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm } from '@inertiajs/vue3';
-import { Activity, Cpu, KeyRound, Network } from '@lucide/vue';
+import { Activity, Cpu, KeyRound, Network, Lock } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -43,6 +43,9 @@ const form = useForm({
 // Tab inventory tujuan tombol Batal — HiOSO punya tab sendiri.
 const backTab = computed(() => (/hioso|vsol|v-sol|25355/i.test(form.vendor) ? 'hioso' : 'cdata'));
 
+// Partner pada OLT global yang di-assign: kolom koneksi hanya-baca (server 403).
+const connectionLocked = computed(() => !!props.olt?.connection_locked);
+
 const submit = () => {
     if (props.olt) {
         form.put(route('cdata-olt.update', props.olt.id), {
@@ -60,6 +63,13 @@ const submit = () => {
 
 <template>
     <form class="space-y-5" @submit.prevent="submit">
+        <div
+            v-if="connectionLocked"
+            class="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200/90"
+        >
+            <Lock class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+            <p>{{ $t('oltform.connection_locked') }}</p>
+        </div>
         <!-- Section: Identitas OLT -->
         <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
@@ -107,6 +117,7 @@ const submit = () => {
                     <TextInput
                         id="ip"
                         v-model="form.ip"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         autocomplete="off"
                         required
@@ -133,6 +144,7 @@ const submit = () => {
                     <TextInput
                         id="snmp_port"
                         v-model="form.snmp_port"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         type="number"
                         min="1"
@@ -147,6 +159,7 @@ const submit = () => {
                     <select
                         id="snmp_version"
                         v-model="form.snmp_version"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                         required
                     >
@@ -161,6 +174,7 @@ const submit = () => {
                     <TextInput
                         id="snmp_read_community"
                         v-model="form.snmp_read_community"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         autocomplete="new-password"
                         :required="!olt"
@@ -177,6 +191,7 @@ const submit = () => {
                     <TextInput
                         id="snmp_write_community"
                         v-model="form.snmp_write_community"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         autocomplete="new-password"
                         type="password"
@@ -204,6 +219,7 @@ const submit = () => {
                     <select
                         id="cli_transport"
                         v-model="form.cli_transport"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
                     >
                         <option value="">{{ $t('oltform.cli_transport_none') }}</option>
@@ -218,6 +234,7 @@ const submit = () => {
                     <TextInput
                         id="cli_port"
                         v-model="form.cli_port"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         type="number"
                         min="1"
@@ -232,6 +249,7 @@ const submit = () => {
                     <TextInput
                         id="cli_username"
                         v-model="form.cli_username"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         autocomplete="off"
                     />
@@ -243,6 +261,7 @@ const submit = () => {
                     <TextInput
                         id="cli_password"
                         v-model="form.cli_password"
+                        :disabled="connectionLocked"
                         class="mt-1 block w-full"
                         autocomplete="new-password"
                         type="password"

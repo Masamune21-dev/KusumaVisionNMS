@@ -9,6 +9,7 @@ use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use App\Services\Alarm\OdpAlarmGrouper;
 use App\Support\DisplayTime;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -145,7 +146,7 @@ class TelegramNotifier
         } catch (Throwable $exception) {
             Log::warning('Telegram alarm notification failed', [
                 'olt_id' => $olt->id,
-                'error' => $exception->getMessage(),
+                'error' => self::redactToken($exception->getMessage()),
             ]);
         }
     }
@@ -170,7 +171,7 @@ class TelegramNotifier
         try {
             return $this->dispatch($config, $text);
         } catch (Throwable $exception) {
-            return ['ok' => false, 'error' => $exception->getMessage()];
+            return ['ok' => false, 'error' => self::redactToken($exception->getMessage())];
         }
     }
 
@@ -267,10 +268,40 @@ class TelegramNotifier
         }
 
         try {
-            Http::asJson()->timeout(10)->post(self::API_BASE."/bot{$token}/answerCallbackQuery", $payload);
+            $this->http()->post(self::API_BASE."/bot{$token}/answerCallbackQuery", $payload);
         } catch (Throwable) {
             // The user already has their reply; a failed ack only leaves a brief spinner.
         }
+    }
+
+    /**
+     * Klien HTTP untuk seluruh panggilan Telegram.
+     *
+     * Dipaksa IPv4: di host yang IPv6-nya tidak tersambung ke internet sementara
+     * api.telegram.org punya AAAA, cURL mencoba IPv6 lebih dulu dan baru menyerah
+     * setelah timeout — alarm OLT hilang begitu saja ("cURL error 28"). Koneksi
+     * dibatasi 5 detik supaya satu hiccup DNS tidak menahan siklus poll, lalu diulang
+     * tiga kali: kegagalan di sini biasanya sesaat, dan alarm yang tidak terkirim
+     * tidak punya kesempatan kedua.
+     */
+    private function http(int $timeout = 10): PendingRequest
+    {
+        return Http::asJson()
+            ->timeout($timeout)
+            ->connectTimeout(5)
+            ->withOptions(['curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]])
+            ->retry(3, 500, throw: false);
+    }
+
+    /**
+     * Hapus bot token dari pesan sebelum dicatat.
+     *
+     * Pesan error cURL memuat URL lengkap, dan URL Telegram memuat tokennya —
+     * sehingga tiap kegagalan jaringan dulu menuliskan token bot ke laravel.log.
+     */
+    public static function redactToken(string $message): string
+    {
+        return (string) preg_replace('#bot\d+:[A-Za-z0-9_\-]+#', 'bot<token-disensor>', $message);
     }
 
     /**
@@ -280,11 +311,9 @@ class TelegramNotifier
     private function apiCall(string $token, string $method, array $payload): array
     {
         try {
-            $response = Http::asJson()
-                ->timeout(10)
-                ->post(self::API_BASE."/bot{$token}/{$method}", $payload);
+            $response = $this->http()->post(self::API_BASE."/bot{$token}/{$method}", $payload);
         } catch (Throwable $exception) {
-            return ['ok' => false, 'error' => $exception->getMessage()];
+            return ['ok' => false, 'error' => self::redactToken($exception->getMessage())];
         }
 
         if (! $response->successful() || $response->json('ok') !== true) {
@@ -308,14 +337,12 @@ class TelegramNotifier
         $error = null;
 
         foreach ($config->chatIds() as $chatId) {
-            $response = Http::asJson()
-                ->timeout(10)
-                ->post(self::API_BASE."/bot{$token}/sendMessage", [
-                    'chat_id' => $chatId,
-                    'text' => $text,
-                    'parse_mode' => 'HTML',
-                    'disable_web_page_preview' => true,
-                ]);
+            $response = $this->http()->post(self::API_BASE."/bot{$token}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'parse_mode' => 'HTML',
+                'disable_web_page_preview' => true,
+            ]);
 
             if (! $response->successful() || $response->json('ok') !== true) {
                 $error = $response->json('description')

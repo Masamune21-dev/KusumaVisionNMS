@@ -3,6 +3,7 @@
 namespace App\Services\Telnet;
 
 use App\Models\SnmpOlt;
+use App\Models\User;
 use App\Support\Telnet\TelnetIacFilter;
 use App\Support\Telnet\TelnetTicket;
 use Illuminate\Support\Facades\Log;
@@ -113,7 +114,8 @@ class TelnetProxyServer
 
         parse_str((string) parse_url($m[1], PHP_URL_QUERY), $query);
         $token = (string) ($query['token'] ?? '');
-        $ticket = $token !== '' ? TelnetTicket::verify($token) : null;
+        // Tiket sekali pakai: dihanguskan saat dikonsumsi di sini.
+        $ticket = $token !== '' ? TelnetTicket::consume($token) : null;
 
         if ($ticket === null) {
             $conn->end("HTTP/1.1 401 Unauthorized\r\n\r\n");
@@ -123,6 +125,15 @@ class TelnetProxyServer
 
         $olt = SnmpOlt::find($ticket['o']);
         if (! $olt || $olt->cli_transport !== 'telnet' || ! $olt->cli_username || ! $olt->cli_password) {
+            $conn->end("HTTP/1.1 403 Forbidden\r\n\r\n");
+
+            return;
+        }
+
+        // Cek role ulang saat connect (bukan hanya saat tiket diterbitkan): user yang
+        // diturunkan/dihapus di antara keduanya tidak boleh masuk CLI.
+        $user = User::find($ticket['u']);
+        if (! $user || ! $user->canAccessOltSecrets($olt)) {
             $conn->end("HTTP/1.1 403 Forbidden\r\n\r\n");
 
             return;

@@ -20,10 +20,14 @@ dilakukan lewat flag `is_demo` + global scope, bukan database terpisah.
 
 | Email | Password | Role |
 |---|---|---|
-| `demo@kusumavision.test` | `password` | demo (read-only, lihat data demo) |
-| `admin@kusumavision.test` | `password` | admin |
+| `demo@kusumavision.test` | lihat di bawah | demo (read-only, lihat data demo) |
+| `admin@kusumavision.test` | lihat di bawah | admin |
 
-> Ganti password sebelum demo dibuka ke publik. Anda juga bisa membuat user role `demo` lain
+Password kedua akun **dibuat acak** saat seeder dijalankan dan ditampilkan sekali di keluaran
+perintah — dulu keduanya `password`, yang langsung bisa ditebak begitu demo dibuka ke internet.
+Untuk nilai tetap (mis. CI), setel `DEMO_SEED_PASSWORD` di `.env` sebelum menjalankan seeder.
+
+> Tetap ganti password sebelum demo dibuka ke publik. Anda juga bisa membuat user role `demo` lain
 > lewat halaman Users — semuanya otomatis melihat data demo.
 
 ## Mengaktifkan data demo

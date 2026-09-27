@@ -43,7 +43,10 @@ class OnuRegistrationFormDefaults
             'tr069_enabled' => false,
             'acs_url' => $acs['url'] ?? '',
             'acs_username' => $acs['username'] ?? '',
-            'acs_password' => $acs['password'] ?? '',
+            // Password ACS tidak dikirim ke klien; server mengisinya saat
+            // registrasi bila field ini dikirim kosong.
+            'acs_password' => '',
+            'acs_password_set' => ($acs['password'] ?? '') !== '',
             'remote_ont_enabled' => false,
             'remote_ont_id' => 1,
             'remote_ont_mode' => 'forward',

@@ -62,6 +62,9 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            // Log memuat pesan error mentah; 0664 bawaan membuatnya terbaca
+            // semua user lokal di server.
+            'permission' => 0640,
             'replace_placeholders' => true,
         ],
 
@@ -70,6 +73,7 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
+            'permission' => 0640,
             'replace_placeholders' => true,
         ],
 

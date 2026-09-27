@@ -16,7 +16,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Riwayat & aksi backup running-config OLT (ZTE). Otorisasi kepemilikan ditegakkan
  * otomatis oleh route-model binding + PartnerOltScope (admin/operator lihat semua,
  * partner hanya OLT miliknya). Isi config sensitif → hanya diserahkan lewat endpoint
- * content/download yang juga ter-scope OLT.
+ * content/download yang juga ter-scope OLT DAN dibatasi ke staf Pusat / pemilik OLT
+ * privat (running-config memuat kredensial perangkat).
  */
 class OltConfigBackupController extends Controller
 {
@@ -75,6 +76,7 @@ class OltConfigBackupController extends Controller
     public function content(SnmpOlt $olt, OltConfigBackup $backup): JsonResponse
     {
         $this->assertBackupBelongsTo($olt, $backup);
+        $this->authorizeSecretAccess($olt);
 
         return response()->json([
             'id' => $backup->id,
@@ -86,6 +88,7 @@ class OltConfigBackupController extends Controller
     public function download(SnmpOlt $olt, OltConfigBackup $backup): StreamedResponse
     {
         $this->assertBackupBelongsTo($olt, $backup);
+        $this->authorizeSecretAccess($olt);
         abort_if($backup->status !== OltConfigBackup::STATUS_OK, 404);
 
         $stamp = optional($backup->captured_at)->format('Ymd-His') ?? (string) $backup->id;
@@ -101,6 +104,11 @@ class OltConfigBackupController extends Controller
     private function assertBackupBelongsTo(SnmpOlt $olt, OltConfigBackup $backup): void
     {
         abort_unless($backup->snmp_olt_id === $olt->id, 404);
+    }
+
+    private function authorizeSecretAccess(SnmpOlt $olt): void
+    {
+        abort_unless((bool) request()->user()?->canAccessOltSecrets($olt), 403, 'Isi backup config OLT ini hanya untuk staf Pusat atau pemilik OLT.');
     }
 
     /**

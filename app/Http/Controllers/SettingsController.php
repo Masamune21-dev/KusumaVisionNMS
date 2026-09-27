@@ -228,7 +228,8 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'app_name' => ['required', 'string', 'max:60'],
             'app_version' => ['required', 'string', 'max:30'],
-            'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,svg', 'max:1024'],
+            // SVG ditolak: bisa memuat script (XSS tersimpan).
+            'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
             'remove_logo' => ['boolean'],
         ]);
 

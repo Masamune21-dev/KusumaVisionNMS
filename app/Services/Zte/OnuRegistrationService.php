@@ -2,6 +2,7 @@
 
 namespace App\Services\Zte;
 
+use App\Models\AcsSetting;
 use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
@@ -240,6 +241,8 @@ class OnuRegistrationService
     private function prepare(SnmpOlt $olt, array $data): array
     {
         $data['is_c600'] = SmartOltSupport::isC600($olt);
+        // Password ACS disisipkan di server: klien hanya tahu `acs_password_set`.
+        $data = AcsSetting::fillPassword($data);
 
         if ($data['is_c600']) {
             // Petakan ke kolom audit bersama (builder C600 membaca key spesifiknya sendiri).

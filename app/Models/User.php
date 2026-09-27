@@ -211,6 +211,35 @@ class User extends Authenticatable
         return $olt->owner_user_id !== null && $olt->owner_user_id === $this->id;
     }
 
+    /**
+     * Staf Pusat: admin/operator. Hanya mereka yang memegang perangkat global
+     * secara penuh (kredensial, telnet, backup config).
+     */
+    public function isCentralStaff(): bool
+    {
+        return in_array($this->role, [UserRole::Admin, UserRole::Operator], true);
+    }
+
+    /**
+     * Boleh mengubah parameter koneksi OLT (IP, port, komunitas SNMP, kredensial
+     * CLI). Staf Pusat: semua OLT global. Partner: HANYA OLT privat miliknya —
+     * pada OLT global yang sekadar di-assign, mengganti IP berarti poller/telnet
+     * proxy mengetik kredensial OLT pusat ke host pilihan partner.
+     */
+    public function canEditOltConnection(SnmpOlt $olt): bool
+    {
+        return $this->isCentralStaff() || $this->ownsOlt($olt);
+    }
+
+    /**
+     * Boleh membuka CLI telnet & membaca isi backup running-config OLT
+     * (keduanya memuat rahasia perangkat). Staf Pusat atau pemilik OLT privat.
+     */
+    public function canAccessOltSecrets(SnmpOlt $olt): bool
+    {
+        return $this->canManageOlt() && ($this->isCentralStaff() || $this->ownsOlt($olt));
+    }
+
     public function canManageUsers(): bool
     {
         return $this->role === UserRole::Admin;

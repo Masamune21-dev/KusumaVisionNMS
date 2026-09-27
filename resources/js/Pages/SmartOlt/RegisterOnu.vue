@@ -487,7 +487,8 @@ const submitC600 = async (execute) => {
                                 </div>
                                 <div>
                                     <InputLabel value="ACS Password" />
-                                    <TextInput v-model="c600Form.acs_password" type="password" class="mt-1 w-full font-mono" />
+                                    <TextInput v-model="c600Form.acs_password" type="password" class="mt-1 w-full font-mono" :placeholder="c600_defaults?.acs_password_set ? '••••••  (tersimpan di server — biarkan kosong)' : ''" />
+                                    <p v-if="c600_defaults?.acs_password_set" class="mt-1 text-[11px] text-slate-500">Password ACS dari Pengaturan disisipkan server saat script dibuat; isi hanya bila ingin memakai password lain.</p>
                                     <InputError class="mt-1.5" :message="c600Form.errors.acs_password" />
                                 </div>
                                 <label class="flex items-center gap-2 sm:col-span-2 text-sm text-slate-300">
@@ -795,7 +796,8 @@ const submitC600 = async (execute) => {
                                         </div>
                                         <div>
                                             <InputLabel for="acs_password" value="Password" />
-                                            <TextInput id="acs_password" v-model="form.acs_password" type="password" class="mt-1 block w-full" />
+                                            <TextInput id="acs_password" v-model="form.acs_password" type="password" class="mt-1 block w-full" :placeholder="defaults?.acs_password_set ? '••••••  (tersimpan di server — biarkan kosong)' : ''" />
+                                            <p v-if="defaults?.acs_password_set" class="mt-1 text-[11px] text-slate-500">Password ACS dari Pengaturan disisipkan server saat script dibuat; isi hanya bila ingin memakai password lain.</p>
                                             <InputError class="mt-1.5" :message="form.errors.acs_password" />
                                         </div>
                                     </div>

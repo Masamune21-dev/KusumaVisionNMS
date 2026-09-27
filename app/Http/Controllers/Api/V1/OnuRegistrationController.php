@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SmartOltProfileController;
+use App\Models\AcsSetting;
 use App\Models\SnmpOlt;
 use App\Services\OnuOdpService;
 use App\Services\Zte\OnuRegistrationFormDefaults;
@@ -65,6 +66,7 @@ class OnuRegistrationController extends Controller
     public function preview(Request $request, SnmpOlt $olt): JsonResponse
     {
         $this->assertZte($olt);
+        AcsSetting::fillRequestPassword($request);
         $data = $request->validate($this->registration->rules($olt));
 
         return response()->json(['data' => ['script' => $this->registration->buildScript($olt, $data)]]);
@@ -76,6 +78,7 @@ class OnuRegistrationController extends Controller
     public function store(Request $request, SnmpOlt $olt): JsonResponse
     {
         $this->assertZte($olt);
+        AcsSetting::fillRequestPassword($request);
         $data = $request->validate($this->registration->rules($olt));
         $execute = $request->boolean('execute');
 

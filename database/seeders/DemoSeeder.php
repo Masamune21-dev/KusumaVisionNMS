@@ -10,6 +10,7 @@ use App\Models\SnmpOlt;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Mengisi database DEMO dengan data contoh realistis.
@@ -35,15 +36,28 @@ class DemoSeeder extends Seeder
 
     private function seedUsers(): void
     {
+        // Password acak per seeding: tak ada lagi kredensial `password`
+        // yang bisa ditebak. Nilai bisa dipaksa lewat env DEMO_SEED_PASSWORD (mis. CI);
+        // bila digenerate, ditampilkan sekali di keluaran perintah.
+        $password = (string) env('DEMO_SEED_PASSWORD', '');
+        $generated = $password === '';
+        if ($generated) {
+            $password = Str::random(20);
+        }
+
         User::updateOrCreate(
             ['email' => 'admin@kusumavision.test'],
-            ['name' => 'Admin Demo', 'role' => UserRole::Admin, 'password' => Hash::make('password'), 'email_verified_at' => now()],
+            ['name' => 'Admin Demo', 'role' => UserRole::Admin, 'password' => Hash::make($password), 'email_verified_at' => now()],
         );
 
         User::updateOrCreate(
             ['email' => 'demo@kusumavision.test'],
-            ['name' => 'Pengguna Demo', 'role' => UserRole::Demo, 'password' => Hash::make('password'), 'email_verified_at' => now()],
+            ['name' => 'Pengguna Demo', 'role' => UserRole::Demo, 'password' => Hash::make($password), 'email_verified_at' => now()],
         );
+
+        if ($generated) {
+            $this->command?->warn("Password akun demo (admin@kusumavision.test & demo@kusumavision.test): {$password}");
+        }
     }
 
     /**

@@ -62,7 +62,7 @@ class TelegramWebhookController extends Controller
         } catch (Throwable $exception) {
             // A handler bug must not make Telegram retry the same update forever.
             Log::warning('Telegram update handling failed', [
-                'error' => $exception->getMessage(),
+                'error' => TelegramNotifier::redactToken($exception->getMessage()),
             ]);
         }
 
@@ -76,6 +76,11 @@ class TelegramWebhookController extends Controller
     private function resolveConfig(?string $bot): ?TelegramBotConfig
     {
         if ($bot === null) {
+            // Bot global berjalan tanpa auth user → PartnerOltScope non-aktif. Batasi
+            // eksplisit ke OLT global (owner_user_id IS NULL) agar OLT privat partner
+            // tidak bocor lewat bot admin.
+            PartnerOltScope::restrictGuestToGlobalOlts();
+
             return TelegramSetting::instance();
         }
 

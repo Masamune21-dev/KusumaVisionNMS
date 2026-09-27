@@ -90,7 +90,9 @@ class HsAirPoOltController extends Controller
 
     public function update(Request $request, SnmpOlt $olt): RedirectResponse
     {
-        $olt->update($this->withoutEmptySecrets($this->validated($request, $olt)));
+        $data = $this->withoutEmptySecrets($this->validated($request, $olt));
+        $this->authorizeOltUpdate($olt, $request->user(), $data);
+        $olt->update($data);
 
         return redirect()
             ->route('smartolt.index', ['tab' => 'hsairpo'])
@@ -109,6 +111,8 @@ class HsAirPoOltController extends Controller
 
     public function test(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
     {
+        $this->authorizeOltConnectionTest($olt, request()->user());
+
         // sysDescr HsAirPo KOSONG; sysObjectID `.1.3.6.1.4.1.12170.2.3` yang memetakan family-nya.
         $result = $client->test($olt);
 
@@ -538,6 +542,9 @@ class HsAirPoOltController extends Controller
             'cli_transport' => $olt->cli_transport,
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
+            // Kolom koneksi (IP/port/SNMP/CLI) terkunci untuk partner pada OLT
+            // global yang di-assign — ditegakkan server (ManagesOltOwnership::authorizeOltUpdate).
+            'connection_locked' => ! (bool) auth()->user()?->canEditOltConnection($olt),
             'polling_enabled' => (bool) $olt->polling_enabled,
             'poll_interval_minutes' => $olt->pollIntervalMinutes(),
             'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),

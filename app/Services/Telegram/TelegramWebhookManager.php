@@ -4,6 +4,7 @@ namespace App\Services\Telegram;
 
 use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\TelegramSetting;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -92,17 +93,27 @@ class TelegramWebhookManager
     }
 
     /**
+     * Klien HTTP webhook: alasan IPv4 & retry sama dengan {@see TelegramNotifier::http()}.
+     */
+    private function http(): PendingRequest
+    {
+        return Http::asJson()
+            ->timeout(15)
+            ->connectTimeout(5)
+            ->withOptions(['curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]])
+            ->retry(3, 500, throw: false);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array{ok: bool, message: string, result?: array<string, mixed>}
      */
     private function call(string $token, string $method, array $payload = []): array
     {
         try {
-            $response = Http::asJson()
-                ->timeout(15)
-                ->post(self::API_BASE."/bot{$token}/{$method}", $payload);
+            $response = $this->http()->post(self::API_BASE."/bot{$token}/{$method}", $payload);
         } catch (Throwable $exception) {
-            return ['ok' => false, 'message' => $exception->getMessage()];
+            return ['ok' => false, 'message' => TelegramNotifier::redactToken($exception->getMessage())];
         }
 
         if (! $response->successful() || $response->json('ok') !== true) {

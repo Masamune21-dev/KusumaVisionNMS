@@ -14,7 +14,9 @@ return [
     'ws_url' => env('TELNET_PROXY_WS_URL'),
 
     // Seconds a connection ticket stays valid (time to open the WebSocket).
-    'ticket_ttl' => (int) env('TELNET_PROXY_TICKET_TTL', 60),
+    // Tiket sekali pakai (App\Support\Telnet\TelnetTicket) — 30 detik cukup untuk
+    // browser membuka WebSocket setelah menerima token.
+    'ticket_ttl' => (int) env('TELNET_PROXY_TICKET_TTL', 30),
 
     // Seconds to wait when dialling the OLT telnet port.
     'connect_timeout' => (int) env('TELNET_PROXY_CONNECT_TIMEOUT', 10),

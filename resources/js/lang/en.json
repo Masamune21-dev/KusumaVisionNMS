@@ -283,6 +283,7 @@
         "confirm_delete_hsairpo_title": "Delete HsAirPo OLT"
     },
     "oltform": {
+        "connection_locked": "This OLT is centrally owned and only assigned to you: IP address, ports, SNMP communities and CLI credentials can only be changed by central staff. Name, vendor and polling settings can still be saved.",
         "edit_title": "Edit OLT",
         "submit_create": "Save OLT",
         "submit_update": "Update OLT",
@@ -1352,7 +1353,7 @@
         "logo_label": "App Logo",
         "change_logo": "Change Logo",
         "upload_logo": "Upload Logo",
-        "logo_hint": "PNG, JPG, WEBP, or SVG. Max 1 MB. Leave empty to use the default logo.",
+        "logo_hint": "PNG, JPG, or WEBP. Max 1 MB. Leave empty to use the default logo.",
         "app_name": "App Name",
         "app_name_placeholder": "e.g. KusumaVision",
         "app_version": "App Version",

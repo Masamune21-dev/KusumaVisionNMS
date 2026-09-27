@@ -44,7 +44,9 @@ Instalasi http-polos tetap berfungsi penuh: direktif CSP `upgrade-insecure-reque
 **hanya dikirim saat request memang https** ([`ContentSecurityPolicy`](../../app/Http/Middleware/ContentSecurityPolicy.php)).
 Sebelumnya direktif itu selalu terkirim, sehingga browser menaikkan `/build/assets/*` ke https
 padahal tak ada listener 443 → CSS+JS gagal dimuat → **halaman putih kosong**. Di belakang
-reverse proxy (Cloudflare/LB) deteksi https ikut `X-Forwarded-Proto` lewat `trustProxies`.
+reverse proxy (Cloudflare/LB) deteksi https ikut `X-Forwarded-Proto` — tapi hanya dari proxy yang
+tercantum di `TRUSTED_PROXIES` (`config/trustedproxy.php`, bawaan localhost). Di belakang Cloudflare
+"Flexible" atau LB di host lain, isi IP/CIDR proxy-nya; tanpa itu URL jadi `http://` dan login 419.
 
 Bagian di bawah menjelaskan langkah **manual** (untuk dev, atau bila ingin paham yang dikerjakan
 `install.sh`).

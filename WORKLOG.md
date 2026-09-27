@@ -1,5 +1,52 @@
 # Worklog
 
+## 2026-09-27 — Pengerasan Keamanan: Partner, Telnet, Proxy, Demo, ACS, Telegram, Dependensi
+
+### Fixed
+
+- **Partner tak bisa lagi mengubah koneksi OLT global yang di-assign.** Mengganti IP OLT pusat ke host
+  milik partner membuat poller mengirim community SNMP dan telnet proxy mengetik kredensial CLI OLT
+  pusat ke host itu. `ManagesOltOwnership::authorizeOltUpdate()` menolak (403) perubahan IP/port/SNMP/
+  kredensial CLI kecuali oleh admin/operator atau pemilik OLT privat; nama, vendor, dan polling tetap
+  boleh. Form OLT keempat family menampilkan kolom koneksi hanya-baca + catatan
+  (`oltform.connection_locked`, `connection_locked` dari controller). Helper baru di `User`:
+  `isCentralStaff()`, `canEditOltConnection()`, `canAccessOltSecrets()`.
+- **Telnet CLI, uji koneksi, dan isi backup running-config** OLT global kini hanya untuk admin/operator
+  atau pemilik OLT privat (`TelnetSessionController`, `TelnetProxyServer`, `OltConfigBackupController`);
+  daftar riwayat backup (tanpa isi) tetap terlihat.
+- **Tiket telnet sekali pakai**: `TelnetTicket` ber-`jti` yang dihanguskan di cache saat dipakai, TTL
+  bawaan 60 → 30 detik.
+- **Proxy tepercaya bisa diatur, bawaan hanya localhost.** Dulu `trustProxies(at: '*')` — siapa pun
+  bisa memalsukan `X-Forwarded-For`, sehingga throttle login/olt-refresh dan IP audit log bisa diakali.
+  Kini dibaca dari `config/trustedproxy.php` (env `TRUSTED_PROXIES`, bawaan `127.0.0.1,::1`).
+- **Mode demo juga read-only di API bertoken** (`BlockDemoWrites` di grup `api`). `DemoSeeder` tak lagi
+  memakai password `password`: dibuat acak dan ditampilkan sekali, atau dari `DEMO_SEED_PASSWORD`.
+- **Password ACS tak lagi dikirim ke browser** (props form registrasi ONU & JSON preset TR069). Form
+  hanya tahu `acs_password_set`; server mengisinya lewat `AcsSetting::fillPassword()` bila form kosong.
+- **Bot Telegram global** dibatasi ke OLT global (`PartnerOltScope::restrictGuestToGlobalOlts()`), jadi
+  OLT privat partner tak bocor lewat bot admin.
+- **Token bot Telegram tak lagi tertulis di log**: pesan error cURL memuat URL berisi token —
+  `TelegramNotifier::redactToken()` menyensornya di log & pesan error. Klien HTTP Telegram kini IPv4,
+  `connectTimeout(5)` + retry 3× (alarm dulu hilang diam-diam saat IPv6 host tidak tersambung).
+  Berkas log dibuat `0640`.
+- **Upload logo SVG ditolak** (bisa memuat script → XSS tersimpan); petunjuk & `accept` ikut diperbarui.
+- **Token API (aplikasi Android) kedaluwarsa**: `config/sanctum.php` + `SANCTUM_EXPIRATION` (contoh 43200
+  menit = 30 hari; kosong = tak pernah).
+- **Dependensi**: `composer audit` sebelumnya 22 advisory (guzzle 7.14.0 — 1 high, dompdf 3.1.5,
+  league/commonmark 2.8.2) → guzzle 7.15.5, dompdf 3.1.6, league/commonmark 2.10.1, laravel/framework
+  12.63.0 → 12.69.2. `composer audit` kini bersih.
+
+### Notes
+
+- ⚠️ **Catatan upgrade — instalasi di belakang Cloudflare "Flexible" atau load balancer di host lain
+  WAJIB mengisi `TRUSTED_PROXIES`** (IP/CIDR proxy, atau `*` bila origin tak bisa diakses langsung).
+  Tanpa itu skema https tak terdeteksi → URL `http://` → login 419. Docker dengan reverse proxy di host:
+  lihat `.env.docker.example`. Instalasi `install.sh` (nginx + certbot di host yang sama) tak terdampak.
+- `SESSION_SECURE_COOKIE` sengaja tidak dipaksa `true`: akses HTTP polos (LAN/Docker) akan gagal login.
+  Isi `true` bila aplikasi dibuka lewat HTTPS.
+- Test baru `tests/Feature/SecurityHardeningTest.php` (10 kasus). `bash scripts/test.sh` 540 lulus
+  (2840 assertion), `npm test` 12 lulus, `npm run build` OK.
+
 ## 2026-09-26 — Installer: pesan ikut bahasa yang dipilih (EN/ID)
 
 ### Changed

@@ -13,7 +13,9 @@ class TelnetSessionController extends Controller
 {
     public function token(Request $request, SnmpOlt $olt): JsonResponse
     {
-        abort_unless((bool) $request->user()?->canManageOlt(), 403, 'Tidak punya izin telnet ke OLT.');
+        // Staf Pusat atau pemilik OLT privat saja — partner tidak mendapat
+        // CLI penuh ke OLT global yang sekadar di-assign.
+        abort_unless((bool) $request->user()?->canAccessOltSecrets($olt), 403, 'Tidak punya izin telnet ke OLT ini.');
 
         if ($olt->cli_transport !== 'telnet') {
             return response()->json(['message' => 'CLI transport OLT bukan telnet. Set ke telnet di pengaturan OLT.'], 422);

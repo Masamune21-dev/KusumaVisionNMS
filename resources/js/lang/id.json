@@ -283,6 +283,7 @@
         "confirm_delete_hsairpo_title": "Hapus OLT HsAirPo"
     },
     "oltform": {
+        "connection_locked": "OLT ini milik pusat dan hanya di-assign ke Anda: alamat IP, port, komunitas SNMP, dan kredensial CLI hanya bisa diubah staf Pusat. Nama, vendor, dan pengaturan polling tetap bisa disimpan.",
         "edit_title": "Edit OLT",
         "submit_create": "Simpan OLT",
         "submit_update": "Update OLT",
@@ -1352,7 +1353,7 @@
         "logo_label": "Logo Aplikasi",
         "change_logo": "Ganti Logo",
         "upload_logo": "Unggah Logo",
-        "logo_hint": "PNG, JPG, WEBP, atau SVG. Maksimal 1 MB. Kosongkan untuk memakai logo bawaan.",
+        "logo_hint": "PNG, JPG, atau WEBP. Maksimal 1 MB. Kosongkan untuk memakai logo bawaan.",
         "app_name": "Nama Aplikasi",
         "app_name_placeholder": "mis. KusumaVision",
         "app_version": "Versi Aplikasi",

@@ -20,12 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Percayai header X-Forwarded-* dari reverse proxy (Cloudflare, nginx, LB).
-        // Tanpa ini, deployment di belakang Cloudflare "Flexible" (origin HTTP :80)
-        // membuat Laravel/Ziggy men-generate URL http:// padahal halaman diakses
-        // https:// -> axios menganggap POST login cross-origin dan TIDAK memasang
-        // header X-XSRF-TOKEN -> 419 Page Expired permanen di semua browser.
-        $middleware->trustProxies(at: '*');
+        // Proxy tepercaya dibaca dari config/trustedproxy.php (env TRUSTED_PROXIES, bawaan
+        // hanya localhost). Dulu `at: '*'`: siapa pun bisa memalsukan X-Forwarded-For
+        // sehingga throttle login/olt-refresh dan IP di audit log bisa diakali. Deployment
+        // di belakang Cloudflare "Flexible" / load balancer di host lain WAJIB mengisi
+        // TRUSTED_PROXIES (lihat .env.example), kalau tidak URL jadi http:// → 419.
 
         $middleware->web(append: [
             ContentSecurityPolicy::class,
@@ -33,6 +32,11 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             BlockDemoWrites::class,
             AddLinkHeadersForPreloadedAssets::class,
+        ]);
+
+        // API bertoken (Sanctum): user demo tetap read-only.
+        $middleware->api(append: [
+            BlockDemoWrites::class,
         ]);
 
         $middleware->alias([
