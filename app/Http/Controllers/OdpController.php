@@ -142,6 +142,7 @@ class OdpController extends Controller
             'port' => $data['port'] ?? null,
             'latitude' => $data['latitude'],
             'longitude' => $data['longitude'],
+            'color' => $this->service->portColor($data['snmp_olt_id'], $data['slot'] ?? null, $data['port'] ?? null),
             'notes' => $data['notes'] ?? null,
             'created_by' => $request->user()?->id,
         ]);
@@ -155,6 +156,7 @@ class OdpController extends Controller
             // 'sometimes' supaya PUT koordinat-saja (hasil geser pin di peta) dan PUT
             // lock/unlock tak perlu ikut mengirim ulang nama.
             'name' => ['sometimes', 'required', 'string', 'max:128'],
+            'snmp_olt_id' => ['sometimes', 'required', 'integer', 'exists:snmp_olts,id'],
             'slot' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'port' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
@@ -165,6 +167,10 @@ class OdpController extends Controller
 
         if (isset($data['name'])) {
             $odp->name = trim($data['name']);
+        }
+        if (isset($data['snmp_olt_id'])) {
+            // Kepemilikan OLT tujuan — findOrFail kena PartnerOltScope, sama seperti store().
+            $odp->snmp_olt_id = SnmpOlt::query()->findOrFail($data['snmp_olt_id'])->id;
         }
         // slot/port hanya diubah bila field-nya dikirim (edit port opsional).
         if ($request->has('slot')) {
@@ -185,12 +191,25 @@ class OdpController extends Controller
         if ($request->has('notes')) {
             $odp->notes = $data['notes'] ?? null;
         }
+        $movedPort = $odp->isDirty(['snmp_olt_id', 'slot', 'port']);
+        // Pindah ke port yang sudah diwarnai → ikut warnanya; port tujuan polos → warna tetap.
+        if ($movedPort) {
+            $odp->color = $this->service->portColor($odp->snmp_olt_id, $odp->slot, $odp->port, $odp->id) ?? $odp->color;
+        }
         $odp->save();
+
+        // Pindah OLT / ganti port → ONU yang tak lagi di OLT/port itu dilepas, supaya
+        // ODP tak memuat ONU dari OLT atau port lain.
+        $released = $movedPort ? $this->service->releaseMismatchedLinks($odp) : 0;
 
         // Geser pin ODP (payload koordinat saja) sengaja tanpa flash — lihat catatan sama
         // di OnuMapController::update().
-        if (! $request->hasAny(['name', 'slot', 'port', 'locked', 'notes'])) {
+        if (! $request->hasAny(['name', 'snmp_olt_id', 'slot', 'port', 'locked', 'notes'])) {
             return back();
+        }
+
+        if ($released > 0) {
+            return back()->with('success', __('flash.odp_updated_links_released', ['count' => $released]));
         }
 
         return back()->with(

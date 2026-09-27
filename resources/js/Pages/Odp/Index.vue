@@ -23,8 +23,8 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { usePagination } from '@/Composables/usePagination';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { odpColor } from '@/lib/odpColors';
-import { Camera, MapPin, Palette, Pencil, Plus, Search, Trash2, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { Camera, MapPin, Palette, Pencil, Plus, Search, Trash2, TriangleAlert, Waypoints, Wifi, WifiOff, X } from '@lucide/vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -100,6 +100,13 @@ const portLabel = (odp) => (odp.slot === null || odp.port === null ? '—' : `${
 // warna disimpan, jadi menyimpan objeknya langsung akan basi.
 const colorOdpId = ref(null);
 const colorOdp = computed(() => props.odps.find((o) => o.id === colorOdpId.value) ?? null);
+// Modal.vue baru membuka <dialog> saat prop `show` BERUBAH — modal yang di-mount dengan
+// show=true (pola v-if) tak pernah muncul. Jadi modal warna dirender terus; ODP terakhir
+// disimpan supaya isinya tak kosong selama animasi tutup.
+const lastColorOdp = ref({});
+watch(colorOdp, (odp) => {
+    if (odp) lastColorOdp.value = odp;
+});
 
 // --- foto ODP (komponen yang sama dipakai kartu detail ODP di peta) ---
 const photoOdpId = ref(null);
@@ -180,6 +187,17 @@ const openEdit = (odp) => {
     resetLink();
     formOpen.value = true;
 };
+
+// Pindah OLT / ganti port saat edit → ONU yang terhubung akan dilepas server
+// (OnuOdpService::releaseMismatchedLinks). Peringatkan sebelum disimpan.
+const releaseWarning = computed(() => {
+    const odp = editing.value;
+    if (!odp || !odp.onu_count) return false;
+    if (Number(form.snmp_olt_id) !== odp.snmp_olt_id) return true;
+    if (form.slot === '' || form.port === '') return false;
+
+    return Number(form.slot) !== odp.slot || Number(form.port) !== odp.port;
+});
 
 const closeForm = () => {
     formOpen.value = false;
@@ -341,6 +359,8 @@ const mapHref = (odp) =>
                             <button
                                 v-if="search"
                                 type="button"
+                                :title="$t('common.clear_search')"
+                                :aria-label="$t('common.clear_search')"
                                 class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
                                 @click="search = ''"
                             >
@@ -526,7 +546,7 @@ const mapHref = (odp) =>
                         <TextInput id="odp_name" v-model="form.name" type="text" class="mt-1 block w-full" maxlength="128" autofocus />
                         <InputError class="mt-1" :message="form.errors.name" />
                     </div>
-                    <div v-if="!editing" class="sm:col-span-2">
+                    <div class="sm:col-span-2">
                         <InputLabel for="odp_olt" :value="$t('odp.col_olt')" />
                         <select id="odp_olt" v-model="form.snmp_olt_id" class="kv-input mt-1 block min-h-11 w-full">
                             <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
@@ -544,6 +564,13 @@ const mapHref = (odp) =>
                         <InputError class="mt-1" :message="form.errors.port" />
                     </div>
                     <p class="text-xs text-slate-500 sm:col-span-2">{{ $t('odp.port_hint') }}</p>
+                    <div
+                        v-if="releaseWarning"
+                        class="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200/90 sm:col-span-2"
+                    >
+                        <TriangleAlert class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                        <p>{{ $t('odp.move_release_warning', { count: editing.onu_count }) }}</p>
+                    </div>
 
                     <div class="sm:col-span-2">
                         <InputLabel :value="$t('odp.gmaps_label')" />
@@ -697,9 +724,8 @@ const mapHref = (odp) =>
 
         <!-- Warna pin ODP — komponen bersama dgn kartu detail ODP di peta. -->
         <OdpColorModal
-            v-if="colorOdp"
-            :show="true"
-            :odp="colorOdp"
+            :show="colorOdp !== null"
+            :odp="colorOdp ?? lastColorOdp"
             :palette="odp_color_palette"
             :port-count="colorPortCount"
             @close="colorOdpId = null"

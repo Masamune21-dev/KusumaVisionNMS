@@ -65,6 +65,50 @@ class ZteRemoteOnuService
     }
 
     /**
+     * Hapus beberapa ONU sekaligus dalam SATU sesi CLI: `no onu {id}` per ONU di bawah
+     * interface GPON-OLT yang sama. Kegagalan dipetakan per ONU dari error CLI yang dikutip
+     * executor ("`no onu N` → %Error …"), jadi ONU lain tetap dianggap terhapus.
+     *
+     * @param  list<int>  $onuIds
+     * @return array{deleted:list<int>, failed:array<int,string>, error:string|null}
+     */
+    public function deleteMany(SnmpOlt $olt, int $slot, int $port, array $onuIds): array
+    {
+        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $script = implode("\n", [
+            'conf t',
+            "interface {$iface}",
+            ...array_map(fn (int $id): string => "no onu {$id}", $onuIds),
+            'exit',
+        ]);
+
+        $result = $this->executor->execute($olt, $script);
+        $error = $result['error'];
+
+        if ($result['ok'] || $error === null) {
+            return ['deleted' => array_values($onuIds), 'failed' => [], 'error' => null];
+        }
+
+        $failed = [];
+        foreach (explode('; ', $error) as $part) {
+            if (preg_match('/^`no onu (\d+)` → (.+)$/u', $part, $m) && in_array((int) $m[1], $onuIds, true)) {
+                $failed[(int) $m[1]] = $m[2];
+            }
+        }
+
+        // Error tak terpetakan ke ONU tertentu (sesi putus, interface salah): anggap semua gagal.
+        if ($failed === []) {
+            return ['deleted' => [], 'failed' => array_fill_keys($onuIds, $error), 'error' => $error];
+        }
+
+        return [
+            'deleted' => array_values(array_diff($onuIds, array_keys($failed))),
+            'failed' => $failed,
+            'error' => $error,
+        ];
+    }
+
+    /**
      * Enable (1) or disable (2) an ONU via SNMP SET on the admin-state OID.
      */
     public function setActiveState(SnmpOlt $olt, int $ifIndex, int $onuId, bool $active): bool

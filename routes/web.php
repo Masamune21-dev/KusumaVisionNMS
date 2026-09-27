@@ -260,6 +260,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/{olt}/config-backups/{backup}/download', [OltConfigBackupController::class, 'download'])->name('smartolt.config-backups.download');
     Route::post('/smartolt/{olt}/refresh', [SmartOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('smartolt.refresh');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/refresh', [SmartOltController::class, 'refreshPortOnus'])->name('smartolt.port-onus.refresh');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/delete', [SmartOltController::class, 'deleteOnus'])->name('smartolt.port-onus.delete');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/copy', [SmartOltController::class, 'copyOnusToPort'])->name('smartolt.port-onus.copy');
     Route::get('/smartolt/{olt}/copy-tasks/{task}', [SmartOltController::class, 'copyTaskStatus'])->name('smartolt.copy-task.status');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/tr069-bulk', [SmartOltController::class, 'tr069Bulk'])->name('smartolt.tr069-bulk');
@@ -272,6 +273,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure', [SmartOltController::class, 'configureOnuForm'])->name('smartolt.onu.configure');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure/preview', [SmartOltController::class, 'configureOnuPreview'])->name('smartolt.onu.configure.preview');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure', [SmartOltController::class, 'configureOnuApply'])->name('smartolt.onu.configure.apply');
+    // Editor per-bagian gaya NetNumen: satu perubahan → langsung ke OLT → config dibaca ulang (JSON).
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure/item', [SmartOltController::class, 'configureOnuItem'])->name('smartolt.onu.configure.item');
+    // Lepas onu-profile C300 (`no onu N profile`) + tulis ulang baris profile agar layanan tetap jalan.
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/configure/unbind-profile', [SmartOltController::class, 'configureOnuUnbindProfile'])->name('smartolt.onu.configure.unbind-profile');
 });
 
 require __DIR__.'/auth.php';

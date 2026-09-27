@@ -14,7 +14,7 @@ class C600OnuNameStateTest extends TestCase
         // disabled ONU whose last state was LOS (id 3), both on PON ifIndex 285278977.
         return new class extends OltSnmpClient
         {
-            public function walk(SnmpOlt $olt, string $oid): array
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
             {
                 $cols = [
                     '20.2.1.2.1.8' => [1 => 'F641', 3 => 'HG8145X6-10'],                        // type

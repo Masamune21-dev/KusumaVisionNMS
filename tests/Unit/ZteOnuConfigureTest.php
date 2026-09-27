@@ -80,6 +80,71 @@ RAW;
         $this->assertSame('web', $config['remote_ont_protocol']);
     }
 
+    public function test_parses_onu_profile_block_without_gluing_it_to_the_name(): void
+    {
+        // Bentuk output asli C300 (25 Sep 2026); nama, VLAN & kredensial disamarkan.
+        $config = $this->parser()->parse(implode("\n", [
+            'interface gpon-onu_1/3/16:54',
+            '  name Uji-0800 Pelanggan',
+            '  ==Configured by profile: VLAN2100== ',
+            '  tcont 1 name 1 profile SERVER',
+            '  tcont 1 gap mode0',
+            '  gemport 1 name 1 tcont 1',
+            '  gemport 1 traffic-limit upstream SERVER downstream SERVER ',
+            '  ==End== ',
+            '  service-port 1 vport 1 user-vlan 2101 vlan 2101 ',
+            '!',
+            'pon-onu-mng gpon-onu_1/3/16:54',
+            '  ==Configured by profile: VLAN2100==',
+            '  service ServiceName gemport 1 cos 0 vlan 2100',
+            '  ==End==',
+            '  wan-ip 1 mode pppoe username uji0800 password uji0800 vlan-profile',
+            ' UJI-VLAN2101 host 1',
+            '!',
+        ]));
+
+        $this->assertSame('Uji-0800 Pelanggan', $config['name']);
+        $this->assertSame('VLAN2100', $config['onu_profile']);
+        $this->assertContains('service ServiceName gemport 1 cos 0 vlan 2100', $config['profile_lines']);
+        $this->assertNotContains('service-port 1 vport 1 user-vlan 2101 vlan 2101', $config['profile_lines']);
+        $this->assertCount(1, $config['tconts']);
+        $this->assertSame(2100, $config['services'][0]['vlan'] ?? null);
+    }
+
+    public function test_config_without_onu_profile_reports_none(): void
+    {
+        $config = $this->parser()->parse($this->sampleRaw());
+
+        $this->assertNull($config['onu_profile']);
+        $this->assertSame([], $config['profile_lines']);
+    }
+
+    public function test_builder_flags_service_changes_locked_by_an_onu_profile(): void
+    {
+        $base = [
+            'onu_profile' => 'VLAN2100',
+            'services' => [['name' => 'ServiceName', 'gem' => 1, 'cos' => 0, 'vlan' => 2100, 'mode' => 'vlanpri']],
+            'service_ports' => [['id' => 1, 'vport' => 1, 'user_vlan' => 2101, 'vlan' => 2101]],
+        ];
+        $target = [...$base, 'services' => [['name' => 'ServiceName', 'gem' => 1, 'cos' => 0, 'vlan' => 2101, 'mode' => 'vlanpri']]];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/3/16:54']);
+
+        $this->assertContains('no service ServiceName', $delta['profile_conflicts']);
+        $this->assertContains('service ServiceName gemport 1 cos 0 vlan 2101', $delta['profile_conflicts']);
+    }
+
+    public function test_builder_allows_non_profile_changes_on_a_profiled_onu(): void
+    {
+        $base = ['onu_profile' => 'VLAN2100', 'name' => 'Lama'];
+        $target = [...$base, 'name' => 'Baru'];
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/3/16:54']);
+
+        $this->assertNotSame('', $delta['script']);
+        $this->assertSame([], $delta['profile_conflicts']);
+    }
+
     public function test_parses_static_mask_to_length(): void
     {
         $config = $this->parser()->parse(

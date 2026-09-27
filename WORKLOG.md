@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-09-27 — Fitur OLT & ODP: Editor ONU per Bagian, Hapus ONU Massal, Serial GPON, ODP
+
+### Created
+
+- **Editor ONU per bagian gaya NetNumen** (`Components/SmartOlt/OnuConfigTree.vue`,
+  `lib/onuConfigSections.js`) — bawaan halaman Konfigurasi ONU ZTE: pohon bagian, tabel per bagian,
+  Tambah/Ubah/Hapus yang langsung dikirim ke OLT lalu config dibaca ulang. Editor lama tetap ada
+  sebagai tab "Editor lengkap" (pilihan diingat di localStorage).
+- **Hapus ONU terpilih secara massal** di daftar ONU per port ZTE: semua `no onu {id}` dalam satu sesi
+  CLI, kegagalan dilaporkan per ONU, hanya yang berhasil dibuang dari cache. Checkbox pilih tampil bila
+  copy ATAU hapus tersedia (termasuk C600).
+
+### Changed
+
+- **ONU ber-onu-profile (C300)**: parser `ZteOnuRunningConfigService` mengenali blok
+  `==Configured by profile: …==` (dulu penandanya ikut menempel ke nama pelanggan). Perubahan
+  service/T-CONT/GEM yang pasti ditolak OLT (`%Code 64007`) diblokir sebelum dikirim, dengan pesan
+  jelas. Tombol **Lepas profile** menjalankan `no onu N profile`, lalu menulis ulang layanan yang sama.
+- **ODP**: edit ODP bisa mengganti OLT (bukan hanya port) — ONU yang tak lagi di OLT/port ODP dilepas
+  dengan peringatan di modal; ODP baru/pindah port ikut warna ODP lain di PON port itu.
+
+### Fixed
+
+- **Serial ONU GPON rusak**: 4 byte vendor-specific yang kebetulan tercetak (mis. `50 57 3A 79` =
+  "PW:y") dikembalikan SNMP sebagai teks dan ":" dibuang → `CDTC50573A79` tersimpan `CDTCPWY`, bisa
+  kembar antar-ONU. Kolom serial kini dibaca mentah (PHP `SNMP_VALUE_PLAIN`, poller Go `walkHex`).
+- Tombol warna di halaman ODP tidak membuka modal (modal dipasang dengan `show` sudah true).
+- Label aksesibilitas tombol kosongkan pencarian di halaman ODP (`common.clear_search`).
+
+### Notes
+
+- Editor per bagian memakai padanan kelas tema gelap; kelas tema terang ikut paket dua tema berikutnya.
+- `bash scripts/test.sh` 568 lulus (2941 assertion), `npm test` 19, `go test ./cmd/kv-snmp-poller` OK,
+  `npm run build` OK. **Upgrade**: rebuild poller Go (`install.sh` melakukannya; manual:
+  `go build -mod=mod -o bin/kv-snmp-poller ./cmd/kv-snmp-poller`), Docker ikut saat image dibangun ulang.
+
 ## 2026-09-27 — Performa: Riwayat RX per Jam, Muatan Awal, Latar Statis, Peta Ribuan Pin
 
 ### Changed

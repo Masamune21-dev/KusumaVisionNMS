@@ -93,3 +93,12 @@ func TestIsC600(t *testing.T) {
 		t.Error("C320 wrongly detected as C600")
 	}
 }
+
+func TestHexValueStringKeepsPrintableSerialBytes(t *testing.T) {
+	// 50 57 3A 79 = "PW:y" — valueString would return it as text and decodeOnuSN would
+	// strip ":" into "CDTCPWY". The serial walk must keep the bytes.
+	raw := []byte{0x43, 0x44, 0x54, 0x43, 0x50, 0x57, 0x3A, 0x79}
+	if got := decodeOnuSN(hexValueString(raw)); got != "CDTC50573A79" {
+		t.Fatalf("decodeOnuSN(hexValueString) = %q, want CDTC50573A79", got)
+	}
+}

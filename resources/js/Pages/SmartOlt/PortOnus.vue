@@ -1,5 +1,6 @@
 <script setup>
 import ConfirmModal from '@/Components/ConfirmModal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
 import IconButton from '@/Components/IconButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -138,6 +139,9 @@ const { page: onuPage, pageSize, total: pageTotal, pageCount, pageItems: pagedOn
 // --- batch copy konfigurasi ke port lain (OLT sama) ---
 // Gate = supports_onu_config_write: rebuild registrasi gaya C300 (mati di C600 yang bermodel vport).
 const canCopy = computed(() => !!caps.value.supports_onu_config_write);
+const canBulkDelete = computed(() => !!caps.value.supports_onu_delete);
+// Checkbox pilih muncul bila ada aksi massal yang tersedia (copy dan/atau hapus).
+const canSelect = computed(() => canCopy.value || canBulkDelete.value);
 const selected = ref(new Set());
 const isSelected = (onu) => selected.value.has(onu.onu_id);
 const toggleSelect = (onu) => {
@@ -359,6 +363,27 @@ const deleteOnu = async (onu) => {
     router.post(route('smartolt.onu.delete', [props.olt.id, props.slot, props.port, onu.onu_id]), {}, {
         preserveScroll: true,
         onFinish: () => { busy[key] = false; },
+    });
+};
+
+const bulkDeleting = ref(false);
+const deleteSelected = async () => {
+    if (selectedCount.value === 0) return;
+    const ids = [...selected.value].sort((a, b) => a - b);
+    const ok = await confirm({
+        title: t('portonus.delete_selected_title', { count: ids.length }),
+        message: t('portonus.delete_selected_msg', { count: ids.length, ids: ids.join(', '), slot: props.slot, port: props.port }),
+        confirmLabel: t('common.delete'),
+        variant: 'danger',
+    });
+
+    if (!ok) return;
+
+    bulkDeleting.value = true;
+    router.post(route('smartolt.port-onus.delete', [props.olt.id, props.slot, props.port]), { onu_ids: ids }, {
+        preserveScroll: true,
+        onSuccess: clearSelection,
+        onFinish: () => { bulkDeleting.value = false; },
     });
 };
 
@@ -646,7 +671,7 @@ const rxBadgeClass = (value) => {
                     </div>
 
                     <!-- Selection / copy toolbar -->
-                    <div v-if="canCopy && snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div v-if="canSelect && snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <label class="inline-flex items-center gap-2 text-sm text-slate-300">
                             <input
                                 type="checkbox"
@@ -656,10 +681,14 @@ const rxBadgeClass = (value) => {
                             />
                             {{ $t('portonus.select_all', { count: filteredOnus.length }) }}
                         </label>
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
                             <span v-if="selectedCount" class="text-sm text-slate-400">{{ $t('portonus.n_selected', { count: selectedCount }) }}</span>
                             <button v-if="selectedCount" type="button" class="kv-filter-reset" @click="clearSelection">{{ $t('portonus.clear_selection') }}</button>
-                            <PrimaryButton type="button" :disabled="selectedCount === 0" @click="openCopy">
+                            <DangerButton v-if="canBulkDelete" type="button" :disabled="selectedCount === 0 || bulkDeleting" @click="deleteSelected">
+                                <Trash2 class="h-4 w-4" />
+                                {{ bulkDeleting ? $t('portonus.deleting_selected') : $t('portonus.delete_selected') }}
+                            </DangerButton>
+                            <PrimaryButton v-if="canCopy" type="button" :disabled="selectedCount === 0" @click="openCopy">
                                 <Copy class="mr-2 h-4 w-4" />
                                 {{ $t('portonus.copy_to_port') }}
                             </PrimaryButton>
@@ -704,7 +733,7 @@ const rxBadgeClass = (value) => {
                                 <div class="kv-mobile-card-header">
                                     <div class="flex min-w-0 items-start gap-2.5">
                                         <input
-                                            v-if="canCopy"
+                                            v-if="canSelect"
                                             type="checkbox"
                                             :checked="isSelected(onu)"
                                             class="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
@@ -833,7 +862,7 @@ const rxBadgeClass = (value) => {
                         <table class="min-w-[720px] w-full tabular-nums">
                             <thead>
                                 <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th v-if="canCopy" class="w-px px-4 py-3.5 text-left">
+                                    <th v-if="canSelect" class="w-px px-4 py-3.5 text-left">
                                         <input
                                             type="checkbox"
                                             :checked="allFilteredSelected"
@@ -860,7 +889,7 @@ const rxBadgeClass = (value) => {
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                     :class="onu.onu_id === focusId ? 'bg-cyan-500/10' : ''"
                                 >
-                                    <td v-if="canCopy" class="px-4 py-4">
+                                    <td v-if="canSelect" class="px-4 py-4">
                                         <input
                                             type="checkbox"
                                             :checked="isSelected(onu)"

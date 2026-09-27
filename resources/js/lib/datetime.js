@@ -42,6 +42,18 @@ export function formatDate(value) {
 }
 
 // Compact header clock: "29 Mei 16.42 WIB"
+/** Jam:menit:detik + zona (mis. "21:04:09 WIB") — untuk log aktivitas & "dibaca pukul". */
+export function formatTime(value) {
+    const d = toDate(value) ?? new Date();
+    return new Intl.DateTimeFormat(activeLocale(), {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZone: DISPLAY_TZ,
+    }).format(d) + ' ' + TZ_LABEL;
+}
+
 export function formatClock(value) {
     const d = toDate(value) ?? new Date();
     return new Intl.DateTimeFormat(activeLocale(), {

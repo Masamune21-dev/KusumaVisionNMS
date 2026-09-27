@@ -12,6 +12,11 @@ use App\Support\SmartOltSupport;
  */
 class ZteOnuRunningConfigService
 {
+    /** Penanda internal hasil normalizeLines() untuk blok `==Configured by profile: X==`. */
+    private const PROFILE_BEGIN = '__onu_profile_begin';
+
+    private const PROFILE_END = '__onu_profile_end';
+
     public function __construct(private readonly ZteCliProvisioningExecutor $executor) {}
 
     /**
@@ -245,9 +250,33 @@ class ZteOnuRunningConfigService
             // (flow/ip-host/veip/switchport-bind/dhcp-ip/voip) — disimpan mentah, read-only.
             'extra_mgmt' => [],
             'primary_vlan' => null,
+            // onu-profile C300 (`onu {id} profile X` di interface gpon-olt). Baris di dalam blok
+            // `==Configured by profile: X==` … `==End==` DIKUNCI OLT: menambah/mengubah/menghapus
+            // service di ONU ini ditolak `%Code 64007` selama profile masih terpasang.
+            'onu_profile' => null,
+            'profile_lines' => [],
         ];
 
+        $inProfile = false;
+
         foreach ($this->normalizeLines($raw) as $line) {
+            if (preg_match('/^'.self::PROFILE_BEGIN.'\s+(\S+)$/', $line, $m)) {
+                $config['onu_profile'] ??= $m[1];
+                $inProfile = true;
+
+                continue;
+            }
+
+            if ($line === self::PROFILE_END) {
+                $inProfile = false;
+
+                continue;
+            }
+
+            if ($inProfile) {
+                $config['profile_lines'][] = $line;
+            }
+
             $this->applyLine($config, $line);
         }
 
@@ -598,6 +627,20 @@ class ZteOnuRunningConfigService
             $trimmed = trim($rawLine);
 
             if ($trimmed === '' || $this->isNoise($trimmed)) {
+                continue;
+            }
+
+            // Penanda blok onu-profile. Dulu dianggap continuation dan di-lem ke baris
+            // sebelumnya — nama pelanggan terbaca "X  ==Configured by profile: VLAN2100==".
+            if (preg_match('/^==\s*Configured by profile:\s*(\S+?)\s*==$/i', $trimmed, $m)) {
+                $lines[] = self::PROFILE_BEGIN.' '.$m[1];
+
+                continue;
+            }
+
+            if (preg_match('/^==\s*End\s*==$/i', $trimmed)) {
+                $lines[] = self::PROFILE_END;
+
                 continue;
             }
 

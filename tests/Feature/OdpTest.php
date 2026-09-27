@@ -180,6 +180,74 @@ class OdpTest extends TestCase
         $this->assertSame('ODP-GANTI', $odp->fresh()->name);
     }
 
+    public function test_edit_can_move_odp_to_another_olt_and_releases_its_onus(): void
+    {
+        $from = $this->makeOlt('OLT-A', '10.8.0.1');
+        $to = $this->makeOlt('OLT-B', '10.8.0.2');
+        $odp = $this->makeOdp($from);
+        OnuOdpLink::create(['odp_id' => $odp->id, 'snmp_olt_id' => $from->id, 'slot' => 1, 'port' => 1, 'onu_id' => 5]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->put(route('map.odps.update', $odp), [
+                'name' => 'ODP-01',
+                'snmp_olt_id' => $to->id,
+                'slot' => 2,
+                'port' => 3,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success', __('flash.odp_updated_links_released', ['count' => 1]));
+
+        $odp->refresh();
+        $this->assertSame($to->id, $odp->snmp_olt_id);
+        $this->assertSame([2, 3], [$odp->slot, $odp->port]);
+        // ONU OLT lama tak mungkin berada di ODP yang kini milik OLT lain.
+        $this->assertDatabaseMissing('onu_odp_links', ['odp_id' => $odp->id]);
+    }
+
+    public function test_changing_port_releases_only_onus_of_the_old_port(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $odp = $this->makeOdp($olt, 'ODP-01', null, null);
+        OnuOdpLink::create(['odp_id' => $odp->id, 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1, 'onu_id' => 5]);
+        OnuOdpLink::create(['odp_id' => $odp->id, 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 2, 'onu_id' => 7]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->put(route('map.odps.update', $odp), ['name' => 'ODP-01', 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 2])
+            ->assertRedirect();
+
+        $this->assertSame([7], OnuOdpLink::query()->where('odp_id', $odp->id)->pluck('onu_id')->all());
+    }
+
+    public function test_edit_without_moving_keeps_onu_links(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $odp = $this->makeOdp($olt);
+        OnuOdpLink::create(['odp_id' => $odp->id, 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1, 'onu_id' => 5]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->put(route('map.odps.update', $odp), ['name' => 'ODP-GANTI', 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1])
+            ->assertRedirect()
+            ->assertSessionHas('success', __('flash.odp_updated'));
+
+        $this->assertDatabaseHas('onu_odp_links', ['odp_id' => $odp->id, 'onu_id' => 5]);
+    }
+
+    public function test_partner_cannot_move_odp_to_an_olt_it_does_not_own(): void
+    {
+        $mine = $this->makeOlt('OLT-MINE', '10.8.0.1');
+        $other = $this->makeOlt('OLT-OTHER', '10.8.0.2');
+        $odp = $this->makeOdp($mine);
+
+        $partner = User::factory()->partner()->create();
+        $partner->partnerOlts()->sync([$mine->id]);
+
+        $this->actingAs($partner)
+            ->put(route('map.odps.update', $odp), ['name' => 'ODP-01', 'snmp_olt_id' => $other->id])
+            ->assertNotFound();
+
+        $this->assertSame($mine->id, $odp->fresh()->snmp_olt_id);
+    }
+
     public function test_color_applies_to_every_odp_on_the_same_pon_port_by_default(): void
     {
         $olt = $this->makeOlt('OLT-A', '10.8.0.1');
@@ -222,6 +290,64 @@ class OdpTest extends TestCase
             ->assertRedirect();
 
         $this->assertNull($target->fresh()->color);
+    }
+
+    public function test_new_odp_follows_the_colour_of_its_pon_port(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $this->makeOdp($olt, 'ODP-A')->forceFill(['color' => '#ec4899'])->save();
+        $this->makeOdp($olt, 'ODP-B')->forceFill(['color' => '#ec4899'])->save();
+        // Satu ODP diwarnai sendiri — port berwarna campur mengambil warna terbanyak.
+        $this->makeOdp($olt, 'ODP-C')->forceFill(['color' => '#3b82f6'])->save();
+        $admin = User::factory()->admin()->create();
+
+        $store = fn (string $name, ?int $slot, ?int $port) => $this->actingAs($admin)->post(route('map.odps.store'), [
+            'snmp_olt_id' => $olt->id, 'name' => $name, 'slot' => $slot, 'port' => $port,
+            'latitude' => -6.75, 'longitude' => 111.03,
+        ])->assertRedirect();
+
+        $store('ODP-BARU', 1, 1);
+        $store('ODP-PORT-LAIN', 1, 2);
+        $store('ODP-TANPA-PORT', null, null);
+
+        $this->assertSame('#ec4899', Odp::query()->where('name', 'ODP-BARU')->value('color'));
+        $this->assertNull(Odp::query()->where('name', 'ODP-PORT-LAIN')->value('color'));
+        $this->assertNull(Odp::query()->where('name', 'ODP-TANPA-PORT')->value('color'));
+    }
+
+    public function test_moving_odp_to_a_coloured_port_adopts_its_colour(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $this->makeOdp($olt, 'ODP-TUJUAN', 1, 2)->forceFill(['color' => '#3b82f6'])->save();
+        $odp = $this->makeOdp($olt, 'ODP-01', 1, 1);
+        $odp->forceFill(['color' => '#ec4899'])->save();
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->put(route('map.odps.update', $odp), ['name' => 'ODP-01', 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 2])
+            ->assertRedirect();
+        $this->assertSame('#3b82f6', $odp->fresh()->color);
+
+        // Port tujuan belum diwarnai → warna ODP dipertahankan.
+        $this->actingAs($admin)
+            ->put(route('map.odps.update', $odp), ['name' => 'ODP-01', 'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 3])
+            ->assertRedirect();
+        $this->assertSame('#3b82f6', $odp->fresh()->color);
+    }
+
+    public function test_port_filled_by_first_onu_adopts_the_port_colour(): void
+    {
+        $olt = $this->makeOlt('OLT-A', '10.8.0.1');
+        $this->makeOdp($olt, 'ODP-A')->forceFill(['color' => '#ec4899'])->save();
+        $odp = $this->makeOdp($olt, 'ODP-TANPA-PORT', null, null);
+
+        $this->actingAs(User::factory()->admin()->create())->post(route('onu-odp.assign'), [
+            'snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1, 'onu_id' => 5, 'odp_id' => $odp->id,
+        ])->assertRedirect();
+
+        $odp->refresh();
+        $this->assertSame([1, 1], [$odp->slot, $odp->port]);
+        $this->assertSame('#ec4899', $odp->color);
     }
 
     public function test_color_of_an_odp_without_port_stays_on_itself(): void

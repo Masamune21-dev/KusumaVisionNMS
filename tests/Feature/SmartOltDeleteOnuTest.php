@@ -46,6 +46,49 @@ class SmartOltDeleteOnuTest extends TestCase
         $this->assertSame(1, data_get($olt->last_test_result, 'port_onus.4_9.count'));
     }
 
+    public function test_bulk_delete_runs_all_no_onu_in_one_session_and_reports_partial_failure(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+
+        $executor = new class extends ZteCliProvisioningExecutor
+        {
+            public array $scripts = [];
+
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                $this->scripts[] = $script;
+
+                return ['ok' => false, 'error' => '`no onu 2` → %Code 32310-GPONSRV : The ONU does not exist.', 'output' => ''];
+            }
+        };
+        $this->app->instance(ZteCliProvisioningExecutor::class, $executor);
+
+        $response = $this->actingAs($user)
+            ->post(route('smartolt.port-onus.delete', [$olt, 4, 9]), ['onu_ids' => [2, 1]]);
+
+        $response
+            ->assertRedirect(route('smartolt.port-onus', [$olt, 4, 9]))
+            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, '1 ONU terhapus') && str_contains($message, 'ONU 2:'));
+
+        $this->assertCount(1, $executor->scripts);
+        $this->assertStringContainsString("interface gpon-olt_1/4/9\nno onu 1\nno onu 2\nexit", $executor->scripts[0]);
+
+        $olt->refresh();
+        $this->assertSame([2], collect(data_get($olt->last_test_result, 'port_onus.4_9.onus'))->pluck('onu_id')->all());
+        $this->assertSame(1, data_get($olt->last_test_result, 'port_onus.4_9.count'));
+    }
+
+    public function test_bulk_delete_requires_onu_ids(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+
+        $this->actingAs($user)
+            ->post(route('smartolt.port-onus.delete', [$olt, 4, 9]), ['onu_ids' => []])
+            ->assertSessionHasErrors('onu_ids');
+    }
+
     private function makeOlt(array $overrides = []): SnmpOlt
     {
         return SnmpOlt::create(array_merge([

@@ -206,7 +206,7 @@ OUT);
         ]);
         $client = new class extends OltSnmpClient
         {
-            public function walk(SnmpOlt $olt, string $oid): array
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
             {
                 return [
                     "{$oid}.268501760.1.1" => 'INTEGER: 5635',

@@ -2,11 +2,12 @@
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
+import OnuConfigTree from '@/Components/SmartOlt/OnuConfigTree.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import {
-    AlertTriangle, ArrowLeft, Check, Copy, Eye, ListChecks, RefreshCw, Settings, Terminal,
+    AlertTriangle, ArrowLeft, Check, Copy, Eye, ListChecks, Lock, RefreshCw, Settings, Terminal,
 } from '@lucide/vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -46,6 +47,7 @@ const summary = computed(() => {
         ['SN', props.meta.sn || '—'],
         ['ONU ID', `${props.onu_id} (immutable)`],
         ['Name', b.name || '—'],
+        ['ONU profile', b.onu_profile || '—'],
         ['T-CONT', `${(b.tconts ?? []).length} row`],
         ['GEM Port', `${(b.gemports ?? []).length} row`],
         ['Service-port', `${(b.service_ports ?? []).length} row`],
@@ -63,7 +65,11 @@ const summary = computed(() => {
 });
 
 // --- delta-live preview ---
-const preview = reactive({ script: t('configonu.loading_comment'), changes: [], loading: false });
+const preview = reactive({ script: t('configonu.loading_comment'), changes: [], conflicts: [], loading: false });
+
+// onu-profile C300: T-CONT/GEM/service dari profile dikunci OLT (%Code 64007).
+const onuProfile = computed(() => props.config?.onu_profile || null);
+const profileLines = computed(() => props.config?.profile_lines ?? []);
 const copied = ref(false);
 let debounceTimer = null;
 
@@ -80,10 +86,12 @@ const runPreview = () => {
                 ? data.script
                 : t('configonu.no_change_comment');
             preview.changes = data.changes ?? [];
+            preview.conflicts = data.profile_conflicts ?? [];
         })
         .catch(() => {
             preview.script = t('configonu.preview_failed_comment');
             preview.changes = [];
+            preview.conflicts = [];
         })
         .finally(() => { preview.loading = false; });
 };
@@ -117,6 +125,30 @@ const apply = () => {
 };
 
 const ifaceLabel = computed(() => props.interface);
+
+// Tampilan: 'tree' = editor per-bagian gaya NetNumen (OK langsung ke OLT), 'full' = editor lama
+// (ubah banyak sekaligus lalu Terapkan). Pilihan diingat per browser.
+const readMode = () => {
+    try { return localStorage.getItem('kv-onucfg-mode') === 'full' ? 'full' : 'tree'; } catch { return 'tree'; }
+};
+const mode = ref(readMode());
+const treeDirty = ref(false);
+const setMode = (next) => {
+    mode.value = next;
+    try { localStorage.setItem('kv-onucfg-mode', next); } catch { /* storage diblokir */ }
+    // Editor lengkap memakai prop halaman; segarkan bila editor per-bagian sudah mengubah OLT.
+    if (next === 'full' && treeDirty.value) {
+        treeDirty.value = false;
+        router.reload({ preserveScroll: true });
+    }
+};
+const onTreeUpdated = (payload) => {
+    if (payload?.reload) {
+        router.reload({ preserveScroll: true });
+        return;
+    }
+    treeDirty.value = true;
+};
 const errorList = computed(() => Object.values(form.errors ?? {}));
 </script>
 
@@ -152,8 +184,8 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
 
-                <!-- Warning banner -->
-                <div class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                <!-- Warning banner (editor lengkap) -->
+                <div v-if="mode === 'full'" class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                     <AlertTriangle class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-400" />
                     <p v-html="$t('configonu.warning')"></p>
                 </div>
@@ -162,6 +194,17 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                 <div v-if="!canWrite" class="flex items-start gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
                     <Eye class="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-400" />
                     <p>{{ $t('configonu.readonly_notice') }}</p>
+                </div>
+
+                <!-- onu-profile C300: bagian dari profile dikunci OLT -->
+                <div v-if="onuProfile && mode === 'full'" class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    <Lock class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-300" />
+                    <div class="min-w-0 space-y-2">
+                        <p class="font-semibold">{{ $t('configonu.profile_title', { profile: onuProfile }) }}</p>
+                        <p class="text-amber-100/80">{{ $t('configonu.profile_body') }}</p>
+                        <pre v-if="profileLines.length"  class="overflow-x-auto rounded-md bg-slate-950/70 px-3 py-2 font-mono text-xs text-amber-200">{{ profileLines.join('\n') }}</pre>
+                        <p class="text-xs text-amber-100/70">{{ $t('configonu.profile_howto', { onuId: onu_id, port: `1/${slot}/${port}` }) }}</p>
+                    </div>
                 </div>
 
                 <div v-if="fetch_error" class="rounded-lg border border-red-500/30 bg-red-500/15 px-4 py-3 text-sm text-red-300">
@@ -175,6 +218,38 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                     </ul>
                 </div>
 
+                <!-- Pilih tampilan -->
+                <div class="flex flex-wrap gap-2" role="tablist">
+                    <button
+                        v-for="m in ['tree', 'full']"
+                        :key="m"
+                        type="button"
+                        role="tab"
+                        :aria-selected="mode === m"
+                        class="min-h-11 rounded-xl border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                        :class="mode === m ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-200' : 'border-white/10 text-slate-400 hover:text-slate-200'"
+                        @click="setMode(m)"
+                    >
+                        {{ m === 'tree' ? $t('onucfg.mode_tree') : $t('onucfg.mode_full') }}
+                    </button>
+                </div>
+
+                <OnuConfigTree
+                    v-if="mode === 'tree'"
+                    :olt="olt"
+                    :slot="slot"
+                    :port="port"
+                    :onu-id="onu_id"
+                    :interface-name="interface"
+                    :serial="meta.sn"
+                    :config="config"
+                    :raw="raw"
+                    :profiles="profiles"
+                    :can-write="canWrite"
+                    @updated="onTreeUpdated"
+                />
+
+                <template v-else>
                 <div class="grid gap-5 xl:grid-cols-[minmax(0,420px)_1fr]">
                     <!-- LEFT: current config -->
                     <div class="space-y-5">
@@ -232,6 +307,12 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                             <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">What Will Change</h3>
                         </header>
                         <div class="p-4 sm:p-6">
+                            <div v-if="preview.conflicts.length" class="mb-4 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                                <p class="font-semibold">{{ $t('configonu.profile_conflict', { profile: onuProfile }) }}</p>
+                                <ul class="mt-1 space-y-0.5 font-mono">
+                                    <li v-for="(line, i) in preview.conflicts" :key="i">{{ line }}</li>
+                                </ul>
+                            </div>
                             <p v-if="!preview.changes.length" class="text-sm text-slate-500">{{ $t('configonu.no_changes') }}</p>
                             <ul v-else class="space-y-2">
                                 <li v-for="(c, i) in preview.changes" :key="i" class="border-l-2 border-amber-500/50 pl-3 text-sm">
@@ -247,12 +328,14 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
                     </section>
                 </div>
 
+                </template>
+
                 <!-- Action bar -->
                 <div class="grid gap-2 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-4 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6">
                     <Link :href="route('smartolt.port-onus', [olt.id, slot, port])" class="block w-full sm:w-auto">
                         <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                     </Link>
-                    <PrimaryButton v-if="canWrite" class="w-full sm:w-auto" :disabled="form.processing" @click="apply">
+                    <PrimaryButton v-if="canWrite && mode === 'full'" class="w-full sm:w-auto" :disabled="form.processing || preview.conflicts.length > 0" @click="apply">
                         <Check class="mr-2 h-4 w-4" />
                         {{ $t('configonu.apply') }}
                     </PrimaryButton>

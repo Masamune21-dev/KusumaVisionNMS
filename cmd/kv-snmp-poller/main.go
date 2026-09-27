@@ -343,7 +343,7 @@ func (c *collector) registeredOnus(ports []portRow) ([]onuRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	serials, err := c.walk(zteOnuSN)
+	serials, err := c.walkHex(zteOnuSN)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +443,10 @@ func (c *collector) registeredOnusC600(ports []portRow) ([]onuRow, error) {
 		}
 		return rows
 	}
-	serials := walkOpt(c600OnuSN)
+	serials, err := c.walkHex(c600OnuSN)
+	if err != nil {
+		serials = map[string]string{}
+	}
 	names := walkOpt(c600OnuName)
 	descriptions := walkOpt(c600OnuDesc)
 	adminStates := walkOpt(c600OnuAdmin)
@@ -567,6 +570,30 @@ func (c *collector) get(oids []string) (map[string]string, error) {
 }
 
 func (c *collector) walk(oid string) (map[string]string, error) {
+	return c.walkFormatted(oid, valueString)
+}
+
+// walkHex: octet string SELALU diformat hex berspasi ("43 44 54 43 50 57 3A 79"). Wajib untuk
+// serial GPON — 8 byte yang 4 byte terakhirnya kebetulan tercetak (50 57 3A 79 = "PW:y") oleh
+// valueString dikembalikan sebagai teks, lalu decodeOnuSN membuang ":" dan CDTC50573A79 terbaca
+// "CDTCPWY" (bisa kembar antar-ONU sehingga identitasnya tak lagi unik).
+func (c *collector) walkHex(oid string) (map[string]string, error) {
+	return c.walkFormatted(oid, hexValueString)
+}
+
+func hexValueString(value interface{}) string {
+	if v, ok := value.([]byte); ok {
+		parts := make([]string, len(v))
+		for i, b := range v {
+			parts[i] = strings.ToUpper(hex.EncodeToString([]byte{b}))
+		}
+		return strings.Join(parts, " ")
+	}
+
+	return valueString(value)
+}
+
+func (c *collector) walkFormatted(oid string, format func(interface{}) string) (map[string]string, error) {
 	var rows []gosnmp.SnmpPDU
 	var err error
 
@@ -586,7 +613,7 @@ func (c *collector) walk(oid string) (map[string]string, error) {
 
 	normalized := make(map[string]string, len(rows))
 	for _, pdu := range rows {
-		normalized[normalizeOID(pdu.Name)] = valueString(pdu.Value)
+		normalized[normalizeOID(pdu.Name)] = format(pdu.Value)
 	}
 
 	return normalized, nil

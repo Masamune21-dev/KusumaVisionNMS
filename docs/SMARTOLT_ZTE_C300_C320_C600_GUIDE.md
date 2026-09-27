@@ -485,6 +485,25 @@ Di dashboard: **Tambah OLT → Test SNMP** (menyimpan `driver` + `sys_descr` ke 
 
 ---
 
+### 16.1 onu-profile C300 dan `%Code 64007`
+
+Sebagian ONU C300 didaftarkan dengan onu-profile (mis. dari NetNumen): di `interface gpon-olt_1/S/P`
+ada baris `onu {id} profile VLAN2100`, dan running-config ONU-nya memuat blok
+`==Configured by profile: VLAN2100==` … `==End==` (di interface: tcont/gemport; di pon-onu-mng:
+`service …`). Selama profile terpasang, menambah/mengubah/menghapus baris di dalam blok itu
+ditolak `%Code 64007-GPONRM : Operation is forbidden for conflicting with some applied onu-profile`
+— termasuk `no service X` (terbukti live 25 Sep 2026 di OLT C300 produksi). `service-port`,
+`wan-ip`, dan baris lain di luar blok tetap bisa diubah.
+
+Pelepasan: di `interface gpon-olt_1/S/P` jalankan `no onu {id} profile` (`<cr>`; opsi lain `line` /
+`remote`) — terverifikasi dari context-help live 25 Sep 2026. ⚠️ `no onu {id}` TANPA `profile`
+menghapus registrasi ONU. Setelah profile dilepas, tcont/gemport/service dari profile ikut hilang
+dan harus ditulis ulang manual
+(contoh sukses: registrasi #176, `tcont 1 name 1 profile SERVER` … `service PPPOE gemport 1 cos 0
+vlan 2101`). NMS: parser `ZteOnuRunningConfigService` mengisi `onu_profile` + `profile_lines`;
+`ZteOnuReconfigureScriptBuilder::profileConflicts()` memblokir baris yang pasti ditolak;
+`SmartOltController::configureOnuUnbindProfile()` melepas profile + menulis ulang + memulihkan selisih.
+
 ## 17. File Driver di Repo (referensi cepat)
 
 | File | Peran |

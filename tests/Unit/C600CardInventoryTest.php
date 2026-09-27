@@ -18,7 +18,7 @@ class C600CardInventoryTest extends TestCase
     {
         $client = new class extends OltSnmpClient
         {
-            public function walk(SnmpOlt $olt, string $oid): array
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
             {
                 $base = '1.3.6.1.4.1.3902.1082.10.1.2.4.1';
 

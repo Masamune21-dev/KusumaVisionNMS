@@ -33,8 +33,10 @@ class ZteOnuReconfigureScriptBuilder
         $this->diffTr069($baseline, $target, $mngLines, $changes);
         $this->diffRemoteOnt($baseline, $target, $mngLines, $changes);
 
+        $profileConflicts = $this->profileConflicts($baseline, [...$ifaceLines, ...$mngLines]);
+
         if ($ifaceLines === [] && $mngLines === []) {
-            return ['script' => '', 'changes' => []];
+            return ['script' => '', 'changes' => [], 'profile_conflicts' => []];
         }
 
         $iface = $context['onu_iface'];
@@ -54,7 +56,33 @@ class ZteOnuReconfigureScriptBuilder
             $lines[] = 'exit';
         }
 
-        return ['script' => implode("\n", $lines), 'changes' => $changes];
+        return ['script' => implode("\n", $lines), 'changes' => $changes, 'profile_conflicts' => $profileConflicts];
+    }
+
+    /**
+     * Baris delta yang PASTI ditolak OLT karena ONU masih terikat onu-profile C300.
+     *
+     * tcont/gemport (interface) dan `service` (pon-onu-mng) yang berasal dari blok
+     * `==Configured by profile: X==` dikunci selama `onu {id} profile X` masih terpasang di
+     * interface gpon-olt — menambah, mengubah, maupun menghapusnya dijawab `%Code 64007`
+     * (terbukti live 25 Sep 2026 di OLT C300 produksi, 4 percobaan gagal). Karena itu
+     * baris seperti ini diblokir sebelum dikirim. `service-port`, `wan-ip`, `vlan port`, dll.
+     * di luar blok profile tetap bebas diubah.
+     *
+     * @param  array<string, mixed>  $baseline
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    private function profileConflicts(array $baseline, array $lines): array
+    {
+        if (blank($baseline['onu_profile'] ?? null)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $lines,
+            fn (string $line): bool => (bool) preg_match('/^(no\s+)?(tcont|gemport|service)\s/i', $line),
+        ));
     }
 
     /**

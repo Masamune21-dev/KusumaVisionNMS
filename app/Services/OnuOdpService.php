@@ -125,7 +125,11 @@ class OnuOdpService
         // ONU dalam satu ODP pasti di port yang sama → isi port ODP otomatis saat
         // ONU pertama di-assign (kalau ODP dibuat tanpa port).
         if ($odp->slot === null && $odp->port === null) {
-            $odp->forceFill(['slot' => $slot, 'port' => $port])->save();
+            $odp->forceFill([
+                'slot' => $slot,
+                'port' => $port,
+                'color' => $this->portColor($olt->id, $slot, $port, $odp->id) ?? $odp->color,
+            ])->save();
         }
 
         OnuOdpLink::query()->updateOrCreate($key, [
@@ -133,6 +137,49 @@ class OnuOdpService
             'serial_number' => $serial,
             'created_by' => $userId,
         ]);
+    }
+
+    /**
+     * Warna yang sudah dipakai ODP lain di PON port ini — ODP yang baru masuk ke port itu
+     * (dibuat, dipindah, atau port-nya terisi otomatis) ikut warnanya supaya satu port tetap
+     * sewarna di peta. Port berwarna campur → warna terbanyak. null = port belum diwarnai.
+     */
+    public function portColor(int $oltId, ?int $slot, ?int $port, ?int $exceptOdpId = null): ?string
+    {
+        if ($slot === null || $port === null) {
+            return null;
+        }
+
+        return Odp::query()
+            ->where('snmp_olt_id', $oltId)
+            ->where('slot', $slot)
+            ->where('port', $port)
+            ->whereNotNull('color')
+            ->when($exceptOdpId !== null, fn ($query) => $query->whereKeyNot($exceptOdpId))
+            ->groupBy('color')
+            ->orderByRaw('count(*) desc')
+            ->orderByRaw('max(updated_at) desc')
+            ->value('color');
+    }
+
+    /**
+     * Lepas kaitan ONU yang tak lagi cocok dengan OLT/port ODP — dipanggil setelah ODP
+     * dipindah OLT atau diganti port-nya. ONU di OLT lain tak mungkin ada di ODP ini,
+     * dan ODP ber-port hanya berisi ONU se-port (aturan yang sama dengan assign()).
+     * ODP tanpa slot/port hanya dicek OLT-nya.
+     *
+     * @return int jumlah kaitan yang dilepas
+     */
+    public function releaseMismatchedLinks(Odp $odp): int
+    {
+        return $odp->links()
+            ->where(function ($query) use ($odp) {
+                $query->where('snmp_olt_id', '!=', $odp->snmp_olt_id);
+                if ($odp->slot !== null && $odp->port !== null) {
+                    $query->orWhere('slot', '!=', $odp->slot)->orWhere('port', '!=', $odp->port);
+                }
+            })
+            ->delete();
     }
 
     /**

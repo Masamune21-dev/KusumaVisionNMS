@@ -451,7 +451,7 @@ class OltSnmpClient
         // When $scope (an ONU-table prefix index, e.g. zteEncodeIfIndex(slot,port))
         // is given, walk only that port's subtree instead of the whole OLT — this
         // is what keeps a single-port refresh light (tens of rows vs thousands).
-        $walk = fn (string $oid): array => $this->walk($olt, $scope === null ? $oid : $this->joinOid($oid, $scope));
+        $walk = fn (string $oid, bool $plain = false): array => $this->walk($olt, $scope === null ? $oid : $this->joinOid($oid, $scope), $plain);
 
         $types = $walk($oids['type']);
         if ($types === []) {
@@ -463,7 +463,7 @@ class OltSnmpClient
 
         $names = $walkOptional($oids['name']);
         $descriptions = $walkOptional($oids['description']);
-        $serials = $walk($oids['sn']);
+        $serials = $walk($oids['sn'], true);
         $adminStates = $walkOptional($oids['admin_state']);
         $phaseStates = $walkOptional($oids['phase_state']);
         $lastDownCauses = $walkOptional($oids['last_down']);
@@ -906,7 +906,14 @@ class OltSnmpClient
         return $suffix !== '' ? $suffix : null;
     }
 
-    public function walk(SnmpOlt $olt, string $oid): array
+    /**
+     * @param  bool  $plain  Ambil nilai MENTAH (SNMP_VALUE_PLAIN) tanpa normalisasi. Wajib untuk
+     *                       serial GPON: 8 byte (4 ASCII vendor + 4 biner) yang 4 byte terakhirnya
+     *                       kebetulan tercetak (mis. 50 57 3A 79 = "PW:y") dikembalikan net-snmp
+     *                       sebagai STRING, bukan Hex-STRING — jalur teks lalu membuang ":" dan
+     *                       serial CDTC50573A79 terbaca "CDTCPWY" (bisa kembar antar-ONU).
+     */
+    public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
     {
         if ($olt->snmp_version === 'v3') {
             throw new RuntimeException('SNMP v3 belum didukung pada walker awal.');
@@ -915,7 +922,7 @@ class OltSnmpClient
         if (class_exists(SNMP::class)) {
             $version = $olt->snmp_version === 'v1' ? SNMP::VERSION_1 : SNMP::VERSION_2C;
             $session = new SNMP($version, $olt->getHostAddress(), $olt->snmp_read_community, 5_000_000, 2);
-            $session->valueretrieval = SNMP_VALUE_LIBRARY;
+            $session->valueretrieval = $plain ? SNMP_VALUE_PLAIN : SNMP_VALUE_LIBRARY;
             $session->oid_output_format = SNMP_OID_OUTPUT_NUMERIC;
             $session->oid_increasing_check = false;
             $session->max_oids = 10;
@@ -930,17 +937,44 @@ class OltSnmpClient
                 throw new RuntimeException("SNMP walk failed for {$oid}");
             }
 
-            return $this->normalizeWalkRows($rows);
+            return $plain ? $this->plainWalkRows($rows) : $this->normalizeWalkRows($rows);
         }
 
         $function = $olt->snmp_version === 'v1' ? 'snmprealwalk' : 'snmp2_real_walk';
-        $rows = @$function($olt->getHostAddress(), $olt->snmp_read_community, $oid, 5_000_000, 2);
+        $previous = snmp_get_valueretrieval();
+
+        if ($plain) {
+            snmp_set_valueretrieval(SNMP_VALUE_PLAIN);
+        }
+
+        try {
+            $rows = @$function($olt->getHostAddress(), $olt->snmp_read_community, $oid, 5_000_000, 2);
+        } finally {
+            snmp_set_valueretrieval($previous);
+        }
 
         if (! is_array($rows)) {
             throw new RuntimeException("SNMP walk failed for {$oid}");
         }
 
-        return $this->normalizeWalkRows($rows);
+        return $plain ? $this->plainWalkRows($rows) : $this->normalizeWalkRows($rows);
+    }
+
+    /**
+     * Nilai mentah apa adanya — TANPA trim, karena byte 0x20/0x22 di ujung serial adalah data.
+     *
+     * @param  array<string, mixed>  $rows
+     * @return array<string, string>
+     */
+    private function plainWalkRows(array $rows): array
+    {
+        $normalized = [];
+
+        foreach ($rows as $oid => $value) {
+            $normalized[$this->normalizeOid((string) $oid)] = (string) $value;
+        }
+
+        return $normalized;
     }
 
     /**
@@ -1213,6 +1247,12 @@ class OltSnmpClient
     {
         if ($raw === null || $raw === '') {
             return null;
+        }
+
+        // Serial GPON mentah (walk plain): tepat 8 byte = 4 ASCII vendor + 4 biner → vendor + hex.
+        // Dicek SEBELUM trim, karena byte biner bisa berupa spasi/kutip/NUL.
+        if (strlen($raw) === 8 && preg_match('/^[A-Z]{4}/', $raw)) {
+            return substr($raw, 0, 4).strtoupper(bin2hex(substr($raw, 4)));
         }
 
         $raw = trim($raw, "\" \t\n\r\0\x0B");

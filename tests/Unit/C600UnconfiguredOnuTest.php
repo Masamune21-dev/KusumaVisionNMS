@@ -17,7 +17,7 @@ class C600UnconfiguredOnuTest extends TestCase
     {
         $client = new class extends OltSnmpClient
         {
-            public function walk(SnmpOlt $olt, string $oid): array
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
             {
                 $base = '1.3.6.1.4.1.3902.1082.500.2.2.11.2.1';
                 $cols = [
@@ -50,7 +50,7 @@ class C600UnconfiguredOnuTest extends TestCase
         // OID C600 tak pernah dipanggil dan hasilnya kosong.
         $client = new class extends OltSnmpClient
         {
-            public function walk(SnmpOlt $olt, string $oid): array
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
             {
                 return str_contains($oid, '1082.500.2.2.11.2.1.2')
                     ? ['x.1.1' => '48 57 54 43 C6 2B 52 AF']

@@ -994,6 +994,7 @@ class SmartOltController extends Controller
         return response()->json([
             'script' => $delta['script'],
             'changes' => $delta['changes'],
+            'profile_conflicts' => $delta['profile_conflicts'] ?? [],
         ]);
     }
 
@@ -1013,15 +1014,227 @@ class SmartOltController extends Controller
             return $back->with('error', __('flash.no_config_changes'));
         }
 
+        // Jangan kirim skrip yang pasti ditolak `%Code 64007` — lihat profileConflicts().
+        if (($delta['profile_conflicts'] ?? []) !== []) {
+            return $back->with('error', __('flash.onu_profile_locked', [
+                'profile' => (string) ($baseline['onu_profile'] ?? ''),
+            ]));
+        }
+
+        try {
+            $result = $executor->execute($olt, $delta['script']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+            $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], $result['ok'], CliOutputSanitizer::clean($result['output']), $error);
+
+            return $back->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? __('flash.config_applied')
+                    : __('flash.config_apply_rejected').$error,
+            );
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+            $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], false, null, $error);
+
+            return $back->with('error', __('flash.apply_config_failed').$error);
+        }
+    }
+
+    /**
+     * Terapkan SATU perubahan dari editor per-bagian (gaya NetNumen: pilih bagian → Tambah/Ubah/
+     * Hapus → OK langsung ke OLT). Mesin delta sama dengan configureOnuApply(); bedanya respons
+     * JSON berisi hasil CLI + running-config yang DIBACA ULANG dari OLT, supaya tabel di layar
+     * selalu mencerminkan keadaan perangkat, bukan harapan klien.
+     */
+    public function configureOnuItem(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_config_write');
+
+        $target = $this->validatedReconfigure($request);
+        $baseline = $request->input('baseline', []);
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+
+        $delta = $builder->build(is_array($baseline) ? $baseline : [], $target, ['onu_iface' => $iface]);
+
+        if ($delta['script'] === '') {
+            return response()->json(['ok' => false, 'error' => 'no_change'], 422);
+        }
+
+        if (($delta['profile_conflicts'] ?? []) !== []) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'profile_locked',
+                'profile' => $baseline['onu_profile'] ?? null,
+                'conflicts' => $delta['profile_conflicts'],
+            ], 422);
+        }
+
+        try {
+            $result = $executor->execute($olt, $delta['script']);
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+            $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], false, null, $error);
+
+            return response()->json(['ok' => false, 'error' => 'cli_failed', 'message' => $error, 'script' => $delta['script']], 502);
+        }
+
+        $output = CliOutputSanitizer::clean($result['output']);
+        $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+        $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], $result['ok'], $output, $error);
+
+        return response()->json([
+            'ok' => $result['ok'],
+            'error' => $result['ok'] ? null : 'rejected',
+            'message' => $error,
+            'script' => $delta['script'],
+            'output' => $output,
+            ...$this->liveConfigPayload($service, $olt, $slot, $port, $onuId),
+        ]);
+    }
+
+    /**
+     * Lepas onu-profile C300 dari satu ONU TANPA mengubah layanannya.
+     *
+     * Sintaks `no onu {id} profile` (di interface gpon-olt, `<cr>` tanpa nama) terverifikasi dari
+     * context-help live 25 Sep 2026. ⚠️ Tanpa kata `profile`, `no onu {id}` MENGHAPUS ONU — makanya
+     * baris ini dibangun di sini, bukan dari input klien.
+     *
+     * Langkah: (1) baca config asli dari OLT; (2) satu sesi: lepas profile lalu langsung tulis ulang
+     * baris yang tadinya milik profile (tcont/gemport/service) supaya pelanggan cuma putus sesaat;
+     * (3) baca ulang, dan bila masih ada yang hilang dibanding config asli (mis. service-port/wan-ip)
+     * kirim delta pemulihannya; (4) baca ulang untuk laporan akhir.
+     */
+    public function configureOnuUnbindProfile(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_config_write');
+
+        $isC600 = SmartOltSupport::isC600($olt);
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
+        $before = $service->fetch($olt, $slot, $port, $onuId);
+
+        if (! $before['ok']) {
+            return response()->json(['ok' => false, 'error' => 'fetch_failed', 'message' => $before['error']], 502);
+        }
+
+        $original = $before['config'];
+        $profile = $original['onu_profile'] ?? null;
+
+        if (blank($profile)) {
+            return response()->json(['ok' => false, 'error' => 'no_profile'], 422);
+        }
+
+        [$ifaceLines, $mngLines] = $this->splitProfileLines($original['profile_lines'] ?? []);
+        $lines = ['conf t', 'interface '.SmartOltSupport::gponOltInterface($slot, $port, $isC600), "no onu {$onuId} profile", 'exit'];
+
+        if ($ifaceLines !== []) {
+            $lines = [...$lines, "interface {$iface}", ...$ifaceLines, 'exit'];
+        }
+
+        if ($mngLines !== []) {
+            $lines = [...$lines, "pon-onu-mng {$iface}", ...$mngLines, 'exit'];
+        }
+
+        $script = implode("\n", $lines);
+        $outputs = [];
+
+        try {
+            $result = $executor->execute($olt, $script);
+            $outputs[] = CliOutputSanitizer::clean($result['output']);
+            $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $original, $script, $result['ok'], end($outputs), $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']));
+
+            // Pemulihan: bandingkan config sesudah dengan config asli (tanpa penanda profile).
+            $after = $service->fetch($olt, $slot, $port, $onuId);
+            $wanted = [...$original, 'onu_profile' => null, 'profile_lines' => []];
+            $restore = $after['ok'] ? $builder->build($after['config'], $wanted, ['onu_iface' => $iface]) : ['script' => ''];
+
+            if ($restore['script'] !== '') {
+                $script .= "\n\n".$restore['script'];
+                $fix = $executor->execute($olt, $restore['script']);
+                $outputs[] = CliOutputSanitizer::clean($fix['output']);
+                $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $original, $restore['script'], $fix['ok'], end($outputs), $fix['error'] === null ? null : CliOutputSanitizer::clean($fix['error']));
+            }
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'cli_failed',
+                'message' => CliOutputSanitizer::clean($exception->getMessage()),
+                'script' => $script,
+                ...$this->liveConfigPayload($service, $olt, $slot, $port, $onuId),
+            ], 502);
+        }
+
+        $final = $this->liveConfigPayload($service, $olt, $slot, $port, $onuId);
+        $finalConfig = $final['config'] ?? [];
+        // Berhasil = profile benar-benar lepas DAN tak ada lagi selisih dengan config asli.
+        $remaining = $builder->build($finalConfig, [...$original, 'onu_profile' => null, 'profile_lines' => []], ['onu_iface' => $iface]);
+        $ok = blank($finalConfig['onu_profile'] ?? null) && $remaining['script'] === '';
+
+        return response()->json([
+            'ok' => $ok,
+            'error' => $ok ? null : 'unbind_incomplete',
+            'profile' => $profile,
+            'script' => $script,
+            'output' => implode("\n\n", $outputs),
+            'remaining' => $remaining['script'],
+            ...$final,
+        ], $ok ? 200 : 422);
+    }
+
+    /**
+     * Pisahkan baris milik profile ke blok interface (tcont/gemport) dan pon-onu-mng (sisanya).
+     *
+     * @param  list<string>  $lines
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private function splitProfileLines(array $lines): array
+    {
+        $iface = [];
+        $mng = [];
+
+        foreach ($lines as $line) {
+            if (preg_match('/^(tcont|gemport|service-port)\s/i', $line)) {
+                $iface[] = $line;
+            } else {
+                $mng[] = $line;
+            }
+        }
+
+        return [$iface, $mng];
+    }
+
+    /**
+     * Running-config ONU yang baru dibaca dari OLT, bentuk yang sama dengan prop halaman Configure.
+     *
+     * @return array{config: array<string, mixed>|null, raw: string, fetch_ok: bool, fetch_error: string|null}
+     */
+    private function liveConfigPayload(ZteOnuRunningConfigService $service, SnmpOlt $olt, int $slot, int $port, int $onuId): array
+    {
+        try {
+            $live = $service->fetch($olt, $slot, $port, $onuId);
+        } catch (\Throwable $exception) {
+            return ['config' => null, 'raw' => '', 'fetch_ok' => false, 'fetch_error' => CliOutputSanitizer::clean($exception->getMessage())];
+        }
+
+        return ['config' => $live['config'], 'raw' => $live['raw'], 'fetch_ok' => $live['ok'], 'fetch_error' => $live['error']];
+    }
+
+    /**
+     * Baris audit `smartolt_onu_registrations` untuk satu eksekusi reconfigure.
+     *
+     * @param  array<string, mixed>  $target
+     */
+    private function recordReconfigure(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, array $target, string $script, bool $ok, ?string $output, ?string $error): void
+    {
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
         $primaryWan = is_array($target['wan_ips'] ?? null) ? ($target['wan_ips'][0] ?? []) : [];
-        $base = [
+
+        SmartOltOnuRegistration::create([
             'snmp_olt_id' => $olt->id,
             'serial_number' => (string) ($cached['serial_number'] ?? ''),
             'slot' => $slot,
             'port' => $port,
             'onu_id' => $onuId,
-            'pon_port' => $iface,
+            'pon_port' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)),
             'customer_name' => (string) ($target['name'] ?? ($cached['name'] ?? '')),
             'vlan' => $this->resolvePrimaryVlan($target),
             'vlan_profile' => $primaryWan['vlan_profile'] ?? null,
@@ -1037,43 +1250,14 @@ class SmartOltController extends Controller
             'remote_ont_id' => $target['remote_ont_id'] ?? null,
             'remote_ont_mode' => $target['remote_ont_mode'] ?? null,
             'remote_ont_protocol' => $target['remote_ont_protocol'] ?? null,
-            'cli_script' => $delta['script'],
+            'cli_script' => $script,
             'created_by' => $request->user()?->id,
-        ];
-
-        try {
-            $result = $executor->execute($olt, $delta['script']);
-            $output = CliOutputSanitizer::clean($result['output']);
-            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
-
-            SmartOltOnuRegistration::create([
-                ...$base,
-                'execution_output' => $output,
-                'execution_error' => $error,
-                'executed_at' => now(),
-                'executed_by' => $request->user()?->id,
-                'status' => $result['ok'] ? 'reconfigured' : 'reconfig_failed',
-            ]);
-
-            return $back->with(
-                $result['ok'] ? 'success' : 'error',
-                $result['ok']
-                    ? __('flash.config_applied')
-                    : __('flash.config_apply_rejected').$error,
-            );
-        } catch (\Throwable $exception) {
-            $error = CliOutputSanitizer::clean($exception->getMessage());
-
-            SmartOltOnuRegistration::create([
-                ...$base,
-                'execution_error' => $error,
-                'executed_at' => now(),
-                'executed_by' => $request->user()?->id,
-                'status' => 'reconfig_failed',
-            ]);
-
-            return $back->with('error', __('flash.apply_config_failed').$error);
-        }
+            'execution_output' => $output,
+            'execution_error' => $error,
+            'executed_at' => now(),
+            'executed_by' => $request->user()?->id,
+            'status' => $ok ? 'reconfigured' : 'reconfig_failed',
+        ]);
     }
 
     /**
@@ -1207,6 +1391,45 @@ class SmartOltController extends Controller
         } catch (\Throwable $exception) {
             return $back->with('error', __('flash.onu_delete_failed').CliOutputSanitizer::clean($exception->getMessage()));
         }
+    }
+
+    /**
+     * Hapus massal ONU terpilih di satu port (`no onu {id}` per ONU, satu sesi CLI).
+     * Yang berhasil dibuang dari cache; yang gagal dilaporkan per ONU.
+     */
+    public function deleteOnus(Request $request, SnmpOlt $olt, int $slot, int $port, ZteRemoteOnuService $remote): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_delete');
+
+        $data = $request->validate([
+            'onu_ids' => ['required', 'array', 'min:1', 'max:128'],
+            'onu_ids.*' => ['integer', 'min:1', 'max:4096', 'distinct'],
+        ]);
+        $onuIds = array_values(array_unique(array_map('intval', $data['onu_ids'])));
+        sort($onuIds);
+
+        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $back = redirect()->route('smartolt.port-onus', [$olt, $slot, $port]);
+
+        try {
+            $result = $remote->deleteMany($olt, $slot, $port, $onuIds);
+        } catch (\Throwable $exception) {
+            return $back->with('error', __('flash.onu_delete_failed').CliOutputSanitizer::clean($exception->getMessage()));
+        }
+
+        $this->removeCachedOnus($olt, $slot, $port, $result['deleted']);
+
+        $deleted = count($result['deleted']);
+
+        if ($result['failed'] === []) {
+            return $back->with('success', "{$deleted} ONU berhasil dihapus dari {$iface}.");
+        }
+
+        $failed = collect($result['failed'])
+            ->map(fn (string $error, int $onuId): string => "ONU {$onuId}: ".CliOutputSanitizer::clean($error))
+            ->implode('; ');
+
+        return $back->with('error', "{$deleted} ONU terhapus, ".count($result['failed'])." gagal — {$failed}. Refresh ONU untuk memastikan kondisi port.");
     }
 
     /**
@@ -2148,6 +2371,18 @@ class SmartOltController extends Controller
      */
     private function removeCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): void
     {
+        $this->removeCachedOnus($olt, $slot, $port, [$onuId]);
+    }
+
+    /**
+     * @param  list<int>  $onuIds
+     */
+    private function removeCachedOnus(SnmpOlt $olt, int $slot, int $port, array $onuIds): void
+    {
+        if ($onuIds === []) {
+            return;
+        }
+
         $snapshot = $olt->last_test_result ?? [];
         $path = "port_onus.{$slot}_{$port}.onus";
         $onus = data_get($snapshot, $path);
@@ -2156,7 +2391,7 @@ class SmartOltController extends Controller
             return;
         }
 
-        $onus = array_values(array_filter($onus, fn (array $onu): bool => (int) ($onu['onu_id'] ?? 0) !== $onuId));
+        $onus = array_values(array_filter($onus, fn (array $onu): bool => ! in_array((int) ($onu['onu_id'] ?? 0), $onuIds, true)));
         data_set($snapshot, $path, $onus);
 
         if (data_get($snapshot, "port_onus.{$slot}_{$port}.count") !== null) {
