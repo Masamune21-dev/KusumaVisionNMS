@@ -13,6 +13,9 @@ import { defineAsyncComponent, computed, onBeforeUnmount, reactive, ref } from '
 // aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
 // ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -116,7 +119,7 @@ const chartOptions = computed(() => ({
     chart: {
         type: 'area',
         background: 'transparent',
-        foreColor: '#64748b',
+        foreColor: chartTheme().muted,
         animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 800 } },
         toolbar: { show: false },
         zoom: { enabled: false },
@@ -133,15 +136,17 @@ const chartOptions = computed(() => ({
         axisBorder: { show: false },
     },
     yaxis: {
-        labels: { minWidth: 76, formatter: (v) => formatMbps(v), style: { colors: '#64748b' } },
+        labels: { minWidth: 76, formatter: (v) => formatMbps(v), style: { colors: tokenHex('slate-500', '#64748b') } },
         min: 0,
         max: chartMaxMbps.value,
         tickAmount: AXIS_TICKS,
         forceNiceScale: true,
     },
-    tooltip: { theme: 'light', y: { formatter: (v) => formatMbps(v) } },
-    legend: { position: 'top', horizontalAlign: 'left' },
-    grid: { strokeDashArray: 3, borderColor: 'rgba(0,0,0,0.08)' },
+    tooltip: { theme: chartTheme().tooltip, y: { formatter: (v) => formatMbps(v) } },
+    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: tokenHex('slate-300', '#cbd5e1') } },
+    // Dulu rgba(0,0,0,0.08): garis hitam di panel gelap = tak terlihat. Kini
+    // garis rambut yang ikut tema, sama seperti grafik lain.
+    grid: { strokeDashArray: 3, borderColor: themeHexA('--kv-white', 0.06, 'rgba(255,255,255,0.06)') },
 }));
 
 const chartSeries = computed(() => [
@@ -333,7 +338,7 @@ const submitDesc = async () => {
 
                 <div class="grid gap-6 lg:grid-cols-2">
                     <!-- Status -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <Network class="h-5 w-5 text-cyan-400" />
                             <h3 class="text-base font-semibold text-white">{{ $t('portdetail.port_status') }}</h3>
@@ -429,20 +434,20 @@ const submitDesc = async () => {
                     </div>
 
                     <!-- Optical / SFP -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <Zap class="h-5 w-5 text-cyan-400" />
                             <h3 class="text-base font-semibold text-white">{{ $t('portdetail.optical_title') }}</h3>
                         </div>
                         <div v-if="d.optical_vendor_name || d.rx_power_dbm !== null && d.rx_power_dbm !== undefined" class="p-4 sm:p-6">
                             <div class="grid grid-cols-2 gap-4">
-                                <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
+                                <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4 text-center">
                                     <p class="text-xs uppercase tracking-wide text-slate-500">RX Power</p>
                                     <p class="mt-1 text-2xl font-bold" :class="opticalColor(d.rx_power_dbm, 'RxPower-Lower', 'RxPower-Upper')">
                                         {{ formatNumber(d.rx_power_dbm) }}<span class="text-sm font-normal text-slate-500"> dBm</span>
                                     </p>
                                 </div>
-                                <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
+                                <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4 text-center">
                                     <p class="text-xs uppercase tracking-wide text-slate-500">TX Power</p>
                                     <p class="mt-1 text-2xl font-bold" :class="opticalColor(d.tx_power_dbm, 'TxPower-Lower', 'TxPower-Upper')">
                                         {{ formatNumber(d.tx_power_dbm) }}<span class="text-sm font-normal text-slate-500"> dBm</span>
@@ -462,7 +467,7 @@ const submitDesc = async () => {
                 </div>
 
                 <!-- Trafik -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
                             <Activity class="h-5 w-5 text-cyan-400" />
@@ -475,19 +480,19 @@ const submitDesc = async () => {
                     </div>
                     <div class="p-4 sm:p-6">
                         <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                            <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                            <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                 <p class="text-xs uppercase tracking-wide text-slate-500">Input</p>
                                 <p class="mt-1 text-lg font-bold text-sky-300">{{ formatBps(isUplink && liveTrafficEnabled ? uplinkInfo.input_bps : d.input_bps) }}</p>
                             </div>
-                            <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                            <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                 <p class="text-xs uppercase tracking-wide text-slate-500">Output</p>
                                 <p class="mt-1 text-lg font-bold text-emerald-300">{{ formatBps(isUplink && liveTrafficEnabled ? uplinkInfo.output_bps : d.output_bps) }}</p>
                             </div>
-                            <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                            <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                 <p class="text-xs uppercase tracking-wide text-slate-500">Throughput In/Out</p>
                                 <p class="mt-1 text-lg font-bold text-white">{{ formatPercent(d.input_throughput_percent) }} / {{ formatPercent(d.output_throughput_percent) }}</p>
                             </div>
-                            <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                            <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                 <p class="text-xs uppercase tracking-wide text-slate-500">Peak In/Out</p>
                                 <p class="mt-1 text-sm font-bold text-white">{{ formatBps(d.input_peak_bps) }} / {{ formatBps(d.output_peak_bps) }}</p>
                             </div>
@@ -495,16 +500,16 @@ const submitDesc = async () => {
 
                         <div v-if="isUplink" class="mt-4">
                             <p v-if="trafficError" class="mb-2 text-xs text-red-300">{{ $t('portdetail.traffic_error', { error: trafficError }) }}</p>
-                            <div v-if="liveTrafficEnabled" class="rounded-lg border border-white/10 bg-slate-950/40 p-2">
-                                <VueApexCharts type="area" height="260" :options="chartOptions" :series="chartSeries" />
+                            <div v-if="liveTrafficEnabled" class="rounded-lg border border-white/10 bg-canvas-3/40 p-2">
+                                <VueApexCharts :key="theme" type="area" height="260" :options="chartOptions" :series="chartSeries" />
                             </div>
-                            <p v-else class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-8 text-center text-sm text-slate-500" v-html="$t('portdetail.live_hint')"></p>
+                            <p v-else class="rounded-lg border border-dashed border-white/10 bg-canvas-3/30 px-4 py-8 text-center text-sm text-slate-500" v-html="$t('portdetail.live_hint')"></p>
                         </div>
                     </div>
                 </div>
 
                 <!-- VLAN (uplink) -->
-                <div v-if="isUplink" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="isUplink" class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex items-center gap-3">
                             <Tag class="h-5 w-5 text-cyan-400" />
@@ -527,7 +532,7 @@ const submitDesc = async () => {
                                 {{ formatVlan(v) }}
                             </span>
                         </div>
-                        <div v-else class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                        <div v-else class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-canvas-3/30 px-4 py-3 text-sm text-slate-500">
                             <Tag class="h-4 w-4 flex-shrink-0 text-slate-600" />
                             {{ $t('portdetail.no_vlan') }}
                         </div>
@@ -561,7 +566,7 @@ const submitDesc = async () => {
                 </div>
 
                 <!-- ONU (gpon) -->
-                <div v-if="isGpon" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="isGpon" class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div class="flex items-center gap-3">
                             <Users class="h-5 w-5 text-cyan-400" />
@@ -575,11 +580,11 @@ const submitDesc = async () => {
                         </Link>
                     </div>
                     <div class="grid grid-cols-2 gap-4 p-4 sm:p-6">
-                        <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
+                        <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4 text-center">
                             <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
                             <p class="mt-1 text-2xl font-bold text-white">{{ onu_summary?.total ?? d.registered_onu_count ?? 0 }}</p>
                         </div>
-                        <div class="rounded-lg border border-white/10 bg-slate-950/40 p-4 text-center">
+                        <div class="rounded-lg border border-white/10 bg-canvas-3/40 p-4 text-center">
                             <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('common.online') }}</p>
                             <p class="mt-1 text-2xl font-bold text-emerald-400">{{ onu_summary?.online ?? '-' }}</p>
                         </div>

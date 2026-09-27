@@ -120,7 +120,7 @@ const cols = {
     uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
 };
 
-const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40 text-slate-100 shadow-sm focus:border-cyan-500 focus:ring-cyan-500';
+const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 text-slate-100 shadow-sm focus:border-cyan-500 focus:ring-cyan-500';
 </script>
 
 <template>
@@ -296,13 +296,13 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                 <button type="button" class="kv-add" @click="addWanService"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="space-y-4 p-4 sm:p-6">
-                <p v-if="!cfg.wan_services.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                <p v-if="!cfg.wan_services.length" class="rounded-lg border border-dashed border-white/10 bg-canvas-3/30 px-4 py-3 text-sm text-slate-500">
                     {{ $t('configonu.cfg_no_wan_before') }} <span class="font-semibold text-slate-300">{{ $t('configonu.cfg_add') }}</span>.
                 </p>
 
                 <div
                     v-for="(w, i) in cfg.wan_services" :key="`ws-${i}`"
-                    class="space-y-4 rounded-lg border border-white/10 bg-slate-950/30 p-4"
+                    class="space-y-4 rounded-lg border border-white/10 bg-canvas-3/30 p-4"
                 >
                     <div class="flex items-center justify-between">
                         <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
@@ -318,7 +318,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <button
                                 v-for="t in wanServiceTypes" :key="t.value" type="button"
                                 class="rounded-lg border px-4 py-2 text-sm font-medium transition-all"
-                                :class="(w.services ?? []).includes(t.value) ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
+                                :class="(w.services ?? []).includes(t.value) ? 'border-cyan-500 bg-cyan-500 text-onaccent' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
                                 @click="toggleWanServiceType(w, t.value)"
                             >{{ t.label }}</button>
                         </div>
@@ -367,13 +367,13 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                 <button type="button" class="kv-add" @click="addWanIp"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add_wanip') }}</button>
             </header>
             <div class="space-y-4 p-4 sm:p-6">
-                <p v-if="!cfg.wan_ips.length" class="rounded-lg border border-dashed border-white/10 bg-slate-950/30 px-4 py-3 text-sm text-slate-500">
+                <p v-if="!cfg.wan_ips.length" class="rounded-lg border border-dashed border-white/10 bg-canvas-3/30 px-4 py-3 text-sm text-slate-500">
                     {{ $t('configonu.cfg_no_wanip_before') }} <span class="font-semibold text-slate-300">{{ $t('configonu.cfg_add_wanip') }}</span> {{ $t('configonu.cfg_no_wanip_after') }}
                 </p>
 
                 <div
                     v-for="(w, i) in cfg.wan_ips" :key="`wan-${i}`"
-                    class="space-y-4 rounded-lg border border-white/10 bg-slate-950/30 p-4"
+                    class="space-y-4 rounded-lg border border-white/10 bg-canvas-3/30 p-4"
                 >
                     <div class="flex items-center justify-between">
                         <span class="inline-flex items-center gap-2 rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
@@ -389,7 +389,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <button
                                 v-for="m in wanIpModes" :key="m.value" type="button"
                                 class="rounded-lg border px-4 py-2 text-sm font-medium transition-all"
-                                :class="w.mode === m.value ? 'border-cyan-500 bg-cyan-500 text-white' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
+                                :class="w.mode === m.value ? 'border-cyan-500 bg-cyan-500 text-onaccent' : 'border-white/10 bg-slate-900/40 text-slate-200 hover:border-cyan-500/40'"
                                 @click="w.mode = m.value"
                             >{{ m.label }}</button>
                         </div>
@@ -425,7 +425,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
                             <InputLabel value="PPPoE Password" />
                             <div class="relative mt-1">
                                 <TextInput v-model="w.pppoe_password" :type="pppoeShown[i] ? 'text' : 'password'" class="block w-full pr-10" placeholder="••••••••" autocomplete="new-password" data-1p-ignore data-lpignore="true" />
-                                <button type="button" class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-white" @click="pppoeShown[i] = !pppoeShown[i]">
+                                <button type="button" :title="$t(pppoeShown[i] ? 'common.hide_password' : 'common.show_password')" :aria-label="$t(pppoeShown[i] ? 'common.hide_password' : 'common.show_password')" class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-white" @click="pppoeShown[i] = !pppoeShown[i]">
                                     <EyeOff v-if="pppoeShown[i]" class="h-4 w-4" /><Eye v-else class="h-4 w-4" />
                                 </button>
                             </div>
@@ -548,15 +548,15 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     align-items: center;
     gap: 0.375rem;
     border-radius: 0.5rem;
-    border: 1px solid rgb(255 255 255 / 0.1);
-    background: rgb(15 23 42 / 0.4);
+    border: 1px solid rgb(var(--kv-white) / 0.1);
+    background: rgb(var(--kv-slate-900) / 0.4);
     padding: 0.375rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 600;
-    color: rgb(226 232 240);
+    color: rgb(var(--kv-slate-200));
     transition: all 0.15s;
 }
-.kv-add:hover { border-color: rgb(6 182 212 / 0.4); color: white; }
+.kv-add:hover { border-color: rgb(6 182 212 / 0.4); color: rgb(var(--kv-white)); }
 .kv-del {
     display: inline-flex;
     align-items: center;
@@ -565,7 +565,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     border: 1px solid rgb(239 68 68 / 0.3);
     background: rgb(239 68 68 / 0.1);
     padding: 0.5rem;
-    color: rgb(252 165 165);
+    color: rgb(var(--kv-red-300));
     transition: all 0.15s;
 }
 .kv-del:hover { background: rgb(239 68 68 / 0.2); }
@@ -575,14 +575,14 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     align-items: center;
     gap: 0.5rem;
     border-radius: 0.375rem;
-    background: rgb(2 6 23 / 0.4);
-    border: 1px solid rgb(255 255 255 / 0.08);
+    background: rgb(var(--kv-canvas-3) / 0.4);
+    border: 1px solid rgb(var(--kv-white) / 0.08);
     padding: 0.5rem 0.625rem;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgb(100 116 139);
+    color: rgb(var(--kv-slate-500));
 }
 .kv-trow {
     display: grid;
@@ -607,8 +607,8 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem 0.75rem;
     border-radius: 0.625rem;
-    border: 1px solid rgb(255 255 255 / 0.08);
-    background: rgb(2 6 23 / 0.4);
+    border: 1px solid rgb(var(--kv-white) / 0.08);
+    background: rgb(var(--kv-canvas-3) / 0.4);
     padding: 0.75rem;
 }
 .kv-rowcard .kv-action-cell {
@@ -622,7 +622,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgb(100 116 139);
+    color: rgb(var(--kv-slate-500));
 }
 .kv-del-mobile {
     display: inline-flex;
@@ -636,7 +636,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-slate-950/40
     padding: 0.5rem 0.75rem;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: rgb(252 165 165);
+    color: rgb(var(--kv-red-300));
     transition: all 0.15s;
 }
 .kv-del-mobile:hover { background: rgb(239 68 68 / 0.2); }

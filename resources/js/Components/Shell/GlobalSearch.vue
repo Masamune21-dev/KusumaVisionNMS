@@ -96,7 +96,7 @@ const iconFor = (type) => ({
                 @click.self="close"
                 @keydown="onKeydown"
             >
-                <div class="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
+                <div class="kv-popover w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4">
                         <Search class="h-5 w-5 flex-shrink-0 text-slate-400" />
                         <input
@@ -136,7 +136,7 @@ const iconFor = (type) => ({
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between gap-3 border-t border-white/10 bg-slate-950/40 px-4 py-2 text-[11px] text-slate-500">
+                    <div class="flex items-center justify-between gap-3 border-t border-white/10 bg-canvas-3/40 px-4 py-2 text-[11px] text-slate-500">
                         <span class="flex items-center gap-3">
                             <span class="flex items-center gap-1">
                                 <kbd class="rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5">&uarr;&darr;</kbd>

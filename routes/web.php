@@ -76,6 +76,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Preferensi tema (dark|light|system); lihat App\Support\Theme.
+    Route::patch('/profile/theme', [ProfileController::class, 'updateTheme'])->name('profile.theme');
 
     Route::get('/dashboard/search', DashboardSearchController::class)->name('dashboard.search');
     Route::post('/notifications/read-all', [NotificationsController::class, 'markAllRead'])->name('notifications.read-all');
@@ -142,6 +144,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/cdata-olt/{olt}/detail', [CDataOltController::class, 'detail'])->name('cdata-olt.detail');
     Route::post('/cdata-olt/{olt}/refresh', [CDataOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('cdata-olt.refresh');
     Route::post('/cdata-olt/{olt}/config/save', [CDataOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('cdata-olt.config.save');
+    Route::get('/cdata-olt/{olt}/pon-ports', [CDataOltController::class, 'ponPorts'])->name('cdata-olt.pon-ports');
     Route::get('/cdata-olt/{olt}/ports/{slot}/{port}/onus', [CDataOltController::class, 'portOnus'])->name('cdata-olt.port-onus');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/refresh', [CDataOltController::class, 'refreshPortOnus'])->name('cdata-olt.port-onus.refresh');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [CDataOltController::class, 'rebootOnu'])->name('cdata-olt.onu.reboot');
@@ -161,6 +164,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/hioso-olt/{olt}/detail', [HiosoOltController::class, 'detail'])->name('hioso-olt.detail');
     Route::post('/hioso-olt/{olt}/refresh', [HiosoOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('hioso-olt.refresh');
     Route::post('/hioso-olt/{olt}/config/save', [HiosoOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('hioso-olt.config.save');
+    Route::get('/hioso-olt/{olt}/pon-ports', [HiosoOltController::class, 'ponPorts'])->name('hioso-olt.pon-ports');
     Route::get('/hioso-olt/{olt}/ports/{slot}/{port}/onus', [HiosoOltController::class, 'portOnus'])->name('hioso-olt.port-onus');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HiosoOltController::class, 'refreshPortOnus'])->name('hioso-olt.port-onus.refresh');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HiosoOltController::class, 'rebootOnu'])->name('hioso-olt.onu.reboot');

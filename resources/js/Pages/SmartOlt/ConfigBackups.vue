@@ -116,7 +116,7 @@ const labelFor = (id) => {
                     <Link :href="route('smartolt.detail', olt.id)" class="mb-2 inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-cyan-300">
                         <ArrowLeft class="h-4 w-4" /> {{ $t('configbackups.back_to', { name: olt.name }) }}
                     </Link>
-                    <h1 class="flex items-center gap-2 text-2xl font-semibold text-white">
+                    <h1 class="flex items-center gap-2 text-xl font-semibold text-white">
                         <Database class="h-6 w-6 text-cyan-400" /> {{ $t('configbackups.title') }}
                     </h1>
                     <p class="mt-1 text-sm text-slate-400">{{ olt.name }} · {{ olt.ip }}</p>
@@ -156,7 +156,7 @@ const labelFor = (id) => {
                     </div>
                     <button
                         type="button"
-                        class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-cyan-500/90 px-3 py-2 text-sm font-medium text-white ring-1 ring-cyan-400/40 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg bg-cyan-500/90 px-3 py-2 text-sm font-medium text-onaccent ring-1 ring-cyan-400/40 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                         :disabled="!supported || backingUp"
                         @click="runBackup"
                     >
@@ -199,21 +199,21 @@ const labelFor = (id) => {
                 <template v-else>
                     <!-- Desktop -->
                     <div class="kv-table-desktop">
-                        <table class="min-w-[720px] w-full">
+                        <table class="min-w-[720px] w-full text-xs">
                             <thead>
                                 <tr class="border-b border-white/5">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_time') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_size') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_source') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_by') }}</th>
-                                    <th class="px-4 py-3.5 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_time') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_size') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_source') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('configbackups.col_by') }}</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr v-for="b in rows" :key="b.id" class="hover:bg-white/[0.02]">
-                                    <td class="px-4 py-3 text-sm text-slate-200">{{ formatDateTime(b.captured_at) }}</td>
-                                    <td class="px-4 py-3 text-sm text-slate-400">{{ formatSize(b.size_bytes) }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-200">{{ formatDateTime(b.captured_at) }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-400">{{ formatSize(b.size_bytes) }}</td>
                                     <td class="px-4 py-3">
                                         <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
                                             :class="b.trigger === 'scheduled' ? 'bg-sky-500/15 text-sky-300 ring-sky-500/30' : 'bg-slate-700/50 text-slate-300 ring-slate-500/30'">
@@ -228,7 +228,7 @@ const labelFor = (id) => {
                                             <TriangleAlert class="h-3.5 w-3.5" /> {{ $t('common.failed') }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-slate-400">{{ b.created_by || '—' }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-400">{{ b.created_by || '—' }}</td>
                                     <td class="px-4 py-3">
                                         <div class="flex items-center justify-end gap-1.5">
                                             <button v-if="b.status === 'ok'" type="button" class="inline-flex items-center justify-center rounded-lg bg-slate-800/60 p-2 text-slate-300 ring-1 ring-slate-600/40 transition hover:bg-slate-700/60 hover:text-white" :title="$t('configbackups.view_content')" @click="openView(b)">
@@ -281,7 +281,7 @@ const labelFor = (id) => {
                     <a v-if="viewBackup" :href="downloadUrl(viewBackup)" class="inline-flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200"><Download class="h-4 w-4" /> {{ $t('common.download') }}</a>
                 </div>
                 <div v-if="viewLoading" class="py-10 text-center text-sm text-slate-400">{{ $t('common.loading') }}</div>
-                <pre v-else class="max-h-[60vh] overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs leading-relaxed text-slate-200 ring-1 ring-white/5">{{ viewContent }}</pre>
+                <pre data-theme="dark" v-else class="kv-terminal max-h-[60vh] overflow-auto rounded-lg bg-slate-950/70 p-3 text-xs leading-relaxed text-slate-200 ring-1 ring-white/5">{{ viewContent }}</pre>
             </div>
         </Modal>
 
@@ -297,7 +297,7 @@ const labelFor = (id) => {
                 </div>
                 <div v-if="diffLoading" class="py-10 text-center text-sm text-slate-400">{{ $t('configbackups.comparing') }}</div>
                 <div v-else-if="stats.changed === 0" class="py-10 text-center text-sm text-emerald-300">{{ $t('configbackups.no_diff') }}</div>
-                <div v-else class="max-h-[60vh] overflow-auto rounded-lg bg-slate-950/70 p-3 font-mono text-xs leading-relaxed ring-1 ring-white/5">
+                <div data-theme="dark" v-else class="kv-terminal max-h-[60vh] overflow-auto rounded-lg bg-slate-950/70 p-3 font-mono text-xs leading-relaxed ring-1 ring-white/5">
                     <div v-for="(r, i) in changedRows" :key="i" class="whitespace-pre-wrap"
                         :class="r.type === 'add' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-rose-500/10 text-rose-200'">
                         <span class="select-none pr-1 opacity-60">{{ r.type === 'add' ? '+' : '−' }}</span>{{ r.text }}

@@ -83,7 +83,7 @@ const save = () => {
             class="break-words"
             :class="variant === 'header' ? 'text-sm text-slate-300' : 'text-sm text-white'"
         >{{ label }}</span>
-        <span v-else class="text-xs text-slate-600">{{ editable ? $t('portlabel.empty') : '-' }}</span>
+        <span v-else class="text-xs text-slate-500">{{ editable ? $t('portlabel.empty') : '-' }}</span>
         <button
             v-if="editable"
             type="button"

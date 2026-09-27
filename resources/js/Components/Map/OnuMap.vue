@@ -603,7 +603,7 @@ defineExpose({
     height: 100%;
     width: 100%;
     border-radius: 0.75rem;
-    background: #0f172a;
+    background: rgb(var(--kv-slate-900));
 }
 
 /* Pin ONU — bentuk pin peta (teardrop) berwarna sesuai level RX. */
@@ -756,19 +756,19 @@ defineExpose({
 }
 
 .kv-map-legend {
-    background: rgba(15, 23, 42, 0.92);
-    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgb(var(--kv-slate-900) / 0.92);
+    border: 1px solid rgb(var(--kv-slate-400) / 0.25);
     border-radius: 0.5rem;
     padding: 0.5rem 0.65rem;
     font-size: 11px;
-    color: #cbd5e1;
+    color: rgb(var(--kv-slate-300));
     line-height: 1.6;
     backdrop-filter: blur(6px);
 }
 
 .kv-map-legend__title {
     font-weight: 600;
-    color: #f1f5f9;
+    color: rgb(var(--kv-slate-100));
     margin-bottom: 2px;
 }
 
@@ -786,33 +786,34 @@ defineExpose({
     border-radius: 2px !important;
 }
 
-/* Kontrol Leaflet — selaraskan dengan tema gelap dashboard. */
+/* Kontrol Leaflet — lewat token, jadi ikut tema (nilai gelap identik dengan
+   heks lama; di tema terang jadi kartu putih bertinta gelap). */
 .leaflet-control-layers,
 .leaflet-bar {
-    background: rgba(15, 23, 42, 0.92) !important;
-    color: #e2e8f0 !important;
-    border: 1px solid rgba(148, 163, 184, 0.25) !important;
+    background: rgb(var(--kv-slate-900) / 0.92) !important;
+    color: rgb(var(--kv-slate-200)) !important;
+    border: 1px solid rgb(var(--kv-slate-400) / 0.25) !important;
 }
 
 .leaflet-control-layers-expanded {
-    color: #e2e8f0 !important;
+    color: rgb(var(--kv-slate-200)) !important;
 }
 
 .leaflet-bar a {
-    background: rgba(15, 23, 42, 0.92) !important;
-    color: #e2e8f0 !important;
+    background: rgb(var(--kv-slate-900) / 0.92) !important;
+    color: rgb(var(--kv-slate-200)) !important;
 }
 
 .leaflet-bar a:hover {
-    background: rgba(30, 41, 59, 0.95) !important;
+    background: rgb(var(--kv-slate-800) / 0.95) !important;
 }
 
 .leaflet-control-attribution {
-    background: rgba(15, 23, 42, 0.7) !important;
-    color: #94a3b8 !important;
+    background: rgb(var(--kv-slate-900) / 0.7) !important;
+    color: rgb(var(--kv-slate-400)) !important;
 }
 
 .leaflet-control-attribution a {
-    color: #7dd3fc !important;
+    color: rgb(var(--kv-sky-300)) !important;
 }
 </style>

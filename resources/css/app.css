@@ -2,13 +2,214 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =====================================================================
+   TOKEN DUA TEMA — sumber kebenaran seluruh warna aplikasi
+   =====================================================================
+   Setiap ramp Tailwind di tailwind.config.js menunjuk ke variabel di sini
+   lewat `rgb(var(--kv-x) / <alpha-value>)`. Mengganti tema = mengganti
+   atribut data-theme di <html>; tidak ada satu pun kelas utilitas yang
+   perlu berubah.
+
+   Nilai blok "dark" di bawah ini SAMA PERSIS dengan palet bawaan Tailwind.
+   Itu disengaja: tema gelap yang sudah berjalan harus merender identik
+   setelah migrasi ke token ini.
+
+   Formatnya channel RGB tanpa pembungkus (`15 23 42`, bukan `#0f172a`)
+   supaya modifier opasitas `/70` tetap bekerja.
+
+   `:where(:root)` ikut dipasang sebagai jaring pengaman: kalau atribut
+   data-theme sempat kosong atau bernilai tak dikenal, variabelnya tetap
+   terisi dan halaman tidak berubah jadi transparan seluruhnya. Dibungkus
+   `:where()` supaya spesifisitasnya nol — blok tema terang di bawah selalu
+   menang, tidak bergantung urutan.
+   ===================================================================== */
+:where(:root),
+[data-theme="dark"] {
+    /* slate */
+    --kv-slate-50: 248 250 252; --kv-slate-100: 241 245 249; --kv-slate-200: 226 232 240; --kv-slate-300: 203 213 225; --kv-slate-400: 148 163 184; --kv-slate-500: 100 116 139; --kv-slate-600: 71 85 105; --kv-slate-700: 51 65 85; --kv-slate-800: 30 41 59; --kv-slate-900: 15 23 42; --kv-slate-950: 2 6 23;
+    /* gray */
+    --kv-gray-50: 249 250 251; --kv-gray-100: 243 244 246; --kv-gray-200: 229 231 235; --kv-gray-300: 209 213 219; --kv-gray-400: 156 163 175; --kv-gray-500: 107 114 128; --kv-gray-600: 75 85 99; --kv-gray-700: 55 65 81; --kv-gray-800: 31 41 55; --kv-gray-900: 17 24 39; --kv-gray-950: 3 7 18;
+    /* zinc */
+    --kv-zinc-50: 250 250 250; --kv-zinc-100: 244 244 245; --kv-zinc-200: 228 228 231; --kv-zinc-300: 212 212 216; --kv-zinc-400: 161 161 170; --kv-zinc-500: 113 113 122; --kv-zinc-600: 82 82 91; --kv-zinc-700: 63 63 70; --kv-zinc-800: 39 39 42; --kv-zinc-900: 24 24 27; --kv-zinc-950: 9 9 11;
+    /* neutral */
+    --kv-neutral-50: 250 250 250; --kv-neutral-100: 245 245 245; --kv-neutral-200: 229 229 229; --kv-neutral-300: 212 212 212; --kv-neutral-400: 163 163 163; --kv-neutral-500: 115 115 115; --kv-neutral-600: 82 82 82; --kv-neutral-700: 64 64 64; --kv-neutral-800: 38 38 38; --kv-neutral-900: 23 23 23; --kv-neutral-950: 10 10 10;
+    /* stone */
+    --kv-stone-50: 250 250 249; --kv-stone-100: 245 245 244; --kv-stone-200: 231 229 228; --kv-stone-300: 214 211 209; --kv-stone-400: 168 162 158; --kv-stone-500: 120 113 108; --kv-stone-600: 87 83 78; --kv-stone-700: 68 64 60; --kv-stone-800: 41 37 36; --kv-stone-900: 28 25 23; --kv-stone-950: 12 10 9;
+    /* red */
+    --kv-red-50: 254 242 242; --kv-red-100: 254 226 226; --kv-red-200: 254 202 202; --kv-red-300: 252 165 165; --kv-red-400: 248 113 113; --kv-red-500: 239 68 68; --kv-red-600: 220 38 38; --kv-red-700: 185 28 28; --kv-red-800: 153 27 27; --kv-red-900: 127 29 29; --kv-red-950: 69 10 10;
+    /* orange */
+    --kv-orange-50: 255 247 237; --kv-orange-100: 255 237 213; --kv-orange-200: 254 215 170; --kv-orange-300: 253 186 116; --kv-orange-400: 251 146 60; --kv-orange-500: 249 115 22; --kv-orange-600: 234 88 12; --kv-orange-700: 194 65 12; --kv-orange-800: 154 52 18; --kv-orange-900: 124 45 18; --kv-orange-950: 67 20 7;
+    /* amber */
+    --kv-amber-50: 255 251 235; --kv-amber-100: 254 243 199; --kv-amber-200: 253 230 138; --kv-amber-300: 252 211 77; --kv-amber-400: 251 191 36; --kv-amber-500: 245 158 11; --kv-amber-600: 217 119 6; --kv-amber-700: 180 83 9; --kv-amber-800: 146 64 14; --kv-amber-900: 120 53 15; --kv-amber-950: 69 26 3;
+    /* yellow */
+    --kv-yellow-50: 254 252 232; --kv-yellow-100: 254 249 195; --kv-yellow-200: 254 240 138; --kv-yellow-300: 253 224 71; --kv-yellow-400: 250 204 21; --kv-yellow-500: 234 179 8; --kv-yellow-600: 202 138 4; --kv-yellow-700: 161 98 7; --kv-yellow-800: 133 77 14; --kv-yellow-900: 113 63 18; --kv-yellow-950: 66 32 6;
+    /* lime */
+    --kv-lime-50: 247 254 231; --kv-lime-100: 236 252 203; --kv-lime-200: 217 249 157; --kv-lime-300: 190 242 100; --kv-lime-400: 163 230 53; --kv-lime-500: 132 204 22; --kv-lime-600: 101 163 13; --kv-lime-700: 77 124 15; --kv-lime-800: 63 98 18; --kv-lime-900: 54 83 20; --kv-lime-950: 26 46 5;
+    /* green */
+    --kv-green-50: 240 253 244; --kv-green-100: 220 252 231; --kv-green-200: 187 247 208; --kv-green-300: 134 239 172; --kv-green-400: 74 222 128; --kv-green-500: 34 197 94; --kv-green-600: 22 163 74; --kv-green-700: 21 128 61; --kv-green-800: 22 101 52; --kv-green-900: 20 83 45; --kv-green-950: 5 46 22;
+    /* emerald */
+    --kv-emerald-50: 236 253 245; --kv-emerald-100: 209 250 229; --kv-emerald-200: 167 243 208; --kv-emerald-300: 110 231 183; --kv-emerald-400: 52 211 153; --kv-emerald-500: 16 185 129; --kv-emerald-600: 5 150 105; --kv-emerald-700: 4 120 87; --kv-emerald-800: 6 95 70; --kv-emerald-900: 6 78 59; --kv-emerald-950: 2 44 34;
+    /* teal */
+    --kv-teal-50: 240 253 250; --kv-teal-100: 204 251 241; --kv-teal-200: 153 246 228; --kv-teal-300: 94 234 212; --kv-teal-400: 45 212 191; --kv-teal-500: 20 184 166; --kv-teal-600: 13 148 136; --kv-teal-700: 15 118 110; --kv-teal-800: 17 94 89; --kv-teal-900: 19 78 74; --kv-teal-950: 4 47 46;
+    /* cyan */
+    --kv-cyan-50: 236 254 255; --kv-cyan-100: 207 250 254; --kv-cyan-200: 165 243 252; --kv-cyan-300: 103 232 249; --kv-cyan-400: 34 211 238; --kv-cyan-500: 6 182 212; --kv-cyan-600: 8 145 178; --kv-cyan-700: 14 116 144; --kv-cyan-800: 21 94 117; --kv-cyan-900: 22 78 99; --kv-cyan-950: 8 51 68;
+    /* sky */
+    --kv-sky-50: 240 249 255; --kv-sky-100: 224 242 254; --kv-sky-200: 186 230 253; --kv-sky-300: 125 211 252; --kv-sky-400: 56 189 248; --kv-sky-500: 14 165 233; --kv-sky-600: 2 132 199; --kv-sky-700: 3 105 161; --kv-sky-800: 7 89 133; --kv-sky-900: 12 74 110; --kv-sky-950: 8 47 73;
+    /* blue */
+    --kv-blue-50: 239 246 255; --kv-blue-100: 219 234 254; --kv-blue-200: 191 219 254; --kv-blue-300: 147 197 253; --kv-blue-400: 96 165 250; --kv-blue-500: 59 130 246; --kv-blue-600: 37 99 235; --kv-blue-700: 29 78 216; --kv-blue-800: 30 64 175; --kv-blue-900: 30 58 138; --kv-blue-950: 23 37 84;
+    /* indigo */
+    --kv-indigo-50: 238 242 255; --kv-indigo-100: 224 231 255; --kv-indigo-200: 199 210 254; --kv-indigo-300: 165 180 252; --kv-indigo-400: 129 140 248; --kv-indigo-500: 99 102 241; --kv-indigo-600: 79 70 229; --kv-indigo-700: 67 56 202; --kv-indigo-800: 55 48 163; --kv-indigo-900: 49 46 129; --kv-indigo-950: 30 27 75;
+    /* violet */
+    --kv-violet-50: 245 243 255; --kv-violet-100: 237 233 254; --kv-violet-200: 221 214 254; --kv-violet-300: 196 181 253; --kv-violet-400: 167 139 250; --kv-violet-500: 139 92 246; --kv-violet-600: 124 58 237; --kv-violet-700: 109 40 217; --kv-violet-800: 91 33 182; --kv-violet-900: 76 29 149; --kv-violet-950: 46 16 101;
+    /* purple */
+    --kv-purple-50: 250 245 255; --kv-purple-100: 243 232 255; --kv-purple-200: 233 213 255; --kv-purple-300: 216 180 254; --kv-purple-400: 192 132 252; --kv-purple-500: 168 85 247; --kv-purple-600: 147 51 234; --kv-purple-700: 126 34 206; --kv-purple-800: 107 33 168; --kv-purple-900: 88 28 135; --kv-purple-950: 59 7 100;
+    /* fuchsia */
+    --kv-fuchsia-50: 253 244 255; --kv-fuchsia-100: 250 232 255; --kv-fuchsia-200: 245 208 254; --kv-fuchsia-300: 240 171 252; --kv-fuchsia-400: 232 121 249; --kv-fuchsia-500: 217 70 239; --kv-fuchsia-600: 192 38 211; --kv-fuchsia-700: 162 28 175; --kv-fuchsia-800: 134 25 143; --kv-fuchsia-900: 112 26 117; --kv-fuchsia-950: 74 4 78;
+    /* pink */
+    --kv-pink-50: 253 242 248; --kv-pink-100: 252 231 243; --kv-pink-200: 251 207 232; --kv-pink-300: 249 168 212; --kv-pink-400: 244 114 182; --kv-pink-500: 236 72 153; --kv-pink-600: 219 39 119; --kv-pink-700: 190 24 93; --kv-pink-800: 157 23 77; --kv-pink-900: 131 24 67; --kv-pink-950: 80 7 36;
+    /* rose */
+    --kv-rose-50: 255 241 242; --kv-rose-100: 255 228 230; --kv-rose-200: 254 205 211; --kv-rose-300: 253 164 175; --kv-rose-400: 251 113 133; --kv-rose-500: 244 63 94; --kv-rose-600: 225 29 72; --kv-rose-700: 190 18 60; --kv-rose-800: 159 18 57; --kv-rose-900: 136 19 55; --kv-rose-950: 76 5 25;
+
+    /* Warna tunggal. `white` ikut berbalik di tema terang — itulah yang
+       membuat ~560 garis rambut (border-white/10 dkk) benar sendiri. */
+    --kv-white: 255 255 255;
+    --kv-black: 0 0 0;
+    --kv-paper: 255 255 255;
+    --kv-onaccent: 255 255 255;
+
+    /* Permukaan opak kolom tabel menempel (sticky). Menggantikan heks
+       arbitrer bg-[#0c1630] dkk yang sebelumnya melewati tema. */
+    --kv-surface-1: 12 22 48;      /* #0c1630 sidebar, header, popover */
+    --kv-surface-2: 13 23 48;      /* #0d1730 sel kolom aksi */
+    --kv-surface-3: 11 18 38;      /* #0b1226 header kolom aksi */
+    --kv-surface-hover: 20 31 61;  /* #141f3d hover baris */
+
+    /* Kanvas halaman & dekorasinya. */
+    --kv-canvas: 11 19 41;         /* #0b1329 */
+    --kv-canvas-2: 13 25 56;       /* #0d1938 */
+    --kv-canvas-3: 8 14 31;        /* #080e1f */
+}
+
+/* =====================================================================
+   TEMA TERANG — bersih & solid
+   =====================================================================
+   Bukan inversi buta. Dua aturan, tiga penyimpangan:
+
+   1. NETRAL (slate dkk) dicerminkan: stop permukaan jadi terang, stop teks
+      jadi gelap. Akibatnya ramp ini MENYILANG antara stop 500 dan 600 —
+      400 gelap, 600 terang. Kode yang memperlakukan slate sebagai kontinum
+      (mis. gradien from-slate-400 to-slate-600) akan terlihat aneh; saat
+      ini tidak ada yang begitu.
+
+   2. AKSEN & STATUS digeser dua stop, dengan 500 dan 600 DIPATOK tidak
+      berubah. Mencerminkan di sekitar 500 salah: itu memberi
+      light-400 = cyan-600 yang cuma 3,68:1 di atas putih (gagal AA).
+      Karena 500/600 dipatok, seluruh kv-btn-*, kv-circle-*, dan kv-pill-*
+      berlatar identik di kedua tema — identitas cyan tetap utuh; yang
+      menggelap hanya teksnya.
+
+   Penyimpangan:
+   · slate-950 TETAP GELAP. 69 dari 74 pemakaiannya adalah scrim modal
+     (bg-slate-950/80 dkk); scrim terang di atas konten terang tidak
+     menggelapkan apa pun dan modal jadi melayang tanpa pemisahan.
+   · slate-900 jadi putih murni, bukan cermin slate-100 (#f1f5f9) —
+     panel adalah kertas.
+   · slate-500 digeser ke #5c6a7e. Nilai cerminnya (#64748b) hanya 4,06:1
+     di atas kanvas, gagal AA tipis; #5c6a7e = 4,72:1 dan bedanya tak terasa.
+
+   Himpunan nama di blok ini WAJIB sama persis dengan blok gelap — dijaga
+   tests/Feature/ThemeTokenTest.
+   ===================================================================== */
+[data-theme="light"] {
+    /* --- Netral: cermin dari ramp gelap, dengan tiga penyimpangan --- */
+    /* slate */
+    --kv-slate-50: 2 6 23; --kv-slate-100: 15 23 42; --kv-slate-200: 30 41 59; --kv-slate-300: 51 65 85; --kv-slate-400: 71 85 105; --kv-slate-500: 92 106 126; --kv-slate-600: 148 163 184; --kv-slate-700: 203 213 225; --kv-slate-800: 226 232 240; --kv-slate-900: 255 255 255; --kv-slate-950: 15 23 42;
+    /* gray */
+    --kv-gray-50: 3 7 18; --kv-gray-100: 17 24 39; --kv-gray-200: 31 41 55; --kv-gray-300: 55 65 81; --kv-gray-400: 75 85 99; --kv-gray-500: 107 114 128; --kv-gray-600: 156 163 175; --kv-gray-700: 209 213 219; --kv-gray-800: 229 231 235; --kv-gray-900: 255 255 255; --kv-gray-950: 17 24 39;
+    /* zinc */
+    --kv-zinc-50: 9 9 11; --kv-zinc-100: 24 24 27; --kv-zinc-200: 39 39 42; --kv-zinc-300: 63 63 70; --kv-zinc-400: 82 82 91; --kv-zinc-500: 113 113 122; --kv-zinc-600: 161 161 170; --kv-zinc-700: 212 212 216; --kv-zinc-800: 228 228 231; --kv-zinc-900: 255 255 255; --kv-zinc-950: 24 24 27;
+    /* neutral */
+    --kv-neutral-50: 10 10 10; --kv-neutral-100: 23 23 23; --kv-neutral-200: 38 38 38; --kv-neutral-300: 64 64 64; --kv-neutral-400: 82 82 82; --kv-neutral-500: 115 115 115; --kv-neutral-600: 163 163 163; --kv-neutral-700: 212 212 212; --kv-neutral-800: 229 229 229; --kv-neutral-900: 255 255 255; --kv-neutral-950: 23 23 23;
+    /* stone */
+    --kv-stone-50: 12 10 9; --kv-stone-100: 28 25 23; --kv-stone-200: 41 37 36; --kv-stone-300: 68 64 60; --kv-stone-400: 87 83 78; --kv-stone-500: 120 113 108; --kv-stone-600: 168 162 158; --kv-stone-700: 214 211 209; --kv-stone-800: 231 229 228; --kv-stone-900: 255 255 255; --kv-stone-950: 28 25 23;
+
+    /* --- Aksen & status: stop 500/600 DIPATOK (latar tombol, tint, ring),
+       stop teks digeser dua tingkat lebih gelap agar lolos kontras AA. --- */
+    /* red */
+    --kv-red-50: 69 10 10; --kv-red-100: 127 29 29; --kv-red-200: 127 29 29; --kv-red-300: 153 27 27; --kv-red-400: 185 28 28; --kv-red-500: 239 68 68; --kv-red-600: 220 38 38; --kv-red-700: 248 113 113; --kv-red-800: 252 165 165; --kv-red-900: 254 202 202; --kv-red-950: 254 242 242;
+    /* orange */
+    --kv-orange-50: 67 20 7; --kv-orange-100: 124 45 18; --kv-orange-200: 124 45 18; --kv-orange-300: 154 52 18; --kv-orange-400: 194 65 12; --kv-orange-500: 249 115 22; --kv-orange-600: 234 88 12; --kv-orange-700: 251 146 60; --kv-orange-800: 253 186 116; --kv-orange-900: 254 215 170; --kv-orange-950: 255 247 237;
+    /* amber */
+    --kv-amber-50: 69 26 3; --kv-amber-100: 120 53 15; --kv-amber-200: 120 53 15; --kv-amber-300: 146 64 14; --kv-amber-400: 180 83 9; --kv-amber-500: 245 158 11; --kv-amber-600: 217 119 6; --kv-amber-700: 251 191 36; --kv-amber-800: 252 211 77; --kv-amber-900: 253 230 138; --kv-amber-950: 255 251 235;
+    /* yellow */
+    --kv-yellow-50: 66 32 6; --kv-yellow-100: 113 63 18; --kv-yellow-200: 113 63 18; --kv-yellow-300: 133 77 14; --kv-yellow-400: 161 98 7; --kv-yellow-500: 234 179 8; --kv-yellow-600: 202 138 4; --kv-yellow-700: 250 204 21; --kv-yellow-800: 253 224 71; --kv-yellow-900: 254 240 138; --kv-yellow-950: 254 252 232;
+    /* lime */
+    --kv-lime-50: 26 46 5; --kv-lime-100: 54 83 20; --kv-lime-200: 54 83 20; --kv-lime-300: 63 98 18; --kv-lime-400: 77 124 15; --kv-lime-500: 132 204 22; --kv-lime-600: 101 163 13; --kv-lime-700: 163 230 53; --kv-lime-800: 190 242 100; --kv-lime-900: 217 249 157; --kv-lime-950: 247 254 231;
+    /* green */
+    --kv-green-50: 5 46 22; --kv-green-100: 20 83 45; --kv-green-200: 20 83 45; --kv-green-300: 22 101 52; --kv-green-400: 21 128 61; --kv-green-500: 34 197 94; --kv-green-600: 22 163 74; --kv-green-700: 74 222 128; --kv-green-800: 134 239 172; --kv-green-900: 187 247 208; --kv-green-950: 240 253 244;
+    /* emerald */
+    --kv-emerald-50: 2 44 34; --kv-emerald-100: 6 78 59; --kv-emerald-200: 6 78 59; --kv-emerald-300: 6 95 70; --kv-emerald-400: 4 120 87; --kv-emerald-500: 16 185 129; --kv-emerald-600: 5 150 105; --kv-emerald-700: 52 211 153; --kv-emerald-800: 110 231 183; --kv-emerald-900: 167 243 208; --kv-emerald-950: 236 253 245;
+    /* teal */
+    --kv-teal-50: 4 47 46; --kv-teal-100: 19 78 74; --kv-teal-200: 19 78 74; --kv-teal-300: 17 94 89; --kv-teal-400: 15 118 110; --kv-teal-500: 20 184 166; --kv-teal-600: 13 148 136; --kv-teal-700: 45 212 191; --kv-teal-800: 94 234 212; --kv-teal-900: 153 246 228; --kv-teal-950: 240 253 250;
+    /* cyan */
+    --kv-cyan-50: 8 51 68; --kv-cyan-100: 22 78 99; --kv-cyan-200: 22 78 99; --kv-cyan-300: 21 94 117; --kv-cyan-400: 14 116 144; --kv-cyan-500: 6 182 212; --kv-cyan-600: 8 145 178; --kv-cyan-700: 34 211 238; --kv-cyan-800: 103 232 249; --kv-cyan-900: 165 243 252; --kv-cyan-950: 236 254 255;
+    /* sky */
+    --kv-sky-50: 8 47 73; --kv-sky-100: 12 74 110; --kv-sky-200: 12 74 110; --kv-sky-300: 7 89 133; --kv-sky-400: 3 105 161; --kv-sky-500: 14 165 233; --kv-sky-600: 2 132 199; --kv-sky-700: 56 189 248; --kv-sky-800: 125 211 252; --kv-sky-900: 186 230 253; --kv-sky-950: 240 249 255;
+    /* blue */
+    --kv-blue-50: 23 37 84; --kv-blue-100: 30 58 138; --kv-blue-200: 30 58 138; --kv-blue-300: 30 64 175; --kv-blue-400: 29 78 216; --kv-blue-500: 59 130 246; --kv-blue-600: 37 99 235; --kv-blue-700: 96 165 250; --kv-blue-800: 147 197 253; --kv-blue-900: 191 219 254; --kv-blue-950: 239 246 255;
+    /* indigo */
+    --kv-indigo-50: 30 27 75; --kv-indigo-100: 49 46 129; --kv-indigo-200: 49 46 129; --kv-indigo-300: 55 48 163; --kv-indigo-400: 67 56 202; --kv-indigo-500: 99 102 241; --kv-indigo-600: 79 70 229; --kv-indigo-700: 129 140 248; --kv-indigo-800: 165 180 252; --kv-indigo-900: 199 210 254; --kv-indigo-950: 238 242 255;
+    /* violet */
+    --kv-violet-50: 46 16 101; --kv-violet-100: 76 29 149; --kv-violet-200: 76 29 149; --kv-violet-300: 91 33 182; --kv-violet-400: 109 40 217; --kv-violet-500: 139 92 246; --kv-violet-600: 124 58 237; --kv-violet-700: 167 139 250; --kv-violet-800: 196 181 253; --kv-violet-900: 221 214 254; --kv-violet-950: 245 243 255;
+    /* purple */
+    --kv-purple-50: 59 7 100; --kv-purple-100: 88 28 135; --kv-purple-200: 88 28 135; --kv-purple-300: 107 33 168; --kv-purple-400: 126 34 206; --kv-purple-500: 168 85 247; --kv-purple-600: 147 51 234; --kv-purple-700: 192 132 252; --kv-purple-800: 216 180 254; --kv-purple-900: 233 213 255; --kv-purple-950: 250 245 255;
+    /* fuchsia */
+    --kv-fuchsia-50: 74 4 78; --kv-fuchsia-100: 112 26 117; --kv-fuchsia-200: 112 26 117; --kv-fuchsia-300: 134 25 143; --kv-fuchsia-400: 162 28 175; --kv-fuchsia-500: 217 70 239; --kv-fuchsia-600: 192 38 211; --kv-fuchsia-700: 232 121 249; --kv-fuchsia-800: 240 171 252; --kv-fuchsia-900: 245 208 254; --kv-fuchsia-950: 253 244 255;
+    /* pink */
+    --kv-pink-50: 80 7 36; --kv-pink-100: 131 24 67; --kv-pink-200: 131 24 67; --kv-pink-300: 157 23 77; --kv-pink-400: 190 24 93; --kv-pink-500: 236 72 153; --kv-pink-600: 219 39 119; --kv-pink-700: 244 114 182; --kv-pink-800: 249 168 212; --kv-pink-900: 251 207 232; --kv-pink-950: 253 242 248;
+    /* rose */
+    --kv-rose-50: 76 5 25; --kv-rose-100: 136 19 55; --kv-rose-200: 136 19 55; --kv-rose-300: 159 18 57; --kv-rose-400: 190 18 60; --kv-rose-500: 244 63 94; --kv-rose-600: 225 29 72; --kv-rose-700: 251 113 133; --kv-rose-800: 253 164 175; --kv-rose-900: 254 205 211; --kv-rose-950: 255 241 242;
+
+    /* Membalik `white` inilah yang membuat ~560 garis rambut
+       (border-white/10 dkk) dan ~150 teks putih benar dengan sendirinya. */
+    --kv-white: 15 23 42;
+    /* Bayangan jadi abu-biru: hitam 30% di latar terang tampak kotor. */
+    --kv-black: 100 116 139;
+    --kv-paper: 255 255 255;
+    --kv-onaccent: 255 255 255;
+
+    /* Permukaan opak kolom tabel menempel. */
+    --kv-surface-1: 255 255 255;
+    --kv-surface-2: 255 255 255;
+    --kv-surface-3: 248 250 252;
+    --kv-surface-hover: 238 242 247;
+
+    /* Kanvas: biru-abu sangat muda, dipinjam dari Kas.light aplikasi HP. */
+    --kv-canvas: 245 247 251;    /* #F5F7FB */
+    --kv-canvas-2: 255 255 255;
+    --kv-canvas-3: 237 241 247;
+}
+
 @layer base {
-    html {
+    /* Dipasang pada tiap simpul ber-data-theme, bukan hanya di <html>, supaya
+       subpohon yang dikunci tema (jendela Telnet, blok kode) juga mendapat
+       kontrol form dan scrollbar yang cocok. Spesifisitas atribut (0,1,0)
+       mengalahkan `html` (0,0,1), jadi aturan terang menang tanpa bergantung
+       urutan. color-scheme menentukan scrollbar, autofill, dan popup
+       date/time native — tiga hal yang tidak bisa disentuh CSS biasa. */
+    html,
+    [data-theme="dark"] {
         color-scheme: dark;
     }
 
+    [data-theme="light"] {
+        color-scheme: light;
+    }
+
+    /* bg-canvas, bukan bg-slate-950: slate-950 sengaja TETAP GELAP di tema
+       terang (dipakai scrim modal), jadi body-nya akan tetap hitam. */
     body {
-        @apply bg-slate-950 text-slate-100 antialiased;
+        @apply bg-canvas text-slate-100 antialiased;
         overflow-x: hidden;
     }
 
@@ -17,7 +218,7 @@
     }
 
     ::selection {
-        @apply bg-cyan-500 text-white;
+        @apply bg-cyan-500 text-onaccent;
     }
 
     /* Native select dropdown options — match dark theme. */
@@ -28,7 +229,7 @@
 
     select option:checked,
     select option:hover {
-        @apply bg-cyan-600 text-white;
+        @apply bg-cyan-600 text-onaccent;
     }
 
     /* Tailwind/forms applies its own select styling; align with dark theme. */
@@ -46,12 +247,18 @@
         @apply rounded-lg border-white/10 bg-slate-900/60 text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500;
     }
 
-    /* Date/time inputs — date picker indicator on dark. */
     input[type="date"]::-webkit-calendar-picker-indicator,
     input[type="time"]::-webkit-calendar-picker-indicator,
     input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-        filter: invert(0.7);
         cursor: pointer;
+    }
+
+    /* Ikonnya gelap bawaan browser; dibalik HANYA di tema gelap. Dibiarkan
+       berlaku di tema terang, ikonnya jadi putih di atas input putih. */
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+    [data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+    [data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
     }
 }
 
@@ -74,13 +281,30 @@
         @apply mx-auto max-w-5xl px-4 sm:px-6 lg:px-8;
     }
 
+    /* === Kerangka aplikasi desktop ===
+       Setinggi layar: sidebar, header, footer diam; hanya .kv-app-scroll yang menggulir
+       (diberi atribut `scroll-region` supaya preserveScroll Inertia bekerja). HP tetap
+       menggulir di level dokumen. scripts/snapshot.mjs membuka kerangka ini untuk full-page. */
+    @media (min-width: 1024px) {
+        .kv-app-shell {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .kv-app-scroll {
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+    }
+
     /* === Stage Utama Dashboard Grid === */
     .kv-grid-stage {
         position: relative;
-        background-color: #0b1329;
+        background-color: rgb(var(--kv-canvas));
         background-image:
             radial-gradient(ellipse 80% 80% at 50% -20%, rgba(14, 165, 233, 0.25), transparent 70%),
-            linear-gradient(180deg, #0d1938 0%, #0b1329 45%, #080e1f 100%);
+            linear-gradient(180deg, rgb(var(--kv-canvas-2)) 0%, rgb(var(--kv-canvas)) 45%, rgb(var(--kv-canvas-3)) 100%);
         min-height: 100vh;
         width: 100%;
     }
@@ -92,7 +316,7 @@
         z-index: 0;
         pointer-events: none;
         background-size: 32px 32px;
-        background-image:
+        background-image: 
             linear-gradient(to right, rgba(56, 189, 248, 0.15) 1px, transparent 1px),
             linear-gradient(to bottom, rgba(56, 189, 248, 0.15) 1px, transparent 1px);
     }
@@ -173,17 +397,18 @@
     .kv-circle-slate  { @apply kv-circle bg-slate-500/15 text-slate-300 ring-slate-500/30; }
 
     /* === Pills / badges === */
+    /* Lencana status — definisi baku (UI_DESIGN_SYSTEM). Bahaya = rose. */
     .kv-pill {
-        @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1;
+        @apply inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-xs font-semibold ring-1;
     }
-    .kv-pill-success { @apply kv-pill bg-emerald-500/15 text-emerald-300 ring-emerald-500/30; }
-    .kv-pill-danger  { @apply kv-pill bg-red-500/15 text-red-300 ring-red-500/30; }
-    .kv-pill-warning { @apply kv-pill bg-amber-500/15 text-amber-300 ring-amber-500/30; }
-    .kv-pill-info    { @apply kv-pill bg-sky-500/15 text-sky-300 ring-sky-500/30; }
-    .kv-pill-muted   { @apply kv-pill bg-slate-500/15 text-slate-300 ring-slate-500/30; }
-    .kv-pill-critical{ @apply kv-pill bg-red-600/20 text-red-200 ring-red-500/40; }
-    .kv-pill-major   { @apply kv-pill bg-orange-500/20 text-orange-200 ring-orange-500/40; }
-    .kv-pill-minor   { @apply kv-pill bg-amber-500/20 text-amber-200 ring-amber-500/40; }
+    .kv-pill-success { @apply kv-pill bg-emerald-500/20 text-emerald-300 ring-emerald-500/40; }
+    .kv-pill-danger  { @apply kv-pill bg-rose-500/20 text-rose-300 ring-rose-500/40; }
+    .kv-pill-warning { @apply kv-pill bg-amber-500/20 text-amber-300 ring-amber-500/40; }
+    .kv-pill-info    { @apply kv-pill bg-sky-500/20 text-sky-300 ring-sky-500/40; }
+    .kv-pill-muted   { @apply kv-pill bg-slate-700/40 text-slate-300 ring-slate-600/50; }
+    .kv-pill-critical{ @apply kv-pill bg-rose-600/25 text-rose-200 ring-rose-500/50; }
+    .kv-pill-major   { @apply kv-pill bg-orange-500/25 text-orange-200 ring-orange-500/50; }
+    .kv-pill-minor   { @apply kv-pill bg-amber-500/25 text-amber-200 ring-amber-500/50; }
 
     /* === Inputs (dark) === */
     .kv-input {
@@ -227,7 +452,7 @@
     }
 
     .kv-filter-apply {
-        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 text-sm font-medium text-white transition-colors hover:bg-cyan-600;
+        @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 text-sm font-medium text-onaccent transition-colors hover:bg-cyan-600;
     }
 
     .kv-link {
@@ -342,6 +567,160 @@
 
     .kv-icon-tile-sm {
         @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30;
+    }
+
+    /* ===================================================================
+       TEMA TERANG — penimpaan kelas kv-*
+       ===================================================================
+       Arah visual: kanvas biru-abu
+       muda, kartu putih solid, garis tipis, bayangan rapat. Tanpa blur,
+       tanpa grid neon, tanpa pendar cyan — kedalaman dari garis & bayangan.
+
+       Tema gelap TIDAK disentuh oleh blok ini; semua aturan di sini
+       bergerbang [data-theme="light"].
+       =================================================================== */
+
+    /* Kanvas datar. Grid neon & pendar dimatikan, bukan dipudarkan: di latar
+       terang keduanya hanya jadi jaring biru dan noda kehijauan. */
+    [data-theme="light"] .kv-grid-stage {
+        background-image: linear-gradient(
+            180deg,
+            rgb(var(--kv-canvas-2)) 0%,
+            rgb(var(--kv-canvas)) 55%,
+            rgb(var(--kv-canvas-3)) 100%
+        );
+    }
+
+    [data-theme="light"] .kv-grid-pattern,
+    [data-theme="light"] .kv-top-light,
+    [data-theme="light"] .kv-ambient-glow {
+        display: none;
+    }
+
+    /* Panel jadi kertas. Di tema gelap panel NMS hanya bg-slate-900/10 +
+       blur — di atas kanvas terang itu = putih 10%, panelnya lenyap. Blur
+       dimatikan: di atas kanvas nyaris seragam ia tak terlihat tapi tetap
+       memaksa compositor layer terpisah saat menggulir. Bayangan diganti
+       (bukan dipucatkan): halo besar tema gelap tampak kotor di latar terang. */
+    [data-theme="light"] .kv-glass-panel,
+    [data-theme="light"] .kv-glass-card,
+    [data-theme="light"] .kv-panel,
+    [data-theme="light"] .kv-card,
+    [data-theme="light"] .kv-filter {
+        background-color: rgb(var(--kv-surface-1));
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow:
+            0 1px 2px rgb(15 23 42 / 0.04),
+            0 8px 24px rgb(15 23 42 / 0.06);
+    }
+
+    /* Permukaan mengambang (dropdown shell, palet pencarian, laci samping).
+       Di tema gelap latar 95% opak ditopang backdrop-blur; di tema terang blur
+       dimatikan global sehingga sisa 5% transparansi menampakkan isi halaman
+       di belakangnya (angka dasbor terbaca di balik notifikasi). Di sini
+       dibuat opak. Tema gelap sengaja tidak disentuh. */
+    /* Tombol sekunder baku (SecondaryButton): di tema terang permukaan opak surface-1. */
+    [data-theme="light"] .kv-btn-secondary-base {
+        background-color: rgb(var(--kv-surface-1));
+    }
+
+    [data-theme="light"] .kv-popover {
+        background-color: rgb(var(--kv-surface-1));
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow:
+            0 2px 6px rgb(15 23 42 / 0.06),
+            0 16px 40px rgb(15 23 42 / 0.14);
+    }
+
+    /* Toast melayang (Shell/FlashMessages). Di tema gelap `bg-*-950/70` + blur;
+       di tema terang blur dimatikan global sehingga latar 70%-nya membiarkan
+       teks halaman di belakang ikut terbaca. Jadi kertas opak — warna tepi,
+       ikon, dan teks tidak disentuh. Bayangan lewat `--tw-shadow` supaya
+       ring/shadow Tailwind di markup tidak ikut terhapus (spesifikasi §3a UI_DESIGN_SYSTEM). */
+    [data-theme="light"] .kv-toast {
+        background-color: rgb(var(--kv-surface-1));
+        --tw-shadow:
+            0 1px 2px rgb(15 23 42 / 0.06),
+            0 14px 32px rgb(15 23 42 / 0.13);
+    }
+
+    /* Kartu kaca ad-hoc yang ditulis langsung di halaman (`bg-slate-900/40..60`
+       + blur, bukan lewat kv-card/kv-panel). Di tema terang putih 40% di atas
+       kanvas terang nyaris tak terlihat; penanda ini membuatnya kertas opak.
+       Tema gelap tidak berubah. */
+    [data-theme="light"] .kv-surface {
+        background-color: rgb(var(--kv-surface-1));
+        box-shadow:
+            0 1px 2px rgb(15 23 42 / 0.04),
+            0 8px 24px rgb(15 23 42 / 0.06);
+    }
+
+    [data-theme="light"] .kv-glass-hover:hover {
+        background-color: rgb(var(--kv-surface-1));
+        box-shadow:
+            0 1px 2px rgb(15 23 42 / 0.05),
+            0 12px 28px rgb(15 23 42 / 0.10);
+    }
+
+    [data-theme="light"] .kv-filter-head {
+        background-color: rgb(var(--kv-surface-3));
+    }
+
+    [data-theme="light"] .kv-stat,
+    [data-theme="light"] .kv-table-card {
+        background-color: rgb(var(--kv-surface-1));
+        box-shadow:
+            0 1px 2px rgb(15 23 42 / 0.04),
+            0 8px 24px rgb(15 23 42 / 0.06);
+    }
+
+    /* Kolom input: putih penuh, tanpa bayangan dalam. `shadow-inner
+       shadow-black/20` membuat kolom tampak cekung di permukaan gelap; di
+       kertas putih efeknya hanya tepi yang kotor. */
+    [data-theme="light"] .kv-input,
+    [data-theme="light"] .kv-filter-control,
+    [data-theme="light"] textarea,
+    [data-theme="light"] select:not([multiple]):not([size]),
+    [data-theme="light"] select[multiple],
+    [data-theme="light"] select[size] {
+        background-color: rgb(var(--kv-surface-1));
+        box-shadow: none;
+    }
+
+    [data-theme="light"] .kv-filter-reset {
+        background-color: rgb(var(--kv-surface-1));
+    }
+
+    /* Kerangka aplikasi (sidebar, header, footer). Di tema gelap ketiganya
+       kaca tipis bg-canvas-3/35 di atas kanvas navy. Di tema terang nilai yang
+       sama nyaris sewarna kanvas — batas sidebar lenyap. Jadi kertas putih
+       opak (blur sudah dimatikan global di tema terang), dengan garis tepi
+       yang sudah ada di markup. */
+    [data-theme="light"] .kv-shell-sidebar,
+    [data-theme="light"] .kv-shell-bar {
+        background-color: rgb(var(--kv-surface-1));
+    }
+
+    /* Blok keluaran CLI/skrip OLT (.kv-terminal) dan gambar rak/panel perangkat
+       fisik (.kv-device). Dikunci gelap lewat data-theme="dark" di
+       markupnya (konvensi terminal; warna sintaks hijau/cyan dirancang untuk
+       latar gelap). Latarnya /70 transparan — di atas panel gelap tak terlihat
+       bedanya, tapi di atas kertas putih jadi abu kusam. Maka di tema terang
+       latarnya dibuat opak. Tema gelap tidak disentuh. */
+    [data-theme="light"] .kv-terminal,
+    [data-theme="light"] .kv-device {
+        background-color: rgb(2 6 23 / 0.94);
+    }
+
+    /* Blur dimatikan di tema terang untuk SEMUA elemen, bukan dikecilkan: di
+       atas kanvas nyaris seragam blur tidak menghasilkan efek visual apa pun
+       tapi tetap memaksa compositor layer terpisah (tabel ONU pernah blank saat
+       digulir karena ratusan layer blur). */
+    [data-theme="light"] [class*="backdrop-blur"] {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
     }
 
     /* === Landing: interactive spotlight (cursor-follow highlight) === */
@@ -489,22 +868,38 @@
     }
 }
 
-/* === Custom scrollbar (dark) === */
+/* === Custom scrollbar — lewat token, jadi ikut tema (nilai gelap identik) === */
 ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
 }
 ::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.4);
+    background: rgb(var(--kv-slate-900) / 0.4);
 }
 ::-webkit-scrollbar-thumb {
-    background: rgba(56, 189, 248, 0.20);
+    background: rgb(var(--kv-sky-400) / 0.20);
     border-radius: 8px;
     border: 2px solid transparent;
     background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(56, 189, 248, 0.35);
+    background: rgb(var(--kv-sky-400) / 0.35);
     background-clip: padding-box;
     border: 2px solid transparent;
+}
+
+/*
+ * Checkbox & radio mentah di tema gelap.
+ *
+ * @tailwindcss/forms memasang `background-color: #fff` pada setiap
+ * [type=checkbox]/[type=radio]. Input yang ditulis langsung di halaman (bukan
+ * lewat Components/Checkbox.vue) tidak menimpanya, sehingga di tema gelap
+ * tampil sebagai kotak putih solid — Execute CLI di Profil, TR069/Remote ONT
+ * di Register ONU, dsb. Yang dicentang tidak disentuh: warnanya dari
+ * `text-cyan-*` lewat currentColor.
+ */
+[data-theme="dark"] [type='checkbox']:not(:checked):not(:indeterminate),
+[data-theme="dark"] [type='radio']:not(:checked) {
+    background-color: rgb(var(--kv-slate-900) / 0.6);
+    border-color: rgb(var(--kv-slate-500) / 0.6);
 }

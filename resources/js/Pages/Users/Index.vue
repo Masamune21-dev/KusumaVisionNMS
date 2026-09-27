@@ -185,7 +185,7 @@ const deleteUser = async (user) => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full px-4 sm:px-6 lg:px-8">
 
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <Users class="h-5 w-5 text-cyan-400" />
@@ -265,31 +265,31 @@ const deleteUser = async (user) => {
                         </div>
 
                         <div class="kv-table-desktop">
-                        <table class="min-w-[720px] w-full">
+                        <table class="min-w-[720px] w-full text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         {{ $t('users.col_name') }}
                                     </th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Email
                                     </th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         Role
                                     </th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         {{ $t('users.col_registered') }}
                                     </th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">
                                         {{ $t('common.actions') }}
                                     </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr v-for="user in users" :key="user.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-3">
-                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-sm font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
+                                            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/15 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-500/30">
                                                 {{ user.name.charAt(0).toUpperCase() }}
                                             </div>
                                             <div>
@@ -300,10 +300,10 @@ const deleteUser = async (user) => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">
+                                    <td class="px-4 py-3 text-xs text-slate-200">
                                         {{ user.email }}
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <span :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(user.role)]">
                                             {{ roleLabel(user.role) }}
                                         </span>
@@ -311,10 +311,10 @@ const deleteUser = async (user) => {
                                             {{ oltScopeText(user) }}
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-500">
+                                    <td class="px-4 py-3 text-xs text-slate-500">
                                         {{ formatDate(user.created_at) }}
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :title="$t('users.edit')" @click="openEdit(user)">
                                                 <Pencil class="h-4 w-4" />

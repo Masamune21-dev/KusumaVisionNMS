@@ -412,14 +412,14 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
 
                         <div class="kv-table-desktop">
-                        <table class="w-full min-w-[720px]">
+                        <table class="w-full min-w-[720px] text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_olt') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.col_snmp') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_driver') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_last_test') }}</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_actions') }}</th>
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_olt') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.col_snmp') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_driver') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_last_test') }}</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -428,18 +428,18 @@ const formatDate = (value) => formatDateTime(value);
                                     :key="olt.id"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5 font-medium text-white">
                                             {{ olt.name }}
                                             <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || $t('smartolt.vendor_empty') }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="font-mono text-xs text-slate-300">{{ olt.ip }}:{{ olt.snmp_port }}</div>
                                         <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="space-y-1.5">
                                             <span
                                                 :class="olt.driver === 'zte' ? 'kv-pill-info' : 'kv-pill-muted'"
@@ -468,7 +468,7 @@ const formatDate = (value) => formatDateTime(value);
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
                                             <span
                                                 class="h-2 w-2 rounded-full"
@@ -479,7 +479,7 @@ const formatDate = (value) => formatDateTime(value);
                                                         : 'bg-slate-600'"
                                             ></span>
                                             <span
-                                                class="text-sm font-semibold"
+                                                class="text-xs font-semibold"
                                                 :class="olt.last_test_result?.ok
                                                     ? 'text-emerald-300'
                                                     : olt.last_test_result
@@ -491,7 +491,7 @@ const formatDate = (value) => formatDateTime(value);
                                         </div>
                                         <div class="mt-1 text-xs text-slate-500">{{ formatDate(olt.last_tested_at) }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :href="route('smartolt.detail', olt.id)" :title="$t('common.detail')">
                                                 <Eye class="h-4 w-4" />
@@ -671,14 +671,14 @@ const formatDate = (value) => formatDateTime(value);
                         </div>
 
                         <div class="kv-table-desktop">
-                        <table class="w-full min-w-[720px]">
+                        <table class="w-full min-w-[720px] text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_olt') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.col_snmp') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_family') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_last_test') }}</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_actions') }}</th>
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_olt') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.col_snmp') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_family') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_last_test') }}</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('smartolt.th_actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -687,18 +687,18 @@ const formatDate = (value) => formatDateTime(value);
                                     :key="olt.id"
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                 >
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5 font-medium text-white">
                                             {{ olt.name }}
                                             <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || $t('smartolt.family_empty') }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="font-mono text-xs text-slate-300">{{ olt.ip }}:{{ olt.snmp_port }}</div>
                                         <div class="mt-0.5 text-xs uppercase tracking-widest text-slate-500">{{ olt.snmp_version }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="space-y-1.5">
                                             <div class="flex flex-wrap items-center gap-1.5">
                                                 <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
@@ -726,7 +726,7 @@ const formatDate = (value) => formatDateTime(value);
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
                                             <span
                                                 class="h-2 w-2 rounded-full"
@@ -737,7 +737,7 @@ const formatDate = (value) => formatDateTime(value);
                                                         : 'bg-slate-600'"
                                             ></span>
                                             <span
-                                                class="text-sm font-semibold"
+                                                class="text-xs font-semibold"
                                                 :class="olt.last_test_result?.ok
                                                     ? 'text-emerald-300'
                                                     : olt.last_test_result
@@ -749,7 +749,7 @@ const formatDate = (value) => formatDateTime(value);
                                         </div>
                                         <div class="mt-1 text-xs text-slate-500">{{ formatDate(olt.last_tested_at) }}</div>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex justify-center gap-1.5">
                                             <IconButton :href="nonZteRoute('detail', olt.id)" :title="$t('common.detail')">
                                                 <Eye class="h-4 w-4" />

@@ -12,7 +12,13 @@
         "users": "Users",
         "audit_logs": "Audit Logs",
         "settings": "Settings",
-        "partner_telegram": "My Telegram Bot"
+        "partner_telegram": "My Telegram Bot",
+        "group_admin": "Administration",
+        "group_field": "Field",
+        "group_help": "Help",
+        "group_network": "OLT network",
+        "group_overview": "Overview",
+        "group_watch": "Monitoring"
     },
     "common": {
         "clear_search": "Clear search",
@@ -60,7 +66,15 @@
         "download": "Download",
         "view": "View",
         "loading": "Loading…",
-        "processing": "Processing…"
+        "processing": "Processing…",
+        "theme": "Appearance",
+        "type": "Type",
+        "hide_password": "Hide password",
+        "show_password": "Show password",
+        "theme_dark": "Dark",
+        "theme_light": "Light",
+        "theme_system": "Follow System",
+        "theme_system_short": "System"
     },
     "shell": {
         "app_subtitle": "NMS v2 · GPON Management",
@@ -469,7 +483,8 @@
         "total_onu": "Total ONUs",
         "onu_online_suffix": " / {total} online",
         "image_unavailable": "Image unavailable",
-        "refresh_hardware": "Refresh Hardware"
+        "refresh_hardware": "Refresh Hardware",
+        "image_hint": "Place the image at"
     },
     "onucfg": {
         "unnamed": "(no name)",
@@ -1113,7 +1128,8 @@
         "all_rx": "All RX Levels",
         "all_status": "All Statuses",
         "rows_count": "{n} rows of data.",
-        "no_data": "No data for this filter."
+        "no_data": "No data for this filter.",
+        "rows_label": "rows"
     },
     "panduan": {
         "title": "User Guide",
@@ -1712,5 +1728,23 @@
         "add_title": "Add port label",
         "edit_title": "Edit port label",
         "hint": "The label is stored in the NMS only; it is not written to the OLT."
+    },
+    "faceplate": {
+        "click_hint": "Click a PON port to open its ONU list. The number below a port = ONUs online/total.",
+        "legend_copper": "Copper (RJ45)",
+        "legend_down": "Down",
+        "legend_fiber": "Fiber (SFP)",
+        "legend_fixed": "Console/MGMT (no status)",
+        "legend_shutdown": "Shutdown",
+        "legend_up": "Up",
+        "onu_count": "{online}/{total} ONUs online",
+        "open_onu": "click to view ONUs"
+    },
+    "ponports": {
+        "ports_down": "{count} ports down",
+        "search_placeholder": "Search port, ONU name/MAC/serial…",
+        "stat_ports": "{label} ports",
+        "subtitle": "Click a port to open its ONU list.",
+        "title": "{label} Ports"
     }
 }

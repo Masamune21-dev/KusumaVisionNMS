@@ -5,6 +5,9 @@ import { defineAsyncComponent, computed, ref } from 'vue';
 // aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
 // ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 import { router } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, TrendingUp } from '@lucide/vue';
@@ -31,42 +34,44 @@ const setRange = (value) => {
 };
 
 const chartOptions = computed(() => ({
+    // chartTheme() dibaca di sini supaya opsi dihitung ulang saat tema berganti.
     chart: {
+        foreColor: chartTheme().muted,
         type: 'line',
         toolbar: { show: false },
         background: 'transparent',
         animations: { enabled: false },
     },
     stroke: { curve: 'smooth', width: [2.5, 2] },
-    colors: ['#22d3ee', '#ef4444'],
+    colors: [tokenHex('cyan-400', '#22d3ee'), tokenHex('red-500', '#ef4444')],
     grid: {
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderColor: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)'),
         strokeDashArray: 4,
         padding: { top: 0, right: 8, bottom: 0, left: 8 },
     },
     xaxis: {
         categories: props.trend.labels ?? [],
         labels: {
-            style: { colors: '#64748b', fontSize: '11px' },
+            style: { colors: tokenHex('slate-500', '#64748b'), fontSize: '11px' },
             rotate: 0,
             hideOverlappingLabels: true,
             showDuplicates: false,
         },
         tickAmount: Math.min(6, (props.trend.labels?.length ?? 1) - 1),
-        axisBorder: { color: 'rgba(255,255,255,0.05)' },
-        axisTicks: { color: 'rgba(255,255,255,0.05)' },
+        axisBorder: { color: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)') },
+        axisTicks: { color: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)') },
     },
     yaxis: {
-        labels: { style: { colors: '#64748b', fontSize: '11px' }, formatter: (v) => Math.round(v) },
+        labels: { style: { colors: tokenHex('slate-500', '#64748b'), fontSize: '11px' }, formatter: (v) => Math.round(v) },
     },
     legend: {
         position: 'top',
         horizontalAlign: 'left',
-        labels: { colors: '#cbd5e1' },
+        labels: { colors: tokenHex('slate-300', '#cbd5e1') },
         markers: { width: 10, height: 10, radius: 10 },
         itemMargin: { horizontal: 12 },
     },
-    tooltip: { theme: 'dark' },
+    tooltip: { theme: chartTheme().tooltip },
     dataLabels: { enabled: false },
     fill: {
         type: 'gradient',
@@ -138,7 +143,7 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
 
         <div class="grid gap-4 px-2 py-4 sm:grid-cols-[1fr_180px] sm:gap-2 sm:px-3">
             <div class="min-h-[240px]">
-                <VueApexCharts type="area" height="260" :options="chartOptions" :series="series" />
+                <VueApexCharts :key="theme" type="area" height="260" :options="chartOptions" :series="series" />
             </div>
             <div class="flex flex-col justify-center gap-4 border-t border-white/5 px-4 pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                 <div>

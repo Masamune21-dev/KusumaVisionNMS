@@ -106,7 +106,7 @@ const deletePin = async () => {
 </script>
 
 <template>
-    <div class="flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-slate-950/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl">
+    <div class="flex flex-col gap-2.5 rounded-2xl border border-white/10 bg-canvas-3/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl">
         <!-- Header -->
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
@@ -230,12 +230,12 @@ const deletePin = async () => {
     justify-content: center;
     gap: 0.35rem;
     border-radius: 0.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgb(var(--kv-white) / 0.1);
+    background: rgb(var(--kv-white) / 0.04);
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
     font-weight: 500;
-    color: #cbd5e1;
+    color: rgb(var(--kv-slate-300));
     transition: background-color 0.15s, color 0.15s;
 }
 
@@ -245,15 +245,15 @@ const deletePin = async () => {
 }
 
 .kv-action-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
+    background: rgb(var(--kv-white) / 0.08);
+    color: rgb(var(--kv-white));
 }
 
 /* Tombol Lock saat pin sedang terbuka — senada cincin cyan pin di peta. */
 .kv-action-btn--active {
-    border-color: rgba(34, 211, 238, 0.4);
-    background: rgba(34, 211, 238, 0.12);
-    color: #67e8f9;
+    border-color: rgb(var(--kv-cyan-400) / 0.4);
+    background: rgb(var(--kv-cyan-400) / 0.12);
+    color: rgb(var(--kv-cyan-300));
 }
 
 .kv-action-btn:disabled {
@@ -262,12 +262,12 @@ const deletePin = async () => {
 }
 
 .kv-action-btn--danger {
-    color: #fca5a5;
-    border-color: rgba(248, 113, 113, 0.25);
+    color: rgb(var(--kv-red-300));
+    border-color: rgb(var(--kv-red-400) / 0.25);
 }
 
 .kv-action-btn--danger:hover {
-    background: rgba(248, 113, 113, 0.12);
-    color: #fecaca;
+    background: rgb(var(--kv-red-400) / 0.12);
+    color: rgb(var(--kv-red-200));
 }
 </style>

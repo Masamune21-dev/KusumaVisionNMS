@@ -18,6 +18,22 @@ use Throwable;
  *   ge  0/<f>/<n>               → uplink GE (copper)
  *   xge 0/<f>/<n>               → uplink XGE (fiber)
  * Status: oper=1 → up · admin=2 → shutdown · selain itu → down.
+ *
+ * Tata letak fisik (urutan blok, port bertumpuk, kartu/modul) mengikuti panel depan yang
+ * terverifikasi dari foto & datasheet (26 Sep 2026):
+ *   - EPON 8-PON (FD1208S-R1 family, serial AF2802-…): kartu KIRI = modul ekspansi PON 0/2
+ *     (4 SFP); kartu KANAN = papan utama PON 0/1 (4 SFP) · GE 1-4 RJ45 sebaris · XGE 1-4 SFP
+ *     bertumpuk 2×2 · CONSOLE (atas) / MGMT (bawah) · LED. Slot terkecil = papan utama (di
+ *     kanan, bersama uplink); slot lebih besar = kartu tambahan di kirinya (konfirmasi user
+ *     26 Sep 2026 dari unit fisik).
+ *   - GPON FD1608S-B1: PON 1-8 SFP (jeda tiap 4) · COMBO GE 1-4 SFP · XGE 1-2 SFP ·
+ *     COMBO GE 1-4 RJ45 bertumpuk 2×2 · CONSOLE/MGMT · LED. Port GE combo = satu port logis
+ *     dengan dua konektor, jadi statusnya sama di kedua blok.
+ *   Konvensi C-Data untuk port bertumpuk (label `1▼▲2`): genap di ATAS, ganjil di BAWAH.
+ *
+ * Struktur grup: `rows` (1 = sebaris, 2 = bertumpuk, urutan port kolom demi kolom dari atas),
+ * `chunk` (jeda visual tiap N port), `module` (nomor kartu; grup se-modul digambar dalam satu
+ * kartu). Port dengan `fixed: true` adalah konektor non-SNMP (CONSOLE/MGMT) tanpa status.
  */
 class CDataFaceplateService
 {
@@ -63,6 +79,7 @@ class CDataFaceplateService
         $pon = [];     // di-subgrup per "frame/slot"
         $ge = [];
         $xge = [];
+        $isGpon = false;
 
         foreach ($descrs as $oid => $label) {
             $idx = substr($oid, strrpos($oid, '.') + 1);
@@ -71,6 +88,7 @@ class CDataFaceplateService
             $status = $admin === 2 ? 'shutdown' : ($oper === 1 ? 'up' : 'down');
 
             if (preg_match('/^(epon|gpon)\s+(\d+)\/(\d+)\/(\d+)/i', $label, $m)) {
+                $isGpon = $isGpon || strtolower($m[1]) === 'gpon';
                 $pon[(int) $m[2].'/'.(int) $m[3]][] = [
                     'pos' => (int) $m[4],
                     'name' => sprintf('%s 0/%d/%d', strtolower($m[1]), (int) $m[3], (int) $m[4]),
@@ -84,20 +102,63 @@ class CDataFaceplateService
         }
 
         $groups = [];
-        // Grup PON dulu (utama), di-subgrup per frame/slot, urut.
-        ksort($pon, SORT_NATURAL);
+        // Grup PON dulu, di-subgrup per frame/slot. Kartu PON 4-port EPON adalah modul terpisah
+        // secara fisik: slot TERBESAR (kartu ekspansi) di kiri = modul 1, …, slot TERKECIL (papan
+        // utama) di kanan = modul terakhir, satu kartu dengan uplink/CONSOLE/MGMT/LED.
+        krsort($pon, SORT_NATURAL);
+        $slotCount = count($pon);
+        $module = 1;
         foreach ($pon as $key => $ports) {
             usort($ports, fn ($a, $b) => $a['pos'] <=> $b['pos']);
-            $groups[] = ['key' => 'pon-'.$key, 'label' => 'PON '.$key, 'kind' => 'fiber', 'ports' => $ports];
+            $groups[] = [
+                'key' => 'pon-'.$key,
+                'label' => 'PON '.$key,
+                'kind' => 'fiber',
+                'rows' => 1,
+                'chunk' => 4,
+                'module' => $module,
+                'ports' => $ports,
+            ];
+            if ($slotCount > 1 && $module < $slotCount) {
+                $module++;
+            }
         }
-        if ($ge !== []) {
-            usort($ge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
-            $groups[] = ['key' => 'ge', 'label' => 'GE', 'kind' => 'copper', 'ports' => $ge];
+
+        usort($ge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
+        usort($xge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
+
+        if ($ge !== [] && $isGpon) {
+            // FD1608S: 4 SFP combo sebaris, lalu (setelah XGE) 4 RJ45 combo bertumpuk.
+            $groups[] = ['key' => 'ge-sfp', 'label' => 'COMBO GE', 'kind' => 'fiber', 'rows' => 1, 'module' => $module, 'ports' => $ge];
+        } elseif ($ge !== []) {
+            $groups[] = ['key' => 'ge', 'label' => 'GE', 'kind' => 'copper', 'rows' => 1, 'module' => $module, 'ports' => $ge];
         }
         if ($xge !== []) {
-            usort($xge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
-            $groups[] = ['key' => 'xge', 'label' => 'XGE', 'kind' => 'fiber', 'ports' => $xge];
+            $stacked = count($xge) >= 4;
+            $groups[] = [
+                'key' => 'xge',
+                'label' => 'XGE',
+                'kind' => 'fiber',
+                'rows' => $stacked ? 2 : 1,
+                'module' => $module,
+                'ports' => $stacked ? self::stackEvenOnTop($xge) : $xge,
+            ];
         }
+        if ($ge !== [] && $isGpon) {
+            $groups[] = ['key' => 'ge-rj45', 'label' => 'COMBO GE', 'kind' => 'copper', 'rows' => 2, 'module' => $module, 'ports' => self::stackEvenOnTop($ge)];
+        }
+        // CONSOLE (atas) / MGMT (bawah): konektor RJ45 di luar SNMP.
+        $groups[] = [
+            'key' => 'mgmt',
+            'label' => '',
+            'kind' => 'copper',
+            'rows' => 2,
+            'module' => $module,
+            'ports' => [
+                ['pos' => 'C', 'name' => 'CONSOLE', 'label' => 'CONSOLE', 'status' => 'fixed', 'fixed' => true],
+                ['pos' => 'M', 'name' => 'MGMT', 'label' => 'MGMT', 'status' => 'fixed', 'fixed' => true],
+            ],
+        ];
 
         return [
             'device' => array_filter([
@@ -114,11 +175,36 @@ class CDataFaceplateService
             // LED dari sinyal nyata: SYS/MGMT hijau karena OLT merespons SNMP. ALM tidak dikarang
             // (tak ada OID alarm-LED terverifikasi) — biarkan off sampai disambung ke alarm engine.
             'leds' => [
+                ['key' => 'pwr', 'label' => 'PWR', 'state' => 'up'],
                 ['key' => 'sys', 'label' => 'SYS', 'state' => 'up'],
                 ['key' => 'alm', 'label' => 'ALM', 'state' => 'off'],
                 ['key' => 'mgmt', 'label' => 'MGMT', 'state' => 'up'],
             ],
+            // CONSOLE/MGMT kini digambar sebagai blok bertumpuk di dalam grup `mgmt`.
+            'fixed_ports' => [],
         ];
+    }
+
+    /**
+     * Susun port sebaris jadi urutan kolom-demi-kolom untuk blok bertumpuk 2 baris, konvensi
+     * C-Data: genap di atas, ganjil di bawah ([1,2,3,4] → [2,1,4,3]).
+     *
+     * @param  array<int, array<string, mixed>>  $ports  sudah urut `pos`
+     * @return array<int, array<string, mixed>>
+     */
+    public static function stackEvenOnTop(array $ports): array
+    {
+        $out = [];
+        foreach (array_chunk(array_values($ports), 2) as $pair) {
+            if (count($pair) === 2) {
+                $out[] = $pair[1];
+                $out[] = $pair[0];
+            } else {
+                $out[] = $pair[0];
+            }
+        }
+
+        return $out;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\AuditLog;
 use App\Support\AuditLogger;
+use App\Support\Theme;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -11,6 +12,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->bootTheme();
+
         // Rate limiter untuk grup rute API (dipakai middleware `throttle:api`).
         // 120 request/menit per token (atau per IP bila belum login).
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
@@ -65,6 +69,25 @@ class AppServiceProvider extends ServiceProvider
                 ['email' => $event->credentials['email'] ?? null],
                 'Percobaan login gagal',
             );
+        });
+    }
+
+    /**
+     * Sediakan tema untuk shell HTML (resources/views/app.blade.php).
+     *
+     * $kvTheme     — nilai konkret (dark|light) untuk atribut data-theme.
+     * $kvThemePref — pilihan mentah (bisa 'system'); dibaca skrip di <head>
+     *                untuk membetulkan tema mengikuti setelan OS.
+     */
+    private function bootTheme(): void
+    {
+        View::composer('app', function ($view) {
+            $request = request();
+
+            $view->with([
+                'kvTheme' => Theme::document($request),
+                'kvThemePref' => Theme::preference($request),
+            ]);
         });
     }
 }

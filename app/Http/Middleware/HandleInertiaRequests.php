@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\GeneralSetting;
 use App\Services\Alarm\AlarmNotificationService;
 use App\Support\Locale;
+use App\Support\Theme;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Middleware;
@@ -46,6 +47,8 @@ class HandleInertiaRequests extends Middleware
             'systemInfo' => fn () => $this->systemInfoPayload(),
             'branding' => fn () => GeneralSetting::brandingPayload(),
             'locale' => app()->getLocale(),
+            // Pilihan tema mentah (dark|light|system); lihat App\Support\Theme.
+            'theme' => Theme::preference($request),
             'locales' => Locale::options(),
         ];
     }

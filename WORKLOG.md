@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-09-28 — Dua Tema (Gelap/Terang/Ikuti Sistem), Tampilan Baku, Sidebar Berkelompok, Halaman PON Port
+
+### Created
+
+- **Dua tema** — seluruh ramp warna Tailwind menunjuk ke CSS custom property
+  (`rgb(var(--kv-x) / <alpha-value>)`, daftar nama di `tailwind.tokens.mjs`) yang nilainya
+  ditetapkan per `[data-theme]` di `app.css`, jadi kelas lama (`bg-slate-900/60`, `text-cyan-400`)
+  ikut berganti tema tanpa disentuh. Server: `App\Support\Theme` (kolom `users.theme` → cookie
+  `kv_theme` tak terenkripsi → bawaan gelap), `<html data-theme>` dari view composer, skrip
+  `system` ber-nonce CSP di `<head>` (tanpa kedipan). Klien: `@/lib/theme` (`useTheme`,
+  `chartTheme()`, `tokenHex()`), simpan lewat `PATCH profile.theme` → 204 (bukan kunjungan Inertia).
+  Pemilih: menu pengguna (desktop), drawer (HP), `ThemeToggle` di Welcome **dan halaman tamu**
+  (login/daftar, pilihan tamu hanya di cookie). Akun demo tidak menulis kolom (baris bersama).
+  Migrasi `add_theme_to_users_table`. Test `ThemePreferenceTest`, `ThemeTokenTest`.
+- **Halaman PON Port tunggal** `SmartOlt/PonPorts` untuk ZTE, C-Data & HiOSO (kartu per port +
+  cari ONU; `App\Support\PonPortCards`), menggantikan `GponPorts.vue`. Rute `cdata-olt.pon-ports`,
+  `hioso-olt.pon-ports`.
+- **Detail C-Data/HiOSO setara ZTE** + gambar produk OLT (`public/img/olt/`, `OltImage` mencoba
+  webp/png/jpg lalu gambar cadangan) — lihat `public/img/olt/README.md`.
+
+### Changed
+
+- **Tampilan baku komponen** (`UI_DESIGN_SYSTEM.md` §3b): font Manrope 400–800 (dulu Figtree),
+  tombol 44 px, varian tombol/konfirmasi/lencana, tombol ikon 36/44 px, modal opak.
+- **Sidebar berkelompok & kerangka diam** — Ringkasan · Jaringan OLT · Lapangan · Pantauan ·
+  Administrasi · Bantuan; di desktop sidebar/header/footer diam dan hanya konten yang menggulir.
+- **Tabel lebih rapat** (`px-4 py-3`), toolbar pilihan ONU dirapikan.
+- **Faceplate C-Data EPON/GPON & HiOSO** mengikuti posisi port fisik; rak & faceplate ikut tema.
+- Sapuan kelas dua tema di seluruh halaman (termasuk halaman khusus publik: login, daftar, profil,
+  pengguna): `text-onaccent` di atas aksen, `bg-canvas-3` untuk permukaan cekung, blok CLI dikunci
+  gelap (`data-theme="dark"` + `kv-terminal`), `kv-surface` pada kartu kaca.
+
+### Fixed
+
+- Settings: konfirmasi cabut token & hapus perangkat memakai `ConfirmModal`, bukan `window.confirm()`.
+
+### Notes
+
+- **Upgrade**: `php artisan migrate` (kolom `users.theme`) lalu `npm run build`. Tanpa pilihan,
+  tampilan tetap gelap seperti sebelumnya.
+- Diuji di browser (Chromium headless, server lokal + data demo): 17 halaman di tema gelap & terang,
+  lebar 1440 & 390 px — tanpa error konsol/halaman. `bash scripts/test.sh` 598 lulus (3634
+  assertion), `npm test` 26, `npm run build` OK. `kv-ui-check`: sisa input tanggal bawaan di Audit Log
+  dan satu warna literal di jendela telnet (tak berubah dari sebelumnya).
+
 ## 2026-09-27 — Fitur OLT & ODP: Editor ONU per Bagian, Hapus ONU Massal, Serial GPON, ODP
 
 ### Created

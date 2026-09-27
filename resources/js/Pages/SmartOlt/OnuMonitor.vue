@@ -287,7 +287,7 @@ const phaseDotClass = (onu) => {
                 </FilterCard>
 
                 <!-- Prompt: pick an OLT first -->
-                <div v-if="!hasOlt" class="rounded-lg border border-white/10 bg-slate-900/40 px-6 py-16 text-center shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="!hasOlt" class="kv-surface rounded-lg border border-white/10 bg-slate-900/40 px-6 py-16 text-center shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-sky-500/15 ring-1 ring-cyan-500/30">
                         <Radar class="h-7 w-7 text-cyan-400" />
                     </div>
@@ -425,19 +425,19 @@ const phaseDotClass = (onu) => {
 
                             <!-- Desktop table -->
                             <div class="kv-table-desktop">
-                                <table class="min-w-[820px] w-full tabular-nums">
+                                <table class="min-w-[820px] w-full tabular-nums text-xs">
                                     <thead>
-                                        <tr class="border-b border-white/10 bg-slate-950/40">
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('smartolt.th_olt') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
-                                            <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
-                                            <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
+                                        <tr class="border-b border-white/10 bg-canvas-3/40">
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('smartolt.th_olt') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
+                                            <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-white/5">
@@ -446,27 +446,27 @@ const phaseDotClass = (onu) => {
                                             :key="`${onu.olt_id}-${onu.slot}-${onu.port}-${onu.onu_id}`"
                                             class="transition-colors duration-150 hover:bg-white/[0.03]"
                                         >
-                                            <td class="px-6 py-4 text-sm text-slate-300">{{ onu.olt_name }}</td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3 text-xs text-slate-300">{{ onu.olt_name }}</td>
+                                            <td class="px-4 py-3">
                                                 <div class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
                                                 <div class="mt-0.5 text-xs text-slate-500">{{ onuSecondaryLabel(onu) }}</div>
                                             </td>
-                                            <td class="px-6 py-4">
-                                                <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || onu.mac || '—' }}</span>
+                                            <td class="px-4 py-3">
+                                                <span class="font-mono text-xs text-slate-200">{{ onu.serial_number || onu.mac || '—' }}</span>
                                             </td>
-                                            <td class="px-6 py-4 text-sm text-slate-200">{{ onu.type_name || '—' }}</td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3 text-xs text-slate-200">{{ onu.type_name || '—' }}</td>
+                                            <td class="px-4 py-3">
                                                 <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold" :class="rxBadgeClass(onu.rx_power_dbm)">
                                                     {{ onu.rx_power_label || '—' }}
                                                 </span>
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3">
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full" :class="phaseDotClass(onu)"></span>
-                                                    <span class="text-sm" :class="phaseClass(onu)" :title="onu.phase_state || ''">{{ phaseStateLabel(onu.phase_state) }}</span>
+                                                    <span class="text-xs" :class="phaseClass(onu)" :title="onu.phase_state || ''">{{ phaseStateLabel(onu.phase_state) }}</span>
                                                 </div>
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3">
                                                 <span
                                                     class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
                                                     :class="onu.admin_state === 'active'
@@ -476,9 +476,9 @@ const phaseDotClass = (onu) => {
                                                     {{ onu.admin_state }}
                                                 </span>
                                             </td>
-                                            <td class="px-6 py-4 text-sm text-slate-500" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</td>
-                                            <td class="px-6 py-4 text-sm text-slate-300">{{ onu.odp_name || '—' }}</td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3 text-xs text-slate-500" :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</td>
+                                            <td class="px-4 py-3 text-xs text-slate-300">{{ onu.odp_name || '—' }}</td>
+                                            <td class="px-4 py-3">
                                                 <div class="flex items-center justify-center gap-1.5">
                                                     <IconButton :href="portOnuHref(onu)" variant="primary" :title="$t('onumonitor.open_in_port')">
                                                         <ExternalLink class="h-4 w-4" />

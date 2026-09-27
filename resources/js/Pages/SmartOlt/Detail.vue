@@ -1,11 +1,12 @@
 <script setup>
+import OltImage from '@/Components/OltImage.vue';
 import OltChassis from '@/Components/SmartOlt/OltChassis.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, ClipboardList, Database, Pencil, RefreshCw, Router, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, ClipboardList, Database, Pencil, RefreshCw, Server } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -66,13 +67,6 @@ const formatUptime = (timeticks) => {
     return parts.join(' ');
 };
 
-const oltImage = computed(() => {
-    const hay = (props.olt.name + ' ' + (props.olt.vendor ?? '')).toLowerCase();
-    if (hay.includes('c320')) return '/img/c320.webp';
-    if (hay.includes('c300')) return '/img/c300.webp';
-    if (hay.includes('c600')) return '/img/c600.webp';
-    return null;
-});
 </script>
 
 <template>
@@ -160,7 +154,7 @@ const oltImage = computed(() => {
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                                 <Server class="h-5 w-5 text-cyan-400" />
@@ -187,13 +181,7 @@ const oltImage = computed(() => {
                         </dl>
                     </div>
 
-                    <div class="flex items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
-                        <img v-if="oltImage" :src="oltImage" :alt="olt.name" class="max-h-96 w-full object-contain p-8" />
-                        <div v-else class="flex flex-col items-center justify-center gap-2 py-16 text-slate-300">
-                            <Router class="h-16 w-16" />
-                            <span class="text-sm text-slate-400">{{ $t('detail.image_unavailable') }}</span>
-                        </div>
-                    </div>
+                    <OltImage :olt="olt" />
                 </div>
 
                 <!-- Visualisasi Chassis -->

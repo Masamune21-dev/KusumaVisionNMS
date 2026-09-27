@@ -68,7 +68,7 @@ const submit = () => {
             <p>{{ $t('oltform.connection_locked') }}</p>
         </div>
         <!-- Section: Identitas OLT -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+        <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                     <Cpu class="h-4 w-4 text-cyan-400" />
@@ -119,7 +119,7 @@ const submit = () => {
         </div>
 
         <!-- Section: SNMP -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+        <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                     <Network class="h-4 w-4 text-cyan-400" />
@@ -194,7 +194,7 @@ const submit = () => {
         </div>
 
         <!-- Section: CLI -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+        <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                     <KeyRound class="h-4 w-4 text-cyan-400" />
@@ -266,7 +266,7 @@ const submit = () => {
         </div>
 
         <!-- Section: Polling -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+        <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
             <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                 <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                     <Activity class="h-4 w-4 text-cyan-400" />
@@ -317,7 +317,7 @@ const submit = () => {
         </div>
 
         <!-- Submit bar -->
-        <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
+        <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl px-4 py-4 sm:px-6 grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
             <Link :href="route('smartolt.index')">
                 <SecondaryButton type="button">{{ $t('common.cancel') }}</SecondaryButton>
             </Link>

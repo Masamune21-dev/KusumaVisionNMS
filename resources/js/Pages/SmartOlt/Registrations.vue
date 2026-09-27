@@ -186,14 +186,14 @@ const deleteRegistration = async (registration) => {
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
-                <div v-if="registrations.length === 0" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="registrations.length === 0" class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="px-6 py-10 text-center text-sm text-slate-500">
                         {{ $t('registrations.empty') }}
                     </div>
                 </div>
 
                 <!-- Provisioning Scripts (script baru yang belum dieksekusi) -->
-                <div v-if="pendingRegistrations.length" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="pendingRegistrations.length" class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <ClipboardList class="h-5 w-5 text-cyan-400" />
@@ -234,7 +234,7 @@ const deleteRegistration = async (registration) => {
                 </div>
 
                 <!-- Logs (script yang sudah dikerjakan, status apa pun) -->
-                <div v-if="loggedRegistrations.length" class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div v-if="loggedRegistrations.length" class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/30">
                             <History class="h-5 w-5 text-violet-300" />

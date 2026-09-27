@@ -105,7 +105,7 @@ const submit = () => {
             <button
                 type="submit"
                 :disabled="form.processing"
-                class="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition-all hover:shadow-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                class="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-3 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/30 transition-all hover:shadow-cyan-500/50 disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <Loader2 v-if="form.processing" class="h-4 w-4 animate-spin" />
                 <template v-else>

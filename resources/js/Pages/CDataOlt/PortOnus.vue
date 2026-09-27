@@ -260,7 +260,7 @@ const viewOnMap = (onu) => {
                                 v-if="odps.length"
                                 v-model="odpFilter"
                                 :title="$t('portonus.filter_odp')"
-                                class="w-full rounded-lg border-white/10 bg-slate-950/40 text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500 sm:w-auto"
+                                class="w-full rounded-lg border-white/10 bg-canvas-3/40 text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500 sm:w-auto"
                             >
                                 <option value="all">{{ $t('portonus.odp_all') }}</option>
                                 <option value="none">{{ $t('portonus.odp_unassigned') }}</option>
@@ -272,7 +272,7 @@ const viewOnMap = (onu) => {
                                     v-model="search"
                                     type="text"
                                     :placeholder="$t('cdataportonus.search_placeholder')"
-                                    class="w-full rounded-lg border-white/10 bg-slate-950/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
+                                    class="w-full rounded-lg border-white/10 bg-canvas-3/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
                                 />
                             </div>
                         </div>
@@ -285,30 +285,30 @@ const viewOnMap = (onu) => {
 
                     <template v-else>
                         <div class="kv-table-desktop">
-                            <table class="w-full min-w-[820px]">
+                            <table class="w-full min-w-[820px] text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_odp') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40">
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_odp') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
                                         <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
                                     <tr v-for="o in filtered" :key="o.onu_key" class="transition-colors hover:bg-white/[0.03]" :class="{ 'bg-cyan-500/10': isFocus(o) }">
-                                        <td class="px-4 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="font-mono text-xs text-white">{{ o.interface }}</div>
                                             <div class="mt-0.5 text-xs text-slate-500">{{ o.type_name || o.vendor_id || '—' }}</div>
                                         </td>
-                                        <td class="px-4 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="font-mono text-xs text-slate-200">{{ o.serial_number || o.mac || '—' }}</div>
                                             <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
                                         </td>
-                                        <td class="px-4 py-4 text-sm text-slate-200">{{ o.name || '—' }}</td>
-                                        <td class="px-4 py-4">
+                                        <td class="px-4 py-3 text-xs text-slate-200">{{ o.name || '—' }}</td>
+                                        <td class="px-4 py-3">
                                             <OnuOdpCell
                                                 :onu="o"
                                                 :odps="odps"
@@ -318,17 +318,17 @@ const viewOnMap = (onu) => {
                                                 :port="port"
                                             />
                                         </td>
-                                        <td class="px-4 py-4">
+                                        <td class="px-4 py-3">
                                             <span class="inline-flex items-center gap-1.5 text-xs font-semibold" :class="o.online ? 'text-emerald-300' : 'text-red-300'">
                                                 <component :is="o.online ? Wifi : WifiOff" class="h-3.5 w-3.5" />
                                                 {{ o.phase_state || (o.online ? $t('common.online') : $t('common.offline')) }}
                                             </span>
                                             <div v-if="o.last_down_cause" class="mt-0.5 text-xs text-slate-500">{{ o.last_down_cause }}</div>
                                         </td>
-                                        <td class="px-4 py-4 font-mono text-sm" :class="rxClass(o.rx_power_dbm)">
+                                        <td class="px-4 py-3 font-mono text-xs" :class="rxClass(o.rx_power_dbm)">
                                             {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
                                         </td>
-                                        <td v-if="hasActions" class="px-4 py-4">
+                                        <td v-if="hasActions" class="px-4 py-3">
                                             <div class="flex justify-center gap-1.5">
                                                 <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                                     <Pencil class="h-4 w-4" />

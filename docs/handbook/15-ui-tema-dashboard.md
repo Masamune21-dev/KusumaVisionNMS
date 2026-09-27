@@ -17,26 +17,35 @@ shell, dan **aturan wajib** saat membuat halaman/komponen baru agar konsisten de
 
 ## 1. Bahasa desain (identitas tema)
 
-Tema bernuansa **"dark glass cyber/NOC"** — pas untuk dashboard monitoring jaringan:
+Tema bernuansa **"dark glass cyber/NOC"** — pas untuk dashboard monitoring jaringan — dan sejak
+**23 Sep 2026 punya dua tema: Gelap (bawaan), Terang, dan Ikuti Sistem**, dipilih per pengguna
+(menu pengguna di desktop, drawer navigasi di HP, tombol tema di Welcome untuk tamu).
 
-- **Base gelap.** `bg-slate-950` (`#020617`) di `<body>`, area konten pakai `kv-grid-bg`
-  (`#060f1c` + gradient vertikal). `color-scheme: dark` aktif global.
+- **Dua tema lewat token, bukan varian `dark:`.** Seluruh ramp Tailwind menunjuk ke CSS custom
+  property (`rgb(var(--kv-x) / <alpha>)`) yang nilainya dideklarasikan per `[data-theme]` di
+  `app.css`. Kelas biasa (`bg-slate-900/95`,
+  `text-cyan-400`, `border-white/10`) otomatis berganti tema. Aturan menulis kelas (`text-onaccent`,
+  `bg-canvas-3`, `kv-terminal`, `chartTheme()`, dll.) ada di **`UI_DESIGN_SYSTEM.md` §3a**.
+- **Base.** `bg-canvas` di `<body>`, kanvas `kv-grid-stage` (navy `#0b1329` di gelap, biru-abu
+  `#F5F7FB` di terang). `color-scheme` mengikuti `data-theme`.
 - **Aksen utama cyan→sky.** Gradient `from-cyan-500 to-sky-600`, glow `shadow-cyan-500/30`.
   Cyan = warna brand (logo, nav aktif, fokus, link, progress bar Inertia `#06b6d4`).
 - **Permukaan kaca (glassmorphism).** Kartu/panel = `bg-slate-900/40` + `border-white/10` +
   `backdrop-blur-xl` + soft shadow biru. Selalu **semi-transparan** supaya latar (aurora + jaring
   partikel) menembus.
-- **Latar hidup.** `AuroraBackground` + `ParticleNetwork` (`id="kv-app-particles"`, fixed) ada di
-  belakang **semua** halaman app. Jangan menutupnya dengan background solid full-bleed.
+- **Latar statis.** Grid mesh 32 px + spotlight atas (`kv-grid-pattern`, `kv-top-light`,
+  `kv-ambient-glow`) — hanya di tema gelap; di tema terang kanvasnya datar. `AuroraBackground` /
+  `ParticleNetwork` sudah tidak dipasang di shell (beban GPU) dan tidak boleh dipasang lagi.
 - **Teks.** Judul `text-white`, body `text-slate-100/200`, sekunder `text-slate-400`, redup
   `text-slate-500`. Label kecil sering `uppercase tracking-wider`.
 - **Sudut & ruang.** Kartu `rounded-2xl`, tombol/elemen kecil `rounded-lg`/`rounded-xl`, badge
   `rounded-md`. Padding kartu `p-5`, padding konten halaman `px-4 sm:px-6 lg:px-8`.
 - **Gerak halus.** `transition` 150–200ms, transisi antar-halaman `name="page"` (fade + geser),
   hormati `prefers-reduced-motion` (sudah di-handle di `app.css`).
-- **Font.** `Figtree` (fallback sans), di-set di `tailwind.config.js`.
+- **Font.** `Manrope` 400–800 (fallback sans), di-set di `tailwind.config.js` dan dimuat dari
+  fonts.bunny.net.
 
-> **Mental model:** setiap layar = kartu kaca melayang di atas latar gelap berpartikel, dengan satu
+> **Mental model:** setiap layar = kartu kaca di atas latar grid statis (gelap atau terang), dengan satu
 > warna aksen cyan/sky untuk aksi & status netral, ditambah warna semantik untuk status lain.
 
 ---
@@ -192,11 +201,14 @@ layout (jangan dibuat ulang di halaman):
 - **Footer** — copyright/atribusi pemilik (dari `branding`, bukan Settings), ikut alur di
   dasar halaman.
 
-Scroll terjadi di **level dokumen** (bukan container dalam) supaya screenshot full-page merekam
-halaman utuh: sidebar desktop ikut alur setinggi konten (blok logo+nav sticky-top, panel sistem
-sticky-bottom), header desktop & top bar mobile sticky. **Jangan** bikin halaman jadi
-`h-screen`/`overflow-hidden`, dan hindari menambah elemen `fixed`/sticky-bottom di kolom konten
-(dirender nempel viewport di tengah gambar oleh tool capture full-page).
+**Desktop (≥ lg) = kerangka setinggi layar** (sejak 25 Sep 2026, atas permintaan
+user): `.kv-app-shell` = `100vh` + `overflow: hidden`, sidebar/header/footer diam, dan hanya
+`.kv-app-scroll` (atribut `scroll-region` → preserveScroll Inertia tetap jalan) yang menggulir; menu
+sidebar yang panjang menggulir di dalam `<nav>`. **HP** tetap menggulir di level dokumen dengan top
+bar sticky. Akibatnya: elemen `sticky` di halaman kini berpatokan ke area gulir konten, jadi
+offsetnya kecil (`top-3`/`top-6`), **bukan** tinggi header 72 px lagi; dan screenshot full-page
+harus membuka kerangka dulu — `scripts/snapshot.mjs` menyuntik CSS
+`.kv-app-shell{height:auto;overflow:visible} .kv-app-scroll{overflow:visible}` sebelum memotret.
 
 ---
 
@@ -314,7 +326,9 @@ Checklist ini **mengikat** untuk setiap PR yang menyentuh tampilan dashboard:
     inline berulang.
 
 ### Yang harus dihindari
-- ❌ Tema terang / kartu putih solid. ❌ Warna aksen baru di luar palet.
+- ❌ `text-white` di atas tombol/gradien aksen (pakai `text-onaccent`). ❌ `bg-slate-950` sebagai
+  permukaan (tetap gelap di tema terang; pakai `bg-canvas-3/<α>`). ❌ Heks literal untuk warna
+  teks/grid di JS atau `<style>` (pakai token). ❌ Warna aksen baru di luar palet.
 - ❌ Tailwind mentah meniru `kv-glass-card`/pill padahal kelasnya ada.
 - ❌ Tabel desktop tanpa varian mobile. ❌ Ikon dari pustaka selain Lucide.
 - ❌ Tombol aksi tanpa cek `auth.can` (atau backend tanpa enforcement).
@@ -326,6 +340,7 @@ Checklist ini **mengikat** untuk setiap PR yang menyentuh tampilan dashboard:
 
 - [ ] Halaman pakai `AuthenticatedLayout` + `<Head>` + slot `#header`.
 - [ ] Permukaan pakai `kv-glass-*`; warna sesuai palet/semantik.
+- [ ] Dicek di **tema gelap dan terang** (menu pengguna → Tampilan), desktop & HP.
 - [ ] Data tabular punya mode desktop **dan** mobile.
 - [ ] Tombol/aksi pakai komponen standar; ikon Lucide; destruktif → konfirmasi.
 - [ ] Tombol di-gerbang `auth.can.*` + backend menegakkan + cek demo mode.

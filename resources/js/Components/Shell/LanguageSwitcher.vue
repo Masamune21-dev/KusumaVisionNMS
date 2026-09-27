@@ -45,7 +45,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
         >
             <div
                 v-if="open"
-                class="absolute right-0 z-50 mt-2 w-48 origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+                class="kv-popover absolute right-0 z-50 mt-2 w-48 origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
             >
                 <div class="border-b border-white/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     {{ $t('language.label') }}

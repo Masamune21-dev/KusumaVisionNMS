@@ -12,7 +12,13 @@
         "users": "Pengguna",
         "audit_logs": "Log Audit",
         "settings": "Pengaturan",
-        "partner_telegram": "Bot Telegram Saya"
+        "partner_telegram": "Bot Telegram Saya",
+        "group_admin": "Administrasi",
+        "group_field": "Lapangan",
+        "group_help": "Bantuan",
+        "group_network": "Jaringan OLT",
+        "group_overview": "Ringkasan",
+        "group_watch": "Pantauan"
     },
     "common": {
         "clear_search": "Kosongkan pencarian",
@@ -60,7 +66,15 @@
         "download": "Unduh",
         "view": "Lihat",
         "loading": "Memuat…",
-        "processing": "Memproses…"
+        "processing": "Memproses…",
+        "theme": "Tampilan",
+        "type": "Tipe",
+        "hide_password": "Sembunyikan password",
+        "show_password": "Tampilkan password",
+        "theme_dark": "Gelap",
+        "theme_light": "Terang",
+        "theme_system": "Ikuti Sistem",
+        "theme_system_short": "Sistem"
     },
     "shell": {
         "app_subtitle": "NMS v2 · GPON Management",
@@ -469,7 +483,8 @@
         "total_onu": "Total ONU",
         "onu_online_suffix": " / {total} online",
         "image_unavailable": "Gambar tidak tersedia",
-        "refresh_hardware": "Refresh Hardware"
+        "refresh_hardware": "Refresh Hardware",
+        "image_hint": "Taruh gambar di"
     },
     "onucfg": {
         "unnamed": "(tanpa nama)",
@@ -1113,7 +1128,8 @@
         "all_rx": "Semua Redaman",
         "all_status": "Semua Status",
         "rows_count": "{n} baris data.",
-        "no_data": "Tidak ada data untuk filter ini."
+        "no_data": "Tidak ada data untuk filter ini.",
+        "rows_label": "baris"
     },
     "panduan": {
         "title": "Panduan Penggunaan",
@@ -1712,5 +1728,23 @@
         "add_title": "Beri label port",
         "edit_title": "Ubah label port",
         "hint": "Label hanya disimpan di NMS, tidak ditulis ke OLT."
+    },
+    "faceplate": {
+        "click_hint": "Klik port PON untuk membuka daftar ONU-nya. Angka di bawah port = ONU online/total.",
+        "legend_copper": "Tembaga (RJ45)",
+        "legend_down": "Down",
+        "legend_fiber": "Fiber (SFP)",
+        "legend_fixed": "Console/MGMT (tanpa status)",
+        "legend_shutdown": "Shutdown",
+        "legend_up": "Up",
+        "onu_count": "{online}/{total} ONU online",
+        "open_onu": "klik untuk lihat ONU"
+    },
+    "ponports": {
+        "ports_down": "{count} port down",
+        "search_placeholder": "Cari port, nama/MAC/serial ONU…",
+        "stat_ports": "Port {label}",
+        "subtitle": "Klik port untuk membuka daftar ONU-nya.",
+        "title": "Port {label}"
     }
 }

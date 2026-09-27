@@ -97,7 +97,7 @@ const start = async (execute) => {
             </div>
             <p class="mt-2 text-sm text-slate-400" v-html="$t('tr069.intro', { slot, port, olt: olt.name })"></p>
 
-            <dl class="mt-4 space-y-1.5 rounded-lg border border-white/10 bg-slate-950/40 px-3 py-3 text-xs">
+            <dl class="mt-4 space-y-1.5 rounded-lg border border-white/10 bg-canvas-3/40 px-3 py-3 text-xs">
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">ACS URL</dt><dd class="font-mono text-slate-200">{{ acs.url }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Username</dt><dd class="font-mono text-slate-200">{{ acs.username }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Password</dt><dd class="font-mono text-slate-200">••••••••</dd></div>
@@ -175,7 +175,7 @@ const start = async (execute) => {
                 <span v-html="$t('tr069.will_write', { applied: progress.applied })"></span>
             </p>
 
-            <div v-if="failedItems.length" class="mt-3 max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+            <div v-if="failedItems.length" class="mt-3 max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-canvas-3/40 p-3">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('tr069.read_failed_header') }}</p>
                 <div v-for="(item, idx) in failedItems" :key="idx" class="text-xs text-slate-400">
                     <span class="font-mono text-slate-300">{{ item.slot }}/{{ item.port }}:{{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}
@@ -210,7 +210,7 @@ const start = async (execute) => {
             </p>
             <p v-if="progress.error" class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ progress.error }}</p>
 
-            <div v-if="failedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+            <div v-if="failedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-canvas-3/40 p-3">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.failed_header') }}</p>
                 <div v-for="(item, idx) in failedItems" :key="idx" class="text-xs text-slate-400">
                     <span class="font-mono text-slate-300">{{ item.slot }}/{{ item.port }}:{{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}

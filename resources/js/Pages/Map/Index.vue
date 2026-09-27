@@ -171,7 +171,7 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
                 <div class="flex items-center gap-2">
                     <MapPin class="h-6 w-6 text-cyan-400" />
                     <div>
-                        <h1 class="text-lg font-semibold text-white">{{ $t('map.title') }}</h1>
+                        <h1 class="text-xl font-semibold text-white">{{ $t('map.title') }}</h1>
                         <p class="text-xs text-slate-400">
                             {{ $t('map.stats', { pins: pins.length, online: onlineCount }) }}
                         </p>
@@ -267,7 +267,7 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
 /* Kartu detail melayang tepat di atas pin (titik = ujung bawah pin). */
 .kv-pin-popup {
     transform: translate(-50%, calc(-100% - 34px));
-    filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.45));
+    filter: drop-shadow(0 10px 25px rgb(var(--kv-black) / 0.45));
 }
 
 /* Panah penunjuk ke pin — diamond serasi kaca kartu. */
@@ -278,9 +278,10 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
     width: 12px;
     height: 12px;
     margin-left: -6px;
-    background: rgb(2 6 23 / 0.95);
-    border-right: 1px solid rgb(255 255 255 / 0.1);
-    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+    /* Sewarna kartu (bg-canvas-3/95) — ikut tema. */
+    background: rgb(var(--kv-canvas-3) / 0.95);
+    border-right: 1px solid rgb(var(--kv-white) / 0.1);
+    border-bottom: 1px solid rgb(var(--kv-white) / 0.1);
     transform: rotate(45deg);
     backdrop-filter: blur(16px);
 }

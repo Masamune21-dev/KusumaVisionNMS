@@ -63,7 +63,7 @@ const formatDate = (value) => formatDateTime(value);
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
                 <!-- OLT selector -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <Router class="h-5 w-5 text-cyan-400" />
@@ -113,7 +113,7 @@ const formatDate = (value) => formatDateTime(value);
                     </div>
 
                     <!-- Tabel ONU -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                         <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                                 <Wifi class="h-5 w-5 text-cyan-400" />
@@ -156,23 +156,23 @@ const formatDate = (value) => formatDateTime(value);
                             </div>
 
                             <div class="kv-table-desktop">
-                            <table class="min-w-[720px] w-full">
+                            <table class="min-w-[720px] w-full text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
-                                        <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
-                                        <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40">
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
+                                        <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
                                     <tr v-for="onu in snapshot.onus" :key="onu.serial_number"
                                         class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                        <td class="px-6 py-4 font-mono text-sm font-semibold text-white">{{ onu.serial_number }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-200">
+                                        <td class="px-4 py-3 font-mono text-xs font-semibold text-white">{{ onu.serial_number }}</td>
+                                        <td class="px-4 py-3 text-xs text-slate-200">
                                             <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
                                             <span v-else class="text-slate-400">-</span>
                                         </td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="flex justify-center">
                                                 <IconButton
                                                     variant="primary"

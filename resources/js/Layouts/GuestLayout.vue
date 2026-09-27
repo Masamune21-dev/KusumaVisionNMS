@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import AuroraBackground from '@/Components/Shell/AuroraBackground.vue';
 import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
+import ThemeToggle from '@/Components/Shell/ThemeToggle.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft } from '@lucide/vue';
 
@@ -37,8 +38,9 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
             {{ $t('guest.back_home') }}
         </Link>
 
-        <!-- Language switcher (tamu bisa ganti bahasa sebelum login) -->
-        <div class="absolute right-4 top-4 sm:right-6 sm:top-6">
+        <!-- Tema & bahasa (tamu bisa mengganti keduanya sebelum login) -->
+        <div class="absolute right-4 top-4 flex items-center gap-2 sm:right-6 sm:top-6">
+            <ThemeToggle />
             <LanguageSwitcher />
         </div>
 

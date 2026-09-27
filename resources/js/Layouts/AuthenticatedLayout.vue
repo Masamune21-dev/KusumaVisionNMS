@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import FlashMessages from '@/Components/Shell/FlashMessages.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
@@ -7,6 +7,7 @@ import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
 import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
+import ThemeSegmented from '@/Components/Shell/ThemeSegmented.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
@@ -40,30 +41,68 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
 const user = computed(() => page.props.auth?.user ?? {});
 const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCase());
 
-const navLinks = computed(() => {
-    const links = [
-        { name: t('nav.dashboard'), icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
-        { name: t('nav.smartolt'), icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*'], except: 'smartolt.unconfigured-all' },
-        { name: t('nav.monitoring'), icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
-        { name: t('nav.map'), icon: MapPin, href: route('map.index'), match: 'map.*' },
-        { name: t('nav.odp'), icon: Waypoints, href: route('odp.index'), match: 'odp.*' },
-        { name: t('nav.unconfigured'), icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
-        { name: t('nav.alarms'), icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
-        { name: t('nav.report'), icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
-        { name: t('nav.guide'), icon: BookOpen, href: route('panduan'), match: 'panduan' },
+// Menu dikelompokkan per alur kerja: label kelompok
+// saat sidebar lebar, garis pemisah saat diciutkan. Kelompok yang semua itemnya tersembunyi
+// (mis. Administrasi untuk operator) ikut hilang supaya tak ada label kosong.
+const navGroups = computed(() => {
+    const groups = [
+        {
+            key: 'overview',
+            label: t('nav.group_overview'),
+            items: [
+                { name: t('nav.dashboard'), icon: LayoutDashboard, href: route('dashboard'), match: 'dashboard' },
+            ],
+        },
+        {
+            key: 'network',
+            label: t('nav.group_network'),
+            items: [
+                { name: t('nav.smartolt'), icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*', 'hsairpo-olt.*'], except: 'smartolt.unconfigured-all' },
+                { name: t('nav.unconfigured'), icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
+                { name: t('nav.monitoring'), icon: Radar, href: route('monitoring.onu'), match: 'monitoring.*' },
+            ],
+        },
+        {
+            key: 'field',
+            label: t('nav.group_field'),
+            items: [
+                { name: t('nav.map'), icon: MapPin, href: route('map.index'), match: 'map.*' },
+                { name: t('nav.odp'), icon: Waypoints, href: route('odp.index'), match: 'odp.*' },
+            ],
+        },
+        {
+            key: 'watch',
+            label: t('nav.group_watch'),
+            items: [
+                { name: t('nav.alarms'), icon: BellRing, href: route('alarms.index'), match: 'alarms.*' },
+                { name: t('nav.report'), icon: FileBarChart, href: route('reports.index'), match: 'reports.*' },
+            ],
+        },
+        {
+            key: 'admin',
+            label: t('nav.group_admin'),
+            items: [
+                can.value.manage_users && {
+                    name: t('nav.users'),
+                    icon: Users,
+                    href: route('users.index'),
+                    match: 'users.*',
+                },
+                can.value.is_partner && { name: t('nav.partner_telegram'), icon: Send, href: route('partner.telegram.edit'), match: 'partner.telegram.*' },
+                can.value.manage_users && !can.value.is_partner && { name: t('nav.audit_logs'), icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' },
+                can.value.manage_users && !can.value.is_partner && { name: t('nav.settings'), icon: Settings, href: route('settings.edit'), match: 'settings.*' },
+            ].filter(Boolean),
+        },
+        {
+            key: 'help',
+            label: t('nav.group_help'),
+            items: [
+                { name: t('nav.guide'), icon: BookOpen, href: route('panduan'), match: 'panduan' },
+            ],
+        },
     ];
 
-    if (can.value.manage_users) {
-        links.push({ name: t('nav.users'), icon: Users, href: route('users.index'), match: 'users.*' });
-        links.push({ name: t('nav.audit_logs'), icon: ScrollText, href: route('audit-logs.index'), match: 'audit-logs.*' });
-        links.push({ name: t('nav.settings'), icon: Settings, href: route('settings.edit'), match: 'settings.*' });
-    }
-
-    if (can.value.is_partner) {
-        links.push({ name: t('nav.partner_telegram'), icon: Send, href: route('partner.telegram.edit'), match: 'partner.telegram.*' });
-    }
-
-    return links;
+    return groups.filter((group) => group.items.length > 0);
 });
 
 const isActive = (link) => {
@@ -79,8 +118,8 @@ const onKey = (e) => {
         e.preventDefault();
         searchOpen.value = true;
     }
-    if (e.key === 'Escape' && searchOpen.value) {
-        searchOpen.value = false;
+    if (e.key === 'Escape') {
+        if (searchOpen.value) searchOpen.value = false;
     }
 };
 
@@ -105,17 +144,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <!-- Scroll di level dokumen (bukan container dalam) supaya screenshot full-page
-         merekam seluruh halaman utuh; elemen yang "menempel" pakai sticky, bukan fixed. -->
-    <!-- Latar statis (grid + cahaya atas). Dulu jaring partikel tsParticles + aurora yang
-         beranimasi terus di setiap halaman — di laptop kelas menengah itu memakan CPU/GPU
-         sepanjang waktu walau layar diam. -->
-    <div class="kv-grid-stage flex min-h-screen flex-col lg:flex-row text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-white">
+    <!-- Desktop = kerangka setinggi layar: sidebar, header, dan footer diam;
+         hanya area konten (.kv-app-scroll, `scroll-region` untuk preserveScroll Inertia) yang
+         menggulir. HP tetap menggulir di level dokumen dengan bar atas sticky.
+         Snapshot full-page membuka kerangka ini lewat CSS (lihat scripts/snapshot.mjs). -->
+    <div class="kv-grid-stage kv-app-shell flex min-h-screen flex-col lg:flex-row text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-onaccent">
+        <!-- 1. Background Grid Pattern Layer -->
         <div class="kv-grid-pattern" aria-hidden="true"></div>
+
+        <!-- 2. Efek Light Beam di Tengah Atas (Natural Spotlight) -->
         <div class="kv-top-light" aria-hidden="true"></div>
         <div class="kv-ambient-glow" aria-hidden="true"></div>
         <!-- Mobile top bar (sticky, tetap terlihat saat scroll) -->
-        <div class="sticky top-0 z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-slate-950/40 px-4 backdrop-blur-xl lg:hidden">
+        <div class="kv-shell-bar sticky top-0 z-50 flex h-14 flex-shrink-0 items-center gap-3 border-b border-white/10 bg-canvas-3/40 px-4 backdrop-blur-xl lg:hidden">
             <button
                 type="button"
                 class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
@@ -158,10 +199,10 @@ onUnmounted(() => {
             />
         </Transition>
 
-        <!-- Sidebar — mobile: drawer fixed; desktop: ikut alur halaman (tinggi penuh konten),
-             blok atas sticky, panel sistem di dasar — supaya utuh di screenshot full-page -->
+        <!-- Sidebar — mobile: drawer fixed; desktop: setinggi layar, diam saat konten digulir.
+             Menu yang panjang menggulir di dalam <nav>, panel sistem tetap di dasar. -->
         <aside
-            class="fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-slate-950/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:relative lg:flex-shrink-0 lg:translate-x-0"
+            class="kv-shell-sidebar fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-canvas-3/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:relative lg:flex-shrink-0 lg:translate-x-0"
             :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
                 sidebarCollapsed ? 'w-64 lg:w-20' : 'w-64',
@@ -169,16 +210,11 @@ onUnmounted(() => {
         >
             <SidebarConstellation v-if="showSidebarContent" />
 
-            <!-- Blok atas: logo + navigasi — sticky di desktop supaya tetap terlihat saat scroll.
-                 Wrapper flex-1 membatasi jangkauan sticky; max-h menyisakan ruang panel sistem
-                 (19rem) di bawah supaya keduanya tak pernah tumpang-tindih di viewport pendek. -->
+            <!-- Blok atas: logo + navigasi. Mengisi sisa tinggi sidebar; <nav> menggulir sendiri. -->
             <div class="relative z-10 min-h-0 flex-1">
-                <div
-                    class="flex h-full flex-col lg:sticky lg:top-0 lg:h-auto"
-                    :class="showSidebarContent ? 'lg:max-h-[calc(100vh-19rem)]' : 'lg:max-h-screen'"
-                >
+                <div class="flex h-full flex-col">
                     <!-- Logo -->
-                    <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/20 px-5 backdrop-blur-sm">
+                    <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 bg-canvas-3/20 px-5 backdrop-blur-sm">
                         <Link
                             :href="route('dashboard')"
                             prefetch
@@ -206,41 +242,51 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Navigation -->
-                    <nav class="min-h-0 flex-1 overflow-y-auto px-3 py-5">
-                        <div class="space-y-1">
-                            <Link
-                                v-for="link in navLinks"
-                                :key="link.name"
-                                :href="link.href"
-                                prefetch
-                                :cache-for="['30s', '1m']"
-                                class="group relative flex items-center rounded-xl text-[14px] font-semibold transition-all"
-                                :class="[
-                                    isActive(link)
-                                        ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-white shadow-lg shadow-cyan-500/30'
-                                        : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
-                                    showSidebarContent ? 'gap-3.5 px-3 py-2.5' : 'mx-auto h-11 w-11 justify-center',
-                                ]"
-                                :title="!showSidebarContent ? link.name : null"
-                                @click="sidebarOpen = false"
+                    <nav class="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+                        <template v-for="(group, gi) in navGroups" :key="group.key">
+                            <!-- Label kelompok; saat sidebar diciutkan berubah jadi garis pemisah -->
+                            <div
+                                v-if="showSidebarContent"
+                                class="px-3 pb-1.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-slate-500"
+                                :class="gi === 0 ? 'pt-0.5' : 'pt-4'"
                             >
-                                <component :is="link.icon" class="h-5 w-5 flex-shrink-0" />
-                                <span v-if="showSidebarContent" class="truncate">{{ link.name }}</span>
-                            </Link>
-                        </div>
+                                {{ group.label }}
+                            </div>
+                            <div v-else-if="gi > 0" class="mx-auto my-2.5 h-px w-8 bg-slate-700/70" role="separator" :aria-label="group.label"></div>
+
+                            <div class="space-y-1.5">
+                                <Link
+                                    v-for="link in group.items"
+                                    :key="link.name"
+                                    :href="link.href"
+                                    prefetch
+                                    :cache-for="['30s', '1m']"
+                                    class="group relative flex items-center rounded-xl text-xs font-semibold transition-all"
+                                    :class="[
+                                        isActive(link)
+                                            ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-onaccent shadow-lg shadow-cyan-500/30'
+                                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
+                                        showSidebarContent ? 'gap-3 px-3.5 py-3' : 'mx-auto h-11 w-11 justify-center',
+                                    ]"
+                                    :title="!showSidebarContent ? link.name : null"
+                                    @click="sidebarOpen = false"
+                                >
+                                    <component :is="link.icon" class="h-4 w-4 flex-shrink-0" />
+                                    <span v-if="showSidebarContent" class="truncate">{{ link.name }}</span>
+                                </Link>
+                            </div>
+                        </template>
                     </nav>
                 </div>
             </div>
             <!-- /Blok atas -->
 
-            <!-- Blok bawah: akun (mobile) + panel sistem (desktop-only). Sticky bottom di
-                 desktop = panel selalu terlihat menempel bawah layar; mt-auto = posisi
-                 naturalnya tetap di dasar sidebar (utuh saat screenshot full-page). -->
-            <div v-if="showSidebarContent" class="relative z-10 mt-auto lg:sticky lg:bottom-0">
+            <!-- Blok bawah: akun (mobile) + panel sistem (desktop-only), selalu di dasar sidebar. -->
+            <div v-if="showSidebarContent" class="relative z-10 mt-auto flex-shrink-0">
                 <!-- User account (mobile only — desktop uses header UserMenu) -->
                 <div class="border-t border-white/10 px-3 py-3 lg:hidden">
                     <div class="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
-                        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-white shadow-inner shadow-white/10">
+                        <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-onaccent shadow-inner shadow-white/10">
                             {{ userInitial }}
                         </span>
                         <div class="min-w-0 flex-1">
@@ -248,6 +294,7 @@ onUnmounted(() => {
                             <p class="truncate text-[11px] text-slate-500">{{ user.email }}</p>
                         </div>
                     </div>
+                    <ThemeSegmented class="mt-2" />
                     <div class="mt-2 grid grid-cols-2 gap-2">
                         <Link
                             :href="route('profile.edit')"
@@ -277,10 +324,10 @@ onUnmounted(() => {
         </aside>
 
         <!-- Main column (bersebelahan dengan sidebar di desktop) -->
-        <div class="flex min-w-0 flex-1 flex-col">
-            <!-- Top header (desktop, sticky — tetap terlihat saat scroll) — search + notif + user -->
+        <div class="flex min-w-0 flex-1 flex-col lg:min-h-0">
+            <!-- Top header (desktop, diam di atas area konten) — search + notif + user -->
             <header
-                class="sticky top-0 z-30 hidden flex-shrink-0 border-b border-white/10 bg-slate-950/35 backdrop-blur-xl lg:block"
+                class="kv-shell-bar sticky top-0 z-30 hidden flex-shrink-0 border-b border-white/10 bg-canvas-3/35 backdrop-blur-xl lg:block"
             >
                 <div class="flex h-[72px] w-full items-center gap-4 px-6 lg:px-8">
                     <!-- Search trigger -->
@@ -297,19 +344,19 @@ onUnmounted(() => {
                     </button>
 
                     <div class="ml-auto flex items-center gap-3">
-                        <LanguageSwitcher />
+                                <LanguageSwitcher />
                         <NotificationBell />
                         <UserMenu />
                     </div>
                 </div>
             </header>
 
-            <!-- Header per-halaman + konten (scroll ikut dokumen) -->
-            <div class="flex flex-1 flex-col">
+            <!-- Header per-halaman + konten — satu-satunya bagian yang menggulir di desktop -->
+            <div class="kv-app-scroll flex flex-1 flex-col" scroll-region>
             <!-- Page header slot (optional, used by inner pages) — ikut scroll -->
             <header
                 v-if="$slots.header"
-                class="flex-shrink-0 border-b border-white/10 bg-slate-950/30 backdrop-blur-xl"
+                class="flex-shrink-0 border-b border-white/10 bg-canvas-3/30 backdrop-blur-xl"
             >
                 <div class="flex min-h-14 w-full items-center px-4 py-3 sm:px-6 lg:px-8">
                     <div class="w-full text-slate-100">
@@ -338,8 +385,8 @@ onUnmounted(() => {
             </div>
             <!-- /Konten -->
 
-            <!-- Footer di dasar halaman (ikut alur — sticky bottom merusak screenshot full-page) -->
-            <footer class="z-10 flex-shrink-0 border-t border-white/10 bg-slate-950/40 backdrop-blur-xl">
+            <!-- Footer — desktop: diam di dasar layar (di luar area gulir); HP: di akhir halaman -->
+            <footer class="kv-shell-bar z-10 flex-shrink-0 border-t border-white/10 bg-canvas-3/40 backdrop-blur-xl">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
                     <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>
                     <p class="hidden sm:block">{{ $t('shell.footer_tagline') }}</p>
@@ -352,5 +399,6 @@ onUnmounted(() => {
 
         <!-- Global search palette -->
         <GlobalSearch v-model:open="searchOpen" />
+
     </div>
 </template>

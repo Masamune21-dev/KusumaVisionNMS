@@ -303,7 +303,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                         {{ model || 'OLT' }} · {{ sortedCards.length }} card ·
                         <span class="text-emerald-300">{{ gponUp }} port aktif</span> /
                         <span class="text-red-300">{{ gponDown }} nonaktif</span>
-                        <span class="text-slate-600"> · Refresh terakhir: {{ lastRefreshText }}</span>
+                        <span class="text-slate-500"> · Refresh terakhir: {{ lastRefreshText }}</span>
                     </p>
                 </div>
             </div>
@@ -317,7 +317,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
         <!-- Chassis frame -->
         <div v-else class="p-4 sm:p-6">
             <!-- Orientasi vertikal (C300 dll): kartu berdiri, ramping, port 1 kolom -->
-            <div v-if="!isHorizontal" class="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-gradient-to-b from-slate-950/70 to-slate-900/30 p-4 shadow-inner">
+            <div v-if="!isHorizontal" class="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-gradient-to-b from-canvas-3/70 to-slate-900/30 p-4 shadow-inner">
                 <!-- Rack rail kiri -->
                 <div class="flex w-2.5 flex-shrink-0 flex-col items-center justify-around rounded bg-slate-800/60 py-3">
                     <span v-for="n in 6" :key="n" class="h-1.5 w-1.5 rounded-full bg-slate-600/80"></span>
@@ -330,9 +330,9 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                 >
                     <template v-for="entry in col.stack" :key="entry.key">
                         <!-- Slot kosong -->
-                        <div v-if="entry.empty" class="flex flex-1 flex-col overflow-hidden rounded-lg border border-dashed border-white/10 bg-slate-950/20">
+                        <div v-if="entry.empty" class="flex flex-1 flex-col overflow-hidden rounded-lg border border-dashed border-white/10 bg-canvas-3/20">
                             <div class="border-b border-white/5 bg-white/[0.02] px-1 py-2 text-center">
-                                <div class="text-[10px] font-medium uppercase tracking-wide text-slate-600">Slot {{ entry.slot }}</div>
+                                <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Slot {{ entry.slot }}</div>
                                 <div class="text-sm font-semibold text-slate-700">—</div>
                             </div>
                             <div class="flex flex-1 items-center justify-center p-2">
@@ -341,11 +341,11 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                         </div>
 
                         <!-- Kartu terpasang -->
-                        <div v-else class="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/50">
+                        <div v-else class="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-canvas-3/50">
                             <div class="border-b border-white/10 bg-white/[0.03] px-1 py-2 text-center">
                                 <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Slot {{ entry.card.slot }}</div>
                                 <div class="truncate text-sm font-bold text-white" :title="entry.card.real_type || entry.card.cfg_type">{{ entry.card.cfg_type || '—' }}</div>
-                                <div class="text-[10px] text-slate-600">{{ portCount(entry.card) }}p</div>
+                                <div class="text-[10px] text-slate-500">{{ portCount(entry.card) }}p</div>
                             </div>
                             <div class="flex flex-1 items-center justify-center p-1.5">
                                 <div v-if="ledsFor(entry.card).length" class="grid gap-1.5" :style="{ gridTemplateColumns: `repeat(${ledCols(entry.card)}, 1.75rem)` }">
@@ -355,7 +355,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                         :key="led.num"
                                         :href="led.link || undefined"
                                         :title="led.title"
-                                        class="group flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-semibold leading-none text-black/70"
+                                        class="group flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-semibold leading-none text-slate-950/80"
                                         :class="[ledClass(led), led.link ? 'cursor-pointer' : 'cursor-default']"
                                     >{{ led.num }}</component>
                                 </div>
@@ -374,7 +374,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                         </div>
                                     </div>
                                 </div>
-                                <span v-else class="py-4 text-center text-[10px] leading-tight text-slate-600">tanpa<br />port</span>
+                                <span v-else class="py-4 text-center text-[10px] leading-tight text-slate-500">tanpa<br />port</span>
                             </div>
                             <!-- Kartu kontrol (SCXN): 3 port LAN manajemen, di tengah paruh bawah kartu -->
                             <div v-if="isControlCard(entry.card)" class="flex flex-1 flex-col items-center justify-center gap-1.5 px-1.5" title="Port LAN manajemen">
@@ -416,20 +416,20 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
             </div>
 
             <!-- Orientasi horizontal (C320): line-card span penuh, slot kontrol (≥3) berbagi 2 kolom -->
-            <div v-else class="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-slate-950/70 to-slate-900/30 p-4 shadow-inner">
+            <div v-else class="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-gradient-to-b from-canvas-3/70 to-slate-900/30 p-4 shadow-inner">
                 <template v-for="entry in chassisSlots" :key="entry.key">
                     <!-- Slot kosong -->
-                    <div v-if="entry.empty" class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-slate-950/20 px-4 py-4" :class="isWideSlot(entry) ? 'col-span-2' : ''">
-                        <span class="text-[10px] font-medium uppercase tracking-wide text-slate-600">Slot {{ entry.slot }}</span>
+                    <div v-if="entry.empty" class="flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-canvas-3/20 px-4 py-4" :class="isWideSlot(entry) ? 'col-span-2' : ''">
+                        <span class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Slot {{ entry.slot }}</span>
                         <span class="text-xs font-semibold text-slate-700">kosong</span>
                     </div>
 
                     <!-- Kartu terpasang -->
-                    <div v-else class="flex items-center gap-3 rounded-lg border border-white/10 bg-slate-950/50 px-3 py-3 sm:gap-4 sm:px-4" :class="isWideSlot(entry) ? 'col-span-2' : ''">
+                    <div v-else class="flex items-center gap-3 rounded-lg border border-white/10 bg-canvas-3/50 px-3 py-3 sm:gap-4 sm:px-4" :class="isWideSlot(entry) ? 'col-span-2' : ''">
                         <div class="w-20 flex-shrink-0 sm:w-24">
                             <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">Slot {{ entry.card.slot }}</div>
                             <div class="truncate text-sm font-bold text-white" :title="entry.card.real_type || entry.card.cfg_type">{{ entry.card.cfg_type || '—' }}</div>
-                            <div class="text-[10px] text-slate-600">{{ portCount(entry.card) }} port</div>
+                            <div class="text-[10px] text-slate-500">{{ portCount(entry.card) }} port</div>
                         </div>
                         <div class="flex flex-1 items-center justify-center overflow-x-auto py-1">
                             <div v-if="ledsFor(entry.card).length" class="grid gap-2" :style="{ gridTemplateColumns: `repeat(${ledCols(entry.card)}, 2rem)` }">
@@ -439,7 +439,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                     :key="led.num"
                                     :href="led.link || undefined"
                                     :title="led.title"
-                                    class="group flex h-8 w-8 items-center justify-center rounded-md text-[11px] font-semibold leading-none text-black/70"
+                                    class="group flex h-8 w-8 items-center justify-center rounded-md text-[11px] font-semibold leading-none text-slate-950/80"
                                     :class="[ledClass(led), led.link ? 'cursor-pointer' : 'cursor-default']"
                                 >{{ led.num }}</component>
                             </div>
@@ -459,7 +459,7 @@ const lastRefreshText = computed(() => (props.lastRefresh ? formatDateTime(props
                                 </div>
                                 <span class="text-[9px] font-medium uppercase tracking-wide text-slate-500">2× LAN</span>
                             </div>
-                            <span v-else class="text-[11px] text-slate-600">tanpa port</span>
+                            <span v-else class="text-[11px] text-slate-500">tanpa port</span>
                         </div>
                         <!-- Beban processor (CPU/Mem) — detail saat hover -->
                         <div

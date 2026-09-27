@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\BlockDemoWrites;
+use App\Support\Theme;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -25,6 +26,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // sehingga throttle login/olt-refresh dan IP di audit log bisa diakali. Deployment
         // di belakang Cloudflare "Flexible" / load balancer di host lain WAJIB mengisi
         // TRUSTED_PROXIES (lihat .env.example), kalau tidak URL jadi http:// → 419.
+
+        // Cookie preferensi tema sengaja TIDAK dienkripsi: ia ditulis dan dibaca
+        // juga oleh JavaScript, dan dibutuhkan server pada render pertama supaya
+        // tidak ada kedipan tema. Aman: isinya hanya dark/light/system dan tetap
+        // divalidasi App\Support\Theme.
+        $middleware->encryptCookies(except: [
+            Theme::COOKIE,
+        ]);
 
         $middleware->web(append: [
             ContentSecurityPolicy::class,

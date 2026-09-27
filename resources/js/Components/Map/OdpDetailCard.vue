@@ -101,14 +101,14 @@ const deleteOdp = async () => {
 
 <template>
     <div
-        class="flex flex-col gap-2.5 rounded-2xl border bg-slate-950/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl"
+        class="flex flex-col gap-2.5 rounded-2xl border bg-canvas-3/95 p-3.5 shadow-xl shadow-black/50 backdrop-blur-xl"
         :style="{ borderColor: `${color}40` }"
     >
         <!-- Header -->
         <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
                 <div class="flex items-start gap-1.5">
-                    <span class="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: color }"></span>
+                    <span class="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-slate-400/70" :style="{ background: color }"></span>
                     <h3 class="break-words text-sm font-semibold leading-snug text-white" :title="odp.name">{{ odp.name }}</h3>
                 </div>
                 <p class="mt-0.5 truncate text-[11px] text-slate-400">
@@ -230,12 +230,12 @@ const deleteOdp = async () => {
     justify-content: center;
     gap: 0.35rem;
     border-radius: 0.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgb(var(--kv-white) / 0.1);
+    background: rgb(var(--kv-white) / 0.04);
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
     font-weight: 500;
-    color: #cbd5e1;
+    color: rgb(var(--kv-slate-300));
     transition: background-color 0.15s, color 0.15s;
 }
 
@@ -245,8 +245,8 @@ const deleteOdp = async () => {
 }
 
 .kv-action-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
+    background: rgb(var(--kv-white) / 0.08);
+    color: rgb(var(--kv-white));
 }
 
 .kv-action-btn:disabled {
@@ -256,18 +256,18 @@ const deleteOdp = async () => {
 
 /* Tombol Lock saat pin ODP sedang terbuka. */
 .kv-action-btn--active {
-    border-color: rgba(34, 211, 238, 0.4);
-    background: rgba(34, 211, 238, 0.12);
-    color: #67e8f9;
+    border-color: rgb(var(--kv-cyan-400) / 0.4);
+    background: rgb(var(--kv-cyan-400) / 0.12);
+    color: rgb(var(--kv-cyan-300));
 }
 
 .kv-action-btn--danger {
-    color: #fca5a5;
-    border-color: rgba(248, 113, 113, 0.25);
+    color: rgb(var(--kv-red-300));
+    border-color: rgb(var(--kv-red-400) / 0.25);
 }
 
 .kv-action-btn--danger:hover {
-    background: rgba(248, 113, 113, 0.12);
-    color: #fecaca;
+    background: rgb(var(--kv-red-400) / 0.12);
+    color: rgb(var(--kv-red-200));
 }
 </style>

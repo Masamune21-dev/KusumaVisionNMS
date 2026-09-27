@@ -1,11 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Checkbox from '@/Components/Checkbox.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, Download, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
@@ -240,19 +242,22 @@ const createToken = () => {
     });
 };
 
-const revokeToken = (id) => {
-    if (!confirm(t('settings.revoke_confirm'))) return;
+// Konfirmasi memakai ConfirmModal (design system melarang window.confirm()).
+const { confirmState, confirm: askConfirm, handleConfirm, handleCancel } = useConfirm();
+
+const revokeToken = async (id) => {
+    if (!(await askConfirm({ title: t('settings.revoke'), message: t('settings.revoke_confirm'), confirmLabel: t('settings.revoke') }))) return;
     router.delete(route('settings.api-tokens.destroy', id), { preserveScroll: true });
 };
 
 // Panel admin "perangkat mobile" (tab Notifikasi Mobile): cabut paksa token
 // login perangkat user mana pun / hapus registrasi push FCM-nya.
-const revokeDeviceToken = (id) => {
-    if (!confirm(t('settings.devices_revoke_confirm'))) return;
+const revokeDeviceToken = async (id) => {
+    if (!(await askConfirm({ title: t('settings.revoke'), message: t('settings.devices_revoke_confirm'), confirmLabel: t('settings.revoke') }))) return;
     router.delete(route('settings.mobile-devices.token.destroy', id), { preserveScroll: true });
 };
-const deleteFcmDevice = (id) => {
-    if (!confirm(t('settings.devices_fcm_delete_confirm'))) return;
+const deleteFcmDevice = async (id) => {
+    if (!(await askConfirm({ message: t('settings.devices_fcm_delete_confirm') }))) return;
     router.delete(route('settings.mobile-devices.fcm.destroy', id), { preserveScroll: true });
 };
 
@@ -317,7 +322,7 @@ const copyText = async (text, key) => {
                             <!-- Logo -->
                             <div class="lg:col-span-2">
                                 <InputLabel :value="$t('settings.logo_label')" />
-                                <div class="mt-1 flex flex-wrap items-center gap-4 rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                                <div class="mt-1 flex flex-wrap items-center gap-4 rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                     <div class="flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-900/60">
                                         <img v-if="currentLogo" :src="currentLogo" alt="Logo" class="h-full w-full object-contain p-1.5" />
                                         <ImageUp v-else class="h-7 w-7 text-slate-600" />
@@ -381,7 +386,7 @@ const copyText = async (text, key) => {
                     </form>
 
                     <!-- Informasi sistem / tech stack -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30">
                                 <Info class="h-5 w-5 text-violet-300" />
@@ -394,14 +399,14 @@ const copyText = async (text, key) => {
 
                         <div class="space-y-5 p-5 sm:p-6">
                             <div class="grid gap-4 sm:grid-cols-2">
-                                <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                                     <Building2 class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
                                     <div class="min-w-0">
                                         <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('settings.owner') }}</p>
                                         <p class="text-sm font-medium text-white">{{ appInfo.owner }}</p>
                                     </div>
                                 </div>
-                                <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                                     <SlidersHorizontal class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
                                     <div class="min-w-0">
                                         <p class="text-xs uppercase tracking-wide text-slate-500">{{ $t('settings.description') }}</p>
@@ -430,7 +435,7 @@ const copyText = async (text, key) => {
                     </div>
 
                     <!-- Unduh aplikasi Android (APK) -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
                                 <Smartphone class="h-5 w-5 text-cyan-300" />
@@ -531,7 +536,7 @@ const copyText = async (text, key) => {
                             <p class="mt-1 text-xs text-slate-400">{{ $t('settings.acs_pw_hint') }}</p>
                         </div>
 
-                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400 lg:col-span-2">
+                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs text-slate-400 lg:col-span-2">
                             <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
                             <span v-html="$t('settings.acs_note')"></span>
                         </div>
@@ -567,7 +572,7 @@ const copyText = async (text, key) => {
                         </div>
 
                         <!-- Perilaku deteksi -->
-                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                             <span>
                                 <span class="block text-sm font-medium text-white">{{ $t('settings.alarm_toggle') }}</span>
                                 <span class="block text-xs text-slate-400" v-html="$t('settings.alarm_toggle_hint')"></span>
@@ -576,7 +581,7 @@ const copyText = async (text, key) => {
                         </label>
 
                         <!-- Korelasi root-cause: induk down = anak tak ikut dikirim -->
-                        <div class="space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                        <div class="space-y-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                             <p class="text-sm font-semibold text-white">{{ $t('settings.alarm_correlation_title') }}</p>
                             <label class="flex items-start justify-between gap-4">
                                 <span>
@@ -611,7 +616,7 @@ const copyText = async (text, key) => {
 
                             <div>
                                 <InputLabel :value="$t('telegrambot.triggers')" />
-                                <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                                     <label class="flex items-start gap-3">
                                         <Checkbox v-model:checked="alarmForm.notify_on_raise" class="mt-0.5" />
                                         <span>
@@ -638,7 +643,7 @@ const copyText = async (text, key) => {
                                     {{ allTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
                                 </button>
                             </div>
-                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
+                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 sm:grid-cols-2">
                                 <label
                                     v-for="opt in alarmTypeOptions"
                                     :key="opt.value"
@@ -659,7 +664,7 @@ const copyText = async (text, key) => {
                             <InputError :message="alarmForm.errors.notify_types" class="mt-2" />
                         </div>
 
-                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs text-slate-400">
+                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs text-slate-400">
                             <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
                             <span v-html="$t('settings.alarm_note')"></span>
                         </div>
@@ -683,7 +688,7 @@ const copyText = async (text, key) => {
                     </div>
 
                     <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
-                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 lg:col-span-2">
                             <span>
                                 <span class="block text-sm font-medium text-white">{{ $t('telegrambot.enable') }}</span>
                                 <span class="block text-xs text-slate-400">{{ $t('telegrambot.enable_hint') }}</span>
@@ -721,14 +726,14 @@ const copyText = async (text, key) => {
                         <!-- Filter alarm dipindah ke tab Alarm (satu pengaturan untuk semua kanal). -->
                         <button
                             type="button"
-                            class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
+                            class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
                             @click="activeTab = 'alarm'"
                         >
                             <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                             <span class="text-xs text-slate-400" v-html="$t('settings.alarm_filter_moved')"></span>
                         </button>
 
-                        <div class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-4 lg:col-span-2">
+                        <div class="rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-4 lg:col-span-2">
                             <div class="flex items-center justify-between gap-3">
                                 <div>
                                     <h4 class="text-sm font-semibold text-white">{{ $t('telegrambot.webhook_title') }}</h4>
@@ -766,7 +771,7 @@ const copyText = async (text, key) => {
                             </div>
                         </div>
 
-                        <div v-if="lastSent || telegram.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
+                        <div v-if="lastSent || telegram.last_error" class="rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs lg:col-span-2">
                             <p v-if="lastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ lastSent }}</span></p>
                             <p v-if="telegram.last_error" class="mt-1 text-red-400">{{ $t('telegrambot.last_error') }} {{ telegram.last_error }}</p>
                         </div>
@@ -807,7 +812,7 @@ const copyText = async (text, key) => {
                                 <p class="text-sm text-amber-200" v-html="$t('settings.fcm_creds')"></p>
                             </div>
 
-                            <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
+                            <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 lg:col-span-2">
                                 <span>
                                     <span class="block text-sm font-medium text-white">{{ $t('settings.fcm_enable') }}</span>
                                     <span class="block text-xs text-slate-400">{{ $t('settings.fcm_enable_hint') }}</span>
@@ -818,14 +823,14 @@ const copyText = async (text, key) => {
                             <!-- Filter alarm dipindah ke tab Alarm (satu pengaturan untuk semua kanal). -->
                             <button
                                 type="button"
-                                class="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
+                                class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-left transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/5 lg:col-span-2"
                                 @click="activeTab = 'alarm'"
                             >
                                 <AlertTriangle class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                                 <span class="text-xs text-slate-400" v-html="$t('settings.alarm_filter_moved')"></span>
                             </button>
 
-                            <div v-if="fcmLastSent || fcm.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
+                            <div v-if="fcmLastSent || fcm.last_error" class="rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs lg:col-span-2">
                                 <p v-if="fcmLastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ fcmLastSent }}</span></p>
                                 <p v-if="fcm.last_error" class="mt-1 text-red-400">{{ $t('telegrambot.last_error') }} {{ fcm.last_error }}</p>
                             </div>
@@ -877,7 +882,7 @@ const copyText = async (text, key) => {
                     </form>
 
                     <!-- Perangkat login mobile semua user (token Sanctum) + cabut paksa -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
                                 <Smartphone class="h-5 w-5 text-cyan-300" />
@@ -888,10 +893,10 @@ const copyText = async (text, key) => {
                             </div>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full min-w-[640px] text-sm">
+                            <table class="w-full min-w-[640px] text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs uppercase tracking-wider text-slate-400">
-                                        <th class="px-5 py-3 sm:px-6">{{ $t('settings.devices_col_device') }}</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40 text-left text-xs uppercase tracking-wider text-slate-400">
+                                        <th class="px-5 py-3 sm:px-4">{{ $t('settings.devices_col_device') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.devices_col_user') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.devices_col_last_used') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.col_created') }}</th>
@@ -900,10 +905,10 @@ const copyText = async (text, key) => {
                                 </thead>
                                 <tbody>
                                     <tr v-if="mobileDevices.tokens.length === 0">
-                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-6">{{ $t('settings.devices_empty') }}</td>
+                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-4">{{ $t('settings.devices_empty') }}</td>
                                     </tr>
                                     <tr v-for="d in mobileDevices.tokens" :key="`tok-${d.id}`" class="border-b border-white/5 last:border-0">
-                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-6">{{ d.device }}</td>
+                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-4">{{ d.device }}</td>
                                         <td class="px-4 py-3 text-slate-300">
                                             {{ d.user }}
                                             <span v-if="d.role" class="ml-1.5 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">{{ d.role }}</span>
@@ -922,7 +927,7 @@ const copyText = async (text, key) => {
                     </div>
 
                     <!-- Registrasi push FCM per perangkat -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/20 ring-1 ring-sky-500/30">
                                 <Bell class="h-5 w-5 text-sky-300" />
@@ -933,10 +938,10 @@ const copyText = async (text, key) => {
                             </div>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full min-w-[560px] text-sm">
+                            <table class="w-full min-w-[560px] text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40 text-left text-xs uppercase tracking-wider text-slate-400">
-                                        <th class="px-5 py-3 sm:px-6">{{ $t('settings.devices_col_user') }}</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40 text-left text-xs uppercase tracking-wider text-slate-400">
+                                        <th class="px-5 py-3 sm:px-4">{{ $t('settings.devices_col_user') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.devices_col_platform') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.devices_col_last_seen') }}</th>
                                         <th class="px-4 py-3">{{ $t('settings.col_created') }}</th>
@@ -945,10 +950,10 @@ const copyText = async (text, key) => {
                                 </thead>
                                 <tbody>
                                     <tr v-if="mobileDevices.fcm.length === 0">
-                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-6">{{ $t('settings.fcm_no_devices') }}</td>
+                                        <td colspan="5" class="px-5 py-6 text-center text-slate-500 sm:px-4">{{ $t('settings.fcm_no_devices') }}</td>
                                     </tr>
                                     <tr v-for="d in mobileDevices.fcm" :key="`fcm-${d.id}`" class="border-b border-white/5 last:border-0">
-                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-6">
+                                        <td class="px-5 py-3 font-medium text-slate-100 sm:px-4">
                                             {{ d.user }}
                                             <span v-if="d.device" class="ml-1.5 text-xs text-slate-400">· {{ d.device }}</span>
                                         </td>
@@ -979,7 +984,7 @@ const copyText = async (text, key) => {
                     </div>
 
                     <!-- Akses API + URL -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
                                 <KeyRound class="h-5 w-5 text-cyan-300" />
@@ -994,7 +999,7 @@ const copyText = async (text, key) => {
                             <div>
                                 <InputLabel :value="$t('settings.api_base')" />
                                 <div class="mt-1 flex items-stretch gap-2">
-                                    <input :value="api.base_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
+                                    <input :value="api.base_url" readonly class="block w-full rounded-lg border-white/10 bg-canvas-3/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
                                     <SecondaryButton type="button" @click="copyText(api.base_url, 'base')">
                                         <component :is="copied === 'base' ? Check : Copy" class="h-4 w-4" :class="copied === 'base' ? 'text-emerald-400' : ''" />
                                     </SecondaryButton>
@@ -1005,7 +1010,7 @@ const copyText = async (text, key) => {
                             <div>
                                 <InputLabel :value="$t('settings.api_public')" />
                                 <div class="mt-1 flex items-stretch gap-2">
-                                    <input :value="api.public_status_url" readonly class="block w-full rounded-lg border-white/10 bg-slate-950/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
+                                    <input :value="api.public_status_url" readonly class="block w-full rounded-lg border-white/10 bg-canvas-3/60 font-mono text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500" />
                                     <SecondaryButton type="button" @click="copyText(api.public_status_url, 'pub')">
                                         <component :is="copied === 'pub' ? Check : Copy" class="h-4 w-4" :class="copied === 'pub' ? 'text-emerald-400' : ''" />
                                     </SecondaryButton>
@@ -1023,7 +1028,7 @@ const copyText = async (text, key) => {
                                 <h4 class="text-sm font-semibold text-white">{{ $t('settings.api_new_token_title') }}</h4>
                                 <p class="mt-0.5 text-xs text-emerald-200/80" v-html="$t('settings.api_new_token_note')"></p>
                                 <div class="mt-3 flex items-stretch gap-2">
-                                    <input :value="newToken" readonly class="block w-full rounded-lg border-emerald-500/30 bg-slate-950/70 font-mono text-xs text-emerald-200 focus:border-emerald-500 focus:ring-emerald-500" @focus="$event.target.select()" />
+                                    <input :value="newToken" readonly class="block w-full rounded-lg border-emerald-500/30 bg-canvas-3/70 font-mono text-xs text-emerald-200 focus:border-emerald-500 focus:ring-emerald-500" @focus="$event.target.select()" />
                                     <SecondaryButton type="button" @click="copyText(newToken, 'new')">
                                         <component :is="copied === 'new' ? Check : Copy" class="mr-2 h-4 w-4" :class="copied === 'new' ? 'text-emerald-400' : ''" />
                                         {{ copied === 'new' ? $t('settings.copied') : $t('settings.copy') }}
@@ -1034,7 +1039,7 @@ const copyText = async (text, key) => {
                     </div>
 
                     <!-- Buat token + daftar token -->
-                    <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
+                    <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30">
                         <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
                             <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30">
                                 <KeyRound class="h-5 w-5 text-violet-300" />
@@ -1068,15 +1073,15 @@ const copyText = async (text, key) => {
 
                             <!-- Daftar token -->
                             <div class="mt-6">
-                                <div v-if="api.tokens.length === 0" class="rounded-lg border border-dashed border-white/10 bg-slate-950/40 px-4 py-8 text-center">
+                                <div v-if="api.tokens.length === 0" class="rounded-lg border border-dashed border-white/10 bg-canvas-3/40 px-4 py-8 text-center">
                                     <KeyRound class="mx-auto h-7 w-7 text-slate-600" />
                                     <p class="mt-2 text-sm text-slate-400">{{ $t('settings.tokens_empty') }}</p>
                                 </div>
 
                                 <!-- Desktop: tabel -->
                                 <div v-else class="hidden overflow-hidden rounded-lg border border-white/10 sm:block">
-                                    <table class="min-w-full divide-y divide-white/10 text-sm">
-                                        <thead class="bg-slate-950/40 text-xs uppercase tracking-wide text-slate-500">
+                                    <table class="min-w-full divide-y divide-white/10 text-xs">
+                                        <thead class="bg-canvas-3/40 text-xs uppercase tracking-wide text-slate-500">
                                             <tr>
                                                 <th class="px-4 py-2.5 text-left font-medium">{{ $t('settings.col_name') }}</th>
                                                 <th class="px-4 py-2.5 text-left font-medium">{{ $t('settings.col_created') }}</th>
@@ -1102,7 +1107,7 @@ const copyText = async (text, key) => {
 
                                 <!-- Mobile: kartu -->
                                 <div v-if="api.tokens.length > 0" class="space-y-3 sm:hidden">
-                                    <div v-for="t in api.tokens" :key="t.id" class="rounded-lg border border-white/10 bg-slate-950/40 p-4">
+                                    <div v-for="t in api.tokens" :key="t.id" class="rounded-lg border border-white/10 bg-canvas-3/40 p-4">
                                         <div class="flex items-start justify-between gap-3">
                                             <p class="min-w-0 break-words font-medium text-white">{{ t.name }}</p>
                                             <button type="button" class="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/10" @click="revokeToken(t.id)">
@@ -1127,5 +1132,6 @@ const copyText = async (text, key) => {
                 </div>
             </div>
         </div>
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

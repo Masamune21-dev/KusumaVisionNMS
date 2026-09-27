@@ -279,6 +279,27 @@ class CDataOltInventoryTest extends TestCase
         $this->assertSame('CACHEDSN', data_get($olt->last_test_result, 'port_onus.0_1.onus.0.serial_number'));
     }
 
+    public function test_pon_ports_page_renders_with_cdata_route_prefix(): void
+    {
+        $user = User::factory()->create();
+        $this->fakeScanDriver();
+        $olt = SnmpOlt::create([
+            'name' => 'CDATA-EPON-UJI',
+            'vendor' => 'C-Data EPON 17409',
+            'ip' => '10.20.0.8',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('cdata-olt.pon-ports', $olt))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('SmartOlt/PonPorts')
+                ->where('route_prefix', 'cdata-olt'));
+    }
+
     public function test_global_search_links_cdata_onu_to_cdata_route(): void
     {
         $user = User::factory()->create();

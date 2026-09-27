@@ -12,6 +12,7 @@ use App\Services\OltPortLabelService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
+use App\Support\PonPortCards;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -162,6 +163,22 @@ class CDataOltController extends Controller
         ]);
     }
 
+
+    /**
+     * Halaman "PON Port" — kartu per port + cari ONU, padanan halaman GPON Port ZTE.
+     * Halaman Vue `SmartOlt/PonPorts` dipakai bersama ZTE, C-Data & HiOSO (prop `route_prefix`).
+     */
+    public function ponPorts(SnmpOlt $olt, CDataOltScanner $scanner, OltPortLabelService $labels): Response
+    {
+        $this->ensureFreshScan($olt, $scanner);
+
+        return Inertia::render('SmartOlt/PonPorts', [
+            'olt' => $this->serializeOlt($olt),
+            'route_prefix' => 'cdata-olt',
+            'ports' => PonPortCards::build($olt->last_test_result ?? [], $labels->forOlt($olt)),
+            'scanned_at' => data_get($olt->last_test_result, 'onu_scanned_at'),
+        ]);
+    }
     public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService, OltPortLabelService $labels): Response
     {
         $this->ensureFreshScan($olt, $scanner);

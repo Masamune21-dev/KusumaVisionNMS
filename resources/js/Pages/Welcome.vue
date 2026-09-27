@@ -1,6 +1,7 @@
 <script setup>
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
+import ThemeToggle from '@/Components/Shell/ThemeToggle.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import {
     Activity,
@@ -643,12 +644,12 @@ onBeforeUnmount(() => {
 <template>
     <Head title="KusumaVision NMS — ZTE OLT Management & Provisioning Platform" />
 
-    <div class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="min-h-screen bg-canvas-3 text-slate-100">
         <!-- ===== Top nav ===== -->
         <header
             class="fixed inset-x-0 top-0 z-40 transition-colors duration-300"
             :class="navSolid
-                ? 'border-b border-white/10 bg-slate-950/60 shadow-lg shadow-black/20 backdrop-blur-xl'
+                ? 'border-b border-white/10 bg-canvas-3/60 shadow-lg shadow-black/20 backdrop-blur-xl'
                 : 'border-b border-transparent bg-transparent'"
         >
             <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
@@ -673,13 +674,15 @@ onBeforeUnmount(() => {
                 </nav>
 
                 <div class="flex items-center gap-2">
+                    <!-- Di HP tombol tema pindah ke menu navigasi supaya tombol menu tidak terdorong keluar layar. -->
+                    <ThemeToggle class="hidden sm:flex" />
                     <LanguageSwitcher />
                     <template v-if="canLogin">
                         <Link
                             v-if="$page.props.auth.user"
                             v-magnetic
                             :href="route('dashboard')"
-                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
+                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
                         >
                             <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
                             <span class="relative">Dashboard</span>
@@ -689,7 +692,7 @@ onBeforeUnmount(() => {
                             v-else
                             v-magnetic
                             :href="route('login')"
-                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
+                            class="kv-magnetic group relative inline-flex items-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-5 py-2.5 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/30 ring-1 ring-inset ring-white/20 transition-all duration-300 hover:shadow-cyan-500/50 hover:brightness-110"
                         >
                             <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" />
                             <span class="relative">Login</span>
@@ -728,6 +731,10 @@ onBeforeUnmount(() => {
                         >
                             {{ link.label }}
                         </a>
+                        <div class="mt-1 flex items-center justify-between border-t border-white/10 px-3 pt-3 sm:hidden">
+                            <span class="text-sm font-medium text-slate-300">{{ $t('common.theme') }}</span>
+                            <ThemeToggle />
+                        </div>
                     </div>
                 </nav>
             </Transition>
@@ -761,7 +768,7 @@ onBeforeUnmount(() => {
                                 v-if="$page.props.auth.user"
                                 v-magnetic
                                 :href="route('dashboard')"
-                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                             >
                                 <LayoutDashboard class="h-4 w-4" />
                                 {{ $t('welcome.open_dashboard') }}
@@ -772,7 +779,7 @@ onBeforeUnmount(() => {
                                     v-if="canLogin"
                                     v-magnetic
                                     :href="route('login')"
-                                    class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
+                                    class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/30 transition hover:shadow-cyan-500/50"
                                 >
                                     Get Started
                                     <ArrowRight class="h-4 w-4" />
@@ -808,7 +815,7 @@ onBeforeUnmount(() => {
 
                             <!-- Dashboard preview -->
                             <div data-depth="0.25" class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/40 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
-                                <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
+                                <div class="flex items-center gap-2 border-b border-white/10 bg-canvas-3/60 px-4 py-2.5">
                                     <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-amber-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
@@ -825,7 +832,7 @@ onBeforeUnmount(() => {
                             <!-- Floating status chip -->
                             <div
                                 data-depth="1.2"
-                                class="absolute -top-4 right-4 hidden items-center gap-2 rounded-xl border border-emerald-400/30 bg-slate-950/80 px-3 py-2 shadow-xl shadow-emerald-500/10 backdrop-blur-xl lg:flex"
+                                class="absolute -top-4 right-4 hidden items-center gap-2 rounded-xl border border-emerald-400/30 bg-canvas-3/80 px-3 py-2 shadow-xl shadow-emerald-500/10 backdrop-blur-xl lg:flex"
                             >
                                 <span class="relative flex h-2.5 w-2.5">
                                     <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
@@ -840,7 +847,7 @@ onBeforeUnmount(() => {
                             <!-- Floating live terminal (typed CLI) -->
                             <div
                                 data-depth="0.85"
-                                class="relative mt-5 overflow-hidden rounded-xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-black/40 backdrop-blur-xl lg:absolute lg:-bottom-10 lg:-left-10 lg:mt-0 lg:w-[20rem]"
+                                class="relative mt-5 overflow-hidden rounded-xl border border-white/10 bg-canvas-3/90 shadow-2xl shadow-black/40 backdrop-blur-xl lg:absolute lg:-bottom-10 lg:-left-10 lg:mt-0 lg:w-[20rem]"
                             >
                                 <div class="flex items-center gap-2 border-b border-white/10 bg-slate-900/70 px-3 py-2">
                                     <Terminal class="h-3.5 w-3.5 text-cyan-400" />
@@ -865,7 +872,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Stats band ===== -->
-            <section class="border-y border-white/10 bg-slate-950">
+            <section class="border-y border-white/10 bg-canvas-3">
                 <div ref="statsEl" class="mx-auto grid max-w-[1600px] grid-cols-2 gap-px overflow-hidden px-4 sm:px-6 lg:grid-cols-4 lg:px-8">
                     <div
                         v-for="(s, i) in displayStats"
@@ -890,7 +897,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Hardware showcase strip ===== -->
-            <section class="border-b border-white/10 bg-slate-950">
+            <section class="border-b border-white/10 bg-canvas-3">
                 <div class="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8">
                     <div
                         v-spotlight
@@ -927,11 +934,11 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Capability marquee ===== -->
-            <section class="border-b border-white/10 bg-slate-950/60">
+            <section class="border-b border-white/10 bg-canvas-3/60">
                 <div class="kv-marquee-wrap group relative overflow-hidden py-5">
                     <!-- fade tepi kiri/kanan -->
-                    <div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-slate-950 to-transparent" />
-                    <div class="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-slate-950 to-transparent" />
+                    <div class="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-canvas-3 to-transparent" />
+                    <div class="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-canvas-3 to-transparent" />
                     <div class="kv-marquee gap-3">
                         <span
                             v-for="(item, i) in [...marqueeItems, ...marqueeItems]"
@@ -991,7 +998,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== How it works ===== -->
-            <section id="cara-kerja" class="border-y border-white/10 bg-slate-950">
+            <section id="cara-kerja" class="border-y border-white/10 bg-canvas-3">
                 <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.how_eyebrow') }}</p>
@@ -1026,7 +1033,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Tampilan aplikasi (galeri) ===== -->
-            <section id="tampilan" class="bg-slate-950">
+            <section id="tampilan" class="bg-canvas-3">
                 <div class="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">{{ $t('welcome.gallery_eyebrow') }}</p>
@@ -1085,7 +1092,7 @@ onBeforeUnmount(() => {
                                         :style="{ animationPlayState: galleryPaused ? 'paused' : 'running' }"
                                     />
                                 </div>
-                                <div class="flex items-center gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-2.5">
+                                <div class="flex items-center gap-2 border-b border-white/10 bg-canvas-3/60 px-4 py-2.5">
                                     <span class="h-3 w-3 rounded-full bg-red-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-amber-500/70" />
                                     <span class="h-3 w-3 rounded-full bg-emerald-500/70" />
@@ -1095,7 +1102,7 @@ onBeforeUnmount(() => {
                                     </span>
                                 </div>
                                 <div
-                                    class="relative bg-slate-950 transition-[aspect-ratio] duration-300"
+                                    class="relative bg-canvas-3 transition-[aspect-ratio] duration-300"
                                     :style="{ aspectRatio: currentShot.ratio }"
                                 >
                                     <Transition name="kv-fade">
@@ -1116,7 +1123,7 @@ onBeforeUnmount(() => {
             </section>
 
             <!-- ===== Tech stack ===== -->
-            <section id="tech" class="border-y border-white/10 bg-slate-950/50">
+            <section id="tech" class="border-y border-white/10 bg-canvas-3/50">
                 <div class="mx-auto max-w-[1600px] px-4 py-16 sm:px-6 lg:px-8">
                     <div class="mx-auto max-w-2xl text-center" data-reveal>
                         <p class="text-xs font-semibold uppercase tracking-widest text-cyan-400">Tech Stack</p>
@@ -1199,7 +1206,7 @@ onBeforeUnmount(() => {
                                 v-if="canLogin && !$page.props.auth.user"
                                 v-magnetic
                                 :href="route('login')"
-                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/40 transition hover:shadow-cyan-500/60"
+                                class="kv-magnetic inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 px-6 py-3.5 text-sm font-semibold text-onaccent shadow-lg shadow-cyan-500/40 transition hover:shadow-cyan-500/60"
                             >
                                 Login
                                 <ArrowRight class="h-4 w-4" />
@@ -1220,7 +1227,7 @@ onBeforeUnmount(() => {
         </main>
 
         <!-- ===== Footer ===== -->
-        <footer id="kontak" class="border-t border-white/10 bg-slate-950">
+        <footer id="kontak" class="border-t border-white/10 bg-canvas-3">
             <div class="mx-auto max-w-[1600px] px-4 py-12 sm:px-6 lg:px-8">
                 <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
                     <div class="lg:col-span-2">

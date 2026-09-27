@@ -103,7 +103,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
                     {{ flash.error }}
                 </div>
 
-                <div class="mb-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
+                <div class="mb-4 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-sm text-slate-300">
                     {{ $t('telegrambot.scope_before') }}
                     <span class="font-semibold text-cyan-300">{{ $t('telegrambot.scope_olt', { n: assignedOltCount }) }}</span>
                     {{ $t('telegrambot.scope_after') }}
@@ -121,7 +121,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
                     </div>
 
                     <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
-                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 lg:col-span-2">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 lg:col-span-2">
                             <span>
                                 <span class="block text-sm font-medium text-white">{{ $t('telegrambot.enable') }}</span>
                                 <span class="block text-xs text-slate-400">{{ $t('telegrambot.enable_hint') }}</span>
@@ -171,7 +171,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
 
                         <div>
                             <InputLabel :value="$t('telegrambot.triggers')" />
-                            <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                            <div class="mt-1 space-y-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                                 <label class="flex items-start gap-3">
                                     <Checkbox v-model:checked="form.notify_on_raise" class="mt-0.5" />
                                     <span>
@@ -196,7 +196,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
                                     {{ allTypesSelected ? $t('telegrambot.clear_all') : $t('telegrambot.select_all') }}
                                 </button>
                             </div>
-                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 sm:grid-cols-2">
+                            <div class="mt-1 grid gap-2 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 sm:grid-cols-2">
                                 <label
                                     v-for="opt in alarmTypeOptions"
                                     :key="opt.value"
@@ -213,7 +213,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
                             <InputError :message="form.errors.notify_types" class="mt-2" />
                         </div>
 
-                        <div class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-4 lg:col-span-2">
+                        <div class="rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-4 lg:col-span-2">
                             <div class="flex items-center justify-between gap-3">
                                 <div>
                                     <h4 class="text-sm font-semibold text-white">{{ $t('telegrambot.webhook_title') }}</h4>
@@ -251,7 +251,7 @@ const lastSent = computed(() => (props.bot.last_sent_at ? formatDateTime(props.b
                             </div>
                         </div>
 
-                        <div v-if="lastSent || bot.last_error" class="rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3 text-xs lg:col-span-2">
+                        <div v-if="lastSent || bot.last_error" class="rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs lg:col-span-2">
                             <p v-if="lastSent" class="text-slate-400">{{ $t('telegrambot.last_sent') }} <span class="text-slate-200">{{ lastSent }}</span></p>
                             <p v-if="bot.last_error" class="mt-1 text-red-400">{{ $t('telegrambot.last_error') }} {{ bot.last_error }}</p>
                         </div>

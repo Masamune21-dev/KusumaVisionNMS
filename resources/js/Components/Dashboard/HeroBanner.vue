@@ -129,4 +129,46 @@ defineProps({
             linear-gradient(180deg, transparent 0%, rgba(2, 6, 23, 0.42) 100%);
     }
 }
+/* ===================================================================
+   TEMA TERANG — varian sendiri, bukan versi gelap yang ditembus kanvas.
+   Pita gelap semi-transparan di atas kanvas terang berubah jadi teal
+   kusam; di sini jadi kartu putih bergradasi cyan lembut dengan judul
+   bertinta gelap. Tema gelap di atas tidak disentuh.
+   =================================================================== */
+[data-theme="light"] .hero-header {
+    background: linear-gradient(115deg, #ffffff 0%, #f1f8fc 46%, #e0f2fe 100%);
+    -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+    color: #0f172a;
+    border-color: rgba(14, 165, 233, 0.22);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .hero-tint {
+    background:
+        linear-gradient(115deg, rgba(6, 182, 212, 0.06) 0%, transparent 46%),
+        linear-gradient(300deg, rgba(99, 102, 241, 0.07) 0%, transparent 42%);
+}
+
+[data-theme="light"] .hero-glow {
+    background:
+        radial-gradient(46% 130% at 96% 8%, rgba(6, 182, 212, 0.16), transparent 60%),
+        radial-gradient(40% 120% at 82% 110%, rgba(14, 165, 233, 0.12), transparent 62%);
+}
+
+[data-theme="light"] .hero-scrim {
+    background: none;
+}
+
+[data-theme="light"] .title {
+    background: linear-gradient(92deg, #0f172a 0%, #0c4a6e 55%, #0e7490 100%);
+    -webkit-background-clip: text;
+            background-clip: text;
+}
+
+[data-theme="light"] .subtitle {
+    color: #475569;
+}
 </style>

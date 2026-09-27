@@ -134,6 +134,8 @@ const submit = () => {
                         </div>
                         <button
                             type="button"
+                            :title="$t('common.close')"
+                            :aria-label="$t('common.close')"
                             class="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
                             @click="close"
                         >
@@ -163,7 +165,7 @@ const submit = () => {
                                 <Loader2 v-if="loading" class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-cyan-400" />
                             </div>
 
-                            <ul v-if="results.length > 0" class="mt-2 max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-slate-950/40">
+                            <ul v-if="results.length > 0" class="mt-2 max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-canvas-3/40">
                                 <li
                                     v-for="item in results"
                                     :key="item.id"
@@ -181,7 +183,7 @@ const submit = () => {
                             <p v-else-if="query.length >= 2 && !loading" class="mt-3 text-center text-xs text-slate-500">{{ $t('dashboard.modal.no_onu_found') }}</p>
                         </div>
 
-                        <div class="flex items-center justify-end gap-2 border-t border-white/10 bg-slate-950/40 px-5 py-3">
+                        <div class="flex items-center justify-end gap-2 border-t border-white/10 bg-canvas-3/40 px-5 py-3">
                             <button
                                 type="button"
                                 class="rounded-lg border border-white/10 bg-slate-900/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-white/20 hover:text-white"

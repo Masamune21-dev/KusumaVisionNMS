@@ -121,6 +121,80 @@ const handleSendWa = (user) => {
 
 ---
 
+## 3a. DUA TEMA (GELAP / TERANG / IKUTI SISTEM)
+
+Seluruh warna aplikasi adalah CSS custom property yang nilainya ditetapkan per tema. Tema gelap
+adalah bawaan; pengguna memilih Gelap / Terang / Ikuti Sistem.
+
+
+- `tailwind.tokens.mjs` (daftar nama) + `tailwind.config.js` memetakan seluruh ramp ke
+  `rgb(var(--kv-<ramp>-<stop>) / <alpha-value>)`; nilainya di `resources/css/app.css` pada blok
+  `[data-theme="dark"]` dan `[data-theme="light"]`. Dijaga `tests/Feature/ThemeTokenTest`.
+- Server: `App\Support\Theme` (kolom `users.theme` → cookie `kv_theme` → bawaan gelap),
+  `<html data-theme>` dari `AppServiceProvider::bootTheme`, skrip `system` di `<head>` ber-nonce CSP.
+  Cookie **per app** (host-only) dan tidak dienkripsi (`bootstrap/app.php`).
+- Klien: `@/lib/theme` (`useTheme`, `setTheme`, `chartTheme()`, `tokenHex()`, `themeHexA()`).
+  Simpan pilihan lewat **axios PATCH `profile.theme` → 204**, BUKAN kunjungan Inertia: kunjungan
+  memuat ulang halaman dan menghapus token API yang hanya tampil sekali, modal terbuka, dan isian form.
+- Pemilih: `Shell/UserMenu.vue` (desktop), `Shell/ThemeSegmented.vue` (drawer HP),
+  `Shell/ThemeToggle.vue` (Welcome & halaman tamu). Terbuka untuk semua peran; akun demo hanya
+  disimpan di cookie (baris bersama tidak ditulis).
+
+
+### Kelas bantu tema
+
+Semua kelas di bawah hanya punya aturan di `[data-theme="light"]` (atau mengunci subpohon gelap),
+jadi menambahkannya **tidak menggeser tema gelap satu piksel pun**.
+
+| Kelas | Pasang di | Efek di tema terang |
+| :--- | :--- | :--- |
+| `kv-shell-sidebar` / `kv-shell-bar` | sidebar; header, footer, bar HP di `AuthenticatedLayout` | `surface-1` opak |
+| `kv-popover` | panel mengambang: notifikasi, menu pengguna, pemilih app/bahasa, palet pencarian | `surface-1` opak, tanpa blur, bayangan lembut |
+| `kv-toast` | kartu toast di `Shell/FlashMessages.vue` | kertas opak; warna tepi/ikon/teks tetap |
+| `kv-surface` | kartu kaca ad-hoc tingkat atas (`bg-slate-900/30–60` + blur + `shadow-lg`) yang bukan `kv-card`/`kv-panel` | kertas opak + bayangan tipis |
+| `kv-terminal` | blok keluaran CLI/skrip, bersama `data-theme="dark"` | tetap gelap, latar dibuat opak |
+| `bg-canvas-3/<α>` | permukaan cekung: header tabel, kotak kode ringan, panel samping | token, ikut tema (bukan `bg-slate-950`) |
+
+Helper JS (`@/lib/theme`): `useTheme`, `setTheme`, `cycleTheme`, `themeRgb`, `themeRgba`,
+`themeHex`, `themeHexA`, `chartTheme()`, `tokenHex()`. ApexCharts wajib heks
+(`themeHex`/`tokenHex`), bukan `themeRgb`.
+
+### Aturan menulis kelas
+
+| Situasi | Pakai | Jangan |
+| :--- | :--- | :--- |
+| Teks di atas tombol/gradien aksen | `text-onaccent` | `text-white` (berbalik jadi tinta gelap) |
+| Permukaan cekung (header tabel, kotak kode ringan, panel samping) | `bg-canvas-3/<α>` | `bg-slate-950/<α>` — slate-950 **tetap gelap** di tema terang |
+| Scrim modal | `bg-black/60–70` atau `bg-slate-950/60+` | — |
+| Keluaran CLI/skrip OLT | `data-theme="dark"` + kelas `kv-terminal` | membiarkannya ikut tema (warna sintaks dirancang untuk latar gelap) |
+| Gambar perangkat fisik (rak `OltChassis`, faceplate `OltFaceplate`) | **ikut tema**: rak memakai kelas token biasa; faceplate memakai variabel `--fp-*` dengan set perak di `[data-theme='light'] .fp` | — |
+| Warna di JS (ApexCharts, Leaflet) | `chartTheme()`, `tokenHex('cyan-400')`, `themeHexA('--kv-white', .05)` di dalam `computed`, plus `:key="theme"` pada `<VueApexCharts>` | heks literal untuk teks/grid/stop 300–400 |
+| `<style scoped>` | `rgb(var(--kv-slate-300))` dst.; varian terang dengan selektor `[data-theme="light"] .kelas` | `:global(...)` (Vue bisa menelan seluruh selektor) |
+
+- Stop **500/600 setiap ramp aksen dipatok** sama di kedua tema; seri status grafik boleh heks 500.
+- `backdrop-filter` **dimatikan untuk semua elemen di tema terang** (aturan global di `app.css`).
+- Lihat halaman di **kedua tema** dan di lebar 360 px sebelum selesai.
+
+## 3b. TAMPILAN BAKU KOMPONEN
+
+Ukuran dan varian di bawah diimplementasikan oleh komponen dasar (`PrimaryButton`,
+`SecondaryButton`, `DangerButton`, `IconButton`, `Modal`, `ConfirmModal`, kelas `kv-pill-*`).
+Ubah komponennya, jangan menulis ulang gaya per halaman.
+
+| Unsur | Spesifikasi |
+|---|---|
+| Font | **Manrope 400–800** (`font-sans`). |
+| Tombol teks | tinggi **44 px** (`min-h-11`), `sm` = 34 px untuk footer modal & bilah massal; `rounded-xl`; `text-sm font-semibold`, tanpa uppercase; ikon 16 px + `gap-2`. |
+| Varian tombol | primary `from-cyan-500 to-sky-500` → hover `-600`, `text-onaccent` · secondary `border-slate-700/80 bg-slate-900/80 text-slate-200` · success `from-emerald-600 to-teal-600` · warning `from-amber-500 to-orange-500` teks `slate-950` · danger `from-rose-600 to-red-600`. |
+| Fokus & nonaktif | `focus-visible:ring-2 ring-cyan-400/60 ring-offset-2 ring-offset-canvas` (danger: ring rose) · `disabled:opacity-50 cursor-not-allowed`. |
+| Tombol ikon (aksi baris) | 36 px di `sm:` ke atas, 44 px di HP; `rounded-lg`; isi tipis `bg-{c}-500/15 text-{c}-300 ring-1 ring-{c}-500/30`; varian default/primary/info/success/warning/danger; selalu `title` (otomatis jadi `aria-label`). |
+| Konfirmasi | varian **danger / warning / info**; lingkaran ikon berwarna varian; judul `text-base font-semibold`, pesan `text-sm text-slate-400`; Batal lalu tombol varian di kanan-bawah; Escape & klik scrim = batal. |
+| Modal | scrim `bg-slate-950/80`; panel `rounded-2xl` opak, `max-h-[90vh] overflow-y-auto`. |
+| Lencana status | `kv-pill` = `rounded-md px-2.5 py-0.5 text-xs font-semibold ring-1`; success emerald · warning amber · danger rose · info sky · muted slate. |
+| Tabel | sel `px-4 py-3`; di HP pola kartu `kv-mobile-list`, di layar lebar `kv-table-desktop`. |
+
+---
+
 ## 4. FORM CONTROLS & FILTER BAR
 
 - Selalu gunakan kelas `kv-filter-control` untuk `<input>`, `<select>`, dan `<textarea>`.

@@ -381,7 +381,7 @@ const mapHref = (odp) =>
                     </div>
                 </FilterCard>
 
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <Waypoints class="h-5 w-5 text-cyan-400" />
@@ -421,27 +421,10 @@ const mapHref = (odp) =>
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <h4 class="kv-mobile-card-title flex items-center gap-1.5">
-                                            <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: odpColor(odp) }"></span>
+                                            <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-slate-400/70" :style="{ background: odpColor(odp) }"></span>
                                             {{ odp.name }}
                                         </h4>
                                         <p class="kv-mobile-card-subtitle">{{ odp.olt_name }} · {{ $t('odp.col_port') }} {{ portLabel(odp) }}</p>
-                                    </div>
-                                    <div class="flex flex-shrink-0 gap-2">
-                                        <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
-                                            <Wifi class="h-4 w-4" />
-                                        </IconButton>
-                                        <IconButton :title="$t('map.odp_photo_title')" @click="photoOdpId = odp.id">
-                                            <Camera class="h-4 w-4" :class="odp.photo_url ? 'text-cyan-300' : ''" />
-                                        </IconButton>
-                                        <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
-                                            <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
-                                        </IconButton>
-                                        <IconButton :title="$t('common.edit')" @click="openEdit(odp)">
-                                            <Pencil class="h-4 w-4" />
-                                        </IconButton>
-                                        <IconButton variant="danger" :title="$t('common.delete')" @click="deleteOdp(odp)">
-                                            <Trash2 class="h-4 w-4" />
-                                        </IconButton>
                                     </div>
                                 </div>
                                 <div class="kv-mobile-field">
@@ -454,28 +437,48 @@ const mapHref = (odp) =>
                                         {{ Number(odp.latitude).toFixed(5) }}, {{ Number(odp.longitude).toFixed(5) }}
                                     </a>
                                 </div>
+                                <div class="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                                    <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
+                                        <Wifi class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton :title="$t('map.odp_photo_title')" @click="photoOdpId = odp.id">
+                                        <Camera class="h-4 w-4" :class="odp.photo_url ? 'text-cyan-300' : ''" />
+                                    </IconButton>
+                                    <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
+                                        <span class="relative inline-flex">
+                                            <Palette class="h-4 w-4" />
+                                            <span class="absolute -bottom-0.5 -right-1 h-2 w-2 rounded-full ring-1 ring-slate-400/80" :style="{ background: odpColor(odp) }"></span>
+                                        </span>
+                                    </IconButton>
+                                    <IconButton :title="$t('common.edit')" @click="openEdit(odp)">
+                                        <Pencil class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton variant="danger" :title="$t('common.delete')" @click="deleteOdp(odp)">
+                                        <Trash2 class="h-4 w-4" />
+                                    </IconButton>
+                                </div>
                             </article>
                         </div>
 
                         <!-- Desktop -->
                         <div class="kv-table-desktop">
-                            <table class="w-full min-w-[820px]">
+                            <table class="w-full min-w-[820px] text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_name') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_olt') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_port') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_onu_count') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_coords') }}</th>
-                                        <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40">
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_name') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_olt') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_port') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_onu_count') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('odp.col_coords') }}</th>
+                                        <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
                                     <tr v-for="odp in pagedOdps" :key="odp.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                        <td class="px-4 py-4 font-medium text-white">
+                                        <td class="px-4 py-3 font-medium text-white">
                                             <span class="flex items-center gap-2">
                                                 <!-- Titik warna = warna pin ODP ini di peta. -->
-                                                <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-white/40" :style="{ background: odpColor(odp) }"></span>
+                                                <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-sm ring-1 ring-slate-400/70" :style="{ background: odpColor(odp) }"></span>
                                                 <img
                                                     v-if="odp.photo_url"
                                                     :src="odp.photo_url"
@@ -487,15 +490,15 @@ const mapHref = (odp) =>
                                                 {{ odp.name }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-4 text-sm text-slate-300">{{ odp.olt_name }}</td>
-                                        <td class="px-4 py-4 text-sm tabular-nums text-slate-300">{{ portLabel(odp) }}</td>
-                                        <td class="px-4 py-4 text-sm tabular-nums text-slate-300">{{ odp.onu_count }}</td>
-                                        <td class="px-4 py-4 text-xs">
+                                        <td class="px-4 py-3 text-xs text-slate-300">{{ odp.olt_name }}</td>
+                                        <td class="px-4 py-3 text-xs tabular-nums text-slate-300">{{ portLabel(odp) }}</td>
+                                        <td class="px-4 py-3 text-xs tabular-nums text-slate-300">{{ odp.onu_count }}</td>
+                                        <td class="px-4 py-3 text-xs">
                                             <a :href="mapHref(odp)" class="text-cyan-300 hover:underline">
                                                 {{ Number(odp.latitude).toFixed(5) }}, {{ Number(odp.longitude).toFixed(5) }}
                                             </a>
                                         </td>
-                                        <td class="px-4 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="flex justify-center gap-1.5">
                                                 <IconButton :title="$t('odp.manage_onus')" @click="openManage(odp)">
                                                     <Wifi class="h-4 w-4" />
@@ -504,7 +507,12 @@ const mapHref = (odp) =>
                                                     <Camera class="h-4 w-4" :class="odp.photo_url ? 'text-cyan-300' : ''" />
                                                 </IconButton>
                                                 <IconButton :title="$t('map.odp_color')" @click="colorOdpId = odp.id">
-                                                    <Palette class="h-4 w-4" :style="{ color: odpColor(odp) }" />
+                                                    <!-- Ikon netral + titik warna bercincin: warna ODP bisa putih/hitam dan
+                                                     akan lenyap bila dipakai langsung sebagai warna ikon. -->
+                                                <span class="relative inline-flex">
+                                                    <Palette class="h-4 w-4" />
+                                                    <span class="absolute -bottom-0.5 -right-1 h-2 w-2 rounded-full ring-1 ring-slate-400/80" :style="{ background: odpColor(odp) }"></span>
+                                                </span>
                                                 </IconButton>
                                                 <IconButton :title="$t('common.edit')" @click="openEdit(odp)">
                                                     <Pencil class="h-4 w-4" />

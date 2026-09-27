@@ -638,6 +638,19 @@ const rxBadgeClass = (value) => {
 
                     <!-- Search & filter toolbar -->
                     <div v-if="snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-6">
+                        <label
+                            v-if="canSelect"
+                            class="inline-flex min-h-11 flex-shrink-0 cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 text-sm text-slate-300 transition hover:border-cyan-500/30"
+                            :class="allFilteredSelected ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-100' : ''"
+                        >
+                            <input
+                                type="checkbox"
+                                :checked="allFilteredSelected"
+                                class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
+                                @change="toggleSelectAll"
+                            />
+                            <span class="whitespace-nowrap">{{ $t('portonus.select_all', { count: filteredOnus.length }) }}</span>
+                        </label>
                         <div class="relative flex-1">
                             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                             <input
@@ -670,30 +683,32 @@ const rxBadgeClass = (value) => {
                         </div>
                     </div>
 
-                    <!-- Selection / copy toolbar -->
-                    <div v-if="canSelect && snapshot.onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <label class="inline-flex items-center gap-2 text-sm text-slate-300">
-                            <input
-                                type="checkbox"
-                                :checked="allFilteredSelected"
-                                class="h-4 w-4 rounded border-white/10 text-cyan-400 focus:ring-cyan-500"
-                                @change="toggleSelectAll"
-                            />
-                            {{ $t('portonus.select_all', { count: filteredOnus.length }) }}
-                        </label>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span v-if="selectedCount" class="text-sm text-slate-400">{{ $t('portonus.n_selected', { count: selectedCount }) }}</span>
-                            <button v-if="selectedCount" type="button" class="kv-filter-reset" @click="clearSelection">{{ $t('portonus.clear_selection') }}</button>
-                            <DangerButton v-if="canBulkDelete" type="button" :disabled="selectedCount === 0 || bulkDeleting" @click="deleteSelected">
-                                <Trash2 class="h-4 w-4" />
-                                {{ bulkDeleting ? $t('portonus.deleting_selected') : $t('portonus.delete_selected') }}
-                            </DangerButton>
-                            <PrimaryButton v-if="canCopy" type="button" :disabled="selectedCount === 0" @click="openCopy">
-                                <Copy class="mr-2 h-4 w-4" />
-                                {{ $t('portonus.copy_to_port') }}
-                            </PrimaryButton>
+                    <!-- Bilah aksi pilihan — hanya muncul bila ada ONU yang dicentang -->
+                    <Transition
+                        enter-active-class="transition duration-150 ease-out"
+                        enter-from-class="-translate-y-1 opacity-0"
+                        enter-to-class="translate-y-0 opacity-100"
+                        leave-active-class="transition duration-100 ease-in"
+                        leave-from-class="opacity-100"
+                        leave-to-class="opacity-0"
+                    >
+                        <div v-if="canSelect && selectedCount > 0" class="flex flex-col gap-3 border-b border-cyan-500/30 bg-cyan-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                            <div class="flex items-center gap-3 text-sm">
+                                <span class="font-semibold text-cyan-100">{{ $t('portonus.n_selected', { count: selectedCount }) }}</span>
+                                <button type="button" class="kv-filter-reset" @click="clearSelection">{{ $t('portonus.clear_selection') }}</button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <DangerButton v-if="canBulkDelete" type="button" size="sm" :disabled="bulkDeleting" @click="deleteSelected">
+                                    <Trash2 class="h-4 w-4" />
+                                    {{ bulkDeleting ? $t('portonus.deleting_selected') : $t('portonus.delete_selected') }}
+                                </DangerButton>
+                                <PrimaryButton v-if="canCopy" type="button" size="sm" @click="openCopy">
+                                    <Copy class="h-4 w-4" />
+                                    {{ $t('portonus.copy_to_port') }}
+                                </PrimaryButton>
+                            </div>
                         </div>
-                    </div>
+                    </Transition>
 
                     <!-- Skeleton saat Refresh ONU (baca SNMP) berjalan -->
                     <ListSkeleton v-if="refreshing" :rows="10" />
@@ -859,10 +874,10 @@ const rxBadgeClass = (value) => {
                         </div>
 
                         <div class="kv-table-desktop">
-                        <table class="min-w-[720px] w-full tabular-nums">
+                        <table class="min-w-[720px] w-full tabular-nums text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th v-if="canSelect" class="w-px px-4 py-3.5 text-left">
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th v-if="canSelect" class="w-px px-4 py-3 text-left">
                                         <input
                                             type="checkbox"
                                             :checked="allFilteredSelected"
@@ -870,15 +885,15 @@ const rxBadgeClass = (value) => {
                                             @change="toggleSelectAll"
                                         />
                                     </th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
-                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_actions') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -889,7 +904,7 @@ const rxBadgeClass = (value) => {
                                     class="transition-colors duration-150 hover:bg-white/[0.03]"
                                     :class="onu.onu_id === focusId ? 'bg-cyan-500/10' : ''"
                                 >
-                                    <td v-if="canSelect" class="px-4 py-4">
+                                    <td v-if="canSelect" class="px-4 py-3">
                                         <input
                                             type="checkbox"
                                             :checked="isSelected(onu)"
@@ -897,14 +912,14 @@ const rxBadgeClass = (value) => {
                                             @change="toggleSelect(onu)"
                                         />
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="min-w-[14rem] px-4 py-3">
                                         <div class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ onuSecondaryLabel(onu) }}</div>
                                     </td>
-                                    <td class="px-6 py-4">
-                                        <span class="font-mono text-sm text-slate-200">{{ onu.serial_number || '—' }}</span>
+                                    <td class="px-4 py-3">
+                                        <span class="font-mono text-xs text-slate-200">{{ onu.serial_number || '—' }}</span>
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <OnuOdpCell
                                             :onu="onu"
                                             :odps="odps"
@@ -914,10 +929,10 @@ const rxBadgeClass = (value) => {
                                             :port="port"
                                         />
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-200">
+                                    <td class="px-4 py-3 text-xs text-slate-200">
                                         {{ onu.type_name || '—' }}
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <span
                                             class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
                                             :class="rxBadgeClass(onu.rx_power_dbm)"
@@ -925,14 +940,14 @@ const rxBadgeClass = (value) => {
                                             {{ onu.rx_power_label || '—' }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5">
                                             <span
                                                 class="h-1.5 w-1.5 flex-shrink-0 rounded-full"
                                                 :class="onu.online ? 'bg-emerald-500' : 'bg-slate-300'"
                                             ></span>
                                             <span
-                                                class="text-sm"
+                                                class="text-xs"
                                                 :class="onu.online ? 'text-emerald-400' : 'text-slate-500'"
                                                 :title="onu.phase_state || ''"
                                             >
@@ -940,7 +955,7 @@ const rxBadgeClass = (value) => {
                                             </span>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <span
                                             class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1"
                                             :class="onu.admin_state === 'active'
@@ -950,10 +965,10 @@ const rxBadgeClass = (value) => {
                                             {{ onu.admin_state }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-500">
+                                    <td class="min-w-[9rem] px-4 py-3 text-xs text-slate-500">
                                         <span :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex items-center justify-center gap-1.5">
                                             <IconButton
                                                 v-if="caps.supports_onu_info_write"
@@ -1215,7 +1230,7 @@ const rxBadgeClass = (value) => {
                 </p>
                 <p v-if="copyProgress.error" class="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">{{ copyProgress.error }}</p>
 
-                <div v-if="copyFailedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3">
+                <div v-if="copyFailedItems.length" class="mt-3 max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-white/10 bg-canvas-3/40 p-3">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.failed_header') }}</p>
                     <div v-for="(item, idx) in copyFailedItems" :key="idx" class="text-xs text-slate-400">
                         <span class="font-mono text-slate-300">ONU {{ item.onu_id }}</span><span v-if="item.serial_number"> · {{ item.serial_number }}</span> — {{ item.message }}

@@ -30,4 +30,10 @@
         linear-gradient(180deg, rgba(2, 6, 23, 0.28) 0%, rgba(2, 6, 23, 0.14) 35%, rgba(2, 6, 23, 0.1) 65%, rgba(2, 6, 23, 0.24) 100%),
         linear-gradient(90deg, rgba(2, 6, 23, 0.3) 0%, rgba(2, 6, 23, 0.08) 60%, rgba(2, 6, 23, 0.2) 100%);
 }
+
+/* Bayangan dalam navy di atas sidebar terang hanya jadi noda gelap. Di tema
+   terang sidebar cukup kertas + garis tepi dari layout. */
+[data-theme="light"] .sidebar-backdrop {
+    display: none;
+}
 </style>

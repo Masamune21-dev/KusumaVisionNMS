@@ -16,6 +16,9 @@ import { useI18n } from 'vue-i18n';
 // aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
 // ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -69,7 +72,7 @@ const rxToneCur = computed(() => rxTone(rxVal.value));
 
 // Warna zona (hex) untuk gauge speedometer RX.
 const rxHex = (v) => {
-    if (v === null) return '#64748b';
+    if (v === null) return tokenHex('slate-500', '#64748b');
     if (v <= -28 || v >= -8) return '#ef4444';
     if (v <= -25 || v >= -10) return '#f59e0b';
     return '#10b981';
@@ -90,9 +93,9 @@ const rxGaugeOptions = computed(() => ({
             startAngle: -135,
             endAngle: 135,
             hollow: { size: '68%' },
-            track: { background: 'rgba(148,163,184,0.15)', strokeWidth: '100%' },
+            track: { background: themeHexA('--kv-slate-400', 0.15, 'rgba(148,163,184,0.15)'), strokeWidth: '100%' },
             dataLabels: {
-                name: { show: true, offsetY: 30, color: '#94a3b8', fontSize: '12px' },
+                name: { show: true, offsetY: 30, color: chartTheme().label, fontSize: '12px' },
                 value: {
                     show: true,
                     offsetY: -12,
@@ -261,7 +264,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                         <div class="flex flex-1 flex-col p-5 sm:p-6">
                             <!-- RX speedometer -->
                             <div class="flex flex-col items-center">
-                                <VueApexCharts type="radialBar" height="220" width="100%" :options="rxGaugeOptions" :series="rxGaugeSeries" />
+                                <VueApexCharts :key="theme" type="radialBar" height="220" width="100%" :options="rxGaugeOptions" :series="rxGaugeSeries" />
                                 <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
                                     <span class="rounded-full px-2 py-0.5 font-medium ring-1" :class="[rxToneCur.bg, rxToneCur.text, rxToneCur.ring]">RX Power</span>
                                     <span class="text-slate-500">{{ $t('onudetail.safe_zone') }} <span class="text-emerald-400">-25…-10 dBm</span></span>
@@ -270,7 +273,7 @@ const refresh = () => router.reload({ preserveScroll: true });
 
                             <!-- TX + attenuation -->
                             <div class="mt-5 space-y-4">
-                                <div class="flex items-center justify-between rounded-lg border border-white/10 bg-slate-950/40 px-4 py-3">
+                                <div class="flex items-center justify-between rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3">
                                     <span class="flex items-center gap-2 text-sm text-slate-400"><Zap class="h-4 w-4 text-cyan-400" /> TX Power ONU</span>
                                     <span class="text-base font-semibold text-slate-100">{{ txVal !== null ? txVal.toFixed(2) + ' dBm' : '—' }}</span>
                                 </div>
@@ -346,7 +349,7 @@ const refresh = () => router.reload({ preserveScroll: true });
                         </span>
                         <ChevronDown class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
                     </summary>
-                    <pre class="max-h-[480px] overflow-auto border-t border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || $t('configonu.empty_paren') }}</pre>
+                    <pre data-theme="dark" class="kv-terminal max-h-[480px] overflow-auto border-t border-white/10 bg-slate-950/70 px-4 py-3 font-mono text-xs leading-relaxed text-emerald-300/90">{{ raw || $t('configonu.empty_paren') }}</pre>
                 </details>
             </div>
         </div>

@@ -39,7 +39,7 @@ const cards = computed(() => [
     { key: 'critical', label: 'Critical', value: props.summary.critical, class: 'text-red-400' },
     { key: 'major', label: 'Major', value: props.summary.major, class: 'text-orange-400' },
     { key: 'minor', label: 'Minor', value: props.summary.minor, class: 'text-amber-400' },
-    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-600' },
+    { key: 'warning', label: 'Warning', value: props.summary.warning, class: 'text-yellow-400' },
 ]);
 
 const form = reactive({
@@ -206,11 +206,11 @@ const goFallback = () => {
         <template #header>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Alarms</h2>
-                <div class="grid grid-cols-3 overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl sm:inline-flex sm:w-auto">
+                <div class="kv-surface grid grid-cols-3 overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl sm:inline-flex sm:w-auto">
                     <button
                         type="button"
                         class="min-h-11 px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'active' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
+                        :class="form.status === 'active' ? 'bg-cyan-500 text-onaccent' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('active')"
                     >
                         {{ $t('alarms.tab_active') }}
@@ -218,7 +218,7 @@ const goFallback = () => {
                     <button
                         type="button"
                         class="min-h-11 px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'cleared' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
+                        :class="form.status === 'cleared' ? 'bg-cyan-500 text-onaccent' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('cleared')"
                     >
                         {{ $t('alarms.tab_cleared') }}
@@ -226,7 +226,7 @@ const goFallback = () => {
                     <button
                         type="button"
                         class="min-h-11 px-4 py-2 text-sm font-medium"
-                        :class="form.status === 'all' ? 'bg-cyan-500 text-white' : 'text-slate-500 hover:text-slate-200'"
+                        :class="form.status === 'all' ? 'bg-cyan-500 text-onaccent' : 'text-slate-500 hover:text-slate-200'"
                         @click="setStatus('all')"
                     >
                         {{ $t('alarms.tab_all') }}
@@ -289,7 +289,7 @@ const goFallback = () => {
                     </form>
                 </FilterCard>
 
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-red-500/20 ring-1 ring-red-500/30">
                             <BellRing class="h-5 w-5 text-red-400" />
@@ -385,15 +385,15 @@ const goFallback = () => {
                         </div>
 
                         <div class="kv-table-desktop">
-                        <table class="min-w-[720px] w-full">
+                        <table class="min-w-[720px] w-full text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_severity') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_type') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_olt_target') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_message') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_last') }}</th>
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_severity') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_type') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_olt_target') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_message') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('alarms.col_last') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -410,13 +410,13 @@ const goFallback = () => {
                                     @keydown.enter="openAlarmFromKeyboard($event, alarm)"
                                     @keydown.space="openAlarmFromKeyboard($event, alarm)"
                                 >
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium uppercase" :class="severityClass(alarm.severity)">
                                             {{ alarm.severity }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-4 text-sm font-medium text-white">{{ alarmTypeLabel(t, alarm.type) }}</td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">
+                                    <td class="px-4 py-3 text-xs font-medium text-white">{{ alarmTypeLabel(t, alarm.type) }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-200">
                                         <Link
                                             :href="route('smartolt.detail', alarm.olt.id)"
                                             class="font-medium text-cyan-400 hover:text-cyan-400"
@@ -425,18 +425,18 @@ const goFallback = () => {
                                         >
                                             {{ alarm.olt.name }}
                                         </Link>
-                                        <div v-if="alarm.customer_name" class="mt-1 text-sm font-medium text-white">
+                                        <div v-if="alarm.customer_name" class="mt-1 text-xs font-medium text-white">
                                             {{ alarm.customer_name }}
                                         </div>
                                         <div class="text-xs text-slate-500">{{ scopeLabel(alarm) }}</div>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">{{ alarm.message }}</td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3 text-xs text-slate-200">{{ alarm.message }}</td>
+                                    <td class="px-4 py-3">
                                         <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(alarm.status)">
                                             {{ alarmStatusLabel(t, alarm.status) }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-200">
+                                    <td class="px-4 py-3 text-xs text-slate-200">
                                         <div class="flex items-center gap-2">
                                             <span>{{ formatDate(alarm.last_seen_at) }}</span>
                                             <Loader2 v-if="openingId === alarm.id" class="h-4 w-4 animate-spin text-cyan-400" />

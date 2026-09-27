@@ -6,6 +6,9 @@ import { router } from '@inertiajs/vue3';
 // aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
 // ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 import { TrendingDown } from '@lucide/vue';
 
 const props = defineProps({
@@ -46,27 +49,27 @@ const yMax = computed(() => (hasData.value ? Math.max(-8, ...points.value.map((p
 
 const chartOptions = computed(() => ({
     chart: { type: 'area', background: 'transparent', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false } },
-    colors: ['#22d3ee'],
+    colors: [tokenHex('cyan-400', '#22d3ee')],
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 2 },
     fill: { type: 'gradient', gradient: { shadeIntensity: 0.3, opacityFrom: 0.35, opacityTo: 0.05 } },
     markers: { size: points.value.length <= 60 ? 3 : 0, strokeWidth: 0, hover: { size: 5 } },
-    grid: { borderColor: 'rgba(148,163,184,0.12)', strokeDashArray: 4 },
+    grid: { borderColor: themeHexA('--kv-slate-400', 0.12, 'rgba(148,163,184,0.12)'), strokeDashArray: 4 },
     xaxis: {
         type: 'datetime',
-        labels: { style: { colors: '#94a3b8', fontSize: '10px' }, datetimeUTC: false },
-        axisBorder: { color: 'rgba(148,163,184,0.2)' },
-        axisTicks: { color: 'rgba(148,163,184,0.2)' },
+        labels: { style: { colors: tokenHex('slate-400', '#94a3b8'), fontSize: '10px' }, datetimeUTC: false },
+        axisBorder: { color: themeHexA('--kv-slate-400', 0.2, 'rgba(148,163,184,0.2)') },
+        axisTicks: { color: themeHexA('--kv-slate-400', 0.2, 'rgba(148,163,184,0.2)') },
     },
     yaxis: {
         min: yMin.value,
         max: yMax.value,
         tickAmount: 5,
-        labels: { style: { colors: '#94a3b8', fontSize: '10px' }, formatter: (v) => `${v.toFixed(0)}` },
-        title: { text: 'dBm', style: { color: '#64748b', fontSize: '10px', fontWeight: 400 } },
+        labels: { style: { colors: tokenHex('slate-400', '#94a3b8'), fontSize: '10px' }, formatter: (v) => `${v.toFixed(0)}` },
+        title: { text: 'dBm', style: { color: tokenHex('slate-500', '#64748b'), fontSize: '10px', fontWeight: 400 } },
     },
     tooltip: {
-        theme: 'dark',
+        theme: chartTheme().tooltip,
         x: { format: 'dd MMM HH:mm' },
         y: { formatter: (v) => `${v.toFixed(2)} dBm` },
     },
@@ -135,7 +138,7 @@ const fmt = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(2)} dBm
                         <p class="text-sm font-semibold text-amber-300 tabular-nums">{{ fmt(stats.min) }}</p>
                     </div>
                 </div>
-                <VueApexCharts type="area" height="240" :options="chartOptions" :series="series" />
+                <VueApexCharts :key="theme" type="area" height="240" :options="chartOptions" :series="series" />
             </template>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
                 {{ $t('shell.rx_empty') }}

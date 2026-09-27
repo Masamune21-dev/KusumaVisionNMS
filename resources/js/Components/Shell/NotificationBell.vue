@@ -184,7 +184,7 @@ onUnmounted(() => {
             <BellRing class="h-5 w-5" />
             <span
                 v-if="unreadCount > 0"
-                class="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-slate-950"
+                class="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-onaccent ring-2 ring-canvas"
             >
                 {{ unreadCount > 99 ? '99+' : unreadCount }}
             </span>
@@ -200,7 +200,7 @@ onUnmounted(() => {
         >
             <div
                 v-if="open"
-                class="absolute right-0 z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+                class="kv-popover absolute right-0 z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-white/10 bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
             >
                 <div class="flex items-center justify-between border-b border-white/10 px-4 py-3">
                     <h3 class="text-sm font-semibold text-white">{{ $t('shell.notifications_title') }}</h3>

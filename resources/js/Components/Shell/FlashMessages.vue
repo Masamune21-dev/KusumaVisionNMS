@@ -87,7 +87,7 @@ onUnmounted(() => {
                 v-for="toast in toasts"
                 :key="toast.id"
                 :role="toast.type === 'error' ? 'alert' : 'status'"
-                class="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg shadow-black/40 backdrop-blur-xl sm:w-auto sm:min-w-[18rem]"
+                class="kv-toast pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg shadow-black/40 backdrop-blur-xl sm:w-auto sm:min-w-[18rem]"
                 :class="toast.type === 'error'
                     ? 'border-red-500/30 bg-red-950/70 text-red-200'
                     : 'border-emerald-500/30 bg-emerald-950/70 text-emerald-200'"

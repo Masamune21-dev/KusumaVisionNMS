@@ -5,6 +5,9 @@ import { defineAsyncComponent, computed } from 'vue';
 // aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
 // ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { chartTheme, tokenHex, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 
 const props = defineProps({
     label: { type: String, required: true },
@@ -26,15 +29,17 @@ const circleClass = computed(() => ({
     slate: 'kv-circle-slate',
 }[props.accent] ?? 'kv-circle-sky'));
 
+// Dibaca dari token, jadi ikut tema: cyan-400 & slate-500 menggelap di tema
+// terang (stop 500 lainnya dipatok sama di kedua tema).
 const accentHex = computed(() => ({
-    sky: '#0ea5e9',
-    cyan: '#22d3ee',
-    emerald: '#10b981',
-    purple: '#a855f7',
-    red: '#ef4444',
-    amber: '#f59e0b',
-    slate: '#64748b',
-}[props.accent] ?? '#0ea5e9'));
+    sky: tokenHex('sky-500', '#0ea5e9'),
+    cyan: tokenHex('cyan-400', '#22d3ee'),
+    emerald: tokenHex('emerald-500', '#10b981'),
+    purple: tokenHex('purple-500', '#a855f7'),
+    red: tokenHex('red-500', '#ef4444'),
+    amber: tokenHex('amber-500', '#f59e0b'),
+    slate: tokenHex('slate-500', '#64748b'),
+}[props.accent] ?? tokenHex('sky-500', '#0ea5e9')));
 
 const sparkOptions = computed(() => ({
     chart: {
@@ -57,7 +62,7 @@ const sparkOptions = computed(() => ({
     colors: [accentHex.value],
     grid: { padding: { top: 0, right: 0, bottom: 0, left: 0 } },
     tooltip: {
-        theme: 'dark',
+        theme: chartTheme().tooltip,
         x: { show: false },
         y: { formatter: (v) => v, title: { formatter: () => props.sparklineLabel } },
         marker: { show: false },
@@ -81,6 +86,7 @@ const sparkSeries = computed(() => [{ name: props.sparklineLabel, data: props.sp
         <div class="pointer-events-none absolute right-4 top-4 hidden h-16 w-36 sm:block lg:w-40">
             <VueApexCharts
                 v-if="hasVariance"
+                :key="theme"
                 type="area"
                 height="64"
                 width="100%"

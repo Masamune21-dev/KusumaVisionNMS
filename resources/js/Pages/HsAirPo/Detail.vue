@@ -51,7 +51,7 @@ const fmt = (v) => formatDateTime(v);
         <template #header>
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-3">
-                    <Link :href="route('smartolt.index', { tab: 'hsairpo' })" class="text-slate-400 hover:text-white">
+                    <Link :href="route('smartolt.index', { tab: 'hsairpo' })" :title="$t('common.back')" :aria-label="$t('common.back')" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
                     </Link>
                     <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ olt.name }}</h2>
@@ -152,20 +152,20 @@ const fmt = (v) => formatDateTime(v);
                     </div>
 
                     <div v-else class="kv-table-desktop">
-                        <table class="w-full min-w-[640px]">
+                        <table class="w-full min-w-[640px] text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.port') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portlabel.column') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
-                                    <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
-                                    <th class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.port') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portlabel.column') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr v-for="p in ports" :key="p.if_index" class="transition-colors hover:bg-white/[0.03]">
-                                    <td class="px-4 py-4 font-mono text-sm text-white">{{ p.name }}</td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3 font-mono text-xs text-white">{{ p.name }}</td>
+                                    <td class="px-4 py-3">
                                         <OltPortLabel
                                             :olt-id="olt.id"
                                             :slot="p.slot"
@@ -174,17 +174,17 @@ const fmt = (v) => formatDateTime(v);
                                             :editable="canEditPortLabel"
                                         />
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <span class="inline-flex items-center gap-1.5 text-xs" :class="p.oper_status === 'up' ? 'text-emerald-400' : 'text-slate-500'">
                                             <span class="h-1.5 w-1.5 rounded-full" :class="p.oper_status === 'up' ? 'bg-emerald-400' : 'bg-slate-600'"></span>
                                             {{ p.oper_status }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-4 text-sm text-slate-300">
+                                    <td class="px-4 py-3 text-xs text-slate-300">
                                         <span class="text-white">{{ portCount(p).count }}</span>
                                         <span class="text-slate-500"> {{ $t('cdatadetail.online_count', { count: portCount(p).online }) }}</span>
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="flex justify-center">
                                             <IconButton :href="route('hsairpo-olt.port-onus', [olt.id, p.slot, p.port])" :title="$t('cdatadetail.view_onu')">
                                                 <ChevronRight class="h-4 w-4" />

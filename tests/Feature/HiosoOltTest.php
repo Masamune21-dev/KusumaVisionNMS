@@ -217,6 +217,39 @@ class HiosoOltTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('Hioso/PortOnus'));
     }
 
+    public function test_pon_ports_page_lists_ports_with_onu_counts_and_labels(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->hiosoOlt([
+            'last_test_result' => [
+                'onu_scanned_at' => now()->toIso8601String(),
+                'ports' => [
+                    ['slot' => 1, 'port' => 1, 'name' => 'epon 0/1/1', 'oper_status' => 'up'],
+                    ['slot' => 1, 'port' => 2, 'name' => 'epon 0/1/2', 'oper_status' => 'down'],
+                ],
+                'port_onus' => [
+                    '1_1' => ['onus' => [
+                        ['onu_id' => 1, 'name' => 'uji0800a', 'mac' => 'D0:5F:AF:00:00:01', 'interface' => 'epon 0/1/1:1', 'online' => true],
+                        ['onu_id' => 2, 'name' => 'uji0800b', 'mac' => 'D0:5F:AF:00:00:02', 'interface' => 'epon 0/1/1:2', 'online' => false],
+                    ]],
+                ],
+            ],
+        ]);
+        \App\Models\OltPortLabel::create(['snmp_olt_id' => $olt->id, 'slot' => 1, 'port' => 1, 'label' => 'Arah Timur']);
+
+        $this->actingAs($user)
+            ->get(route('hioso-olt.pon-ports', $olt))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('SmartOlt/PonPorts')
+                ->where('route_prefix', 'hioso-olt')
+                ->where('ports.0.onu_count', 2)
+                ->where('ports.0.online_onu_count', 1)
+                ->where('ports.0.description', 'Arah Timur')
+                ->where('ports.1.onu_count', 0)
+                ->where('ports.0.onu_search_items.0.search_text', 'epon 0/1/1:1 D0:5F:AF:00:00:01 uji0800a'));
+    }
+
     public function test_hioso_olt_edit_page_renders(): void
     {
         $user = User::factory()->create();

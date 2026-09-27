@@ -26,7 +26,7 @@ const totals = computed(() => props.items.reduce(
                 </span>
                 <h3 class="text-base font-semibold text-white">{{ $t('dashboard.olt_inventory') }}</h3>
             </div>
-            <Link :href="route('smartolt.index')" class="text-slate-400 transition-colors hover:text-cyan-400">
+            <Link :href="route('smartolt.index')" :title="$t('dashboard.view_all')" :aria-label="$t('dashboard.view_all')" class="text-slate-400 transition-colors hover:text-cyan-400">
                 <ChevronRight class="h-5 w-5" />
             </Link>
         </div>
@@ -54,7 +54,7 @@ const totals = computed(() => props.items.reduce(
             {{ $t('dashboard.no_olt') }}
         </div>
 
-        <div v-if="items.length > 0" class="flex items-center justify-between border-t border-white/10 bg-slate-950/30 px-5 py-3">
+        <div v-if="items.length > 0" class="flex items-center justify-between border-t border-white/10 bg-canvas-3/30 px-5 py-3">
             <p class="text-sm font-semibold text-slate-300">{{ $t('dashboard.total') }} <span class="ml-2 text-xs font-normal text-slate-500">{{ $t('dashboard.unit_count', { count: totals.unit }) }}</span></p>
             <div class="flex items-center gap-2">
                 <span class="kv-pill-success">{{ $t('dashboard.status_up') }} {{ totals.up }}</span>

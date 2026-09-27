@@ -65,15 +65,29 @@ class CDataFaceplateServiceTest extends TestCase
 
         $panel = (new CDataFaceplateService($snmp))->collect($this->olt());
 
-        // Urutan grup: PON dulu, lalu GE, lalu XGE.
-        $this->assertSame(['PON 0/0', 'GE', 'XGE'], array_column($panel['groups'], 'label'));
+        // Urutan blok FD1608S kiri→kanan: PON · COMBO GE (SFP) · XGE · COMBO GE (RJ45 bertumpuk) · CONSOLE/MGMT.
+        $this->assertSame(['PON 0/0', 'COMBO GE', 'XGE', 'COMBO GE', ''], array_column($panel['groups'], 'label'));
+        $this->assertSame([1, 1, 1, 1, 1], array_column($panel['groups'], 'module'));
 
         $pon = $panel['groups'][0];
         $this->assertSame('fiber', $pon['kind']);
+        $this->assertSame(4, $pon['chunk']);
         $this->assertSame(['up', 'down', 'shutdown'], array_column($pon['ports'], 'status'));
 
-        $this->assertSame('copper', $panel['groups'][1]['kind']);
+        // Combo: konektor SFP & RJ45 mewakili port logis yang sama (status identik).
+        $this->assertSame('fiber', $panel['groups'][1]['kind']);
+        $this->assertSame(1, $panel['groups'][1]['rows']);
         $this->assertSame('fiber', $panel['groups'][2]['kind']);
+        $this->assertSame(1, $panel['groups'][2]['rows']);
+        $this->assertSame('copper', $panel['groups'][3]['kind']);
+        $this->assertSame(2, $panel['groups'][3]['rows']);
+        $this->assertSame(['ge 0/0/1'], array_column($panel['groups'][3]['ports'], 'name'));
+
+        $mgmt = $panel['groups'][4];
+        $this->assertSame(2, $mgmt['rows']);
+        $this->assertSame(['CONSOLE', 'MGMT'], array_column($mgmt['ports'], 'name'));
+        $this->assertTrue($mgmt['ports'][0]['fixed']);
+        $this->assertSame([], $panel['fixed_ports']);
 
         $this->assertSame('FD1608S-B1-NDA0', $panel['device']['model']);
         $this->assertSame('DA22-2411000162', $panel['device']['serial']);
@@ -103,9 +117,53 @@ class CDataFaceplateServiceTest extends TestCase
 
         $panel = (new CDataFaceplateService($snmp))->collect($this->olt());
 
-        $this->assertSame(['PON 0/1', 'PON 0/2'], array_column($panel['groups'], 'label'));
+        // Kartu ekspansi (slot 2) di kiri = modul 1; papan utama (slot 1) di kanan = modul 2
+        // bersama CONSOLE/MGMT.
+        $this->assertSame(['PON 0/2', 'PON 0/1', ''], array_column($panel['groups'], 'label'));
+        $this->assertSame([1, 2, 2], array_column($panel['groups'], 'module'));
         $this->assertArrayNotHasKey('model', $panel['device']);
         $this->assertSame('EPON OLT', $panel['device']['device_type']);
+    }
+
+    public function test_epon_8pon_layout_matches_fd1208s_front_panel(): void
+    {
+        $descr = [];
+        $oper = [];
+        foreach ([1, 2] as $slot) {
+            foreach ([1, 2, 3, 4] as $n) {
+                $descr["1.3.6.1.2.1.2.2.1.2.{$slot}{$n}"] = "epon 0/{$slot}/{$n}";
+                $oper["1.3.6.1.2.1.2.2.1.8.{$slot}{$n}"] = '1';
+            }
+        }
+        foreach ([1, 2, 3, 4] as $n) {
+            $descr["1.3.6.1.2.1.2.2.1.2.9{$n}"] = "ge 0/0/{$n}";
+            $descr["1.3.6.1.2.1.2.2.1.2.8{$n}"] = "xge 0/0/{$n}";
+            $oper["1.3.6.1.2.1.2.2.1.8.8{$n}"] = $n === 1 ? '1' : '2';
+        }
+        $snmp = new FakeFaceplateSnmp(walks: ['1.3.6.1.2.1.2.2.1.2' => $descr, '1.3.6.1.2.1.2.2.1.8' => $oper]);
+
+        $panel = (new CDataFaceplateService($snmp))->collect($this->olt());
+
+        $this->assertSame(['PON 0/2', 'PON 0/1', 'GE', 'XGE', ''], array_column($panel['groups'], 'label'));
+        $this->assertSame([1, 2, 2, 2, 2], array_column($panel['groups'], 'module'));
+
+        // GE RJ45 sebaris (bukan combo di EPON).
+        $ge = $panel['groups'][2];
+        $this->assertSame('copper', $ge['kind']);
+        $this->assertSame(1, $ge['rows']);
+
+        // XGE 4 SFP bertumpuk 2×2, konvensi C-Data genap di atas: [2,1,4,3].
+        $xge = $panel['groups'][3];
+        $this->assertSame(2, $xge['rows']);
+        $this->assertSame([2, 1, 4, 3], array_column($xge['ports'], 'pos'));
+        $this->assertSame(['down', 'up', 'down', 'down'], array_column($xge['ports'], 'status'));
+    }
+
+    public function test_stack_even_on_top_handles_odd_count(): void
+    {
+        $ports = array_map(fn (int $n) => ['pos' => $n], [1, 2, 3]);
+
+        $this->assertSame([2, 1, 3], array_column(CDataFaceplateService::stackEvenOnTop($ports), 'pos'));
     }
 
     public function test_returns_null_when_no_interfaces(): void

@@ -99,7 +99,7 @@ const healthItems = computed(() => {
                     <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
                         <div class="h-full rounded-full transition-all duration-500" :class="m.bar" :style="{ width: `${Math.min(100, m.percent)}%` }" />
                     </div>
-                    <p class="mt-0.5 truncate text-[10px] text-slate-600">{{ m.detail }}</p>
+                    <p class="mt-0.5 truncate text-[10px] text-slate-500">{{ m.detail }}</p>
                 </div>
             </div>
         </div>

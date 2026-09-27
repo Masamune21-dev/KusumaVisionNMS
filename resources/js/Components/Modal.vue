@@ -99,9 +99,9 @@ const maxWidthClass = computed(() => {
                     class="fixed inset-0 transform transition-all"
                     @click="close"
                 >
-                    <div
-                        class="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                    />
+                    <!-- Scrim baku (UI_DESIGN_SYSTEM): slate-950 sengaja tetap gelap di
+                         kedua tema; tanpa blur supaya membuka modal di atas tabel panjang murah. -->
+                    <div class="absolute inset-0 bg-slate-950/80" />
                 </div>
             </Transition>
 
@@ -115,7 +115,7 @@ const maxWidthClass = computed(() => {
             >
                 <div
                     v-show="show"
-                    class="relative transform overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl transition-all sm:w-full"
+                    class="kv-popover relative max-h-[90vh] transform overflow-y-auto rounded-2xl border border-white/10 bg-slate-900 text-slate-100 shadow-2xl shadow-black/60 transition-all sm:w-full"
                     :class="maxWidthClass"
                 >
                     <slot v-if="showSlot" />

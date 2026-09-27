@@ -255,6 +255,7 @@ onBeforeUnmount(() => {
 <template>
     <Teleport to="body">
         <div
+            data-theme="dark"
             v-if="olt"
             class="fixed z-[120] flex flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
             :style="windowStyle"

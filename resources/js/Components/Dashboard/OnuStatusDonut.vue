@@ -8,6 +8,9 @@ const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
 import { useI18n } from 'vue-i18n';
 import { CircleDot } from '@lucide/vue';
 import { formatDateTime } from '@/lib/datetime';
+import { chartTheme, useTheme } from '@/lib/theme';
+
+const { theme } = useTheme();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -30,7 +33,10 @@ const onlinePct = computed(() => total.value > 0 ? Math.round((online.value / to
 const warningPct = computed(() => total.value > 0 ? Math.round((warning.value / total.value) * 1000) / 10 : 0);
 const offlinePct = computed(() => total.value > 0 ? Math.round((offline.value / total.value) * 1000) / 10 : 0);
 
-const chartOptions = computed(() => ({
+const chartOptions = computed(() => {
+    const c = chartTheme();
+
+    return {
     chart: { type: 'donut', background: 'transparent', animations: { enabled: false } },
     labels: [t('dashboard.status_online'), t('dashboard.status_warning'), t('dashboard.status_offline')],
     colors: ['#10b981', '#f59e0b', '#ef4444'],
@@ -42,12 +48,12 @@ const chartOptions = computed(() => ({
                 size: '74%',
                 labels: {
                     show: true,
-                    name: { show: true, color: '#94a3b8', fontSize: '11px', offsetY: 22 },
-                    value: { show: true, color: '#ffffff', fontSize: '28px', fontWeight: 700, offsetY: -10 },
+                    name: { show: true, color: c.label, fontSize: '11px', offsetY: 22 },
+                    value: { show: true, color: c.text, fontSize: '28px', fontWeight: 700, offsetY: -10 },
                     total: {
                         show: true,
                         label: t('dashboard.donut_total'),
-                        color: '#94a3b8',
+                        color: c.label,
                         fontSize: '11px',
                         formatter: () => total.value.toLocaleString('id-ID'),
                     },
@@ -55,9 +61,10 @@ const chartOptions = computed(() => ({
             },
         },
     },
-    tooltip: { theme: 'dark', y: { formatter: (v) => v.toLocaleString('id-ID') } },
+    tooltip: { theme: c.tooltip, y: { formatter: (v) => v.toLocaleString('id-ID') } },
     dataLabels: { enabled: false },
-}));
+    };
+});
 
 const legend = computed(() => [
     { label: t('dashboard.status_online'), value: online.value, pct: onlinePct.value, color: '#10b981', dot: 'bg-emerald-400' },
@@ -81,7 +88,7 @@ const formattedUpdated = computed(() =>
 
         <div class="flex flex-1 flex-col items-center gap-2 px-4 py-4">
             <div v-if="total > 0" class="flex-shrink-0">
-                <VueApexCharts type="donut" height="180" width="180" :options="chartOptions" :series="series" />
+                <VueApexCharts :key="theme" type="donut" height="180" width="180" :options="chartOptions" :series="series" />
             </div>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
                 {{ t('dashboard.no_onu_data') }}

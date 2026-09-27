@@ -36,6 +36,11 @@ const tmp = mkdtempSync(join(tmpdir(), 'kv-snap-'));
 /** Screenshot halaman aktif → simpan sebagai <name>.webp di OUT_DIR. */
 async function shoot(page, name, { fullPage = false } = {}) {
   const png = join(tmp, `${name}.png`);
+  if (fullPage) {
+    // Layout desktop menggulir di dalam .kv-app-scroll (kerangka setinggi layar); buka kerangkanya
+    // supaya screenshot full-page tetap merekam seluruh konten.
+    await page.addStyleTag({ content: '.kv-app-shell{height:auto!important;overflow:visible!important}.kv-app-scroll{overflow:visible!important}' });
+  }
   await page.screenshot({ path: png, fullPage });
   const webp = join(OUT_DIR, `${name}.webp`);
   execFileSync('cwebp', ['-quiet', '-q', WEBP_QUALITY, png, '-o', webp]);

@@ -3,9 +3,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import FilterCard from '@/Components/Shell/FilterCard.vue';
+import ClientPagination from '@/Components/Shell/ClientPagination.vue';
+import { usePagination } from '@/Composables/usePagination';
 import { Head, router } from '@inertiajs/vue3';
 import { FileBarChart, FileDown, FileText, SlidersHorizontal } from '@lucide/vue';
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 const props = defineProps({
     report: { type: Object, required: true },
@@ -57,6 +59,15 @@ watch(() => [state.type, state.range, state.olt_id, state.pon_port, state.rx_sta
     reload();
 });
 
+/*
+ * Laporan ONU bisa ribuan baris (±5.000). Dulu seluruhnya dirender sekaligus —
+ * halaman setinggi ±270.000 px di desktop dan >1 juta px di HP, dibungkus kartu
+ * ber-backdrop-blur. Tampilan cukup satu halaman; ekspor CSV/PDF tetap memuat
+ * semua baris karena dirakit server dari filter yang sama.
+ */
+const rows = computed(() => props.report.rows ?? []);
+const { page, pageSize, total, pageCount, pageItems, rangeStart, rangeEnd } = usePagination(rows);
+
 const exportUrl = (format) => route(`reports.export.${format}`, queryParams());
 
 const statusClass = (value) => {
@@ -68,7 +79,7 @@ const statusClass = (value) => {
         return 'border-amber-500/30 bg-amber-500/15 text-amber-300';
     }
     if (['offline', 'critical', 'gagal', 'failed', 'error', 'major', 'los'].includes(v)) {
-        return 'border-red-500/30 bg-red-500/15 text-red-300';
+        return 'border-rose-500/30 bg-rose-500/15 text-rose-300';
     }
     return 'border-slate-500/30 bg-slate-500/15 text-slate-300';
 };
@@ -77,7 +88,7 @@ const isStatusColumn = (key) => ['status', 'reachable', 'severity'].includes(key
 
 // Warna nilai RX Power sesuai level redaman (rx_level dikirim per-baris, bukan kolom).
 const rxClass = (level) => {
-    if (level === 'critical') return 'font-medium text-red-300';
+    if (level === 'critical') return 'font-medium text-rose-300';
     if (level === 'warning') return 'font-medium text-amber-300';
     if (level === 'normal') return 'text-emerald-300';
     return 'text-slate-200';
@@ -146,14 +157,14 @@ const rxClass = (level) => {
 
                 <!-- Summary -->
                 <div class="grid gap-3 sm:grid-cols-3">
-                    <div v-for="item in report.summary" :key="item.label" class="rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 backdrop-blur-xl">
+                    <div v-for="item in report.summary" :key="item.label" class="kv-stat px-4 py-3">
                         <div class="text-xs text-slate-500">{{ item.label }}</div>
                         <div class="mt-1 text-2xl font-semibold text-white">{{ item.value }}</div>
                     </div>
                 </div>
 
                 <!-- Table -->
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-table-card">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                             <FileBarChart class="h-5 w-5 text-cyan-400" />
@@ -171,7 +182,7 @@ const rxClass = (level) => {
                     <template v-else>
                         <!-- Mobile cards -->
                         <div class="kv-mobile-list">
-                            <article v-for="(row, idx) in report.rows" :key="idx" class="kv-mobile-card">
+                            <article v-for="(row, idx) in pageItems" :key="idx" class="kv-mobile-card">
                                 <div class="kv-mobile-fields">
                                     <div v-for="column in report.columns" :key="column.key" class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ column.label }}</span>
@@ -189,17 +200,17 @@ const rxClass = (level) => {
 
                         <!-- Desktop table -->
                         <div class="kv-table-desktop">
-                            <table class="w-full min-w-[720px]">
+                            <table class="w-full min-w-[720px] text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th v-for="column in report.columns" :key="column.key" class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <tr class="border-b border-white/10 bg-canvas-3/40">
+                                        <th v-for="column in report.columns" :key="column.key" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
                                             {{ column.label }}
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
-                                    <tr v-for="(row, idx) in report.rows" :key="idx" class="transition-colors duration-150 hover:bg-white/[0.03]">
-                                        <td v-for="column in report.columns" :key="column.key" class="px-4 py-3 text-sm text-slate-200">
+                                    <tr v-for="(row, idx) in pageItems" :key="idx" class="transition-colors duration-150 hover:bg-white/[0.03]">
+                                        <td v-for="column in report.columns" :key="column.key" class="px-4 py-3 text-xs text-slate-200">
                                             <span v-if="isStatusColumn(column.key)" :class="['inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium', statusClass(row[column.key])]">
                                                 {{ row[column.key] }}
                                             </span>
@@ -210,6 +221,17 @@ const rxClass = (level) => {
                                 </tbody>
                             </table>
                         </div>
+
+                        <ClientPagination
+                            v-if="pageCount > 1"
+                            v-model:page="page"
+                            v-model:page-size="pageSize"
+                            :page-count="pageCount"
+                            :total="total"
+                            :range-start="rangeStart"
+                            :range-end="rangeEnd"
+                            :label="$t('reports.rows_label')"
+                        />
                     </template>
                 </div>
             </div>

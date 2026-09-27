@@ -111,11 +111,19 @@ class SmartOltController extends Controller
         ]);
     }
 
+    /**
+     * Halaman port GPON — satu halaman Vue bersama family non-ZTE (`SmartOlt/PonPorts`,
+     * lihat CDataOltController::ponPorts) supaya ketiga jenis OLT bertampilan sama.
+     */
     public function gponPorts(SnmpOlt $olt): Response
     {
-        return Inertia::render('SmartOlt/GponPorts', [
+        $snapshot = $this->serializeSnapshot($olt);
+
+        return Inertia::render('SmartOlt/PonPorts', [
             'olt' => $this->serializeOlt($olt),
-            'snapshot' => $this->serializeSnapshot($olt),
+            'route_prefix' => 'smartolt',
+            'ports' => $snapshot['ports'],
+            'scanned_at' => $snapshot['last_tested_at'] ?? null,
         ]);
     }
 

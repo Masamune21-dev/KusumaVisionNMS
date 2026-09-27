@@ -169,7 +169,7 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
                     </form>
                 </FilterCard>
 
-                <div class="overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
+                <div class="kv-surface overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 shadow-lg shadow-black/30 backdrop-blur-xl">
                     <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
                         <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
                             <ScrollText class="h-5 w-5 text-cyan-400" />
@@ -226,7 +226,7 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
                                     <ChevronDown class="h-3.5 w-3.5 transition-transform" :class="expanded.has(log.id) ? 'rotate-180' : ''" />
                                     {{ expanded.has(log.id) ? $t('auditlogs.hide_detail') : $t('auditlogs.show_detail') }}
                                 </button>
-                                <dl v-if="expanded.has(log.id)" class="mt-2 space-y-1 rounded-md bg-slate-950/40 p-3 text-xs">
+                                <dl v-if="expanded.has(log.id)" class="mt-2 space-y-1 rounded-md bg-canvas-3/40 p-3 text-xs">
                                     <div v-for="d in detailRows(log)" :key="d.key" class="flex flex-col gap-0.5">
                                         <dt class="font-medium text-slate-400">{{ d.key }}</dt>
                                         <dd v-if="d.diff" class="text-slate-200">
@@ -242,15 +242,15 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
 
                         <!-- Desktop -->
                         <div class="kv-table-desktop">
-                            <table class="min-w-[820px] w-full">
+                            <table class="min-w-[820px] w-full text-xs">
                                 <thead>
-                                    <tr class="border-b border-white/10 bg-slate-950/40">
-                                        <th class="w-10 px-4 py-3.5"></th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('auditlogs.col_time') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">User</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Event</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('auditlogs.col_description') }}</th>
-                                        <th class="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">IP</th>
+                                    <tr class="border-b border-white/10 bg-canvas-3/40">
+                                        <th class="w-10 px-4 py-3"></th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('auditlogs.col_time') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">User</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Event</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('auditlogs.col_description') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">IP</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
@@ -259,36 +259,36 @@ const formatDate = (value) => (value ? formatDateTime(value) : '—');
                                             class="cursor-pointer transition-colors duration-150 hover:bg-white/[0.03]"
                                             @click="toggle(log.id)"
                                         >
-                                            <td class="px-4 py-4 text-slate-500">
+                                            <td class="px-4 py-3 text-slate-500">
                                                 <ChevronDown
                                                     v-if="detailRows(log).length"
                                                     class="h-4 w-4 transition-transform"
                                                     :class="expanded.has(log.id) ? 'rotate-180' : ''"
                                                 />
                                             </td>
-                                            <td class="whitespace-nowrap px-4 py-4 text-sm text-slate-200">{{ formatDate(log.created_at) }}</td>
-                                            <td class="px-4 py-4">
+                                            <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-200">{{ formatDate(log.created_at) }}</td>
+                                            <td class="px-4 py-3">
                                                 <div class="flex items-center gap-2">
                                                     <span class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-700/60 text-[10px] font-semibold text-slate-200 ring-1 ring-white/10">
                                                         {{ initials(log.user_name) }}
                                                     </span>
-                                                    <span class="text-sm font-medium text-white">{{ log.user_name || $t('auditlogs.system') }}</span>
+                                                    <span class="text-xs font-medium text-white">{{ log.user_name || $t('auditlogs.system') }}</span>
                                                 </div>
                                             </td>
-                                            <td class="px-4 py-4">
+                                            <td class="px-4 py-3">
                                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium" :class="eventMeta(log.event).class">
                                                     {{ eventMeta(log.event).label }}
                                                 </span>
                                             </td>
-                                            <td class="px-4 py-4 text-sm text-slate-200" :title="log.description || ''">
+                                            <td class="px-4 py-3 text-xs text-slate-200" :title="log.description || ''">
                                                 {{ auditDescription(log) }}
                                                 <div v-if="log.subject" class="text-xs text-slate-500">{{ log.subject }}</div>
                                             </td>
-                                            <td class="whitespace-nowrap px-4 py-4 text-sm text-slate-400">{{ log.ip_address || '—' }}</td>
+                                            <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-400">{{ log.ip_address || '—' }}</td>
                                         </tr>
-                                        <tr v-if="expanded.has(log.id) && detailRows(log).length" :key="`${log.id}-detail`" class="bg-slate-950/40">
+                                        <tr v-if="expanded.has(log.id) && detailRows(log).length" :key="`${log.id}-detail`" class="bg-canvas-3/40">
                                             <td></td>
-                                            <td colspan="5" class="px-4 py-4">
+                                            <td colspan="5" class="px-4 py-3">
                                                 <dl class="grid gap-2 sm:grid-cols-2">
                                                     <div v-for="d in detailRows(log)" :key="d.key" class="rounded-md bg-slate-900/60 px-3 py-2 text-xs">
                                                         <dt class="font-medium text-slate-400">{{ d.key }}</dt>

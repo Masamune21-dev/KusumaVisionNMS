@@ -185,7 +185,7 @@ const syncFromOlt = () => {
                     </div>
 
                     <!-- Add form row -->
-                    <div class="border-b border-white/10 bg-slate-950/40 px-6 py-4">
+                    <div class="border-b border-white/10 bg-canvas-3/40 px-6 py-4">
                         <form class="grid gap-4 md:grid-cols-12 md:items-end" @submit.prevent="store(type)">
                             <div class="md:col-span-3">
                                 <InputLabel :for="`name-${type.key}`" :value="$t('profiles.name_profile')" />
@@ -326,33 +326,33 @@ const syncFromOlt = () => {
                     </div>
 
                     <div class="kv-table-desktop">
-                        <table class="min-w-[720px] w-full">
+                        <table class="min-w-[720px] w-full text-xs">
                             <thead>
-                                <tr class="border-b border-white/10 bg-slate-950/40">
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('profiles.name') }}</th>
-                                    <th v-if="type.key === 'vlan'" class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">VLAN</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Params</th>
-                                    <th class="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
-                                    <th class="px-6 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
+                                <tr class="border-b border-white/10 bg-canvas-3/40">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('profiles.name') }}</th>
+                                    <th v-if="type.key === 'vlan'" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">VLAN</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Params</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</th>
+                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
                                 <tr v-if="rowsFor(type).length === 0">
-                                    <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-6 py-8 text-center text-sm text-slate-500">
+                                    <td :colspan="type.key === 'vlan' ? 5 : 4" class="px-4 py-8 text-center text-xs text-slate-500">
                                         {{ $t('profiles.empty') }}
                                     </td>
                                 </tr>
                                 <tr v-for="profile in rowsFor(type)" :key="profile.id" class="transition-colors duration-150 hover:bg-white/[0.03]">
                                     <template v-if="editing[profile.id]">
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <TextInput v-model="editing[profile.id].name" class="block w-48" required />
                                             <InputError class="mt-2" :message="editing[profile.id].errors.name" />
                                         </td>
-                                        <td v-if="type.key === 'vlan'" class="px-6 py-4">
+                                        <td v-if="type.key === 'vlan'" class="px-4 py-3">
                                             <TextInput v-model="editing[profile.id].vlan" type="number" class="block w-28" required />
                                             <InputError class="mt-2" :message="editing[profile.id].errors.vlan" />
                                         </td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <div v-if="type.key === 'tcont'" class="grid gap-2 md:grid-cols-2">
                                                 <TextInput v-model="editing[profile.id].params.type" type="number" class="block w-full" />
                                                 <TextInput v-model="editing[profile.id].params.maximum" type="number" class="block w-full" />
@@ -360,17 +360,17 @@ const syncFromOlt = () => {
                                             <TextInput v-else-if="type.key === 'ip'" v-model="editing[profile.id].params.gateway" class="block w-full" />
                                             <TextInput v-else v-model="editing[profile.id].notes" class="block w-72" />
                                         </td>
-                                        <td class="px-6 py-4">
-                                            <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                                        <td class="px-4 py-3">
+                                            <label class="inline-flex items-center gap-2 text-xs text-slate-200">
                                                 <input v-model="editing[profile.id].is_active" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
                                                 {{ $t('profiles.active') }}
                                             </label>
-                                            <label class="mt-2 inline-flex items-center gap-2 text-sm text-slate-200">
+                                            <label class="mt-2 inline-flex items-center gap-2 text-xs text-slate-200">
                                                 <input v-model="editing[profile.id].execute_cli" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
                                                 {{ $t('profiles.execute_cli') }}
                                             </label>
                                         </td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="flex justify-center gap-1.5">
                                                 <IconButton variant="success" :title="$t('common.save')" :disabled="editing[profile.id].processing" @click="update(profile)">
                                                     <Check class="h-4 w-4" />
@@ -382,14 +382,14 @@ const syncFromOlt = () => {
                                         </td>
                                     </template>
                                     <template v-else>
-                                        <td class="px-6 py-4 text-sm font-medium text-white">{{ profile.name }}</td>
-                                        <td v-if="type.key === 'vlan'" class="px-6 py-4 text-sm text-slate-200">{{ profile.vlan }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-200">
+                                        <td class="px-4 py-3 text-xs font-medium text-white">{{ profile.name }}</td>
+                                        <td v-if="type.key === 'vlan'" class="px-4 py-3 text-xs text-slate-200">{{ profile.vlan }}</td>
+                                        <td class="px-4 py-3 text-xs text-slate-200">
                                             <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
                                             <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
                                             <span v-else>{{ profile.notes || '-' }}</span>
                                         </td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="space-y-1">
                                                 <span
                                                     class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1"
@@ -402,7 +402,7 @@ const syncFromOlt = () => {
                                                 <div class="text-xs text-slate-400">{{ profile.source || 'manual' }}</div>
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4">
+                                        <td class="px-4 py-3">
                                             <div class="flex items-center justify-center gap-1.5">
                                                 <IconButton v-if="ownedByCurrentOlt(profile)" :title="$t('profiles.edit_profile')" @click="startEdit(profile)">
                                                     <Pencil class="h-4 w-4" />

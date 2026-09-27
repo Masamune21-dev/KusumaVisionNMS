@@ -64,7 +64,7 @@ const alarmType = (type) => alarmTypeLabel(t, type);
         </div>
 
         <div v-if="alarms.length > 0" class="kv-table-desktop">
-            <table class="w-full min-w-[640px] text-sm">
+            <table class="w-full min-w-[640px] text-xs">
                 <thead>
                     <tr class="border-b border-white/5 text-left text-[11px] uppercase tracking-wider text-slate-500">
                         <th class="px-5 py-2.5 font-medium">{{ $t('dashboard.col_time') }}</th>
