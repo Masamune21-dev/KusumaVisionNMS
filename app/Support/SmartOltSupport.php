@@ -52,8 +52,9 @@ class SmartOltSupport
             }
         }
 
-        // C-Data GPON 34592 — hint spesifik menang atas "cdata"/"epon" generik.
-        foreach (['34592', 'cdata native', 'c-data native', 'cdata gpon', 'c-data gpon', 'fd-onu', 'fd-olt', 'fd1608', 'fd1216', 'fd1616'] as $needle) {
+        // C-Data GPON — hint spesifik menang atas "cdata"/"epon" generik. FD160xS = seri GPON ringkas
+        // (1/2/4 PON); sysObjectID-nya 17409 seperti EPON, jadi model harus dikenali dari teks.
+        foreach (['34592', 'cdata native', 'c-data native', 'cdata gpon', 'c-data gpon', 'fd-onu', 'fd-olt', 'fd1601', 'fd1602', 'fd1604', 'fd1608', 'fd1216', 'fd1616'] as $needle) {
             if (str_contains($haystack, $needle)) {
                 return self::DRIVER_CDATA_GPON;
             }
@@ -309,7 +310,9 @@ class SmartOltSupport
     }
 
     /**
-     * C-Data GPON 34592 — v1 read-only. Optical/inventory pada FlashV3.x hanya tersedia via CLI.
+     * C-Data GPON (FD16xxS). Inventory/status/SN/Rx via SNMP tabel NSCRTV `17409.2.8.4` di semua
+     * varian; `is_v3` (probe `34592…18.12`) hanya membuka fitur CLI yang terverifikasi di FD1608S
+     * (Rx CLI sebagai sumber utama, Remote ONT). FD1601S/FD1602S tak punya tabel itu → Rx SNMP.
      *
      * @return array<string, mixed>
      */

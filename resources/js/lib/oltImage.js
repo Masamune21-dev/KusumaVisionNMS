@@ -19,7 +19,12 @@ export function oltImageKey(olt = {}) {
     const driver = String(olt.driver ?? '');
     const hay = `${olt.name ?? ''} ${olt.vendor ?? ''} ${olt.model ?? ''}`.toLowerCase();
 
-    if (driver.startsWith('cdata-gpon')) return 'cdata-gpon';
+    // GPON kecil punya panel sendiri (1/2 PON, GE RJ45, 10GE, CONSOLE); model dari faceplate `device.model`.
+    if (driver.startsWith('cdata-gpon')) {
+        if (hay.includes('fd1601')) return 'cdata-gpon-fd1601s';
+        if (hay.includes('fd1602')) return 'cdata-gpon-fd1602s';
+        return 'cdata-gpon';
+    }
     if (driver.startsWith('cdata-epon')) return 'cdata-epon';
     // HA7302 dikenali backend dari firmware/sysDescr juga (capabilities.is_ha7302), bukan cuma nama.
     if (driver.startsWith('hioso')) return olt.capabilities?.is_ha7302 || hay.includes('ha7302') ? 'hioso-ha7302' : 'hioso-epon';

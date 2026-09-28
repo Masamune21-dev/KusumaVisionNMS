@@ -1,5 +1,47 @@
 # Worklog
 
+## 2026-09-28 — C-Data GPON: Dukungan FD1601S/FD1602S, Status Offline Palsu, Data Uji Fiktif
+
+### Fixed
+
+- **C-Data GPON 1/2 PON (FD1601S-B1/FD1602S-B1) terbaca 0 ONU** (dilaporkan pengguna repo ini untuk FD1602S).
+  `CDataGponSnmpService` memilih jalur dari probe `34592…18.12.1.1` lalu jatuh ke tabel legacy
+  `34592.1.3.4.1.1.11` — keduanya tak ada di firmware seri ini. Jalur utama kini tabel
+  **NSCRTV-FTTX-GPON-MIB `17409.2.8.4`** di semua model: nama `.1.1.2`, SN `.1.1.3`, vendor `.1.1.5`, model
+  `.1.1.6`, status `.1.1.7` (`onuOperationStatus` 1 up/2 down), sebab down `.1.1.103`, Rx `.4.1.4` (centi-dBm).
+- **ONU online tampil offline di FD1608S.** Status dulu dibaca dari tabel optik `34592…21.1.1.2`, yang pada
+  OLT uji melaporkan `-1` untuk tiga ONU yang menurut CLI `Online`. Kolom `.7` cocok 1:1 dengan
+  `show ont info all`; tabel `.21` kini hanya cadangan.
+- **ONU yang namanya dikirim sebagai Hex-STRING** (padding NUL dari firmware) gagal diparse dan tak pernah
+  tampil — kini di-decode dan dipotong di NUL pertama.
+- **Faceplate GPON ringkas:** model dari `17409.2.3.1.2.1.1.3.1` (kolom `.2.1` bisa berisi hostname);
+  GPON ≤ 2 PON digambar PON · GE RJ45 · 10GE · CONSOLE sesuai datasheet, bukan COMBO GE + MGMT milik FD1608S.
+
+### Changed
+
+- `CDataSnmp::walk` melempar `CDataSnmpMissingOid` (subkelas `RuntimeException`) untuk `noSuchObject`/
+  `noSuchInstance`; driver GPON menganggap tabel absen = kosong, tapi timeout tetap menggagalkan scan supaya
+  cache lama bertahan alih-alih tiba-tiba 0 ONU.
+- Enrich CLI berlaku untuk semua GPON bertelnet; daftar ONU & status tetap dari SNMP. Tanpa telnet inventory
+  tetap lengkap (SN, model, Rx via SNMP). `SmartOltSupport::driverKey()` mengenali `fd1601`/`fd1602`/`fd1604`.
+- Gambar produk `public/img/olt/cdata-gpon-fd1601s.webp` & `cdata-gpon-fd1602s.webp`, dipilih `lib/oltImage.js`
+  dari model faceplate.
+- Dokumen C-Data (`SMARTOLT_CDATA_GUIDE.md`, handbook 17) diperbarui dengan peta OID NSCRTV; nama OLT, ID,
+  serial perangkat, deskripsi & serial ONU, serta MAC contoh diganti nilai fiktif.
+- Data uji C-Data (serial ONU, MAC, deskripsi, VLAN) diganti nilai fiktif.
+
+### Created
+
+- Test: driver GPON via NSCRTV, `.7` menang atas `.21`, timeout vs tabel absen, kata kunci model; serial 8 byte,
+  Rx centi-dBm, nama Hex-STRING ber-NUL; layout faceplate ringkas; `tests/js/oltImage.spec.js`.
+
+### Notes
+
+- Diverifikasi pada perangkat FD1608S-B1 (V3.3.86) dan FD1601S-B1 (V3.2.5): inventory, SN, status, dan Rx
+  cocok dengan CLI; rename & reboot ONU di FD1601S berhasil dari UI.
+- OLT di balik NAT: SNMP wajib diteruskan sebagai **UDP** (NMS tak memakai SNMP-over-TCP).
+- `bash scripts/test.sh` 620 passed; `npm test` 29 passed; `npm run build` OK.
+
 ## 2026-09-28 — install.sh: Admin Pertama Selalu Role Admin, Password Dicek Sebelum Dibuat
 
 ### Fixed

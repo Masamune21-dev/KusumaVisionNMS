@@ -29,6 +29,8 @@ use Throwable;
  *   - GPON FD1608S-B1: PON 1-8 SFP (jeda tiap 4) · COMBO GE 1-4 SFP · XGE 1-2 SFP ·
  *     COMBO GE 1-4 RJ45 bertumpuk 2×2 · CONSOLE/MGMT · LED. Port GE combo = satu port logis
  *     dengan dua konektor, jadi statusnya sama di kedua blok.
+ *   - GPON ringkas FD1601S-B1 / FD1602S-B1 (≤ 2 PON, datasheet + foto 28 Sep 2026): PON SFP ·
+ *     GE 1-2 RJ45 sebaris (bukan combo) · 10GE SFP+ · CONSOLE saja (tanpa MGMT).
  *   Konvensi C-Data untuk port bertumpuk (label `1▼▲2`): genap di ATAS, ganjil di BAWAH.
  *
  * Struktur grup: `rows` (1 = sebaris, 2 = bertumpuk, urutan port kolom demi kolom dari atas),
@@ -43,7 +45,11 @@ class CDataFaceplateService
 
     private const IF_ADMIN = '1.3.6.1.2.1.2.2.1.7';
 
-    // Tabel device/card enterprise (GPON FlashV3): identitas perangkat.
+    // Tabel device/card enterprise (GPON FlashV3): identitas perangkat. `.3.1` = model produk di
+    // semua C-Data yang diuji (FD1608S-B1-NDA0, FD1601S-B1, FD1304E); `.2.1` = nama/hostname device
+    // (kebetulan sama dgn model di FD1608S yang hostname-nya bawaan) — hanya cadangan.
+    private const DEV_PRODUCT = '1.3.6.1.4.1.17409.2.3.1.2.1.1.3.1';
+
     private const DEV_MODEL = '1.3.6.1.4.1.17409.2.3.1.2.1.1.2.1';
 
     private const DEV_VENDOR = '1.3.6.1.4.1.17409.2.3.1.2.1.1.10.1';
@@ -127,7 +133,10 @@ class CDataFaceplateService
         usort($ge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
         usort($xge, fn ($a, $b) => $a['pos'] <=> $b['pos']);
 
-        if ($ge !== [] && $isGpon) {
+        // FD1601S/FD1602S: GE RJ45 biasa & hanya CONSOLE — combo + MGMT khusus FD1608S.
+        $compactGpon = $isGpon && array_sum(array_map('count', $pon)) <= 2;
+
+        if ($ge !== [] && $isGpon && ! $compactGpon) {
             // FD1608S: 4 SFP combo sebaris, lalu (setelah XGE) 4 RJ45 combo bertumpuk.
             $groups[] = ['key' => 'ge-sfp', 'label' => 'COMBO GE', 'kind' => 'fiber', 'rows' => 1, 'module' => $module, 'ports' => $ge];
         } elseif ($ge !== []) {
@@ -144,27 +153,29 @@ class CDataFaceplateService
                 'ports' => $stacked ? self::stackEvenOnTop($xge) : $xge,
             ];
         }
-        if ($ge !== [] && $isGpon) {
+        if ($ge !== [] && $isGpon && ! $compactGpon) {
             $groups[] = ['key' => 'ge-rj45', 'label' => 'COMBO GE', 'kind' => 'copper', 'rows' => 2, 'module' => $module, 'ports' => self::stackEvenOnTop($ge)];
         }
-        // CONSOLE (atas) / MGMT (bawah): konektor RJ45 di luar SNMP.
+        // CONSOLE (atas) / MGMT (bawah): konektor RJ45 di luar SNMP. GPON ringkas cuma CONSOLE.
+        $console = ['pos' => 'C', 'name' => 'CONSOLE', 'label' => 'CONSOLE', 'status' => 'fixed', 'fixed' => true];
         $groups[] = [
             'key' => 'mgmt',
             'label' => '',
             'kind' => 'copper',
-            'rows' => 2,
+            'rows' => $compactGpon ? 1 : 2,
             'module' => $module,
-            'ports' => [
-                ['pos' => 'C', 'name' => 'CONSOLE', 'label' => 'CONSOLE', 'status' => 'fixed', 'fixed' => true],
+            'ports' => $compactGpon ? [$console] : [
+                $console,
                 ['pos' => 'M', 'name' => 'MGMT', 'label' => 'MGMT', 'status' => 'fixed', 'fixed' => true],
             ],
         ];
 
         return [
             'device' => array_filter([
-                // Kolom `.2.1.1.2.1`: model produk bersih di GPON (`FD1608S-…`); di EPON berisi
-                // NAMA device fixed-width null-padded (balik sbg Hex-STRING) → buang, bukan model.
-                'model' => $this->productModel($this->snmp->get($olt, self::DEV_MODEL)),
+                // Model produk `.3.1`; cadangan `.2.1` (di EPON berisi NAMA device fixed-width
+                // null-padded yang balik sbg Hex-STRING → dibuang, bukan model).
+                'model' => $this->productModel($this->snmp->get($olt, self::DEV_PRODUCT))
+                    ?? $this->productModel($this->snmp->get($olt, self::DEV_MODEL)),
                 'vendor' => $this->snmp->get($olt, self::DEV_VENDOR),
                 'hw_version' => $this->snmp->get($olt, self::DEV_HW),
                 'sw_version' => $this->snmp->get($olt, self::DEV_SW),

@@ -13,10 +13,10 @@ class CDataGponCliParseTest extends TestCase
   F/S P  ONT    SN               Control  Run     Config    Match     Last       Desc
          ID                      flag     state   state     state     down-cause
 ----------------------------------------------------------------------------------------
-  0/0 1  1      CDTCAFD296DB     Active   Online  success   match     --         SERVER-PENJAWI
-  0/0 1  2      ZTEGC2C52215     Active   Online  success   match     reboot     Pak Budi Sukamaju
-  0/0 1  4      ZTEGC89FE178     Active   Online  success   match     dying-gasp Andi Wijaya Sukamaju/ Vlan 24
-  0/0 1  32     ZTEGCD7D32CF     Deactive Offline success   match     dying-gasp Mbah Siti Kulon Sukamaju
+  0/0 1  1      CDTC0A1B2C3D     Active   Online  success   match     --         PELANGGAN-UJI-01
+  0/0 1  2      ZTEG00000002     Active   Online  success   match     reboot     Pak Budi Sukamaju
+  0/0 1  4      ZTEG00000004     Active   Online  success   match     dying-gasp Andi Wijaya Sukamaju/ Vlan 100
+  0/0 1  32     ZTEG00000032     Deactive Offline success   match     dying-gasp Mbah Siti Kulon Sukamaju
 ----------------------------------------------------------------------------------------
   Total: 31,  online: 31,  deactive: 0,  success: 31 , failed: 0
 TXT;
@@ -31,12 +31,12 @@ TXT;
         $first = $onus[0];
         $this->assertSame([0, 1, 1], [$first['slot'], $first['port'], $first['onu_id']]);
         $this->assertSame('gpon 0/0/1:1', $first['interface']);
-        $this->assertSame('CDTCAFD296DB', $first['serial_number']);
+        $this->assertSame('CDTC0A1B2C3D', $first['serial_number']);
         $this->assertSame('CDTC', $first['vendor_id']);
         $this->assertSame('enable', $first['admin_state']);
         $this->assertTrue($first['online']);
         $this->assertNull($first['last_down_cause']); // "--"
-        $this->assertSame('SERVER-PENJAWI', $first['name']);
+        $this->assertSame('PELANGGAN-UJI-01', $first['name']);
         $this->assertSame('cli', $first['source']);
     }
 
@@ -44,7 +44,7 @@ TXT;
     {
         $onus = (new CDataGponCliService)->parseOntInfo(self::SAMPLE);
 
-        $this->assertSame('Andi Wijaya Sukamaju/ Vlan 24', $onus[2]['name']);
+        $this->assertSame('Andi Wijaya Sukamaju/ Vlan 100', $onus[2]['name']);
         $this->assertSame('dying-gasp', $onus[2]['last_down_cause']);
     }
 

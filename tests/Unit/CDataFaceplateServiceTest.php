@@ -58,7 +58,7 @@ class CDataFaceplateServiceTest extends TestCase
             ],
             gets: [
                 '1.3.6.1.4.1.17409.2.3.1.2.1.1.2.1' => 'FD1608S-B1-NDA0',
-                '1.3.6.1.4.1.17409.2.3.1.3.1.1.12.1.0' => 'DA22-2411000162',
+                '1.3.6.1.4.1.17409.2.3.1.3.1.1.12.1.0' => 'DA00-0000000001',
                 '1.3.6.1.4.1.17409.2.3.1.3.1.1.14.1.0' => 'GPON OLT',
             ],
         );
@@ -90,8 +90,51 @@ class CDataFaceplateServiceTest extends TestCase
         $this->assertSame([], $panel['fixed_ports']);
 
         $this->assertSame('FD1608S-B1-NDA0', $panel['device']['model']);
-        $this->assertSame('DA22-2411000162', $panel['device']['serial']);
+        $this->assertSame('DA00-0000000001', $panel['device']['serial']);
         $this->assertSame('off', collect($panel['leds'])->firstWhere('key', 'alm')['state']);
+    }
+
+    /**
+     * FD1601S-B1 (live 28 Sep 2026): `.2.1` berisi hostname, model ada di `.3.1`. Panel fisik (datasheet
+     * + foto): PON · GE 1-2 RJ45 · 10GE SFP+ · CONSOLE — tanpa blok combo & MGMT milik FD1608S.
+     */
+    public function test_compact_gpon_layout_and_model_from_product_column(): void
+    {
+        $snmp = new FakeFaceplateSnmp(
+            walks: [
+                '1.3.6.1.2.1.2.2.1.2' => [
+                    '1.3.6.1.2.1.2.2.1.2.524289' => 'ge 0/0/1',
+                    '1.3.6.1.2.1.2.2.1.2.524290' => 'ge 0/0/2',
+                    '1.3.6.1.2.1.2.2.1.2.786433' => 'xge 0/0/1',
+                    '1.3.6.1.2.1.2.2.1.2.1310721' => 'gpon 0/0/1',
+                ],
+                '1.3.6.1.2.1.2.2.1.8' => [
+                    '1.3.6.1.2.1.2.2.1.8.524289' => '1',
+                    '1.3.6.1.2.1.2.2.1.8.524290' => '1',
+                    '1.3.6.1.2.1.2.2.1.8.786433' => '2',
+                    '1.3.6.1.2.1.2.2.1.8.1310721' => '1',
+                ],
+            ],
+            gets: [
+                '1.3.6.1.4.1.17409.2.3.1.2.1.1.2.1' => 'Hostname-Uji',
+                '1.3.6.1.4.1.17409.2.3.1.2.1.1.3.1' => 'FD1601S-B1',
+                '1.3.6.1.4.1.17409.2.3.1.3.1.1.14.1.0' => 'GPON OLT',
+            ],
+        );
+
+        $panel = (new CDataFaceplateService($snmp))->collect($this->olt());
+
+        $this->assertSame(['PON 0/0', 'GE', 'XGE', ''], array_column($panel['groups'], 'label'));
+        $ge = $panel['groups'][1];
+        $this->assertSame('copper', $ge['kind']);
+        $this->assertSame(1, $ge['rows']);
+        $this->assertSame(['ge 0/0/1', 'ge 0/0/2'], array_column($ge['ports'], 'name'));
+
+        $mgmt = $panel['groups'][3];
+        $this->assertSame(1, $mgmt['rows']);
+        $this->assertSame(['CONSOLE'], array_column($mgmt['ports'], 'name'));
+
+        $this->assertSame('FD1601S-B1', $panel['device']['model']);
     }
 
     public function test_subgroups_epon_pon_per_frame_and_drops_hex_model(): void
@@ -109,7 +152,7 @@ class CDataFaceplateServiceTest extends TestCase
             ],
             gets: [
                 // Field nama fixed-width null-padded balik sbg Hex-STRING (dgn trailing space,
-                // spt PEKALONGAN live) → harus di-drop, bukan jadi model.
+                // spt OLT EPON live) → harus di-drop, bukan jadi model.
                 '1.3.6.1.4.1.17409.2.3.1.2.1.1.2.1' => '4F 4C 54 2D 43 44 41 00 00 00 00 00 00 00 00 00 ',
                 '1.3.6.1.4.1.17409.2.3.1.3.1.1.14.1.0' => 'EPON OLT',
             ],

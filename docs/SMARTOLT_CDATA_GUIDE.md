@@ -4,18 +4,20 @@
 >
 > Companion: [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md), [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md), [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md), [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md).
 >
-> Terakhir diperbarui: 13 Juli 2026.
+> Terakhir diperbarui: 28 September 2026 (GPON: jalur SNMP NSCRTV `17409.2.8.4`, dukungan FD1601S/FD1602S).
 
 C-Data dipasarkan dengan dua keluarga enterprise OID yang **berbeda dan tidak boleh dicampur**. Di repo ini keduanya driver **non-ZTE** yang di-resolve [`SmartOltSnmpServiceResolver`](../app/Services/SmartOltSnmpServiceResolver.php) dan ikut **polling terjadwal** via [`PollOltJob::pollViaScanner`](../app/Jobs/PollOltJob.php) + [`CDataOltScanner`](../app/Services/CData/CDataOltScanner.php):
 
 | Family | Enterprise root | MIB publik | Contoh perangkat | Driver di repo ini |
 | --- | --- | --- | --- | --- |
 | **C-Data / ODM EPON** | `1.3.6.1.4.1.17409` | `NSCRTV-EPON-*` | FD1108S, FD1208S, FD1504, OLT EPON OEM/ODM | SNMP [`CDataEponSnmpService`](../app/Services/CData/CDataEponSnmpService.php) · CLI write [`CDataCliWriteService`](../app/Services/CData/CDataCliWriteService.php) |
-| **C-Data native GPON** | `1.3.6.1.4.1.34592` | `FD-ONU-MIB`, `FD-OLT-MIB`, `CDATA-GPON-MIB` | FD1608S, FD1216S, FD1616GS (FlashV2.x / FlashV3.x) | SNMP [`CDataGponSnmpService`](../app/Services/CData/CDataGponSnmpService.php) · CLI read [`CDataGponCliService`](../app/Services/CData/CDataGponCliService.php) · CLI write `CDataCliWriteService` |
+| **C-Data native GPON** | `1.3.6.1.4.1.34592` (+ NSCRTV `17409.2.8`) | `FD-ONU-MIB`, `FD-OLT-MIB`, `CDATA-GPON-MIB`, `NSCRTV-FTTX-GPON-MIB` | FD1601S, FD1602S, FD1608S, FD1216S, FD1616GS (FlashV2.x / FlashV3.x) | SNMP [`CDataGponSnmpService`](../app/Services/CData/CDataGponSnmpService.php) · CLI read [`CDataGponCliService`](../app/Services/CData/CDataGponCliService.php) · CLI write `CDataCliWriteService` |
 
 > **Penting:** `sysObjectID` adalah penentu family. EPON OEM C-Data mengembalikan `iso.3.6.1.4.1.17409`, GPON native C-Data mengembalikan `iso.3.6.1.4.1.34592`. Jangan asumsikan driver `17409` kompatibel dengan `34592` — index, naming, dan write path-nya beda total.
 >
 > ⚠️ **KOREKSI dari verifikasi lapangan BMKV (lihat §13):** asumsi di atas **tidak selalu benar**. OLT GPON **FD1608S** firmware **FlashV3.x** yang diuji justru mengembalikan `sysObjectID = .1.3.6.1.4.1.17409` (sama dengan EPON!), bukan `34592`. Karena itu BMKV **tidak** mengandalkan `sysObjectID` untuk menentukan family — dipakai string `vendor` yang diset operator (`SmartOltSupport::driverKey()` mencocokkan substring `17409`/`34592`/`cdata`/`epon`/`fd16…`), dan deteksi V3 dari keberadaan tabel `34592…18.12.1.1`. Tabel ONU family masih dibedakan dgn benar (EPON `17409.2.3.4.*` vs GPON `34592.*`), hanya identifier `sysObjectID`-nya yang tidak bisa dipercaya.
+
+> **Update 28 Sep 2026 — jalur utama GPON = NSCRTV `17409.2.8.4`.** Inventory, SN, model, status online (`onuOperationStatus` `.7`), sebab down, dan Rx ONU kini dibaca dari tabel NSCRTV-FTTX-GPON-MIB `17409.2.8.4.*` di **semua** model GPON yang diuji (FD1608S-B1 V3.3.86, FD1601S-B1 V3.2.5). Tabel `34592…` di bawah hanya cadangan: FD1601S tak punya `.18.12`/legacy (dulu terbaca 0 ONU), dan tabel optik `34592…21` melaporkan ONU online sebagai offline. Peta OID lengkap + verifikasi: [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md). Bagian §3.3, §5.5 dan baris V3 di §7 yang menyebut "hanya CLI" adalah catatan lama.
 
 ---
 
@@ -276,19 +278,19 @@ Dipakai oleh `CDataFaceplateService` → cache `last_test_result.panel` → `Com
 | `ge 0/<f>/<n>` | GE uplink | copper | `ge 0/0/1` (ifType 117) |
 | `xge 0/<f>/<n>` | XGE uplink | fiber | `xge 0/0/1` (ifType 1/6) |
 
-Live: **EPON-TAYU** = EPON 0/1 (4) + 0/2 (4) + GE 0/0 (4) + XGE 0/0 (4); **FD1608S** = GPON 0/0 (8) + GE 0/0 (4) + XGE 0/0 (2). Indeks ifIndex C-Data ber-encoding besar (mis. `1310721` utk gpon, `524289` utk ge) — jangan diandalkan; pakai nama.
+Live: **EPON-A** = EPON 0/1 (4) + 0/2 (4) + GE 0/0 (4) + XGE 0/0 (4); **FD1608S** = GPON 0/0 (8) + GE 0/0 (4) + XGE 0/0 (2). Indeks ifIndex C-Data ber-encoding besar (mis. `1310721` utk gpon, `524289` utk ge) — jangan diandalkan; pakai nama.
 
 ### 5b.2 Tabel device/card — `17409.2.3.1.*`
 
 Identitas perangkat. Get langsung per-leaf (walk subtree `2.3.1` kadang gagal getnext di EPON, tapi get leaf tetap jalan):
 
-| OID | Field | EPON-TAYU | FD1608S |
+| OID | Field | EPON-A | FD1608S |
 | --- | --- | --- | --- |
 | `17409.2.3.1.2.1.1.2.1` | model / nama | `OLT-CDA…` (Hex-STRING null-padded → **bukan model**, di-drop) | `FD1608S-B1-NDA0` |
 | `17409.2.3.1.2.1.1.10.1` | vendor | — | `C-Data` |
 | `17409.2.3.1.3.1.1.7.1.0` | versi HW | `V1.1` | `V1.1` |
 | `17409.2.3.1.3.1.1.8.1.0` | versi SW | `V3.4.53_260130` | `V3.3.86_260113` |
-| `17409.2.3.1.3.1.1.12.1.0` | serial | `AF2802-2503000082` | `DA22-2411000162` |
+| `17409.2.3.1.3.1.1.12.1.0` | serial | `AF00-0000000001` | `DA00-0000000001` |
 | `17409.2.3.1.3.1.1.14.1.0` | device type | `EPON OLT` | `GPON OLT` |
 
 > Kolom `.2.1.1.2.1` = field nama fixed-width: di GPON berisi model produk bersih, di EPON berisi sysName ter-truncate (balik sbg Hex-STRING). `CDataFaceplateService::productModel()` membuang nilai berbentuk hex-string; headline EPON fallback ke `device_type`.
@@ -343,9 +345,9 @@ CLI GPON memakai interface `gpon 0/<slot>`, argumen command = `<port> <onuId>`.
 (config-gpon-0/{slot})# end
 ```
 
-> **`ont security-mgmt` (Remote ONT) — GPON FlashV3 saja, TIDAK ada di manual resmi C-Data** (ketemu via context-help live FD1608S-B1, Jul 2026). Klon sintaks ZTE: rule index `1-16`, `mode {forward|discard}`, `protocol {web|https|telnet|ssh|ftp|snmp|tr069}`, `ingress-type {wan|lan|iphost0|iphost1}`, opsional `start-src-ip A.B.C.D end-src-ip A.B.C.D` (tanpa filter = semua source). Push via OMCI, **efek instan tanpa reboot, dipatuhi juga ONT merk ZTE** (diverifikasi live: F660 di OLT 277 — web WAN dari timeout jadi HTTP 200). Dipakai tombol **Remote ONT** di halaman Port ONU (`CDataCliWriteService::setRemoteAccess`, route `cdata-olt.onu.remote-access`, gated `supports_onu_remote_access` = V3 only). Lihat config existing: `show current-config` di level enable (**bukan** `show running-config` — Unknown command di V3).
+> **`ont security-mgmt` (Remote ONT) — GPON FlashV3 saja, TIDAK ada di manual resmi C-Data** (ketemu via context-help live FD1608S-B1, Jul 2026). Klon sintaks ZTE: rule index `1-16`, `mode {forward|discard}`, `protocol {web|https|telnet|ssh|ftp|snmp|tr069}`, `ingress-type {wan|lan|iphost0|iphost1}`, opsional `start-src-ip A.B.C.D end-src-ip A.B.C.D` (tanpa filter = semua source). Push via OMCI, **efek instan tanpa reboot, dipatuhi juga ONT merk ZTE** (diverifikasi live: F660 di OLT uji — web WAN dari timeout jadi HTTP 200). Dipakai tombol **Remote ONT** di halaman Port ONU (`CDataCliWriteService::setRemoteAccess`, route `cdata-olt.onu.remote-access`, gated `supports_onu_remote_access` = V3 only). Lihat config existing: `show current-config` di level enable (**bukan** `show running-config` — Unknown command di V3).
 
-> **`ont delete` terverifikasi live (27 Jun 2026)** via context-help di submode interface (read-only `?`), pada FD1608S (GPON, OLT 277) **dan** FD1108S (EPON, OLT 276) — sintaks **identik**:
+> **`ont delete` terverifikasi live (27 Jun 2026)** via context-help di submode interface (read-only `?`), pada FD1608S (GPON) **dan** FD1108S (EPON) — sintaks **identik**:
 > `ont delete <PORTID>` lalu arg ke-2 `<1-128>` (ONT ID) | `all` | `offline-list`.
 > Grup `no ont` **tidak** punya bentuk delete (hanya `no ont description|gemport|tcont|…`), jadi gunakan `ont delete`, **bukan** `no ont`.
 
@@ -386,11 +388,11 @@ Aksi **OLT-level** (bukan per-ONU): simpan running-config ke memori OLT. Dipakai
 
 | Kapabilitas | EPON 17409 | GPON 34592 (legacy/V2) | GPON 34592 (V3.x) |
 | --- | --- | --- | --- |
-| Read inventory ONU | SNMP | SNMP | **CLI** (`show ont info all`) |
-| Read Rx/optical | SNMP `2.1.4` | DDM SNMP `17.2.1.*` (port) | **CLI** `show ont optical-info` (Rx/Tx/OLT-Rx/temp/volt/bias) |
+| Read inventory ONU | SNMP | SNMP `17409.2.8.4.1.1.2` (cadangan legacy `34592.1.3.4`) | SNMP `17409.2.8.4.1.1.2` (+ enrich CLI bila telnet) |
+| Read Rx/optical | SNMP `2.1.4` | SNMP `17409.2.8.4.4.1.4` (centi-dBm) | SNMP `17409.2.8.4.4.1.4`; CLI `show ont optical-info` diutamakan bila telnet |
 | Read MAC | SNMP `1.1.7` | SNMP | **CLI** `show mac-address all` |
-| Read SN | SNMP `1.1.28` | — | **CLI** (`show ont info all`) |
-| Status online | SNMP `1.1.8` | SNMP `1.1.11` | CLI run-state |
+| Read SN | SNMP `1.1.28` | SNMP `17409.2.8.4.1.1.3` | SNMP `17409.2.8.4.1.1.3` |
+| Status online | SNMP `1.1.8` | SNMP `17409.2.8.4.1.1.7` | SNMP `17409.2.8.4.1.1.7` (cocok 1:1 CLI run-state) |
 | Rename / deskripsi | **CLI** `ont description` | SNMP `.18.2.1.5` *atau* CLI | **CLI** `ont description` |
 | Reboot ONU | **CLI** `ont reboot` | SNMP `.18.4.1.1` | **CLI** `ont reboot` |
 | Enable / disable ONU | **CLI** `ont enable/disable` | **CLI** `ont activate/deactivate` | **CLI** `ont activate/deactivate` |
@@ -433,8 +435,8 @@ Setiap fitur write wajib: role guard (write-only role), konfirmasi modal (bukan 
 | --- | --- | --- | --- | --- |
 | Rx ONU | EPON 17409 | centi-dBm (int) | `raw / 100` | `-1697 → -16.97 dBm` |
 | Rx/Tx/OLT-Rx/Temp/Volt/Bias | GPON V3 (CLI) | sudah desimal di output | langsung | `-19.03`, `49.70`, `3.26` |
-| MAC | EPON 17409 | Hex-STRING (`D0 5F AF …`) | join `:` + uppercase | `D0:5F:AF:63:0F:2F` |
-| MAC | GPON (CLI) | `D0:5F:AF:D2:96:DD` | normalisasi separator | `D0:5F:AF:D2:96:DD` |
+| MAC | EPON 17409 | Hex-STRING (`D0 5F AF …`) | join `:` + uppercase | `D0:5F:AF:00:00:01` |
+| MAC | GPON (CLI) | `D0:5F:AF:00:00:02` | normalisasi separator | `D0:5F:AF:00:00:02` |
 | Status | EPON/GPON | int | `1=online`, `2=offline` | — |
 | No-signal | EPON Rx | `raw == 0` | flag offline | — |
 
@@ -528,7 +530,7 @@ Diuji terhadap dua OLT produksi. **Yang tertulis di bawah adalah perilaku nyata*
 
 | OLT | Model / firmware | sysObjectID | Inventory | Jumlah | Waktu |
 | --- | --- | --- | --- | --- | --- |
-| EPON | OEM 17409 (sysName `OLT-CDATA-TAYU`) | `.1.3.6.1.4.1.17409` | **SNMP** `17409.2.3.4.*` | 258 ONU | ~0,7 s |
+| EPON | OEM 17409 (sysName `OLT-EPON-A`) | `.1.3.6.1.4.1.17409` | **SNMP** `17409.2.3.4.*` | 258 ONU | ~0,7 s |
 | GPON | **FD1608S** `V3.3.86_260113` | `.1.3.6.1.4.1.17409` (**bukan 34592!**) | **CLI** `show ont info all` | 31 ONU | ~0,4 s |
 
 **Temuan kunci:**
@@ -543,7 +545,7 @@ Diuji terhadap dua OLT produksi. **Yang tertulis di bawah adalah perilaku nyata*
 ```
 # show ont info all                       (di level enable)
   F/S P  ONT_ID  SN            CONTROL  RUN     CONFIG   MATCH  LAST_DOWN   DESC
-  0/0 1  1       CDTCAFD296DB  Active   Online  success  match  --          SERVER-PENJAWI
+  0/0 1  1       CDTC0A1B2C3D  Active   Online  success  match  --          PELANGGAN-UJI-01
   ...
   Total: 31,  online: 31, ...
 ```

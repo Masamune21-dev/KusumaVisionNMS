@@ -3,7 +3,7 @@
 namespace App\Services\CData;
 
 /**
- * Helper parsing murni untuk driver C-Data (EPON 17409 & GPON 34592).
+ * Helper parsing murni untuk driver C-Data (EPON 17409 & GPON).
  *
  * Dipisah dari koneksi SNMP supaya logika decode index/MAC/optical yang rawan bug
  * bisa diuji unit tanpa perangkat. Semua method bebas efek samping.
@@ -39,7 +39,7 @@ class CDataValue
     }
 
     /**
-     * Hex-STRING MAC (`D0 5F AF 63 0F 2F` atau `0xD05FAF630F2F`) → `D0:5F:AF:63:0F:2F`.
+     * Hex-STRING MAC (`D0 5F AF 00 00 01` atau `0xD05FAF000001`) → `D0:5F:AF:00:00:01`.
      * Bila sudah ber-`:`/`-`, normalisasi separator & uppercase.
      */
     public static function macFromHex(?string $raw): ?string
@@ -145,6 +145,16 @@ class CDataValue
     public static function parseGponOnuName(?string $name): ?array
     {
         $name = self::clean($name);
+
+        // Firmware kadang mengisi sisa field nama dengan NUL + sampah → net-snmp mengirimnya sbg
+        // Hex-STRING (terlihat di FD1608S: `67 70 6F 6E …` = "gpon 0/0/5 onu 6 …\0\0\0ZTE").
+        // Decode, potong di NUL pertama; dulu baris ini gagal diparse dan ONU-nya hilang dari NMS.
+        if ($name !== null && preg_match('/^(?:[0-9A-Fa-f]{2}\s+)+[0-9A-Fa-f]{2}$/', $name)) {
+            $decoded = (string) hex2bin(preg_replace('/\s+/', '', $name) ?? '');
+            $nul = strpos($decoded, "\0");
+            $name = self::clean(mb_scrub($nul === false ? $decoded : substr($decoded, 0, $nul), 'UTF-8'));
+        }
+
         if ($name === null || ! preg_match('/gpon\s+\d+\/(\d+)\/(\d+)\s+onu\s+(\d+)\s*(.*)$/i', $name, $m)) {
             return null;
         }
@@ -157,6 +167,53 @@ class CDataValue
             'onu_id' => (int) $m[3],
             'label' => $label === '' ? null : $label,
         ];
+    }
+
+    /**
+     * Serial ONU GPON dari `onuSerialNum` (`17409.2.8.4.1.1.3`, OCTET STRING 8 byte): 4 byte vendor
+     * ASCII + 4 byte hex → bentuk CLI `ZTEG1A2B3C4D`. net-snmp menampilkannya sebagai Hex-STRING
+     * (`5A 54 45 47 1A 2B 3C 4D`) bila ada byte tak tercetak, atau STRING 8 karakter bila semuanya
+     * tercetak — keduanya ditangani. Nilai yang sudah berbentuk `VVVVXXXXXXXX` diteruskan apa adanya.
+     */
+    public static function gponSerial(?string $raw): ?string
+    {
+        $raw = self::clean($raw);
+        if ($raw === null) {
+            return null;
+        }
+
+        if (preg_match('/^(?:[0-9A-Fa-f]{2}\s+){7}[0-9A-Fa-f]{2}$/', $raw)) {
+            $bytes = hex2bin(preg_replace('/\s+/', '', $raw) ?? '');
+        } elseif (strlen($raw) === 8) {
+            $bytes = $raw;
+        } elseif (preg_match('/^[A-Za-z0-9]{4}[0-9A-Fa-f]{8}$/', $raw)) {
+            return strtoupper($raw);
+        } else {
+            return null;
+        }
+
+        $vendor = substr((string) $bytes, 0, 4);
+        if (! preg_match('/^[A-Za-z0-9]{4}$/', $vendor)) {
+            return null;
+        }
+
+        return strtoupper($vendor.bin2hex(substr((string) $bytes, 4, 4)));
+    }
+
+    /**
+     * Rx ONU GPON dari tabel NSCRTV `17409.2.8.4.4.1.4` (INTEGER centi-dBm, mis. `-2495` → -24.95).
+     * ONU tanpa pembacaan dilaporkan `-1` (terlihat pada ONU offline) atau `0` → null; di luar
+     * jendela Rx masuk akal juga dibuang.
+     */
+    public static function gponCentiRxDbm(?int $raw): ?float
+    {
+        if ($raw === null || $raw >= -1) {
+            return null;
+        }
+
+        $dbm = round($raw / 100, 2);
+
+        return ($dbm >= -60.0 && $dbm <= 5.0) ? $dbm : null;
     }
 
     /**

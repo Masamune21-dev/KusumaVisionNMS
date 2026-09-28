@@ -16,9 +16,9 @@ class CDataValueTest extends TestCase
 
     public function test_mac_from_hex_handles_spaced_and_plain_forms(): void
     {
-        $this->assertSame('D0:5F:AF:63:0F:2F', CDataValue::macFromHex('D0 5F AF 63 0F 2F'));
-        $this->assertSame('D0:5F:AF:63:0F:2F', CDataValue::macFromHex('0xD05FAF630F2F'));
-        $this->assertSame('D0:5F:AF:D2:96:DD', CDataValue::macFromHex('d0-5f-af-d2-96-dd'));
+        $this->assertSame('D0:5F:AF:00:00:01', CDataValue::macFromHex('D0 5F AF 00 00 01'));
+        $this->assertSame('D0:5F:AF:00:00:01', CDataValue::macFromHex('0xD05FAF000001'));
+        $this->assertSame('D0:5F:AF:00:00:02', CDataValue::macFromHex('d0-5f-af-00-00-02'));
         $this->assertNull(CDataValue::macFromHex('not-a-mac'));
     }
 
@@ -60,13 +60,13 @@ class CDataValueTest extends TestCase
     {
         // Bentuk asli tabel legacy 17409 FD1608S.
         $this->assertSame(
-            ['slot' => 0, 'port' => 1, 'onu_id' => 1, 'label' => 'SERVER-PENJAWI'],
-            CDataValue::parseGponOnuName('gpon 0/0/1 onu 1 SERVER-PENJAWI'),
+            ['slot' => 0, 'port' => 1, 'onu_id' => 1, 'label' => 'PELANGGAN-UJI-01'],
+            CDataValue::parseGponOnuName('gpon 0/0/1 onu 1 PELANGGAN-UJI-01'),
         );
         // Label boleh mengandung `/` dan spasi (mis. catatan VLAN).
         $this->assertSame(
-            ['slot' => 0, 'port' => 1, 'onu_id' => 4, 'label' => 'Andi Wijaya Sukamaju/ Vlan 24'],
-            CDataValue::parseGponOnuName('gpon 0/0/1 onu 4 Andi Wijaya Sukamaju/ Vlan 24'),
+            ['slot' => 0, 'port' => 1, 'onu_id' => 4, 'label' => 'Andi Wijaya Sukamaju/ Vlan 100'],
+            CDataValue::parseGponOnuName('gpon 0/0/1 onu 4 Andi Wijaya Sukamaju/ Vlan 100'),
         );
         $this->assertSame(
             ['slot' => 1, 'port' => 2, 'onu_id' => 9, 'label' => null],
@@ -82,5 +82,38 @@ class CDataValueTest extends TestCase
         $this->assertNull(CDataValue::gponRxDbm('--'));      // N/A
         $this->assertNull(CDataValue::gponRxDbm(null));
         $this->assertNull(CDataValue::gponRxDbm('20.61'));   // positif besar = garbage
+    }
+
+    public function test_parse_gpon_onu_name_decodes_nul_padded_hex_string(): void
+    {
+        // "gpon 0/0/5 onu 6 Uji /K" + NUL + sampah, seperti dikirim FD1608S untuk satu ONU.
+        $hex = implode(' ', str_split(strtoupper(bin2hex("gpon 0/0/5 onu 6 Uji /K\0\0\0ZTE")), 2));
+
+        $this->assertSame(
+            ['slot' => 0, 'port' => 5, 'onu_id' => 6, 'label' => 'Uji /K'],
+            CDataValue::parseGponOnuName("Hex-STRING: {$hex}"),
+        );
+    }
+
+    public function test_gpon_serial_from_octet_string(): void
+    {
+        // Hex-STRING (ada byte tak tercetak) — cocok dgn SN CLI `show ont info all` di FD1608S.
+        $this->assertSame('CDTC0A1B2C3D', CDataValue::gponSerial('43 44 54 43 0A 1B 2C 3D'));
+        $this->assertSame('ZTEG1A2B3C4D', CDataValue::gponSerial('Hex-STRING: 5A 54 45 47 1A 2B 3C 4D '));
+        // Semua byte tercetak → net-snmp menampilkan STRING 8 karakter.
+        $this->assertSame('CDTC41424344', CDataValue::gponSerial('STRING: "CDTCABCD"'));
+        $this->assertSame('ZTEG1A2B3C4D', CDataValue::gponSerial('zteg1a2b3c4d'));
+        $this->assertNull(CDataValue::gponSerial('00 00 00 00 00 00 00 00'));
+        $this->assertNull(CDataValue::gponSerial(null));
+        $this->assertNull(CDataValue::gponSerial('ABC'));
+    }
+
+    public function test_gpon_centi_rx_dbm_drops_sentinels(): void
+    {
+        $this->assertSame(-24.95, CDataValue::gponCentiRxDbm(-2495));
+        $this->assertNull(CDataValue::gponCentiRxDbm(-1));   // ONU offline
+        $this->assertNull(CDataValue::gponCentiRxDbm(0));
+        $this->assertNull(CDataValue::gponCentiRxDbm(null));
+        $this->assertNull(CDataValue::gponCentiRxDbm(-9000)); // di luar jendela Rx
     }
 }

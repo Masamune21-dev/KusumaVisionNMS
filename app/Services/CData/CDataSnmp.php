@@ -43,11 +43,18 @@ class CDataSnmp
 
         try {
             $rows = @$session->walk($oid);
+            $errno = $session->getErrno();
         } finally {
             $session->close();
         }
 
         if (! is_array($rows)) {
+            // Subtree tak ada di agent ini ≠ perangkat tak menjawab; tetap RuntimeException agar
+            // pemanggil lama yang menangkap RuntimeException tak berubah perilaku.
+            if ($errno === SNMP::ERRNO_ERROR_IN_REPLY) {
+                throw new CDataSnmpMissingOid("SNMP walk: OID {$oid} tak tersedia di perangkat");
+            }
+
             throw new RuntimeException("SNMP walk gagal untuk {$oid}");
         }
 
