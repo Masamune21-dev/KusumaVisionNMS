@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-09-28 — Dokumentasi & Screenshot Diperbarui (Data Contoh)
+
+### Changed
+
+- **Screenshot README & landing diambil ulang** dari tampilan terbaru (dua tema, sidebar berkelompok, halaman
+  PON Port, peta ribuan pin) memakai **data contoh fiktif** — 3 OLT, ±560 ONU, 58 ODP berwarna, pin di
+  peta; semua nama pelanggan, serial, IP, dan lokasi fiktif. Screenshot lama memuat data instalasi nyata
+  (nama pengguna, nama OLT, serial modul SFP, spesifikasi server) dan diganti seluruhnya: `welcome`,
+  `login`, `dashboard`, `dashboard1`, `oltinventory`, `detail`, `portdetail`, `portonus`, `onumonitoring`,
+  `map`, `unconfigured`, `alarms`, `reports`, + baru `dashboard-light` (tema terang). README menambah baris
+  "Tema terang / ONU di satu port PON" dan catatan bahwa data contoh fiktif.
+- `Welcome.vue`: cuplikan terminal di hero kini `OLT-SENTRAL` (dulu nama OLT sungguhan); versi cache-buster
+  gambar galeri `SHOT_V` → `20260928` dan kini dipakai semua gambar galeri supaya browser mengambil versi baru.
+- **README (EN/ID)**: fitur baru (HsAirPo, halaman PON Port, editor ONU per bagian, hapus massal, riwayat RX
+  per jam, ODP pindah OLT & warna per port, dua tema, pengerasan akses partner, aplikasi 1.8.5) + bagian
+  **Upgrading / Update ke versi baru**.
+- **`docs/INSTALL.md` §9 Update ke versi baru** (perintah lengkap + catatan rilis September: `TRUSTED_PROXIES`,
+  backfill `optical:aggregate-rx`, dua tema, `MAP_HOME_*`, APK 1.8.5, `SANCTUM_EXPIRATION`); `DOCKER.md` §7
+  merujuk ke sana.
+- **Handbook**: 16 (ODP pindah OLT/port + pelepasan ONU, warisan warna port, pola modal, peta ribuan pin,
+  titik awal peta), 13 (419 → `TRUSTED_PROXIES`, bagian Peta & ODP), 11 (akses OLT partner, tiket telnet
+  sekali pakai, proxy tepercaya, demo di API, password ACS, token Telegram, token API & push terikat sesi,
+  `/healthz`, logo tanpa SVG), 05 (`users.theme`, `fcm_device_tokens.personal_access_token_id`), 06 (rute
+  baru September, jadwal console lengkap). `CLAUDE.md`: RX per jam, dua tema, PON Port, akses OLT partner,
+  proxy tepercaya, titik awal peta, push terikat sesi, baseline test terbaru, build Go `-mod=mod`.
+
+### Fixed
+
+- Sisa teks `</content>` / `</invoke>` di akhir `docs/INSTALL.md` dan `docs/BUILD_APK.md` dibuang.
+
 ## 2026-09-28 — Aplikasi Android 1.8.5+29: Dua Tema, Tampilan Baru, Sebab Offline, Push Berhenti Setelah Logout
 
 ### Changed

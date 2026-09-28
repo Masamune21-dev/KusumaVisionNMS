@@ -52,10 +52,12 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
   melihat TLS → Laravel/Ziggy men-generate URL `http://` (cek: `curl -s https://situs/login |
   grep -o '"url":"[^"]*"'`). Halaman `https://` mem-POST ke `route('login')` yang `http://`
   → axios menganggap **cross-origin** (beda scheme) dan men-skip header `X-XSRF-TOKEN` → 419.
-- **Solusi**: sudah dibereskan di `bootstrap/app.php` (`$middleware->trustProxies(at: '*')`)
-  sejak Jul 2026 — `git pull`, lalu `php artisan optimize` + reload php-fpm. Kalau belum bisa
-  pull: pasang certbot di origin dan naikkan Cloudflare ke **Full (strict)** (origin melihat
-  TLS sendiri). Disarankan tetap Full (strict) untuk produksi; Flexible kini juga jalan.
+- **Solusi**: percayai proxy di depan origin lewat **`TRUSTED_PROXIES`** di `.env` (IP/CIDR proxy,
+  atau `*` bila origin memang tak bisa diakses langsung), lalu `php artisan config:cache` + reload
+  php-fpm. Sejak Sep 2026 bawaannya hanya localhost (`config/trustedproxy.php`) — dulu `at: '*'`, yang
+  membuat `X-Forwarded-For` bisa dipalsukan siapa pun (throttle login & IP audit log bisa diakali).
+  Alternatif yang lebih baik: pasang certbot di origin dan naikkan Cloudflare ke **Full (strict)**
+  (origin melihat TLS sendiri, tak bergantung header proxy).
 - **Catatan diagnosa**: bedakan dengan 419 biasa (tab lama/cookie basi — cukup hard refresh).
   Simulasi handshake dari server lain lolos (422) karena curl memasang header manual — hanya
   browser yang kena, itu ciri khas kasus ini. Origin `521/522` selang-seling = masalah
@@ -178,6 +180,28 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
   `is_demo` + `DemoScope`. Lihat [11](11-keamanan-rbac-audit.md).
 
 ---
+
+## Peta & ODP
+
+### ODP terhapus tidak sengaja
+Hapus ODP bersifat permanen (tanpa soft delete), kaitan `onu_odp_links`-nya ikut cascade, fotonya
+ikut dibuang, dan aksinya **tidak tercatat di `audit_logs`**. Pemulihan hanya dari cadangan database:
+
+1. Cari ID + jam hapus di log akses web server (mis. `grep "DELETE /map/odps/" access.log`).
+2. Ambil barisnya dari dump cadangan terbaru sebelum jam itu, mis.
+   `pg_restore --data-only -t odps -f - <dump>` (juga `-t onu_odp_links`).
+3. `INSERT` ulang dengan ID asli, dalam transaksi.
+4. **Jangan langsung memulihkan kaitan ONU dari dump**: cek dulu apakah posisi (OLT/slot/port/onu_id)
+   masih ONU yang sama — posisi bisa sudah dipakai pelanggan lain.
+
+### Tombol di halaman (warna ODP, dll.) ditekan, tak ada yang muncul
+Modal di-mount lewat `v-if` dengan `:show="true"`. `Modal.vue` membuka dialog di dalam watcher `show`,
+jadi komponen yang baru di-mount saat `show` sudah `true` tak pernah terbuka. Render modal terus dan
+ikat `:show` ke keadaan terpilih.
+
+### Peta berat / tersendat dengan ribuan pin
+Periksa `DOM_LIMIT` di `OnuMap.vue` dan bahwa garis diam tetap di kanvas — lihat
+[16 §Kinerja](16-peta-onu.md#kinerja-halaman-peta-aturan-yang-harus-dijaga).
 
 ## Perintah maintenance berguna
 

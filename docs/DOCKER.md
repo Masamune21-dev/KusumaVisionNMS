@@ -127,6 +127,11 @@ docker compose up -d --build   # rebuild + jalankan; migrasi jalan otomatis
 ```
 Di Windows bisa pakai **`update.bat`**. Data tetap aman di volume.
 
+Catatan pembaruan (TRUSTED_PROXIES di belakang reverse proxy, ringkasan RX per jam, dua tema, APK baru):
+lihat [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Aplikasi dibuka lewat HTTPS dari reverse proxy
+di luar container? Isi `TRUSTED_PROXIES` (mis. `172.16.0.0/12`) dan `SESSION_SECURE_COOKIE=true` di
+`.env`, lalu `docker compose up -d`.
+
 ---
 
 ## 8. Membagikan ke PC lain

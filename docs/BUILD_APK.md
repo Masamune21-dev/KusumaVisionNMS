@@ -282,4 +282,3 @@ Tanpa langkah di atas, aplikasi tetap berjalan penuh — hanya push yang non-akt
 - **[docs/API.md](API.md)** — REST API v1 yang dikonsumsi aplikasi.
 - **[docs/INSTALL.md](INSTALL.md)** — instalasi server (harus jalan lebih dulu).
 - Flutter install resmi: <https://docs.flutter.dev/get-started/install>
-</content>

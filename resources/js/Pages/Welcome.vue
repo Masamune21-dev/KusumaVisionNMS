@@ -343,7 +343,7 @@ const modules = computed(() => [
 ]);
 
 // ?v= untuk cache-bust file yang ditimpa (nama sama, isi baru — Jul 2026).
-const SHOT_V = '?v=20260711';
+const SHOT_V = '?v=20260928';
 // label/desc/alt tiap screenshot dirender via $t('welcome.shot_{key}_label/_desc').
 const screenshots = [
     {
@@ -379,28 +379,28 @@ const screenshots = [
     {
         key: 'portdetail',
         icon: Gauge,
-        src: '/img/portdetail.webp',
+        src: `/img/portdetail.webp${SHOT_V}`,
         ratio: '1920 / 1130',
         url: 'app.kusumavision.net/smartolt/1/port-detail',
     },
     {
         key: 'portonus',
         icon: Wifi,
-        src: '/img/portonus.webp',
+        src: `/img/portonus.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/1/ports/2/1/onus',
     },
     {
         key: 'monitoring',
         icon: Radar,
-        src: '/img/onumonitoring.webp',
+        src: `/img/onumonitoring.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/onu-monitoring',
     },
     {
         key: 'map',
         icon: MapPin,
-        src: '/img/map.webp',
+        src: `/img/map.webp${SHOT_V}`,
         ratio: '1920 / 913',
         url: 'app.kusumavision.net/map',
     },
@@ -417,14 +417,14 @@ const screenshots = [
     {
         key: 'alarms',
         icon: BellRing,
-        src: '/img/alarms.webp',
+        src: `/img/alarms.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/alarms',
     },
     {
         key: 'reports',
         icon: FileBarChart,
-        src: '/img/reports.webp',
+        src: `/img/reports.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/reports',
     },
@@ -822,7 +822,7 @@ onBeforeUnmount(() => {
                                     <span class="ml-3 flex-1 truncate rounded-md bg-slate-900/60 px-3 py-1 text-xs text-slate-500">app.kusumavision.net/dashboard</span>
                                 </div>
                                 <img
-                                    src="/img/dashboard1.webp?v=20260711"
+                                    src="/img/dashboard1.webp?v=20260928"
                                     alt="KusumaVision NMS Dashboard"
                                     class="block w-full"
                                     loading="eager"
@@ -851,7 +851,7 @@ onBeforeUnmount(() => {
                             >
                                 <div class="flex items-center gap-2 border-b border-white/10 bg-slate-900/70 px-3 py-2">
                                     <Terminal class="h-3.5 w-3.5 text-cyan-400" />
-                                    <span class="text-[11px] font-medium text-slate-300">OLT-C320-PATI · telnet</span>
+                                    <span class="text-[11px] font-medium text-slate-300">OLT-SENTRAL · telnet</span>
                                     <span class="ml-auto flex gap-1">
                                         <span class="h-2 w-2 rounded-full bg-slate-600" />
                                         <span class="h-2 w-2 rounded-full bg-slate-600" />
@@ -861,7 +861,7 @@ onBeforeUnmount(() => {
                                     <div class="text-slate-500">$ telnet 10.10.0.1</div>
                                     <div class="text-emerald-400">✓ Connected — ZXAN login: admin</div>
                                     <div class="flex flex-wrap items-center gap-1.5">
-                                        <span class="text-cyan-400">OLT-C320-PATI#</span>
+                                        <span class="text-cyan-400">OLT-SENTRAL#</span>
                                         <span ref="cliEl" class="text-slate-200"></span>
                                     </div>
                                 </div>

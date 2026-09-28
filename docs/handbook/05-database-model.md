@@ -173,8 +173,16 @@ otomatis saat saved/deleted.
 Event konstanta: created/updated/deleted/login/logout/login_failed/telnet_opened.
 
 ### `users`
-`name, email, password(hashed), role(enum UserRole), last_notifications_read_at, email_verified_at`.
-`role` cast ke `UserRole`. Method: `isAdmin/isOperator/isDemo`, `canManageOlt`, `canManageUsers`.
+`name, email, password(hashed), role(enum UserRole), locale, theme, last_notifications_read_at,
+email_verified_at`. `role` cast ke `UserRole`. `theme` = `dark|light|system` (null = belum memilih →
+cookie `kv_theme` → gelap; lihat `App\Support\Theme`). Method: `isAdmin/isOperator/isDemo`,
+`canManageOlt`, `canManageUsers`, `isCentralStaff`, `canEditOltConnection`, `canAccessOltSecrets`.
+
+### `fcm_device_tokens`
+`user_id, personal_access_token_id (nullable, FK cascade ke personal_access_tokens), token, device_name,
+platform, last_seen_at`. Token push terkait **sesi login aplikasi** yang mendaftarkannya: sesi dihapus
+(logout, dicabut, `sanctum:prune-expired`) → baris ikut terhapus. Kirim push selalu lewat scope
+`FcmDeviceToken::deliverable()` (sesi masih sah; baris lama tanpa kaitan tetap dikirimi).
 
 ## Membuat migrasi/model baru
 

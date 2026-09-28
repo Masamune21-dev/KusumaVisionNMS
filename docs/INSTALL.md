@@ -183,6 +183,44 @@ API v1 diaktifkan (Pengaturan → API & Token). Dua pilihan:
 
 ---
 
+## 9. Update ke versi baru
+
+**Docker:** `git pull` lalu `docker compose up -d --build` (atau `update.bat`) — migrasi & build jalan
+otomatis. Lihat [DOCKER.md §7](DOCKER.md).
+
+**Server `install.sh` / manual** — dari folder proyek, dengan pengguna yang sama seperti saat instalasi:
+
+```bash
+git pull
+composer install --no-dev --optimize-autoloader --no-interaction
+npm ci && npm run build
+CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
+php artisan migrate --force
+php artisan optimize:clear && php artisan optimize
+php artisan queue:restart
+sudo supervisorctl restart kusumavision-telnet-proxy
+```
+
+Lalu muat ulang browser dengan Ctrl+Shift+R (nama berkas aset berubah).
+
+### Catatan pembaruan September 2026
+
+- **Di belakang Cloudflare "Flexible" atau load balancer di host lain? Isi `TRUSTED_PROXIES`** di `.env`
+  (IP/CIDR proxy, atau `*` bila origin tak bisa diakses langsung), lalu `php artisan config:cache`.
+  Bawaannya kini hanya localhost; tanpa itu skema https tak terdeteksi dan login gagal 419. Docker
+  dengan reverse proxy di host: lihat `.env.docker.example`. Instalasi `install.sh` (nginx + certbot di
+  host yang sama) tidak terdampak.
+- **Riwayat RX kini diringkas per jam** (tabel baru `onu_rx_hourly`). Scheduler mengejar riwayat lama
+  48 jam per jalan; untuk langsung lengkap jalankan sekali `php artisan optical:aggregate-rx --hours=720`.
+  Sampel mentah kini disimpan 3 hari (`SNMP_POLLER_RX_RETENTION_DAYS`).
+- **Dua tema** (Gelap/Terang/Ikuti sistem) — tanpa memilih, tampilan tetap gelap.
+- **Titik awal peta** bisa diarahkan ke wilayah kerja utama lewat `MAP_HOME_LAT`/`MAP_HOME_LNG` (opsional).
+- **Aplikasi Android 1.8.5** — bangun APK baru ([BUILD_APK.md](BUILD_APK.md)); APK lama tetap bisa login.
+- Opsional untuk HTTPS: `SESSION_SECURE_COOKIE=true`. Token aplikasi kini kedaluwarsa setelah
+  `SANCTUM_EXPIRATION` menit (contoh 43200 = 30 hari).
+
+---
+
 ## Referensi
 
 - **[README.md](../README.md)** — ikhtisar fitur & stack.
@@ -190,5 +228,3 @@ API v1 diaktifkan (Pengaturan → API & Token). Dua pilihan:
 - **[handbook 04](handbook/04-instalasi-deploy.md)** — instalasi & deploy teknis.
 - **[docs/BUILD_APK.md](BUILD_APK.md)** — build & install aplikasi Android.
 - **[LOCAL_PRODUCTION_HARDENING.md](LOCAL_PRODUCTION_HARDENING.md)** — hardening produksi.
-</content>
-</invoke>

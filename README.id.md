@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO/V-Sol EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, **HiOSO/V-Sol EPON**, dan **HsAirPo/HSGQ EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 </div>
 
@@ -37,18 +37,25 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 |---|---|
 | ![Detail port PON](public/img/portdetail.webp) | ![Alarm center](public/img/alarms.webp) |
 
+| Tema terang | ONU di satu port PON |
+|---|---|
+| ![Dashboard tema terang](public/img/dashboard-light.webp) | ![Daftar ONU satu port PON](public/img/portonus.webp) |
+
+> Tampilan memakai data contoh — semua nama, nomor serial, alamat IP, dan lokasi fiktif.
+
 ---
 
 ## Fitur Utama
 
-- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON; deteksi otomatis, tab terpisah per-vendor.
-- **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power, faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
-- **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **pilih ODP langsung saat registrasi**), reconfigure via delta script, manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
-- **Remote ONU** — reboot, rename, enable/disable, delete, TR069 massal per-port, buka/tutup akses web ONT dari jauh (Remote ONT), dan **terminal Telnet langsung di browser**.
+- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON, HsAirPo/HSGQ EPON; deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk).
+- **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power dengan **riwayat panjang** (sampel mentah 24 jam, ringkasan min/rata-rata/maks per jam untuk 7/30 hari), faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
+- **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **pilih ODP langsung saat registrasi**), reconfigure via delta script atau **editor ONU per bagian gaya NetNumen** (tambah/ubah/hapus T-CONT, GEM, service, VLAN… langsung ke OLT; ONU ber-`onu-profile` dikenali, perubahan yang pasti ditolak dijelaskan, dan profile bisa dilepas), manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
+- **Remote ONU** — reboot, rename, enable/disable, delete (satu atau **banyak sekaligus**), TR069 massal per-port, buka/tutup akses web ONT dari jauh (Remote ONT), dan **terminal Telnet langsung di browser**.
 - **Alarm & notifikasi** — alarm engine raise/clear (anti-flap konfirmasi 2 poll + korelasi root-cause), **klik notifikasi langsung membuka ONU/port/OLT yang terdampak** (mengikuti ONU yang pindah port, menolak membuka bila posisinya sudah dipakai pelanggan lain), alarm ONU-down **dikelompokkan per ODP** di Telegram & FCM, notifikasi **Telegram** & **push FCM** ke aplikasi Android, bot Telegram read-only.
-- **Peta ONU & ODP** — sebaran pelanggan di peta (Leaflet), tambah pin dari klik peta atau link Google Maps, **kunci/buka posisi pin** (geser untuk reposisi, tersimpan otomatis), **pin ODP (splitter)** dengan garis kabel animasi ODP→ONU, **halaman ODP tersendiri** (CRUD, filter OLT/port PON, modal Kelola ONU), kolom & filter ODP di tabel ONU semua vendor.
-- **Administrasi** — RBAC (admin/operator/partner/demo), audit log immutable, report CSV/PDF, backup config OLT terjadwal + save config ke memori OLT (semua vendor), **REST API v1** untuk integrasi.
-- **Aplikasi Android** — monitoring (termasuk deskripsi port), registrasi ONU, reboot/rename, alarm + push notification yang membuka ONU terdampak ([`mobile/`](mobile/), Flutter).
+- **Peta ONU & ODP** — sebaran pelanggan di peta (Leaflet), tambah pin dari klik peta atau link Google Maps, **kunci/buka posisi pin** (geser untuk reposisi, tersimpan otomatis), **pin ODP (splitter)** dengan garis kabel animasi ODP→ONU, **halaman ODP tersendiri** (CRUD termasuk memindahkan ODP ke OLT/port lain, filter OLT/port PON, modal Kelola ONU), warna ODP per PON port (ODP baru ikut warna port-nya), kolom & filter ODP di tabel ONU semua vendor. Peta tetap lancar dengan ribuan pin.
+- **Tampilan** — **tema gelap / terang / ikuti sistem** (termasuk halaman login), sidebar berkelompok, tombol/dialog/lencana seragam, dwibahasa (Indonesia / Inggris).
+- **Administrasi** — RBAC (admin/operator/partner/demo; partner tidak bisa mengubah koneksi OLT bersama maupun membuka CLI-nya), audit log immutable, report CSV/PDF, backup config OLT terjadwal + save config ke memori OLT (semua vendor), **REST API v1** untuk integrasi.
+- **Aplikasi Android (1.8.5)** — monitoring (termasuk deskripsi port), status ONU beserta sebab down-nya (LOS / Dying Gasp / …), registrasi ONU, reboot/rename, ODP & peta, tema gelap/terang, alarm + push notification yang membuka ONU terdampak; push langsung berhenti begitu ponsel logout ([`mobile/`](mobile/), Flutter).
 
 **Stack:** Laravel 12 (PHP 8.3) + Vue 3/Inertia + TailwindCSS · PostgreSQL + Redis · Go SNMP poller · SNMP v1/v2c + CLI Telnet · Flutter (Android).
 
@@ -93,6 +100,13 @@ Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requir
 1. Buat akun admin (jika belum): `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=PASSWORD_KUAT`
 2. Login → menu **SmartOLT** → tambah OLT → **Test SNMP**.
 3. Opsional dari menu **Pengaturan**: notifikasi Telegram, ACS/TR069, token API, push mobile.
+
+### Update ke versi baru
+
+`git pull`, lalu bangun ulang: Docker → `docker compose up -d --build`; server → daftar perintah di
+[`docs/INSTALL.md` §9](docs/INSTALL.md#9-update-ke-versi-baru) (composer, build npm, poller Go, migrate,
+optimize, restart worker). **Di belakang Cloudflare "Flexible" atau load balancer di host lain, isi
+`TRUSTED_PROXIES` di `.env`** — bawaannya hanya localhost, kalau tidak login gagal 419.
 
 > 📖 Minimum spek, instalasi manual langkah-demi-langkah, dan troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 > Aplikasi **Android (APK)**: unduh APK jadi dari `https://<host>/downloads/kusumavision-nms.apk`, atau build sendiri via [`docs/BUILD_APK.md`](docs/BUILD_APK.md).

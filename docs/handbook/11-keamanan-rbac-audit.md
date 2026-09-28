@@ -31,6 +31,14 @@ di-null-kan (`UserController::destroy`) agar OLT kembali ke pool global (tak yat
 `backfill_partner_owned_olts` mengkonversi OLT lama yang di-assign ke tepat satu partner (tanpa operator)
 menjadi privat miliknya.
 
+**Koneksi & rahasia OLT global yang di-assign** (Sep 2026): partner boleh mengubah nama/vendor/polling,
+tetapi **tidak** IP/port/SNMP/kredensial CLI — mengganti IP berarti poller mengirim community SNMP dan
+telnet proxy mengetik login CLI OLT pusat ke host pilihan partner. Penjaganya
+`Concerns\ManagesOltOwnership::authorizeOltUpdate()` (403 bila kolom koneksi berubah) +
+`User::canEditOltConnection()`; uji koneksi, **telnet**, dan **isi backup running-config** memakai
+`User::canAccessOltSecrets()` (admin/operator atau pemilik OLT privat). Form OLT menampilkan kolom
+koneksi hanya-baca (`connection_locked`).
+
 ### Cakupan OLT partner — `App\Models\Scopes\PartnerOltScope`
 Global scope (pola sama `DemoScope`). Dipasang di `SnmpOlt` (kolom `id`) dan model ber-`snmp_olt_id`
 (`AlarmEvent`, `PollingEvent`, `SmartOltOnuRegistration`, `OnuMapPin`). Dua cabang:
@@ -78,8 +86,9 @@ sesuai izin. Serialisasi OLT (`serializeOlt`) menambah `is_private` (OLT privat 
 
 Dua mekanisme bekerja bersama:
 
-1. **`BlockDemoWrites`** (middleware global) — user role `demo` ditolak (`403`) untuk semua
-   request non-GET/HEAD/OPTIONS, kecuali `logout`. Jadi demo benar-benar read-only.
+1. **`BlockDemoWrites`** (middleware grup `web` **dan** `api`) — user role `demo` ditolak (`403`)
+   untuk semua request non-GET/HEAD/OPTIONS, kecuali `logout` (dan simpan tema, yang untuk demo hanya
+   ditulis ke cookie). Jadi demo benar-benar read-only, juga lewat token API aplikasi.
 2. **`DemoScope`** (global scope pada model ber-`is_demo`) — query otomatis difilter:
    - user `demo` → hanya baris `is_demo = true`,
    - selain itu (termasuk console/queue tanpa auth) → hanya `is_demo = false`.
@@ -87,7 +96,8 @@ Dua mekanisme bekerja bersama:
 Implikasi: data demo dan data produksi bisa hidup di DB yang sama tanpa saling bocor. Model
 ber-scope: `SnmpOlt`, `SmartOltOnuRegistration`, `AlarmEvent`, `PollingEvent`.
 
-> `DemoSeeder` mengisi data demo (`is_demo=true`). **Jangan jalankan di DB produksi** — buat
+> `DemoSeeder` mengisi data demo (`is_demo=true`); password akun demo dibuat acak dan ditampilkan
+> sekali (atau `DEMO_SEED_PASSWORD`). **Jangan jalankan di DB produksi** — buat
 > instance/DB demo terpisah bila perlu. `db:seed` default hanya `DatabaseSeeder` (1 admin test).
 
 ## C. Penanganan secret
@@ -100,8 +110,16 @@ ber-scope: `SnmpOlt`, `SmartOltOnuRegistration`, `AlarmEvent`, `PollingEvent`.
   string kosong.
 - **Output CLI** disensor (`maskSecrets`) sebelum disimpan agar password CLI tak bocor ke DB/log.
 - **`.env`** permission `640 root:www-data` di prod (lihat [04](04-instalasi-deploy.md)).
-- **Telnet ticket** terenkripsi APP_KEY + TTL pendek; proxy tidak menyimpan kredensial — diambil
-  dari OLT saat handshake.
+- **Telnet ticket** terenkripsi APP_KEY, **sekali pakai** (`jti` dicatat di cache dan dihanguskan saat
+  dipakai) dengan TTL 30 detik; proxy tidak menyimpan kredensial — diambil dari OLT saat handshake,
+  dan hak aksesnya dicek ulang (`canAccessOltSecrets`) saat itu.
+- **Password ACS tidak pernah dikirim ke browser**: form registrasi hanya tahu `acs_password_set`;
+  server mengisinya lewat `AcsSetting::fillPassword()` bila form kosong.
+- **Token bot Telegram disensor** dari pesan galat & log (`TelegramNotifier::redactToken()`) — URL API
+  Telegram memuat token, dan galat cURL menyertakan URL lengkap. Berkas log dibuat `0640`.
+- **Token API aplikasi kedaluwarsa** setelah `SANCTUM_EXPIRATION` menit; token push FCM terkait sesi
+  login (`fcm_device_tokens.personal_access_token_id`, FK cascade) sehingga logout/sesi dicabut
+  menghentikan push ke ponsel itu.
 
 ## D. Audit trail
 
@@ -130,13 +148,18 @@ label/judul model.
 ## E. CSRF, webhook, dan health
 
 - CSRF aktif untuk semua route web kecuali `telegram/webhook` (gerbangnya secret token header).
-- `/up` health check (Laravel) — boleh dipantau, tidak mengandung data sensitif.
+- `/up` health check (Laravel) dan `/healthz` (status DB & Redis, 200/503) — boleh dipantau, tidak
+  mengandung data sensitif.
+- **Proxy tepercaya** hanya dari `TRUSTED_PROXIES` (`config/trustedproxy.php`, bawaan localhost). Jangan
+  `trustProxies(at: '*')`: `X-Forwarded-For` bisa dipalsukan sehingga throttle login dan IP audit diakali.
+- **Upload logo tanpa SVG** (SVG bisa memuat script → XSS tersimpan).
 - Hardening host (nginx deny dotfiles/`.env`, security headers, UFW allow-list, SSH key-only,
   PHP-FPM `display_errors=Off`) didokumentasikan di
   [`docs/LOCAL_PRODUCTION_HARDENING.md`](../LOCAL_PRODUCTION_HARDENING.md).
 
 ## Checklist keamanan saat menambah fitur
-- [ ] Endpoint tulis OLT? Pasang `canManageOlt()` + `assertCapability()` bila perlu.
+- [ ] Endpoint tulis OLT? Pasang `canManageOlt()` + `assertCapability()` bila perlu. Menyentuh
+      koneksi/kredensial/CLI/backup OLT? Pakai `canEditOltConnection()`/`canAccessOltSecrets()`.
 - [ ] Endpoint admin? Bungkus `role:admin`.
 - [ ] Menyimpan secret? Cast `encrypted` + `$hidden` + jangan log.
 - [ ] Entitas baru perlu dipisah demo? Tambah `is_demo` + `DemoScope`.

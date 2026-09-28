@@ -140,11 +140,34 @@ Grup `auth`: `verification.notice`, `verification.verify` (signed+throttle), `ve
 |--------|-----|------|------|
 | POST | `/smartolt/{olt}/telnet/token` | `TelnetSessionController@token` (terbit tiket WS) | `smartolt.telnet.token` |
 
-## Console & schedule (`routes/console.php`)
-- `Schedule::command('olts:poll')->everyMinute()->withoutOverlapping();`
-- Command `inspire` (bawaan).
+### Rute baru September 2026
 
-Command artisan kustom: `user:create`, `olts:poll`, `telegram:webhook {set|info|delete}`,
+| Rute | Method & path | Catatan |
+|---|---|---|
+| `healthz` | `GET /healthz` (publik) | status DB & Redis, 200/503 — untuk pemantau uptime |
+| `profile.theme` | `PATCH /profile/theme` | simpan tema `dark/light/system`; dipanggil axios, jawab **204** (bukan kunjungan Inertia) |
+| `smartolt.gpon-ports` / `cdata-olt.pon-ports` / `hioso-olt.pon-ports` | `GET …/{olt}/(gpon\|pon)-ports` | satu halaman `SmartOlt/PonPorts` untuk semua vendor, prop `route_prefix` |
+| `smartolt.port-onus.delete` | `POST /smartolt/{olt}/ports/{slot}/{port}/onus/delete` | hapus beberapa ONU sekaligus (satu sesi CLI), gated `supports_onu_delete` |
+| `smartolt.onu.configure.item` | `POST …/onus/{onuId}/configure/item` | editor ONU per bagian: tambah/ubah/hapus satu item lalu baca ulang config |
+| `smartolt.onu.configure.unbind-profile` | `POST …/onus/{onuId}/configure/unbind-profile` | `no onu N profile` lalu tulis ulang layanan yang sama |
+
+Rute `map.odps.update` kini juga menerima `snmp_olt_id` (pindah OLT; ONU yang tak cocok dilepas).
+Tambah rute? Setelah deploy jalankan `php artisan route:cache` — rute baru tanpa itu 404/405.
+
+## Console & schedule (`routes/console.php`)
+
+| Jadwal | Perintah | Guna |
+|---|---|---|
+| tiap menit | `olts:poll` | dispatch polling OLT yang jatuh tempo (ZTE & non-ZTE) |
+| tiap jam, menit 5 | `optical:aggregate-rx` | ringkas `onu_rx_samples` → `onu_rx_hourly` (min/avg/max per jam) |
+| harian 02:30 | `olts:backup-config` | backup running-config OLT ZTE yang saklarnya aktif |
+| harian 03:15 | `optical:prune-rx` | buang sampel RX lama; **menolak jalan** bila ringkasan belum mencapai batas |
+| harian 03:40 | `sanctum:prune-expired --hours=24` | buang sesi aplikasi kedaluwarsa (token push FCM ikut terhapus) |
+
+Scheduler harus jalan (`schedule:work` di supervisor / cron `schedule:run`), kalau tidak ringkasan RX
+berhenti dan pemangkasan ikut tertahan.
+
+Command artisan kustom: `user:create`, `api:token`, `olts:poll`, `olts:backup-config`, `optical:aggregate-rx`, `optical:prune-rx`, `telegram:webhook {set|info|delete}`,
 `telnet:proxy`. Lihat [03 Struktur Folder](03-struktur-folder.md) & [08](08-snmp-polling.md)/[09](09-cli-telnet.md)/[10](10-alarm-telegram.md).
 
 ## Broadcast channel (`routes/channels.php`)

@@ -81,6 +81,24 @@ Di sisi klien, `OnuMap.vue` **men-diff marker** (`markers`/`odpMarkers` menyimpa
 pola `clearLayers()` + bikin ulang semua marker: itulah yang dulu membuat tiap aksi terlihat seperti
 reload halaman. Marker yang sedang diseret (`draggingPinId`/`draggingOdpId`) tak boleh ditimpa prop.
 
+**Ribuan pin (Sep 2026, 1 → 60 fps pada 5.000 pin + 800 ODP dengan CPU 4× lebih lambat):**
+
+- Pin DOM (teardrop, bisa diseret) hanya dibuat untuk pin **di layar** (+ margin `VIEW_PAD`) dan hanya
+  bila jumlahnya ≤ `DOM_LIMIT` (350). Di atas itu (zoom jauh) semua pin digambar sebagai titik
+  `L.circleMarker` di **satu kanvas** (`dotRenderer`, pane `kvDots`) — tetap bisa diklik.
+- Garis ODP→ONU yang diam digabung jadi **dua polyline multi-ruas** (online/offline) di kanvas
+  (`lineRenderer`). Animasi aliran (`.kv-flow`, SVG) hanya untuk **ODP terpilih** atau ODP induk pin
+  ONU yang terpilih (`flowOdpId()`).
+- Loop ribuan item memakai objek mentah (`toRaw(props.pins)`), bukan proxy reaktif Inertia; watcher
+  pin/ODP tidak `deep`.
+
+**Titik awal peta** (`OnuMapPayloadService::defaultCenter()`, dipakai web & API): bukan rata-rata
+koordinat (titik yang tersebar di beberapa wilayah berjauhan membuat rata-ratanya jatuh di tengah-tengah,
+area yang bukan area kerja siapa pun). Urutannya: satu titik → pusatkan ke titik itu (zoom 15); ada titik
+dalam radius **wilayah utama** opsional (`config('services.map')`, env `MAP_HOME_LAT/LNG/ZOOM/RADIUS_KM`)
+→ buka di sana; selain itu → **kelompok terpadat** (sel grid 0,1°); tanpa titik → tampilan Indonesia.
+Dijaga `tests/Feature/MapDefaultCenterTest`.
+
 ## Menambah pin
 
 Tiga jalur (semua bermuara ke `POST map.pins.store`, `updateOrCreate` per kunci ONU):
@@ -138,7 +156,7 @@ kunci komposit yang sama dengan pin.
 - **Garis kabel animasi ODP→ONU** (polyline dashed, aliran via `stroke-dashoffset` CSS) ke setiap ONU
   terhubung yang punya pin — warna garis ikut status ONU (hijau online / merah offline).
 - Klik pin ODP → kartu `Components/Map/OdpDetailCard.vue`: edit nama/notes, daftar ONU terhubung
-  (klik → lompat ke pin ONU), hapus ODP.
+  (klik → lompat ke pin ONU), hapus ODP. Kartu ini sengaja tidak mengubah OLT/port — itu lewat halaman ODP (di bawah).
 - **Membuat ODP**: klik peta → `AddPinModal.vue` punya **toggle jenis ONU / ODP** — mode ODP cukup
   nama + OLT (koordinat dari titik klik).
 
@@ -154,6 +172,18 @@ yang dibangun **sekali** per request di `collect()`/`forPort()` (hindari N+1 di 
 `OnuOdpService::connectedOnus()`. Query `OnuOdpLink` dilakukan langsung di `OnuInventoryService`,
 **bukan** lewat `OnuOdpService` — servis itu sudah bergantung pada `OnuInventoryService`, jadi
 meng-inject balik akan membuat dependensi melingkar di container.
+
+**Halaman ODP (`odp.index`, `Pages/Odp/Index.vue`) — edit OLT & port:** modal Edit ODP bisa mengganti
+**OLT**, slot, dan port (`OdpController::update()` menerima `snmp_olt_id`; OLT tujuan lewat
+`SnmpOlt::findOrFail` sehingga kena `PartnerOltScope`). Bila OLT/slot/port benar-benar berubah
+(`isDirty`), `OnuOdpService::releaseMismatchedLinks()` melepas kaitan ONU yang tak lagi di OLT ODP —
+dan, bila ODP punya slot+port, yang di port lain — sesuai aturan `assign()` (ODP = satu PON port).
+Modal menampilkan peringatan (`odp.move_release_warning`) sebelum simpan bila ODP punya ONU; flash
+`flash.odp_updated_links_released` menyebut jumlah yang dilepas.
+
+> ⚠️ **Hapus ODP permanen** (tanpa soft delete): `onu_odp_links`-nya ikut cascade, fotonya ikut dibuang,
+> dan aksinya **tidak tercatat di `audit_logs`**. Pemulihan hanya dari cadangan database — lihat
+> [13-troubleshooting](13-troubleshooting-maintenance.md#odp-terhapus-tidak-sengaja).
 
 **Saat registrasi ONU (ZTE):** field **ODP (opsional)** di ketiga form `Pages/SmartOlt/RegisterOnu.vue`
 (C600 / Dasar / Lanjutan). Dropdown disaring di klien ke slot/port yang sedang dipilih (plus ODP yang
@@ -183,6 +213,10 @@ sekaligus.
 - **Cakupan**: `OnuOdpService::setColor()` — `apply_to_port` (bawaan **true**) mewarnai semua ODP di
   `(snmp_olt_id, slot, port)` yang sama lewat satu bulk update (tetap kena `PartnerOltScope`); ODP yang
   belum punya slot/port hanya bisa mewarnai dirinya sendiri.
+- **Warisan warna port**: ODP yang **masuk** ke sebuah port ikut warna yang sudah dipakai di port itu —
+  `OnuOdpService::portColor()` (warna terbanyak, seri → `updated_at` terbaru; port polos → null).
+  Dipanggil di `OdpController::store()`, `update()` saat OLT/slot/port berubah (port tujuan polos →
+  warna ODP dipertahankan), dan `assign()` saat port ODP terisi otomatis oleh ONU pertama.
 - **Acak**: `OdpColors::randomFor()` memilih warna palet yang **belum dipakai port lain di OLT itu**
   (kalau palet habis, warna yang paling jarang dipakai) — supaya antar-port tetap mudah dibedakan.
   Dihitung di server agar web & aplikasi berperilaku sama.
@@ -190,6 +224,9 @@ sekaligus.
   membuka `Components/Map/OdpColorModal.vue` (palet + `<input type="color">` + Acak + Default + saklar
   se-port). Submit `POST map.odps.color` dengan `only: ['odps', 'flash']` — prop `odps` ada di kedua
   halaman itu, dan `flash` wajib ikut supaya toast tidak tersaring.
+- ⚠️ `OdpColorModal` (seperti semua modal di atas `Modal.vue`) **wajib dirender terus** dengan `:show`
+  yang berubah — `Modal.vue` hanya memanggil `showModal()` di watcher `show`. Dipasang lewat `v-if`
+  dengan `:show="true"`, tombol warna di halaman ODP tak membuka apa pun (dijaga `tests/js/OdpPage.spec.js`).
 - **UI mobile**: `mobile/lib/features/odp/odp_color_sheet.dart` (palet + Acak + saklar se-port; **tanpa**
   hex bebas), dibuka dari AppBar Detail ODP maupun sheet pin ODP di peta.
 - ⚠️ Signature marker di `OnuMap.vue` (`renderOdps`) **harus memuat warna** — tanpa itu marker dianggap
