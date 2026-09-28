@@ -603,32 +603,45 @@ ok "$(t "Cache produksi siap" "Production caches ready")"
 # 12. Akun admin
 # ---------------------------------------------------------------------------
 step "$(t "Akun administrator" "Administrator account")"
+# Syarat password = Password::defaults() di `user:create` (minimal 8 karakter). Dicek di
+# sini supaya password pendek langsung ditanya ulang, bukan baru ketahuan saat ditolak.
+ADMIN_PASSWORD_MIN=8
+ADMIN_CREATED=0
+ask_admin_password() {
+  while :; do
+    ask_secret ADMIN_PASSWORD "$(t "Password admin (min. ${ADMIN_PASSWORD_MIN} karakter)" "Admin password (min. ${ADMIN_PASSWORD_MIN} characters)")" \
+      "$(t "Ulangi password admin" "Repeat admin password")"
+    if [ -z "$ADMIN_PASSWORD" ] || [ "${#ADMIN_PASSWORD}" -ge "$ADMIN_PASSWORD_MIN" ]; then return; fi
+    warn "$(t "Password admin minimal ${ADMIN_PASSWORD_MIN} karakter, ulangi." "The admin password needs at least ${ADMIN_PASSWORD_MIN} characters, try again.")"
+  done
+}
 if [ "$ASSUME_YES" = "1" ] && [ -z "$ADMIN_EMAIL" ]; then
-  info "$(t "Mode --yes tanpa ADMIN_EMAIL → lewati. Buat manual nanti: php artisan user:create" \
-            "--yes without ADMIN_EMAIL → skipped. Create one later: php artisan user:create")"
+  info "$(t "Mode --yes tanpa ADMIN_EMAIL → lewati. Buat manual nanti: php artisan user:create --role=admin" \
+            "--yes without ADMIN_EMAIL → skipped. Create one later: php artisan user:create --role=admin")"
 elif confirm "$(t "Buat akun admin sekarang?" "Create an admin account now?")" "Y"; then
   ask ADMIN_NAME     "$(t "Nama admin" "Admin name")"   "${ADMIN_NAME:-Administrator}"
   ask ADMIN_EMAIL    "$(t "Email admin" "Admin email")" "${ADMIN_EMAIL:-admin@${SERVER_NAME}}"
-  if [ -z "$ADMIN_PASSWORD" ]; then
-    ask_secret ADMIN_PASSWORD "$(t "Password admin" "Admin password")" "$(t "Ulangi password admin" "Repeat admin password")"
-  fi
-  if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
-    # Dulu `... && psql ... || true` menelan kegagalan user:create, lalu "Admin dibuat"
-    # tetap tercetak walau akunnya tak ada.
-    if run_artisan user:create --name="$ADMIN_NAME" --email="$ADMIN_EMAIL" --password="$ADMIN_PASSWORD"; then
-      if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -c "UPDATE users SET role='admin', email_verified_at=now() WHERE email='${ADMIN_EMAIL//\'/\'\'}';" >/dev/null 2>&1; then
-        ok "$(t "Admin dibuat: $ADMIN_EMAIL (role admin)" "Admin created: $ADMIN_EMAIL (role admin)")"
-      else
-        warn "$(t "Akun $ADMIN_EMAIL dibuat, tapi role admin gagal diset — atur manual di tabel users." \
-                  "Account $ADMIN_EMAIL created, but setting the admin role failed — set it manually in the users table.")"
-      fi
-    else
-      warn "$(t "Gagal membuat admin (lihat pesan di atas). Jalankan: php artisan user:create" \
-                "Failed to create the admin (see the message above). Run: php artisan user:create")"
+  [ -n "$ADMIN_PASSWORD" ] || ask_admin_password
+  # --role=admin wajib: tanpa opsi itu user:create membuat role operator. Kalau ditolak
+  # (email tak valid/sudah dipakai, password tak memenuhi syarat), tawarkan ulang —
+  # dulu installer lanjut begitu saja dan selesai tanpa satu pun admin.
+  while [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; do
+    if run_artisan user:create --name="$ADMIN_NAME" --email="$ADMIN_EMAIL" --password="$ADMIN_PASSWORD" --role=admin; then
+      ADMIN_CREATED=1
+      break
     fi
+    [ "$ASSUME_YES" != "1" ] \
+      && confirm "$(t "Gagal membuat admin (lihat pesan di atas). Coba lagi?" "Could not create the admin (see the message above). Try again?")" "Y" \
+      || break
+    ask ADMIN_EMAIL "$(t "Email admin" "Admin email")" "$ADMIN_EMAIL"
+    ADMIN_PASSWORD=""
+    ask_admin_password
+  done
+  if [ "$ADMIN_CREATED" = "1" ]; then
+    ok "$(t "Admin dibuat: $ADMIN_EMAIL (role admin)" "Admin created: $ADMIN_EMAIL (role admin)")"
   else
-    warn "$(t "Email/password kosong → admin tidak dibuat. Jalankan: php artisan user:create" \
-              "Empty email/password → no admin created. Run: php artisan user:create")"
+    warn "$(t "Admin belum dibuat. Jalankan: php artisan user:create --name=\"Admin\" --email=EMAIL --password=PASSWORD --role=admin" \
+              "No admin was created. Run: php artisan user:create --name=\"Admin\" --email=EMAIL --password=PASSWORD --role=admin")"
   fi
 fi
 
@@ -662,18 +675,22 @@ row "URL"                                        "${APP_URL}"
 row "Project dir"                                "${PROJECT_DIR}"
 row "Database"                                   "${DB_NAME} / ${DB_USER}"
 row "DB password"                                "${DB_PASSWORD}"
-if [ -n "$ADMIN_EMAIL" ]; then row "Admin login" "${ADMIN_EMAIL}"; fi
+if [ "$ADMIN_CREATED" = "1" ]; then
+  row "Admin login"    "${ADMIN_EMAIL}"
+  row "Admin password" "${ADMIN_PASSWORD}"
+fi
 printf '\n'
 row "$(t "Cek daemon" "Daemon status")"          "supervisorctl status"
 row "$(t "Log aplikasi" "App log")"              "storage/logs/laravel.log"
 row "$(t "Buat user lain" "Add more users")"     "cd ${PROJECT_DIR} && php artisan user:create"
+printf '  %-15s  %s\n' "" "$(t "(role bawaan operator; tambah --role=admin untuk admin)" "(default role operator; add --role=admin for an admin)")"
 cat <<DONE
   $(t "HTTPS (opsional, disarankan):" "HTTPS (optional, recommended):")
     sudo apt install -y certbot python3-certbot-nginx
     sudo certbot --nginx -d <domain>
 
-  $(t "PENTING: simpan DB password di atas. Setelah ubah .env/config jalankan:" \
-      "IMPORTANT: keep the DB password above. After changing .env/config, run:")
+  $(t "PENTING: simpan DB password & password admin di atas. Setelah ubah .env/config jalankan:" \
+      "IMPORTANT: keep the DB password and admin password above. After changing .env/config, run:")
     php artisan config:cache && php artisan queue:restart
     supervisorctl restart kusumavision-telnet-proxy
 

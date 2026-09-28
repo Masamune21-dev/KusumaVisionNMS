@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-09-28 — install.sh: Admin Pertama Selalu Role Admin, Password Dicek Sebelum Dibuat
+
+### Fixed
+
+- **Password admin kurang dari 8 karakter** membuat `user:create` menolak, lalu installer lanjut dan selesai
+  **tanpa satu pun admin**. Kini `ask_admin_password` langsung meminta ulang bila panjangnya < 8
+  (syarat `Password::defaults()`), dan bila `user:create` tetap menolak (email tak valid/sudah dipakai)
+  installer menawarkan "Coba lagi?" — mode `--yes` tidak mengulang, cukup peringatan.
+- **Admin yang dibuat manual sesuai dokumentasi jadi role operator**: `user:create` punya `--role` dengan
+  bawaan `operator`, tapi README, `docs/INSTALL.md`, `docs/DOCKER.md`, dan handbook 04 tak menyebutnya.
+  Semua perintah pembuatan admin kini memakai `--role=admin`; contoh `--password=rahasia` (7 karakter,
+  pasti ditolak) diganti `passwordkuat`; INSTALL.md §6 menjelaskan cara menaikkan akun yang terlanjur
+  operator (menu Users, atau SQL bila belum ada admin sama sekali).
+- `install.sh` kini memanggil `user:create --role=admin` langsung, menggantikan `UPDATE users` lewat
+  psql sesudahnya (`email_verified_at` tak dipakai di mana pun: `User` bukan `MustVerifyEmail`).
+  Ringkasan akhir menampilkan "Admin login" **dan "Admin password"** hanya bila admin benar-benar dibuat
+  (password diketik tersembunyi, jadi ditampilkan sekali di akhir seperti DB password supaya tak lupa),
+  dan baris "Buat user lain" menyebut `--role=admin`.
+
+### Created
+
+- `tests/Feature/CreateUserCommandTest.php` (4 test): `--role=admin` → admin, tanpa `--role` → operator,
+  password 7 karakter & role tak dikenal ditolak tanpa membuat baris.
+
+### Notes
+
+- Verifikasi: 4 test lulus (9 assertions); alur admin installer disimulasikan dengan `user:create` tiruan
+  untuk 5 skenario (password pendek lalu benar, email ditolak → coba lagi, ditolak → berhenti, `--yes`
+  password pendek, `--yes` tanpa email).
+
 ## 2026-09-28 — install.sh: PPA PHP tanpa API Launchpad, Composer tak lagi menunggu Enter
 
 ### Fixed

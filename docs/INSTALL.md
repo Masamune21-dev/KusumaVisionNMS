@@ -137,8 +137,9 @@ php artisan key:generate
 # 4. Database
 php artisan migrate
 
-# 5. Buat admin (registrasi publik dimatikan)
-php artisan user:create --name="Admin" --email=admin@example.com --password=rahasia
+# 5. Buat admin (registrasi publik dimatikan). --role=admin wajib (bawaan operator);
+#    password minimal 8 karakter.
+php artisan user:create --name="Admin" --email=admin@example.com --password=passwordkuat --role=admin
 
 # 6. Jalankan (semua sekaligus)
 composer dev            # serve + queue + logs + vite
@@ -151,8 +152,13 @@ composer dev            # serve + queue + logs + vite
 ## 6. Setelah instalasi (semua jalur)
 
 - **Buat/masuk admin.** Jika belum punya akun (Jalur A/B tanpa `ADMIN_*`), buat:
-  - Docker: `docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat`
-  - Ubuntu/manual: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat`
+  - Docker: `docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin`
+  - Ubuntu/manual: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin`
+  - Tanpa `--role=admin` akun dibuat sebagai **operator** (tak bisa membuka Pengaturan & Users). Password
+    minimal 8 karakter. Akun yang terlanjur operator dinaikkan dari menu **Users** oleh admin lain, atau
+    bila belum ada admin sama sekali:
+    `sudo -u postgres psql -d kusumavision_nms -c "UPDATE users SET role='admin' WHERE email='admin@bmkv.net';"`
+    (Docker: `docker compose exec db psql -U kusumavision -d kusumavision_nms -c "…"`).
 - **Cek sehat.** `bash scripts/check-requirements.sh` (Jalur B/C) atau `docker compose ps` (Jalur A).
 - **Tambah OLT pertama.** Login → menu **SmartOLT** → tambah OLT → **Test SNMP**.
 - **Opsional:** notifikasi Telegram, ACS/TR069, token API, push FCM mobile — semua dari menu

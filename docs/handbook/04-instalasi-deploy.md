@@ -85,8 +85,9 @@ php artisan migrate
 php artisan db:seed                # DatabaseSeeder → 1 admin test@example.com
 #   (opsional, HANYA untuk instance demo:) php artisan db:seed --class=DemoSeeder
 
-# 5. Buat user admin nyata (registrasi publik dimatikan)
-php artisan user:create --name="Admin" --email=admin@example.com --password=rahasia
+# 5. Buat user admin nyata (registrasi publik dimatikan). --role=admin wajib (bawaan
+#    operator); password minimal 8 karakter.
+php artisan user:create --name="Admin" --email=admin@example.com --password=passwordkuat --role=admin
 ```
 
 ### Menjalankan dev

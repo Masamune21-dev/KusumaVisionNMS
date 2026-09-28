@@ -97,7 +97,7 @@ The script is idempotent and safe to re-run. Verify with `bash scripts/check-req
 
 ### After installation
 
-1. Create an admin account if you don't have one yet: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=STRONG_PASSWORD`
+1. Create an admin account if you don't have one yet: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=STRONG_PASSWORD --role=admin`
 2. Log in → **SmartOLT** menu → add an OLT → **Test SNMP**.
 3. Optionally, from the **Settings** menu: Telegram notifications, ACS/TR-069, API tokens, and mobile push.
 

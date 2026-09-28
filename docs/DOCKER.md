@@ -79,7 +79,7 @@ Admin dibuat otomatis (role `admin`) hanya jika belum ada user.
 
 **Cara B — manual, kapan saja:**
 ```bash
-docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat
+docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin
 ```
 
 ---
@@ -163,7 +163,7 @@ image sudah tersedia dan tidak diminta rebuild.)
 | `port is already allocated` | Port 8080 dipakai app lain. Ubah `APP_PORT` di `.env` lalu `docker compose up -d`. |
 | Web tak kebuka, `app` restart terus | `docker compose logs app` — cek error migrasi/APP_KEY/DB. Pastikan `db` `healthy` dulu. |
 | `docker compose` tidak dikenal | Docker Desktop belum jalan / plugin compose belum ada. |
-| Lupa password admin | `docker compose exec app php artisan user:create ...` buat user baru, atau reset via tinker. |
+| Lupa password admin | `docker compose exec app php artisan user:create ... --role=admin` buat admin baru, atau reset via tinker. |
 | Terminal telnet browser: **"WebSocket error — cek daemon telnet:proxy"** | Sudah diperbaiki (URL WebSocket dulu kehilangan `APP_PORT`, mis. `ws://localhost/telnet-ws` padahal app di `:8080`). **Update image**: `git pull` lalu `docker compose up -d --build` (atau `update.bat`). Kalau masih: `docker compose logs app \| grep telnet-proxy` untuk memastikan daemon hidup, dan pastikan port telnet OLT (TCP/23) memang bisa dijangkau dari PC. |
 | Ganti PC tapi ingin bawa data | Backup (`pg_dump`) di §5, restore di PC baru. |
 | Ingin mulai bersih total | `docker compose down -v` (⚠️ **menghapus semua data volume**). |
