@@ -84,6 +84,22 @@ ask() {
   printf -v "$__var" '%s' "${__val:-$__default}"
 }
 
+ask_secret() {
+  # ask_secret VAR "prompt" ["prompt ulang"] -> seperti ask, tapi ketikan tak tampil di
+  # layar (tak tertinggal di scrollback). Dengan prompt ulang, minta diketik dua kali
+  # sampai sama — salah ketik password yang tak terlihat tak bisa dikoreksi belakangan.
+  local __var="$1" __prompt="$2" __again_prompt="${3:-}" __val __again
+  if [ "$ASSUME_YES" = "1" ]; then printf -v "$__var" '%s' ""; return; fi
+  while :; do
+    read -r -s -p "$__prompt: " __val || true; printf '\n'
+    [ -n "$__again_prompt" ] && [ -n "$__val" ] || break
+    read -r -s -p "$__again_prompt: " __again || true; printf '\n'
+    [ "$__val" = "$__again" ] && break
+    warn "$(t "Password tidak sama, ulangi." "Passwords do not match, try again.")"
+  done
+  printf -v "$__var" '%s' "$__val"
+}
+
 usage() {
   if [ "$UI_LANG" = "en" ]; then
     cat <<'USAGE'
@@ -142,14 +158,34 @@ USAGE
   fi
 }
 
-# Set/replace KEY=value di file .env (escape karakter sed).
-set_env() {
-  local key="$1" value="$2" file="$PROJECT_DIR/.env" esc
-  esc="$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')"
-  if grep -qE "^${key}=" "$file"; then
-    sed -i -E "s|^${key}=.*|${key}=${esc}|" "$file"
+# Nilai untuk .env: tanpa kutip bila aman, selain itu dikutip. Dotenv Laravel memotong
+# nilai polos di '#' ("a#b" terbaca "a") dan gagal boot pada spasi — password berisi
+# karakter itu dulu diam-diam rusak. Kutip tunggal = literal; kutip ganda hanya bila
+# nilainya sendiri memuat kutip tunggal (\ " $ di-escape).
+env_quote() {
+  local v="$1"
+  if [[ "$v" =~ ^[A-Za-z0-9_./:@%+,=!-]*$ ]]; then printf '%s' "$v"
+  elif [[ "$v" != *"'"* ]]; then printf "'%s'" "$v"
   else
-    printf '%s=%s\n' "$key" "$value" >> "$file"
+    v="${v//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//\$/\\\$}"
+    printf '"%s"' "$v"
+  fi
+}
+
+# Set/replace KEY=value di file .env. Pakai awk + ENVIRON (bukan sed) supaya karakter
+# apa pun di nilai tak perlu di-escape; berkas ditulis ulang lewat cat agar pemilik &
+# mode .env tetap.
+set_env() {
+  local key="$1" line file="$PROJECT_DIR/.env" tmp
+  line="${key}=$(env_quote "$2")"
+  if grep -qE "^${key}=" "$file"; then
+    tmp="$(mktemp "${file}.XXXXXX")"
+    KV_ENV_LINE="$line" awk -v key="$key" \
+      'index($0, key "=") == 1 { print ENVIRON["KV_ENV_LINE"]; next } { print }' "$file" > "$tmp"
+    cat "$tmp" > "$file"
+    rm -f "$tmp"
+  else
+    printf '%s\n' "$line" >> "$file"
   fi
 }
 
@@ -224,7 +260,7 @@ if [ -z "$DB_PASSWORD" ]; then
     DB_PASSWORD="$(openssl rand -base64 18 2>/dev/null | tr -d '/+=' | cut -c1-20)"
     info "$(t "Password DB digenerate otomatis." "Database password generated automatically.")"
   else
-    ask DB_PASSWORD "$(t "Password database (kosong = generate otomatis)" "Database password (leave empty to generate one)")" ""
+    ask_secret DB_PASSWORD "$(t "Password database (kosong = generate otomatis)" "Database password (leave empty to generate one)")"
     [ -n "$DB_PASSWORD" ] || DB_PASSWORD="$(openssl rand -base64 18 2>/dev/null | tr -d '/+=' | cut -c1-20)"
   fi
 fi
@@ -242,6 +278,11 @@ confirm "$(t "Lanjutkan instalasi dengan konfigurasi di atas?" "Continue the ins
   || die "$(t "Dibatalkan." "Cancelled.")"
 
 export DEBIAN_FRONTEND=noninteractive
+# Sebagai root, Composer interaktif bertanya "Continue as root/super user [yes]?" dan
+# menunggu input. `composer --version 2>/dev/null` di langkah Composer membuang
+# pertanyaannya, jadi installer tampak macet sampai Enter ditekan. Matikan promptnya.
+export COMPOSER_ALLOW_SUPERUSER=1
+export COMPOSER_NO_INTERACTION=1
 
 # ---------------------------------------------------------------------------
 # 1. Paket dasar + repo
@@ -251,9 +292,26 @@ apt-get update -y
 apt-get install -y ca-certificates curl gnupg lsb-release software-properties-common \
   apt-transport-https unzip git openssl acl
 
-# PHP (ondrej/php memberi PHP versi terbaru + ekstensi di semua Ubuntu)
+# PHP (ondrej/php memberi PHP versi terbaru + ekstensi di semua Ubuntu). Dipasang manual,
+# BUKAN `add-apt-repository ppa:ondrej/php`: perintah itu mengambil kunci lewat API
+# Launchpad (api.launchpad.net), yang di sebagian jaringan terblokir padahal repo PPA-nya
+# (ppa.launchpadcontent.net) terjangkau → installer mati dengan traceback Python. Kunci
+# publik PPA ikut di repo dan hanya fingerprint di bawah yang diekspor ke keyring, jadi
+# kunci lain yang terselip di berkas itu tidak ikut dipercaya.
+ONDREJ_PPA_FPR="B8DC7E53946656EFBCE4C1DD71DAEAAB4AD4CAB6"
+ONDREJ_PPA_KEYRING="/etc/apt/keyrings/ondrej-php.gpg"
 if ! grep -rq "ondrej/php" /etc/apt/sources.list.d/ 2>/dev/null; then
-  add-apt-repository -y ppa:ondrej/php
+  CODENAME="${VERSION_CODENAME:-$(lsb_release -sc 2>/dev/null)}"
+  mkdir -p /etc/apt/keyrings
+  GNUPG_TMP="$(mktemp -d)"
+  gpg --homedir "$GNUPG_TMP" --batch --quiet --import "$PROJECT_DIR/scripts/keys/ondrej-php-ppa.asc" 2>/dev/null || true
+  gpg --homedir "$GNUPG_TMP" --batch --export "$ONDREJ_PPA_FPR" > "$ONDREJ_PPA_KEYRING" 2>/dev/null || true
+  rm -rf "$GNUPG_TMP"
+  [ -s "$ONDREJ_PPA_KEYRING" ] || { rm -f "$ONDREJ_PPA_KEYRING"; die "$(t \
+    "Kunci PPA ondrej/php (fingerprint $ONDREJ_PPA_FPR) tidak ditemukan di scripts/keys/ondrej-php-ppa.asc." \
+    "The ondrej/php PPA key (fingerprint $ONDREJ_PPA_FPR) was not found in scripts/keys/ondrej-php-ppa.asc.")"; }
+  echo "deb [signed-by=${ONDREJ_PPA_KEYRING}] https://ppa.launchpadcontent.net/ondrej/php/ubuntu ${CODENAME} main" \
+    > "/etc/apt/sources.list.d/ondrej-ubuntu-php-${CODENAME}.list"
 fi
 
 # NodeSource (Node.js LTS)
@@ -551,11 +609,23 @@ if [ "$ASSUME_YES" = "1" ] && [ -z "$ADMIN_EMAIL" ]; then
 elif confirm "$(t "Buat akun admin sekarang?" "Create an admin account now?")" "Y"; then
   ask ADMIN_NAME     "$(t "Nama admin" "Admin name")"   "${ADMIN_NAME:-Administrator}"
   ask ADMIN_EMAIL    "$(t "Email admin" "Admin email")" "${ADMIN_EMAIL:-admin@${SERVER_NAME}}"
-  if [ -z "$ADMIN_PASSWORD" ]; then ask ADMIN_PASSWORD "$(t "Password admin" "Admin password")" ""; fi
+  if [ -z "$ADMIN_PASSWORD" ]; then
+    ask_secret ADMIN_PASSWORD "$(t "Password admin" "Admin password")" "$(t "Ulangi password admin" "Repeat admin password")"
+  fi
   if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
-    run_artisan user:create --name="$ADMIN_NAME" --email="$ADMIN_EMAIL" --password="$ADMIN_PASSWORD" \
-      && sudo -u postgres psql -d "$DB_NAME" -c "UPDATE users SET role='admin', email_verified_at=now() WHERE email='${ADMIN_EMAIL//\'/\'\'}';" >/dev/null 2>&1 || true
-    ok "$(t "Admin dibuat: $ADMIN_EMAIL (role admin)" "Admin created: $ADMIN_EMAIL (role admin)")"
+    # Dulu `... && psql ... || true` menelan kegagalan user:create, lalu "Admin dibuat"
+    # tetap tercetak walau akunnya tak ada.
+    if run_artisan user:create --name="$ADMIN_NAME" --email="$ADMIN_EMAIL" --password="$ADMIN_PASSWORD"; then
+      if sudo -u postgres psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -c "UPDATE users SET role='admin', email_verified_at=now() WHERE email='${ADMIN_EMAIL//\'/\'\'}';" >/dev/null 2>&1; then
+        ok "$(t "Admin dibuat: $ADMIN_EMAIL (role admin)" "Admin created: $ADMIN_EMAIL (role admin)")"
+      else
+        warn "$(t "Akun $ADMIN_EMAIL dibuat, tapi role admin gagal diset — atur manual di tabel users." \
+                  "Account $ADMIN_EMAIL created, but setting the admin role failed — set it manually in the users table.")"
+      fi
+    else
+      warn "$(t "Gagal membuat admin (lihat pesan di atas). Jalankan: php artisan user:create" \
+                "Failed to create the admin (see the message above). Run: php artisan user:create")"
+    fi
   else
     warn "$(t "Email/password kosong → admin tidak dibuat. Jalankan: php artisan user:create" \
               "Empty email/password → no admin created. Run: php artisan user:create")"

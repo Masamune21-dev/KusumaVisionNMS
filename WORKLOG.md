@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-09-28 — install.sh: PPA PHP tanpa API Launchpad, Composer tak lagi menunggu Enter
+
+### Fixed
+
+- **Instalasi berhenti di `add-apt-repository ppa:ondrej/php`** (`TimeoutError` dari launchpadlib) di
+  jaringan yang memblokir `api.launchpad.net`, padahal repo `ppa.launchpadcontent.net` terjangkau. PPA
+  kini dipasang manual: kunci publik ikut repo di `scripts/keys/ondrej-php-ppa.asc`, diimpor ke homedir
+  GnuPG sementara, lalu **hanya fingerprint `B8DC7E53946656EFBCE4C1DD71DAEAAB4AD4CAB6`** yang diekspor ke
+  `/etc/apt/keyrings/ondrej-php.gpg` (kunci lain yang terselip di berkas tidak ikut dipercaya); sources
+  list `signed-by` per codename. Pengecekan idempoten `grep ondrej/php` tetap.
+- **Installer tampak macet di langkah Composer sampai Enter ditekan**: `composer --version 2>/dev/null`
+  sebagai root memicu prompt "Continue as root/super user [yes]?" yang tertelan ke `/dev/null`.
+  `COMPOSER_ALLOW_SUPERUSER=1` + `COMPOSER_NO_INTERACTION=1` kini di-export global (pola yang sama sudah
+  ada di `check-requirements.sh`, tapi belum di `install.sh`).
+- Password database & admin tampil di layar saat diketik → `ask_secret` (`read -s`); password admin
+  diminta dua kali sampai sama.
+- "Admin dibuat" tercetak walau `user:create` gagal (`&& … || true`) → kini tiga cabang: sukses, akun
+  dibuat tapi role gagal diset, atau gagal dibuat.
+- `set_env` menulis nilai `.env` tanpa kutip, padahal dotenv memotong nilai polos di `#` (`a#b` terbaca
+  `a`) dan gagal boot pada spasi. `env_quote` kini mengutip nilai yang tidak aman (kutip tunggal =
+  literal; kutip ganda + escape `\ " $` bila nilainya memuat `'`); baris diganti lewat awk + `ENVIRON`,
+  bukan sed, dan mode/pemilik `.env` tetap.
+
+### Notes
+
+- Kunci diambil dari keyring resmi yang dipasang `add-apt-repository`. InRelease jammy & noble (25 Sep
+  2026) ditandatangani ganda: kunci lama `14AA40EC…E5267A6C` dan kunci baru RSA 4096 di atas; installer
+  memakai yang baru. Kalau Launchpad merotasi kunci lagi, `apt-get update` gagal `NO_PUBKEY` → ganti
+  berkas kunci + `ONDREJ_PPA_FPR`.
+- Verifikasi: `bash -n`; simulasi langkah kunci → `gpgv` Good signature untuk jammy & noble, fingerprint
+  salah → keyring kosong (installer berhenti dengan pesan); round-trip 9 nilai sulit (`#`, spasi, `\`,
+  `${…}`, kutip) lewat `Dotenv::parse` (phpdotenv 5.7) identik; `ask_secret` (salah ulang → peringatan,
+  `--yes` → kosong); jeda Composer direproduksi di pseudo-TTY (lama: macet sampai timeout, baru: langsung
+  lanjut).
+
 ## 2026-09-28 — Data Uji Registrasi Diganti Nilai Fiktif
 
 ### Changed
