@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-09-28 — Data Uji Registrasi Diganti Nilai Fiktif
+
+### Changed
+
+- `tests/Feature/SmartOltRegistrationExecutionTest.php`: nama pelanggan, serial ONU, dan profil VLAN di fixture
+  diganti nilai fiktif (`Pelanggan Uji 0800`, `CDTC0800A001`, VLAN 2100) — nilai lama berasal dari instalasi nyata.
+
 ## 2026-09-28 — Dokumentasi & Screenshot Diperbarui (Data Contoh)
 
 ### Changed
