@@ -5,7 +5,7 @@ import PinDetailCard from '@/Components/Map/PinDetailCard.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, router, usePage } from '@inertiajs/vue3';
 import { Crosshair, MapPin, X } from '@lucide/vue';
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // Lazy-load peta Leaflet (chunk async) agar key manifest Inertia tidak hilang saat build.
 const OnuMap = defineAsyncComponent(() => import('@/Components/Map/OnuMap.vue'));
@@ -62,6 +62,93 @@ const odpCardStyle = computed(() =>
         : {},
 );
 
+// Ujung bawah kartu berjarak 34 px di atas ujung pin (lihat .kv-pin-popup). Saat pin dipilih
+// peta digeser supaya kartu + pin tampil utuh di tengah area peta, bukan terpotong di atas.
+const POPUP_GAP = 34;
+const EDGE = 12;
+
+const mapBox = ref(null);
+const pinCardEl = ref(null);
+const odpCardEl = ref(null);
+const boxHeight = ref(0);
+
+// Kartu tak boleh lebih tinggi dari peta; sisanya di-scroll di dalam kartu.
+const cardMaxHeight = computed(() =>
+    boxHeight.value ? `${Math.max(160, boxHeight.value - POPUP_GAP - EDGE * 2)}px` : null,
+);
+
+const waitFor = async (getter, tries = 5) => {
+    for (let i = 0; i < tries && !getter(); i++) await nextTick();
+
+    return getter();
+};
+
+const lastCardHeight = new WeakMap();
+let centeringAt = 0;
+
+// Pin ditaruh di bawah pusat peta sejauh setengah (tinggi kartu + jarak) → blok kartu+pin di tengah.
+const centerOnCard = async (item, cardEl) => {
+    centeringAt = Date.now();
+    await nextTick(); // isi kartu pin/ODP baru sudah dirender sebelum diukur
+    const map = await waitFor(() => mapRef.value);
+    const el = await waitFor(() => cardEl.value);
+    if (!map || !item) return;
+
+    const h = el?.offsetHeight ?? 0;
+    if (el) lastCardHeight.set(el, h);
+    map.flyTo(item.latitude, item.longitude, 16, h ? (h + POPUP_GAP) / 2 : 130);
+};
+
+// Kartu yang membesar selagi terbuka (mis. form ubah nama) digeser turun seperlunya agar tak
+// keluar dari atas peta. Ukuran awal & perubahan selama animasi pemusatan diabaikan — itu urusan
+// centerOnCard (panBy di tengah flyTo membatalkan animasinya).
+const keepCardInView = (el) => {
+    if (Date.now() - centeringAt < 1500) return;
+
+    const pos = el === pinCardEl.value ? cardPos.value : el === odpCardEl.value ? odpCardPos.value : null;
+    if (!pos || !mapRef.value) return;
+
+    const top = pos.y - POPUP_GAP - el.offsetHeight;
+    if (top < EDGE) mapRef.value.panBy(0, top - EDGE);
+};
+
+let resizeObserver = null;
+onMounted(() => {
+    resizeObserver = new ResizeObserver((entries) => {
+        for (const { target } of entries) {
+            if (target === mapBox.value) {
+                boxHeight.value = target.clientHeight;
+                continue;
+            }
+            const prev = lastCardHeight.get(target);
+            lastCardHeight.set(target, target.offsetHeight);
+            if (prev != null && target.offsetHeight > prev) keepCardInView(target);
+        }
+    });
+    if (mapBox.value) resizeObserver.observe(mapBox.value);
+});
+onBeforeUnmount(() => resizeObserver?.disconnect());
+watch([pinCardEl, odpCardEl], ([pinEl, odpEl], [oldPin, oldOdp]) => {
+    if (!resizeObserver) return;
+    for (const el of [oldPin, oldOdp]) if (el && el !== pinEl && el !== odpEl) resizeObserver.unobserve(el);
+    for (const el of [pinEl, odpEl]) if (el) resizeObserver.observe(el);
+});
+
+// Fokus dari halaman lain ("Lihat di Peta"): dipusatkan begitu kartunya pertama kali muncul.
+let pendingCenter = null;
+watch(cardPos, (pos) => {
+    if (pos && pendingCenter === 'pin') {
+        pendingCenter = null;
+        centerOnCard(selectedPin.value, pinCardEl);
+    }
+});
+watch(odpCardPos, (pos) => {
+    if (pos && pendingCenter === 'odp') {
+        pendingCenter = null;
+        centerOnCard(selectedOdp.value, odpCardEl);
+    }
+});
+
 const closeDetail = () => {
     selectedPinId.value = null;
     cardPos.value = null;
@@ -91,8 +178,10 @@ onMounted(() => {
         addMode.value = true;
         ensureOnus();
     } else if (props.focus_pin_id && props.pins.some((p) => p.id === props.focus_pin_id)) {
+        pendingCenter = 'pin';
         selectedPinId.value = props.focus_pin_id;
     } else if (props.focus_odp_id && props.odps.some((o) => o.id === props.focus_odp_id)) {
+        pendingCenter = 'odp';
         selectedOdpId.value = props.focus_odp_id;
     }
 });
@@ -117,15 +206,13 @@ const onMapClick = ({ lat, lng }) => {
 const onSelectPin = (id) => {
     closeOdpDetail();
     selectedPinId.value = id;
-    const pin = props.pins.find((p) => p.id === id);
-    if (pin && mapRef.value) mapRef.value.flyTo(pin.latitude, pin.longitude);
+    centerOnCard(props.pins.find((p) => p.id === id), pinCardEl);
 };
 
 const onSelectOdp = (id) => {
     closeDetail();
     selectedOdpId.value = id;
-    const odp = props.odps.find((o) => o.id === id);
-    if (odp && mapRef.value) mapRef.value.flyTo(odp.latitude, odp.longitude);
+    centerOnCard(props.odps.find((o) => o.id === id), odpCardEl);
 };
 
 const closeModal = () => {
@@ -195,7 +282,7 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
             </div>
 
             <!-- Peta + panel detail -->
-            <div class="relative h-[78vh] min-h-[420px] overflow-hidden rounded-xl border border-white/10">
+            <div ref="mapBox" class="relative h-[78vh] min-h-[420px] overflow-hidden rounded-xl border border-white/10">
                 <OnuMap
                     ref="mapRef"
                     :pins="pins"
@@ -214,13 +301,15 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
                     @odp-moved="onOdpMoved"
                 />
 
-                <!-- Kartu detail pin ONU — menempel tepat di atas pin -->
+                <!-- Kartu detail pin ONU — menempel tepat di atas pin, maks setinggi peta -->
                 <div
                     v-if="selectedPin && cardPos"
                     class="kv-pin-popup absolute z-[500] w-72"
                     :style="cardStyle"
                 >
-                    <PinDetailCard :pin="selectedPin" @close="closeDetail" />
+                    <div ref="pinCardEl" class="overflow-y-auto overscroll-contain rounded-2xl" :style="{ maxHeight: cardMaxHeight }">
+                        <PinDetailCard :pin="selectedPin" @close="closeDetail" />
+                    </div>
                     <span class="kv-pin-popup__arrow"></span>
                 </div>
 
@@ -231,12 +320,14 @@ const onOdpMoved = ({ id, latitude, longitude }) => {
                     class="kv-pin-popup absolute z-[500] w-80 max-w-[calc(100vw-1.5rem)]"
                     :style="odpCardStyle"
                 >
-                    <OdpDetailCard
-                        :odp="selectedOdp"
-                        :palette="odp_color_palette"
-                        :port-count="selectedOdpPortCount"
-                        @close="closeOdpDetail"
-                    />
+                    <div ref="odpCardEl" class="overflow-y-auto overscroll-contain rounded-2xl" :style="{ maxHeight: cardMaxHeight }">
+                        <OdpDetailCard
+                            :odp="selectedOdp"
+                            :palette="odp_color_palette"
+                            :port-count="selectedOdpPortCount"
+                            @close="closeOdpDetail"
+                        />
+                    </div>
                     <span class="kv-pin-popup__arrow"></span>
                 </div>
 

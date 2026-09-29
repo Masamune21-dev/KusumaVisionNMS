@@ -583,13 +583,18 @@ watch(
 
 // Diekspos agar induk bisa memusatkan peta ke pin terpilih.
 defineExpose({
-    flyTo(lat, lng, zoom = 16) {
+    // offsetY = jarak (px) pin di bawah pusat peta. Induk mengisinya setengah tinggi kartu detail,
+    // jadi kartu + pin tampil utuh di tengah; 130 hanya cadangan bila tinggi kartu belum terukur.
+    flyTo(lat, lng, zoom = 16, offsetY = 130) {
         if (!map) return;
         // Jangan zoom-out bila sudah lebih dekat.
         const targetZoom = Math.max(map.getZoom(), zoom);
-        // Geser center ke atas pin agar pin tampil di bawah-tengah → cukup ruang untuk kartu detail.
-        const pt = map.project([lat, lng], targetZoom).subtract([0, 130]);
+        const pt = map.project([lat, lng], targetZoom).subtract([0, offsetY]);
         map.flyTo(map.unproject(pt, targetZoom), targetZoom);
+    },
+    // Geser tampilan (px, animasi) — dipakai induk agar kartu yang membesar tak keluar peta.
+    panBy(dx, dy) {
+        if (map) map.panBy([dx, dy]);
     },
 });
 </script>

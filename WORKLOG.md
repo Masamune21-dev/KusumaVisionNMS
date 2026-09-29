@@ -1,5 +1,24 @@
 # Worklog
 
+## 2026-09-29 — Peta: Kartu Detail Pin/ODP Tampil Utuh di Tengah
+
+### Fixed
+
+- **Kartu detail pin ONU/ODP terpotong di tepi atas peta**: kartu menempel di atas pin, tapi `flyTo` hanya
+  menggeser pusat peta 130 px tetap, sedangkan kartu ODP (daftar ONU, foto, tombol) jauh lebih tinggi — pengguna
+  harus menggeser peta sendiri. Kini `Pages/Map/Index.vue` mengukur tinggi kartu setelah dirender lalu memanggil
+  `OnuMap.flyTo(lat, lng, zoom, offsetY)` dengan `offsetY = (tinggi kartu + 34 px) / 2`, sehingga blok kartu + pin
+  berada tepat di tengah area peta; kartu tetap menempel & menunjuk pinnya.
+- Kartu dibatasi setinggi peta (`maxHeight` = tinggi peta − 34 − 2×12 px, dipantau `ResizeObserver`) dan isinya
+  di-scroll di dalam kartu, jadi di layar pendek pun tak pernah keluar.
+- Fokus dari halaman lain (`focus_pin_id`/`focus_odp_id`, "Lihat di Peta") ikut dipusatkan begitu kartunya muncul.
+- Kartu yang membesar selagi terbuka digeser seperlunya (`OnuMap.panBy`) agar tak keluar dari atas; diabaikan
+  1,5 dtk selama animasi pemusatan supaya `panBy` tak membatalkan `flyTo`.
+
+### Notes
+
+- `bash scripts/test.sh` 620 passed / 3714 assertions, `npm test` 29 passed, `npm run build` OK.
+
 ## 2026-09-28 — C-Data GPON: Dukungan FD1601S/FD1602S, Status Offline Palsu, Data Uji Fiktif
 
 ### Fixed
