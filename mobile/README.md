@@ -27,7 +27,8 @@ firebase_core/messaging + flutter_local_notifications · Material 3 dark-glass (
 
 ```bash
 # dari root repo
-API_BASE_URL=https://nms.kusumavision.net/api/v1 bash bin/build-apk.sh
+# WAJIB: alamat API server NMS Anda sendiri (tanpa nilai bawaan)
+API_BASE_URL=https://nms.domain-anda.com/api/v1 bash bin/build-apk.sh
 # atau manual:
 cd mobile
 flutter pub get

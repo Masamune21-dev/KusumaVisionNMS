@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'core/env.dart';
 import 'core/fcm/fcm_service.dart';
 import 'theme/theme_controller.dart';
 
@@ -16,6 +17,20 @@ Future<void> main() async {
 
     // Error saat build widget → tampilkan kotak merah terbaca, bukan layar abu.
     ErrorWidget.builder = (details) => _ErrorBox(message: details.exceptionAsString());
+
+    // APK dibangun tanpa alamat server → berhenti di sini dengan petunjuk, jangan menebak server.
+    if (!Env.isConfigured) {
+      runApp(const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: _ErrorBox(
+          message: 'Alamat server belum diatur saat build.\n\n'
+              'Build ulang dengan:\n'
+              'flutter build apk --release --dart-define=API_BASE_URL=https://<host-nms-anda>/api/v1\n\n'
+              'atau: API_BASE_URL=https://<host-nms-anda>/api/v1 bash bin/build-apk.sh',
+        ),
+      ));
+      return;
+    }
 
     try {
       await initializeDateFormatting('id');

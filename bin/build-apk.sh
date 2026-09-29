@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build APK release aplikasi Android KusumaVision NMS (mobile/).
 #
-# Pakai:
-#   API_BASE_URL=https://nms.kusumavision.net/api/v1 bash bin/build-apk.sh
+# Pakai (WAJIB isi API_BASE_URL = alamat API server NMS Anda sendiri):
+#   API_BASE_URL=https://nms.domain-anda.com/api/v1 bash bin/build-apk.sh
 #
 # Prasyarat (sudah dipasang oleh sesi setup): JDK 17, Android SDK di /opt/android-sdk,
 # Flutter di /opt/flutter. gradle.properties di mobile/android sudah dikonstrain untuk
@@ -14,7 +14,14 @@ export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/opt/android-sdk}"
 export ANDROID_HOME="$ANDROID_SDK_ROOT"
 export PATH="$PATH:/opt/flutter/bin:$ANDROID_SDK_ROOT/platform-tools"
 
-API_BASE_URL="${API_BASE_URL:-https://nms.kusumavision.net/api/v1}"
+# Tanpa nilai bawaan: APK tak boleh diam-diam mengarah ke server NMS milik orang lain.
+API_BASE_URL="${API_BASE_URL:-}"
+if [[ ! "$API_BASE_URL" =~ ^https?://[^/]+ ]]; then
+  echo "ERROR: isi API_BASE_URL dengan alamat API server NMS Anda, contoh:" >&2
+  echo "  API_BASE_URL=https://nms.domain-anda.com/api/v1 bash bin/build-apk.sh" >&2
+  exit 1
+fi
+API_BASE_URL="${API_BASE_URL%/}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/mobile"
 

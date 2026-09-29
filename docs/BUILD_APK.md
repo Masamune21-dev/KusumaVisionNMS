@@ -159,10 +159,12 @@ Untuk build **APK Android** tidak perlu Xcode (Xcode hanya untuk build iOS, yang
 
 ### Cara cepat (skrip repo)
 
-Dari **root repo**, set `API_BASE_URL` ke URL API server NMS Anda:
+Dari **root repo**, set `API_BASE_URL` ke URL API server NMS Anda (**wajib** — tidak ada nilai bawaan;
+skrip berhenti bila kosong, dan APK yang dibangun manual tanpa `--dart-define=API_BASE_URL` hanya
+menampilkan pesan "alamat server belum diatur"):
 
 ```bash
-API_BASE_URL=https://nms.kusumavision.net/api/v1 bash bin/build-apk.sh
+API_BASE_URL=https://nms.domain-anda.com/api/v1 bash bin/build-apk.sh
 ```
 
 Skrip [`bin/build-apk.sh`](../bin/build-apk.sh) melakukan: `flutter pub get` → `flutter analyze` →

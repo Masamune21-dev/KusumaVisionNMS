@@ -1,5 +1,24 @@
 # Worklog
 
+## 2026-09-29 — Aplikasi Android: Alamat Server Tanpa Nilai Bawaan
+
+### Fixed
+
+- **APK yang dibangun dari repo ini tak lagi diam-diam mengarah ke server NMS milik pengembang.** Dulu
+  `mobile/lib/core/env.dart` dan `bin/build-apk.sh` memakai nilai bawaan `API_BASE_URL` yang menunjuk ke server
+  produksi pengembang, sehingga siapa pun yang membangun APK tanpa `--dart-define=API_BASE_URL` mendapat aplikasi
+  yang login ke server itu, bukan ke NMS miliknya sendiri.
+  - `Env.apiBaseUrl` kini tanpa nilai bawaan (+ `Env.isConfigured`); `main.dart` menampilkan layar "Alamat server
+    belum diatur saat build" beserta perintah build yang benar, alih-alih menghubungi server mana pun.
+  - `bin/build-apk.sh` **wajib** diberi `API_BASE_URL` (harus diawali `http(s)://`, garis miring akhir dibuang) dan
+    berhenti dengan contoh cara pakai bila kosong.
+  - Contoh di `mobile/README.md` & `docs/BUILD_APK.md` memakai `https://nms.domain-anda.com/api/v1`.
+
+### Notes
+
+- Upgrade: yang selama ini membangun APK dengan `API_BASE_URL` sendiri tak terdampak; yang mengandalkan nilai
+  bawaan kini harus mengisinya. `flutter analyze` bersih, `flutter test` 27 lulus.
+
 ## 2026-09-29 — HiOSO Saja: Label V-Sol & Modul HsAirPo Dihapus
 
 ### Changed
