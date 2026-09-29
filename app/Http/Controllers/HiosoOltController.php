@@ -24,7 +24,7 @@ use Inertia\Response;
 use Throwable;
 
 /**
- * Halaman OLT HiOSO / V-Sol EPON (enterprise 25355, mis. HA7304) — inventori & aksi ONU.
+ * Halaman OLT HiOSO EPON (enterprise 25355, mis. HA7304) — inventori & aksi ONU.
  *
  * Dipisah dari {@see CDataOltController} supaya HiOSO punya controller, rute (`hioso-olt.*`), dan
  * halaman (`Hioso/*`) sendiri. Scan penuh memakai {@see CDataOltScanner} bersama (resolver memilih

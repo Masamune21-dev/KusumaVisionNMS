@@ -1,10 +1,11 @@
-# Panduan OLT HiOSO / V-Sol (HA7304) — KusumaVision NMS
+# Panduan OLT HiOSO (HA7304) — KusumaVision NMS
 
 Terakhir diperbarui: 13 Juli 2026
 
-Referensi integrasi OLT EPON HiOSO / V-Sol berbasis chipset HA7304 di **KusumaVision NMS**. Berisi spec SNMP, OID map, CLI command, quirk transport, parser value, contoh data live, dan pemetaan ke kelas/route/halaman nyata repo ini.
+Referensi integrasi OLT EPON HiOSO berbasis chipset HA7304 di **KusumaVision NMS**. Berisi spec SNMP, OID map, CLI command, quirk transport, parser value, contoh data live, dan pemetaan ke kelas/route/halaman nyata repo ini.
 
-Devices target: HiOSO HA7304, V-Sol / V-Solution EPON OLT, dan rebrand lain dengan enterprise SNMP `1.3.6.1.4.1.25355`.
+Devices target: HiOSO HA7304 (4 PON) dan HA7302 (2 PON), enterprise SNMP `1.3.6.1.4.1.25355` — keduanya teruji live.
+OLT V-Sol **tidak** didukung driver ini (firmware berbeda) dan tidak lagi dikenali sebagai HiOSO.
 
 > **Status implementasi di KusumaVision NMS.** §1–§11 (OID/CLI vendor) sudah diverifikasi live & dipakai.
 > **§7 & §12 memuat template driver dari project lama — bukan penamaan kelas repo ini** (dipertahankan
@@ -20,7 +21,7 @@ Devices target: HiOSO HA7304, V-Sol / V-Solution EPON OLT, dan rebrand lain deng
 Tanda OLT termasuk family ini:
 
 - `sysObjectID` (`1.3.6.1.2.1.1.2.0`) → mengandung `iso.3.6.1.4.1.25355`
-- `sysDescr` (`1.3.6.1.2.1.1.1.0`) → contoh: kosong / generic, tapi vendor string biasanya `HA7304` atau `V-SOL`
+- `sysDescr` (`1.3.6.1.2.1.1.1.0`) → contoh: kosong / generic, tapi vendor string biasanya `HA7304`
 - Vendor signature firmware (`1.3.6.1.4.1.25355.3.1.8.1.1.2.1`) → contoh value: `1.0.0.1/HA7304/SN2018-03-00007`
 - CLI prompt setelah login: `EPON>` (user mode) lalu `EPON#` (enable)
 - ifTable mengandung `Pon-Nni1..4` dan `G1..G4` (kalau 4-PON unit)
@@ -28,7 +29,7 @@ Tanda OLT termasuk family ini:
 Detection string yang dipakai BMKV (case-insensitive substring match):
 
 ```
-hioso | ha7304 | 25355 | v-sol | vsol | v-solution
+hioso | ha7304 | 25355
 ```
 
 ---
@@ -592,7 +593,7 @@ Nilai nyata dari [`SmartOltSupport::hiosoEponCapabilities()`](../app/Support/Sma
 ```json
 {
     "driver": "hioso-epon-25355",
-    "vendor_family": "HiOSO / V-Sol EPON",
+    "vendor_family": "HiOSO EPON",
     "pon_label": "EPON",
     "port_label": "EPON Port",
     "port_name_prefix": "epon 0",
@@ -744,7 +745,7 @@ telnet HOST PORT
 | [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh bersama (dipakai HiOSO **dan** C-Data) → `last_test_result.port_onus` |
 | [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | interface read yang di-implement `HiosoEponSnmpService` |
 | [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → `HiosoEponSnmpService` |
-| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + `driverKey()` (needle `hioso\|ha7304\|25355\|v-sol\|vsol\|v-solution`) |
+| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + `driverKey()` (needle `hioso\|ha7304\|25355`) |
 | [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/portOnus/test/refresh/save-config + onu reboot/state/info/delete) |
 | `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/OltFaceplate.vue`) |
 
@@ -780,4 +781,3 @@ Sudah selesai (bukan roadmap lagi): rename, reboot, **enable/disable** (`onu {N}
 
 ### Vendor
 - HiOSO chipset HA7304 datasheet — tidak public, harus minta ke vendor
-- V-Sol / V-Solution OLT documentation portal — tidak ada link stabil public

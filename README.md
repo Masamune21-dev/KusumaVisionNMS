@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, **HiOSO/V-Sol EPON**, and **HsAirPo/HSGQ EPON** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
+A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, and **HiOSO EPON** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
 
 </div>
 
@@ -47,7 +47,7 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 
 ## Key Features
 
-- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON, HsAirPo/HSGQ EPON; automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo).
+- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO EPON; automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo).
 - **Monitoring** — PON ports, ONU state (online / LOS / power off / offline) with friendly bilingual labels, RX power with **long-range history** (raw samples for 24 h, hourly min/avg/max summaries for 7/30 days), faceplate view, cross-OLT ONU monitoring (filter by OLT / port / state / **ODP**), customer name as the primary identity in ONU tables, global search (⌘K), dashboard charts, and PON port descriptions editable directly from the dashboard via CLI.
 - **ONU provisioning (ZTE)** — discovery of unconfigured ONUs → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069, **pick the ODP right at registration**), reconfiguration via delta scripts or a **NetNumen-style per-section ONU editor** (add/edit/delete a T-CONT, GEM, service, VLAN… sent straight to the OLT; ONUs bound to an `onu-profile` are detected, blocked changes are explained, and the profile can be released), per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
 - **Remote ONU management** — reboot, rename, enable/disable, delete (one or **many at once**), bulk TR-069 per port, remote open/close of the ONT web UI (Remote ONT), and a **Telnet terminal directly in the browser**.

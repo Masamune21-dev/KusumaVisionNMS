@@ -9,7 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * Label port PON sisi-NMS — dipakai bersama halaman C-Data, HiOSO, dan HsAirPo.
+ * Label port PON sisi-NMS — dipakai bersama halaman C-Data dan HiOSO.
  *
  * OLT ZTE sengaja TIDAK memakai endpoint ini: deskripsi portnya ditulis langsung ke perangkat
  * lewat `smartolt.port.description` (capability `supports_port_description_write`). Gerbangnya

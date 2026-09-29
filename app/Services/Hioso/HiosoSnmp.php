@@ -7,7 +7,7 @@ use RuntimeException;
 use SNMP;
 
 /**
- * Transport SNMP read (v1/v2c) khusus HiOSO / V-Sol. Berdiri sendiri (tak memakai transport C-Data)
+ * Transport SNMP read (v1/v2c) khusus HiOSO. Berdiri sendiri (tak memakai transport C-Data)
  * agar HiOSO punya tuning & lifecycle sendiri.
  *
  * HiOSO sering diakses lewat WAN → default timeout/retry lebih tinggi (10s/3) supaya walk tabel besar

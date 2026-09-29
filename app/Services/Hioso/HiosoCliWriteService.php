@@ -8,7 +8,7 @@ use App\Support\Telnet\TelnetIacFilter;
 use RuntimeException;
 
 /**
- * Aksi write ONU HiOSO / V-Sol EPON via CLI telnet — reboot / enable-disable / delete / save-config.
+ * Aksi write ONU HiOSO EPON via CLI telnet — reboot / enable-disable / delete / save-config.
  *
  * Berdiri sendiri (tidak memakai plumbing CLI C-Data). Quirk HiOSO yang ditangani (guide §2.2 & §10):
  *   - CRLF (`\r\n`) WAJIB tiap baris (RFC 854 strict; `\n` saja tak dianggap Enter).

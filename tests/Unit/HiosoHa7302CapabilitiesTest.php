@@ -58,6 +58,6 @@ class HiosoHa7302CapabilitiesTest extends TestCase
         $this->assertTrue($caps['supports_onu_toggle']);
         $this->assertTrue($caps['supports_onu_delete']);
         $this->assertTrue($caps['supports_config_save']);
-        $this->assertSame('HiOSO / V-Sol EPON (HA7302)', $caps['vendor_family']);
+        $this->assertSame('HiOSO EPON (HA7302)', $caps['vendor_family']);
     }
 }

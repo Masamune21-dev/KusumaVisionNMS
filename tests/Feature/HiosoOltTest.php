@@ -41,7 +41,7 @@ class FakeHiosoCliWriteService extends HiosoCliWriteService
 }
 
 /**
- * OLT HiOSO / V-Sol EPON (25355) kini punya controller + rute (`hioso-olt.*`) + halaman (`Hioso/*`)
+ * OLT HiOSO EPON (25355) kini punya controller + rute (`hioso-olt.*`) + halaman (`Hioso/*`)
  * sendiri, terpisah dari C-Data.
  */
 class HiosoOltTest extends TestCase

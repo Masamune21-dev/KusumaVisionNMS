@@ -231,7 +231,7 @@ const navLinks = computed(() => [
 const heroPills = computed(() => [
     { icon: Cable, label: 'ZTE C300/C320/C600' },
     { icon: Router, label: 'C-Data EPON/GPON' },
-    { icon: RadioTower, label: 'HiOSO / V-Sol EPON' },
+    { icon: RadioTower, label: 'HiOSO EPON' },
     { icon: Wifi, label: 'ONU Provisioning' },
     { icon: MapPin, label: t('welcome.pill_map') },
     { icon: Terminal, label: 'Web Telnet' },
@@ -294,7 +294,7 @@ const benefits = [
 const marqueeItems = computed(() => [
     'Multi-Vendor OLT',
     'C-Data EPON/GPON',
-    'HiOSO / V-Sol EPON',
+    'HiOSO EPON',
     'GPON Monitoring',
     'SNMP Polling',
     'ONU Provisioning',
@@ -919,7 +919,7 @@ onBeforeUnmount(() => {
                                     <span class="kv-pill-info">ZTE C600</span>
                                     <span class="kv-pill-info">C-Data EPON</span>
                                     <span class="kv-pill-info">C-Data GPON</span>
-                                    <span class="kv-pill-info">HiOSO / V-Sol</span>
+                                    <span class="kv-pill-info">HiOSO</span>
                                 </div>
                             </div>
                             <img

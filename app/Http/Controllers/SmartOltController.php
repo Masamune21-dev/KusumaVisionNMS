@@ -65,7 +65,7 @@ class SmartOltController extends Controller
 
     public function index(): Response
     {
-        // Empat tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO, OLT HsAirPo. Pisahkan berdasarkan driver.
+        // Tiga tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO. Pisahkan berdasarkan driver.
         $rows = SnmpOlt::query()
             ->orderBy('name')
             ->get()
@@ -75,7 +75,6 @@ class SmartOltController extends Controller
             'olts' => $rows->reject(fn (array $row) => SmartOltSupport::isNonZte($row['driver']))->values(),
             'cdataOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isCData($row['driver']))->values(),
             'hiosoOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isHioso($row['driver']))->values(),
-            'hsairpoOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isHsAirPo($row['driver']))->values(),
         ]);
     }
 

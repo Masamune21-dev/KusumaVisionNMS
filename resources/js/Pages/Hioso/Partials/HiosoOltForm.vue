@@ -96,7 +96,7 @@ const submit = () => {
                     <InputLabel for="vendor" :value="$t('cdataform.family')" />
                     <TextInput
                         id="vendor"
-                        model-value="HiOSO / V-Sol EPON (25355)"
+                        model-value="HiOSO EPON (25355)"
                         class="mt-1 block w-full opacity-70"
                         disabled
                     />

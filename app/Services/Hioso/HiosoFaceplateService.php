@@ -7,7 +7,7 @@ use App\Services\CData\CDataFaceplateService;
 use Throwable;
 
 /**
- * Faceplate (panel depan) OLT HiOSO / V-Sol HA7304.
+ * Faceplate (panel depan) OLT HiOSO HA7304.
  *
  * SNMP HiOSO hanya meng-expose 8 interface (ifType 117/1G semua): `Pon-Nni1..4` (PON) & `G1..G4`
  * (uplink) — TIDAK membedakan SFP vs LAN, dan TIDAK meng-expose MGMT/Console. Jadi layout panel

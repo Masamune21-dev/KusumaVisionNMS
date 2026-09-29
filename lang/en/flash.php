@@ -24,8 +24,6 @@ return [
     'olt_cdata_updated' => 'C-Data OLT updated.',
     'olt_hioso_deleted' => 'HiOSO OLT deleted.',
     'olt_hioso_updated' => 'HiOSO OLT updated.',
-    'olt_hsairpo_deleted' => 'HsAirPo OLT deleted.',
-    'olt_hsairpo_updated' => 'HsAirPo OLT updated.',
     'olt_deleted' => 'OLT deleted.',
     'olt_updated' => 'OLT updated.',
     'olt_added' => 'OLT added.',

@@ -8,7 +8,7 @@ use App\Services\AlarmEvaluator;
 use Throwable;
 
 /**
- * Driver SNMP read HiOSO / V-Sol EPON (enterprise `25355`, mis. chipset HA7304).
+ * Driver SNMP read HiOSO EPON (enterprise `25355`, mis. chipset HA7304).
  *
  * Inventory ONU diambil dari tiga OID kanonik yang sudah diverifikasi live (lihat
  * `SMARTOLT_HIOSO_GUIDE.md` §4.3) — name / MAC / Rx — yang di-index oleh **dua segmen terakhir**

@@ -4,7 +4,7 @@ import { Check, Pencil, X } from '@lucide/vue';
 import { nextTick, ref } from 'vue';
 
 // Label port PON sisi-NMS — dipakai bersama tabel port & header Port ONU
-// C-Data / HiOSO / HsAirPo. Tidak pernah ditulis ke OLT (beda dari deskripsi
+// C-Data / HiOSO. Tidak pernah ditulis ke OLT (beda dari deskripsi
 // port ZTE yang memang disimpan di perangkat).
 const props = defineProps({
     oltId: { type: [Number, String], required: true },

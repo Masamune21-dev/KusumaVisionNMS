@@ -28,7 +28,6 @@ export function oltImageKey(olt = {}) {
     if (driver.startsWith('cdata-epon')) return 'cdata-epon';
     // HA7302 dikenali backend dari firmware/sysDescr juga (capabilities.is_ha7302), bukan cuma nama.
     if (driver.startsWith('hioso')) return olt.capabilities?.is_ha7302 || hay.includes('ha7302') ? 'hioso-ha7302' : 'hioso-epon';
-    if (driver.startsWith('hsairpo')) return 'hsairpo-epon';
 
     if (hay.includes('c320')) return 'zte-c320';
     if (hay.includes('c600') || hay.includes('titan')) return 'zte-c600';

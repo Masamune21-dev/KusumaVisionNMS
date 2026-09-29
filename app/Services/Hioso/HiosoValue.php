@@ -3,7 +3,7 @@
 namespace App\Services\Hioso;
 
 /**
- * Helper parsing murni untuk driver HiOSO / V-Sol (bebas efek samping, mudah diuji unit).
+ * Helper parsing murni untuk driver HiOSO (bebas efek samping, mudah diuji unit).
  * Sengaja berdiri sendiri — tidak memakai helper C-Data — agar HiOSO tak terpengaruh perubahan C-Data.
  */
 class HiosoValue

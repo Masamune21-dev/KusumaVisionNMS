@@ -69,19 +69,7 @@ Tombol ikon `Save` di daftar OLT (`Pages/SmartOlt/Index.vue`, tab ZTE & non-ZTE)
 |--------|------------------|-------------|-------|
 | ZTE | `ZteCliProvisioningExecutor::saveConfig` | login → `write` | `smartolt.config.save` |
 | C-Data EPON/GPON | `CDataCliWriteService::saveConfig` | `enable` → `config` → `save` (identik EPON/GPON) | `cdata-olt.config.save` |
-| HiOSO / V-Sol | `HiosoCliWriteService::saveConfig` | `enable` → `write` | `hioso-olt.config.save` |
-| HsAirPo / HSGQ | — (belum ada) | — | — (capability `supports_config_save=false`) |
-
-### CLI sebagai sumber **inventori** — HsAirPo / HSGQ (12170)
-
-Family ini kebalikan dari yang lain: SNMP-nya **tak punya tabel ONU sama sekali**, jadi CLI adalah
-satu-satunya sumber daftar ONU. `App\Services\HsAirPo\HsAirPoCliService` membuka telnet (IAC via
-`TelnetIacFilter`, login IOS `Username:` → `enable` → `EPON-OLT#`, `terminal length 0`) lalu
-menjalankan **2 perintah per scan**: `show version` + `show epon onu all info`. Setiap pembacaan
-punya **batas waktu keras** dan melempar exception bila prompt tak kembali — firmware ini punya
-perintah yang membekukan sesi (`show epon port {n} onu all optical-info`), dan worker polling tak
-boleh ikut menggantung. Rx per-ONU (CLI per-ONU) belum diaktifkan. Detail:
-[`docs/SMARTOLT_HSAIRPO_GUIDE.md`](../SMARTOLT_HSAIRPO_GUIDE.md).
+| HiOSO | `HiosoCliWriteService::saveConfig` | `enable` → `write` | `hioso-olt.config.save` |
 
 - **ZTE C300 config besar:** perintah `write` bisa **hening ~30 detik** sebelum prompt kembali. `saveConfig` membaca via `readUntilIdle(quiet=75s, cap=120s)` → hanya prompt CLI yang menghentikan pembacaan (bukan patokan output sunyi), jadi tak berhenti prematur di tengah write.
 - **Akun CLI ber-privilege rendah (prompt `ZXAN>`):** sesi yang mendarat di user-mode ditolak saat `terminal length 0` (`%Error 20200: Invalid input detected at '^' marker`) — perintah itu hanya ada di privileged mode, padahal hampir semua service CLI ZTE mendahului `show`-nya dengan pager-off tersebut. `login()` karena itu memanggil `enterPrivileged()`: bila output login berakhir prompt `>` (`hasUserModePrompt`), kirim `enable` sekali (password enable = password CLI bila diminta; prompt password dideteksi di **ekor** output, bukan `str_contains`, karena banner login memuat kata "password"). Sifatnya **best-effort** — `enable` dan `terminal length 0` masuk `BEST_EFFORT_COMMANDS`, jadi penolakannya **tidak** lagi menggagalkan seluruh sesi (dulu satu baris `%Error` dari pager-off membuat `detectError()` menandai `ok=false` → banner merah "gagal baca running-config" padahal `show`-nya berhasil).

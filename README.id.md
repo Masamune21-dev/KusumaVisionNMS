@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, **HiOSO/V-Sol EPON**, dan **HsAirPo/HSGQ EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 </div>
 
@@ -47,7 +47,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 
 ## Fitur Utama
 
-- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO/V-Sol EPON, HsAirPo/HSGQ EPON; deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk).
+- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO EPON; deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk).
 - **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power dengan **riwayat panjang** (sampel mentah 24 jam, ringkasan min/rata-rata/maks per jam untuk 7/30 hari), faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
 - **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **pilih ODP langsung saat registrasi**), reconfigure via delta script atau **editor ONU per bagian gaya NetNumen** (tambah/ubah/hapus T-CONT, GEM, service, VLAN… langsung ke OLT; ONU ber-`onu-profile` dikenali, perubahan yang pasti ditolak dijelaskan, dan profile bisa dilepas), manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
 - **Remote ONU** — reboot, rename, enable/disable, delete (satu atau **banyak sekaligus**), TR069 massal per-port, buka/tutup akses web ONT dari jauh (Remote ONT), dan **terminal Telnet langsung di browser**.

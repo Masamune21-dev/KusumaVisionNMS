@@ -6,7 +6,7 @@ use App\Models\OltPortLabel;
 use App\Models\SnmpOlt;
 
 /**
- * Label port PON sisi-NMS untuk family non-ZTE (C-Data EPON/GPON, HiOSO, HsAirPo).
+ * Label port PON sisi-NMS untuk family non-ZTE (C-Data EPON/GPON, HiOSO).
  *
  * OLT ZTE menamai portnya di perangkat (CLI `interface gpon-olt_1/x/y` → `description …`,
  * lihat {@see ZteCardUplinkService::setGponPortDescription()}). Family lain tak

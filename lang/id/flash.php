@@ -24,8 +24,6 @@ return [
     'olt_cdata_updated' => 'OLT C-Data berhasil diperbarui.',
     'olt_hioso_deleted' => 'OLT HiOSO berhasil dihapus.',
     'olt_hioso_updated' => 'OLT HiOSO berhasil diperbarui.',
-    'olt_hsairpo_deleted' => 'OLT HsAirPo berhasil dihapus.',
-    'olt_hsairpo_updated' => 'OLT HsAirPo berhasil diperbarui.',
     'olt_deleted' => 'OLT berhasil dihapus.',
     'olt_updated' => 'OLT berhasil diperbarui.',
     'olt_added' => 'OLT berhasil ditambahkan.',

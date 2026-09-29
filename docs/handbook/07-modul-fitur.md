@@ -54,8 +54,8 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   di aplikasi Android (field `description` payload `ports` API v1).
 
 ### 4c. Label port PON sisi-NMS (family non-ZTE)
-- **Kenapa ada**: hanya ZTE yang punya perintah deskripsi port di perangkat. C-Data, HiOSO, dan
-  HsAirPo tak punya padanan yang terverifikasi live (probe `ifAlias` di keempat perangkat: kosong,
+- **Kenapa ada**: hanya ZTE yang punya perintah deskripsi port di perangkat. C-Data dan HiOSO
+  tak punya padanan yang terverifikasi live (probe `ifAlias` di perangkatnya: kosong,
   atau — pada C-Data GPON V3 — cuma cerminan nama port bawaan agent). Jadi labelnya milik NMS.
 - **Data**: tabel `olt_port_labels` (`snmp_olt_id` + `slot` + `port` unik, `label` maks 64 char),
   model `OltPortLabel` (pakai `PartnerOltScope`), service `App\Services\OltPortLabelService`
@@ -63,10 +63,10 @@ Users · Audit Logs · Pengaturan. Mapping route ada di [06 — Routing](06-rout
   Sengaja **bukan** di `last_test_result` supaya tak ikut tertimpa tiap scan/poll.
 - **Route**: `POST olts/{olt}/port-label` (`olt.port-label.store`, `OltPortLabelController`) — satu
   endpoint dipakai ketiga family. Gate: `canManageOlt()` + capability `supports_port_label`
-  (menyala di C-Data EPON/GPON, HiOSO, HsAirPo; **tidak ada** di ZTE → 403, ZTE tetap menulis
+  (menyala di C-Data EPON/GPON dan HiOSO; **tidak ada** di ZTE → 403, ZTE tetap menulis
   deskripsinya ke perangkat).
 - **UI**: komponen bersama `Components/OltPortLabel.vue` — kolom **Label** di tabel port halaman
-  Detail (`Pages/{CDataOlt,Hioso,HsAirPo}/Detail.vue`, plus baris label di kartu mobile) dan di
+  Detail (`Pages/{CDataOlt,Hioso}/Detail.vue`, plus baris label di kartu mobile) dan di
   header halaman Port ONU. Prop `port_labels` dikirim controller detail/portOnus masing-masing
   family. Tidak ada telnet/SNMP yang tersentuh — label murni catatan operator.
 - **Aplikasi Android**: `GET /api/v1/olts/{olt}` mengirim label ini lewat field `description` per

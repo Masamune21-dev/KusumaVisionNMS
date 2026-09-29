@@ -7,7 +7,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Antenna, BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
+import { BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -28,10 +28,6 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    hsairpoOlts: {
-        type: Array,
-        default: () => [],
-    },
 });
 
 const page = usePage();
@@ -46,16 +42,15 @@ const canDeleteOlt = (olt) => canManageInventory.value || Boolean(olt.owned);
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
-/* Tab: ZTE / C-Data / HiOSO / HsAirPo — state disinkronkan ke ?tab    */
+/* Tab: ZTE / C-Data / HiOSO — state disinkronkan ke ?tab              */
 /* agar bertahan saat reload / redirect back dari aksi test/refresh.   */
 /* ------------------------------------------------------------------ */
 const tabs = [
     { key: 'zte', label: 'OLT ZTE', icon: Cable },
     { key: 'cdata', label: 'OLT C-Data', icon: Server },
     { key: 'hioso', label: 'OLT HiOSO', icon: RadioTower },
-    { key: 'hsairpo', label: 'OLT HsAirPo', icon: Antenna },
 ];
-const nonZteTabs = ['cdata', 'hioso', 'hsairpo'];
+const nonZteTabs = ['cdata', 'hioso'];
 const initialTab = new URLSearchParams(window.location.search).get('tab');
 const activeTab = ref(nonZteTabs.includes(initialTab) ? initialTab : 'zte');
 const setTab = (key) => {
@@ -70,7 +65,7 @@ const setTab = (key) => {
 };
 
 /* Seluruh tab non-ZTE berbagi satu body tabel; data, judul, ikon, dan prefix rute di-switch per   */
-/* family aktif (tiap family punya controller sendiri: cdata-olt.* / hioso-olt.* / hsairpo-olt.*). */
+/* family aktif (tiap family punya controller sendiri: cdata-olt.* / hioso-olt.*).                  */
 const isNonZteTab = computed(() => nonZteTabs.includes(activeTab.value));
 const nonZteFamilies = {
     cdata: {
@@ -92,16 +87,6 @@ const nonZteFamilies = {
         emptyTitle: 'smartolt.empty_hioso_title',
         emptySubtitle: 'smartolt.empty_hioso_subtitle',
         deleteTitle: 'smartolt.confirm_delete_hioso_title',
-    },
-    hsairpo: {
-        olts: 'hsairpoOlts',
-        prefix: 'hsairpo-olt',
-        icon: Antenna,
-        title: 'smartolt.hsairpo_inventory_title',
-        subtitle: 'smartolt.hsairpo_inventory_subtitle',
-        emptyTitle: 'smartolt.empty_hsairpo_title',
-        emptySubtitle: 'smartolt.empty_hsairpo_subtitle',
-        deleteTitle: 'smartolt.confirm_delete_hsairpo_title',
     },
 };
 const nonZteFamily = computed(() => nonZteFamilies[activeTab.value] ?? nonZteFamilies.cdata);
@@ -209,8 +194,7 @@ const testCdataOlt = (olt) => {
 /* Simpan konfigurasi OLT ke memori (write) — family yang mendukung.   */
 /* ZTE `write` (~30 detik di C300), C-Data `config`→`save`, HiOSO `write`. */
 /* Route dipilih per-driver agar konsisten di tab ZTE maupun non-ZTE.  */
-/* Tombolnya sendiri di-gate `capabilities.supports_config_save`, jadi  */
-/* family tanpa rute save (HsAirPo) tak pernah sampai ke sini.          */
+/* Tombolnya sendiri di-gate `capabilities.supports_config_save`.      */
 /* ------------------------------------------------------------------ */
 const savingId = ref(null);
 const saveConfigRoute = (olt) => {

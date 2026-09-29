@@ -510,7 +510,7 @@ Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,sto
 
 ### Lokal
 - [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi ZTE (data model, route, UI)
-- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — HiOSO/V-Sol EPON
+- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — HiOSO EPON
 - [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md) — catatan walk SNMP GPON C-Data (V3)
 - [handbook/07-modul-fitur.md](handbook/07-modul-fitur.md) — overview modul SmartOLT di dashboard
 

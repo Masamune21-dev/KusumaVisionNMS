@@ -41,7 +41,7 @@ const form = useForm({
 });
 
 // Tab inventory tujuan tombol Batal — HiOSO punya tab sendiri.
-const backTab = computed(() => (/hioso|vsol|v-sol|25355/i.test(form.vendor) ? 'hioso' : 'cdata'));
+const backTab = computed(() => (/hioso|25355/i.test(form.vendor) ? 'hioso' : 'cdata'));
 
 // Partner pada OLT global yang di-assign: kolom koneksi hanya-baca (server 403).
 const connectionLocked = computed(() => !!props.olt?.connection_locked);
@@ -104,7 +104,7 @@ const submit = () => {
                     >
                         <option value="C-Data EPON 17409">C-Data EPON (17409)</option>
                         <option value="C-Data GPON 34592">C-Data GPON (34592)</option>
-                        <option value="HiOSO EPON 25355">HiOSO / V-Sol EPON (25355)</option>
+                        <option value="HiOSO EPON 25355">HiOSO EPON (25355)</option>
                     </select>
                     <p class="mt-1 text-xs text-slate-500">
                         {{ $t('cdataform.family_hint') }}

@@ -12,7 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Label port PON sisi-NMS untuk family non-ZTE (C-Data, HiOSO, HsAirPo).
+ * Label port PON sisi-NMS untuk family non-ZTE (C-Data, HiOSO).
  *
  * Label ini murni milik NMS (tabel `olt_port_labels`) — tak pernah ditulis ke OLT. ZTE tetap
  * memakai deskripsi port di perangkat (`smartolt.port.description`) dan ditolak endpoint ini.

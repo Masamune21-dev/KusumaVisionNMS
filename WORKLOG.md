@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-09-29 — HiOSO Saja: Label V-Sol & Modul HsAirPo Dihapus
+
+### Changed
+
+- **Tulisan "HiOSO / V-Sol" jadi "HiOSO"** di seluruh UI (vendor_family kapabilitas, tab & form OLT, landing
+  `Welcome.vue`, i18n id/en), README, dokumen, dan komentar. OLT V-Sol kemungkinan beda firmware, sedangkan driver
+  ini baru teruji di HiOSO HA7304 (4 PON) & HA7302 (2 PON). `SmartOltSupport::driverKey()` tak lagi mengenali
+  needle `v-sol|vsol|v-solution` (sisa `hioso|ha7304|25355`); OLT HiOSO terdaftar tetap terdeteksi lewat vendor
+  `HiOSO EPON 25355` dan sysObjectID 25355. `docs/SMARTOLT_HIOSO_GUIDE.md`: target HA7304 + HA7302, V-Sol tak didukung.
+- **Seluruh family HsAirPo / HSGQ EPON (enterprise 12170) dihapus**: driver CLI-first-nya tak berfungsi baik dan
+  OLT ini jarang dipakai. Terhapus: `HsAirPoOltController`, `app/Services/HsAirPo/*`, `RefreshHsAirPoPortRxJob`,
+  `Pages/HsAirPo/*`, `HsAirPoOltTest` + `HsAirPoCliParseTest`, `docs/SMARTOLT_HSAIRPO_GUIDE.md`, rute
+  `hsairpo-olt.*`, tab "OLT HsAirPo", kunci i18n & flash. Cabang yang dilepas: `SmartOltSupport` (needle
+  `hsairpo|hsgq|photon|12170`, kapabilitas, prefix rute), API mobile `OnuActionController`, peta
+  `OnuMapController`, `CDataOltScanner`, `SmartOltSnmpServiceResolver`, menu aktif layout, gambar OLT, handbook
+  06/07/09, API, CLAUDE.md.
+
+### Notes
+
+- **Upgrade:** hapus dulu OLT HsAirPo yang masih terdaftar sebelum memperbarui — setelah ini OLT semacam itu tak
+  dikenali lagi dan bisa jatuh ke deteksi generik (mis. `epon` → C-Data EPON).
+- `bash scripts/test.sh` 613 passed / 3620 assertions (−18 test HsAirPo), `npm test` 29 passed, `npm run build` OK,
+  `kv-ui-check` 0 pelanggaran keras.
+
 ## 2026-09-29 — Bind ONU: Ganti ONU Rusak Tanpa Register Ulang (C300/C320)
 
 ### Created

@@ -8,7 +8,7 @@ Dokumen ini adalah **referensi otoritatif** integrasi OLT ZTE GPON ZXA10 (C300, 
 
 Companion docs:
 - [SMARTOLT_CDATA_GUIDE.md](SMARTOLT_CDATA_GUIDE.md) — OLT non-ZTE C-Data EPON/GPON
-- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — OLT non-ZTE HiOSO / V-Sol EPON
+- [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — OLT non-ZTE HiOSO EPON
 - [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md) — SNMP + engine polling (Go)
 - [handbook/09-cli-telnet.md](handbook/09-cli-telnet.md) — CLI/telnet & terminal browser
 - [handbook/07-modul-fitur.md](handbook/07-modul-fitur.md) — overview modul SmartOLT
