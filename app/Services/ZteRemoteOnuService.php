@@ -65,6 +65,26 @@ class ZteRemoteOnuService
     }
 
     /**
+     * Pasang SN ONU pengganti ke slot ONU lama (fitur "bind ONU" NetNumen): hanya SN yang
+     * berubah — type, tcont, gemport, service-port, dan pon-onu-mng tetap, lalu dikirim ulang
+     * OLT lewat OMCI begitu ONU baru terdaftar. SN sudah divalidasi alfanumerik oleh pemanggil.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function replaceSerial(SnmpOlt $olt, int $slot, int $port, int $onuId, string $serial): array
+    {
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+        $script = implode("\n", [
+            'conf t',
+            "interface {$iface}",
+            "registration-method sn {$serial}",
+            'exit',
+        ]);
+
+        return $this->executor->execute($olt, $script);
+    }
+
+    /**
      * Hapus beberapa ONU sekaligus dalam SATU sesi CLI: `no onu {id}` per ONU di bawah
      * interface GPON-OLT yang sama. Kegagalan dipetakan per ONU dari error CLI yang dikutip
      * executor ("`no onu N` → %Error …"), jadi ONU lain tetap dianggap terhapus.

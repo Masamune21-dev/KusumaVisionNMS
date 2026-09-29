@@ -259,6 +259,10 @@ class SmartOltSupport
             // via OnuRegistrationService::c600Rules + buildFor). WAN pppoe/dhcp/static tetap ditolak.
             'supports_provisioning' => true,
             'supports_onu_delete' => true,
+            // "Bind ONU" gaya NetNumen: ganti SN slot ONU lama (`registration-method sn …` di
+            // interface gpon-onu) supaya ONU pengganti mewarisi seluruh config. Sintaks itu baru
+            // terdokumentasi untuk C300/C320; C600 ditutup sampai dicek `?` di perangkat asli.
+            'supports_onu_replace' => ! $isC600,
             'supports_separate_description' => ! $isC600,
             'supports_onu_info_write' => ! $isC600,
             'description_mode' => 'snmp',

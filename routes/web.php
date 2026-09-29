@@ -271,6 +271,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/{olt}/tr069-bulk/{task}', [SmartOltController::class, 'tr069BulkStatus'])->name('smartolt.tr069-bulk.status');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [SmartOltController::class, 'rebootOnu'])->name('smartolt.onu.reboot');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/delete', [SmartOltController::class, 'deleteOnu'])->name('smartolt.onu.delete');
+    // "Bind ONU" dari halaman unconfigured: kandidat = ONU di port yang sama (SNMP live), lalu
+    // `registration-method sn` memasang SN ONU pengganti ke slot ONU lama (C300/C320).
+    Route::get('/smartolt/{olt}/ports/{slot}/{port}/replace-candidates', [SmartOltController::class, 'replaceCandidates'])
+        ->middleware('throttle:olt-refresh')
+        ->whereNumber(['slot', 'port'])
+        ->name('smartolt.onu.replace-candidates');
+    Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/replace', [SmartOltController::class, 'replaceOnu'])
+        ->whereNumber(['slot', 'port', 'onuId'])
+        ->name('smartolt.onu.replace');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [SmartOltController::class, 'setOnuState'])->name('smartolt.onu.state');
     Route::post('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [SmartOltController::class, 'updateOnuInfo'])->name('smartolt.onu.info');
     Route::get('/smartolt/{olt}/ports/{slot}/{port}/onus/{onuId}/detail', [SmartOltController::class, 'onuDetail'])->name('smartolt.onu.detail');

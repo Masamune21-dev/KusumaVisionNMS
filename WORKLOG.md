@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-09-29 — Bind ONU: Ganti ONU Rusak Tanpa Register Ulang (C300/C320)
+
+### Created
+
+- **Tombol Bind ONU di halaman Unconfigured** (global & per-OLT), padanan fitur "bind ONU" NetNumen: ONU baru
+  yang terdeteksi unconfigured dipasang ke slot ONU lama **di port yang sama**, jadi seluruh config lama (type,
+  T-CONT, GEM port, service-port, `pon-onu-mng`) diwarisi tanpa register ulang. Perintah:
+  `interface gpon-onu_1/S/P:N` → `registration-method sn {SN-baru}` (`ZteRemoteOnuService::replaceSerial`),
+  lalu `write` opsional (checkbox, default nyala; gagal `write` dilaporkan tapi bind tetap berlaku).
+- Modal `Components/SmartOlt/BindOnuModal.vue`: kandidat dari `GET smartolt.onu.replace-candidates` (SNMP live
+  satu port, disimpan ke cache port; fallback cache + peringatan bila OLT diam), ONU mati diurutkan di atas, cari
+  nama/SN/nomor; langkah tinjau menampilkan ONU lama vs baru, perintah CLI, catatan yang tak ikut (setelan di ONU
+  sendiri, perangkat baru di ACS), dan peringatan merah + tombol danger bila ONU lama masih online.
+- `POST smartolt.onu.replace` (`SmartOltController::replaceOnu`) menolak: SN yang tak ada di cache unconfigured,
+  SN yang terdeteksi di port lain, ONU target yang tak ada di cache port, dan SN non-alfanumerik (8–16, cegah
+  injeksi baris CLI). Sukses → SN di `port_onus` + `onu_odp_links`/`onu_map_pins` (berkunci posisi) diperbarui,
+  SN dibuang dari cache unconfigured, audit `onu.replaced`; gagal → cache tak disentuh, audit `onu.replace_failed`.
+- Kapabilitas `supports_onu_replace` (= C300/C320; **C600 ditutup** karena sintaks belum terbukti di sana).
+- `SmartOltReplaceOnuTest` (11 test), kunci i18n `bindonu.*` (id/en) + `flash.onu_replace_*`, bab §5.6a di
+  `docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`.
+
+### Notes
+
+- **Terverifikasi live 29 Sep 2026** di OLT C300/C320: ONU pelanggan diganti lewat tombol Bind dan berhasil.
+- `bash scripts/test.sh` 631 passed / 3761 assertions, `npm test` 29 passed, `npm run build` OK,
+  `kv-ui-check` 0 pelanggaran keras.
+
 ## 2026-09-29 — Peta: Kartu Detail Pin/ODP Tampil Utuh di Tengah
 
 ### Fixed

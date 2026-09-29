@@ -2,9 +2,10 @@
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import BindOnuModal from '@/Components/SmartOlt/BindOnuModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ClipboardList, Plus, RefreshCw, Router, Wifi } from '@lucide/vue';
+import { ClipboardList, Plus, RefreshCw, Replace, Router, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { formatDateTime } from '@/lib/datetime';
 
@@ -32,6 +33,10 @@ const doRefresh = () => {
 };
 
 const formatDate = (value) => formatDateTime(value);
+
+// "Bind ONU": hanya OLT yang mendukung (C300/C320) dan ONU yang port-nya terbaca.
+const canBind = (onu) => Boolean(props.selected_olt?.capabilities?.supports_onu_replace && onu.slot && onu.port);
+const bindTarget = ref(null);
 </script>
 
 <template>
@@ -136,21 +141,26 @@ const formatDate = (value) => formatDateTime(value);
                                                 <span v-else>-</span>
                                             </p>
                                         </div>
-                                        <IconButton
-                                            variant="primary"
-                                            :title="$t('common.register_onu')"
-                                            :href="route('smartolt.register', {
-                                                olt: selected_olt.id,
-                                                sn: onu.serial_number,
-                                                slot: onu.slot,
-                                                port: onu.port,
-                                                oid_index: onu.oid_index,
-                                                suggested_onu_id: onu.suggested_onu_id,
-                                                model: onu.model,
-                                            })"
-                                        >
-                                            <Plus class="h-4 w-4" />
-                                        </IconButton>
+                                        <div class="flex shrink-0 gap-2">
+                                            <IconButton
+                                                variant="primary"
+                                                :title="$t('common.register_onu')"
+                                                :href="route('smartolt.register', {
+                                                    olt: selected_olt.id,
+                                                    sn: onu.serial_number,
+                                                    slot: onu.slot,
+                                                    port: onu.port,
+                                                    oid_index: onu.oid_index,
+                                                    suggested_onu_id: onu.suggested_onu_id,
+                                                    model: onu.model,
+                                                })"
+                                            >
+                                                <Plus class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton v-if="canBind(onu)" variant="info" :title="$t('bindonu.action')" @click="bindTarget = onu">
+                                                <Replace class="h-4 w-4" />
+                                            </IconButton>
+                                        </div>
                                     </div>
                                 </article>
                             </div>
@@ -173,7 +183,7 @@ const formatDate = (value) => formatDateTime(value);
                                             <span v-else class="text-slate-400">-</span>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <div class="flex justify-center">
+                                            <div class="flex justify-center gap-2">
                                                 <IconButton
                                                     variant="primary"
                                                     :title="$t('common.register_onu')"
@@ -188,6 +198,9 @@ const formatDate = (value) => formatDateTime(value);
                                                     })"
                                                 >
                                                     <Plus class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton v-if="canBind(onu)" variant="info" :title="$t('bindonu.action')" @click="bindTarget = onu">
+                                                    <Replace class="h-4 w-4" />
                                                 </IconButton>
                                             </div>
                                         </td>
@@ -208,5 +221,13 @@ const formatDate = (value) => formatDateTime(value);
 
             </div>
         </div>
+
+        <BindOnuModal
+            v-if="selected_olt"
+            :show="bindTarget !== null"
+            :olt="selected_olt"
+            :onu="bindTarget"
+            @close="bindTarget = null"
+        />
     </AuthenticatedLayout>
 </template>

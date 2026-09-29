@@ -8,6 +8,7 @@ use App\Jobs\Tr069BulkConfigJob;
 use App\Models\AcsSetting;
 use App\Models\CopyOnuTask;
 use App\Models\OnuMapPin;
+use App\Models\OnuOdpLink;
 use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SmartOltInterfaceStatus;
@@ -31,6 +32,7 @@ use App\Services\ZteOnuRunningConfigService;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Services\ZteRemoteOnuService;
 use App\Services\ZteTr069BulkService;
+use App\Support\AuditLogger;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
@@ -1399,6 +1401,177 @@ class SmartOltController extends Controller
         } catch (\Throwable $exception) {
             return $back->with('error', __('flash.onu_delete_failed').CliOutputSanitizer::clean($exception->getMessage()));
         }
+    }
+
+    /**
+     * Kandidat modal "Bind ONU": ONU terdaftar di port yang sama dengan ONU unconfigured.
+     * Dibaca langsung dari OLT (SNMP satu port) supaya status mati ONU lama akurat; cache port
+     * dipakai bila OLT tak menjawab. ONU yang sedang mati diurutkan paling atas.
+     */
+    public function replaceCandidates(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_replace');
+
+        $result = $client->portOnusSnapshot($olt, $slot, $port);
+        $live = (bool) ($result['ok'] ?? false);
+
+        if ($live) {
+            $result['refreshed_at'] = now()->toIso8601String();
+            $snapshot = $olt->last_test_result ?? [];
+            data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
+            $olt->forceFill(['last_test_result' => $snapshot])->save();
+        }
+
+        $cached = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}", []);
+        $isC600 = SmartOltSupport::isC600($olt);
+
+        $onus = collect(data_get($cached, 'onus', []))
+            ->map(fn (array $onu): array => [
+                'onu_id' => (int) ($onu['onu_id'] ?? 0),
+                'interface' => SmartOltSupport::onuInterfaceId($slot, $port, (int) ($onu['onu_id'] ?? 0), $isC600),
+                'customer_name' => SmartOltSupport::customerNameFromOnu($onu),
+                'serial_number' => $onu['serial_number'] ?? null,
+                'type_name' => $onu['type_name'] ?? null,
+                'online' => (bool) ($onu['online'] ?? false),
+                'phase_state' => $onu['phase_state'] ?? null,
+                'last_down_cause' => $onu['last_down_cause'] ?? null,
+            ])
+            ->sort(fn (array $a, array $b): int => [$a['online'], $a['onu_id']] <=> [$b['online'], $b['onu_id']])
+            ->values();
+
+        return response()->json([
+            'live' => $live,
+            'error' => $live ? null : CliOutputSanitizer::clean((string) ($result['error'] ?? '')),
+            'refreshed_at' => data_get($cached, 'refreshed_at'),
+            'onus' => $onus,
+        ]);
+    }
+
+    /**
+     * "Bind ONU" gaya NetNumen: SN ONU pengganti dipasang ke slot ONU lama lewat
+     * `registration-method sn`, jadi seluruh config ONU lama diwarisi tanpa register ulang.
+     * Posisi ONU tak berubah, sehingga tautan ODP & pin peta (berkunci posisi) tetap berlaku;
+     * hanya salinan kolom serial-nya yang diperbarui.
+     */
+    public function replaceOnu(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, ZteCliProvisioningExecutor $executor): RedirectResponse
+    {
+        $this->assertCapability($olt, 'supports_onu_replace');
+
+        $data = $request->validate([
+            // Alfanumerik saja: SN ditulis apa adanya ke baris CLI.
+            'serial_number' => ['required', 'string', 'regex:/^[A-Za-z0-9]{8,16}$/'],
+            'save_config' => ['sometimes', 'boolean'],
+        ]);
+
+        $serial = $data['serial_number'];
+        $back = redirect()->route('smartolt.unconfigured-all', ['olt_id' => $olt->id]);
+
+        // ONU pengganti wajib terdeteksi unconfigured di port yang sama. SN yang dipasang ke slot
+        // di port lain tak akan pernah terdaftar, padahal ONU lama sudah terlanjur dilepas.
+        $uncfg = collect(data_get($olt->last_test_result ?? [], 'unconfigured_onus.onus', []))
+            ->firstWhere('serial_number', $serial);
+
+        if ($uncfg === null) {
+            return $back->with('error', __('flash.onu_replace_not_uncfg', ['sn' => $serial]));
+        }
+
+        if ((int) ($uncfg['slot'] ?? 0) !== $slot || (int) ($uncfg['port'] ?? 0) !== $port) {
+            return $back->with('error', __('flash.onu_replace_other_port', [
+                'sn' => $serial,
+                'slot' => $uncfg['slot'] ?? '?',
+                'port' => $uncfg['port'] ?? '?',
+            ]));
+        }
+
+        $old = collect(data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []))
+            ->first(fn (array $onu): bool => (int) ($onu['onu_id'] ?? 0) === $onuId);
+
+        if ($old === null) {
+            return $back->with('error', __('flash.onu_replace_target_missing', ['onu' => $onuId, 'slot' => $slot, 'port' => $port]));
+        }
+
+        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+        $oldSerial = (string) ($old['serial_number'] ?? '');
+        $properties = [
+            'subject_title' => $olt->name,
+            'slot' => $slot,
+            'port' => $port,
+            'onu_id' => $onuId,
+            'onu_name' => $old['name'] ?? null,
+            'old_serial' => $oldSerial,
+            'new_serial' => $serial,
+        ];
+
+        try {
+            $result = $remote->replaceSerial($olt, $slot, $port, $onuId, $serial);
+        } catch (\Throwable $exception) {
+            $result = ['ok' => false, 'error' => $exception->getMessage()];
+        }
+
+        if (! $result['ok']) {
+            $error = CliOutputSanitizer::clean((string) $result['error']);
+            AuditLogger::log(
+                event: 'onu.replace_failed',
+                auditable: $olt,
+                properties: [...$properties, 'error' => $error],
+                description: "Bind ONU {$iface} di OLT {$olt->name} ke SN {$serial} GAGAL: {$error}",
+            );
+
+            return $back->with('error', __('flash.onu_replace_failed').$error);
+        }
+
+        $this->mutateCachedOnu($olt, $slot, $port, $onuId, fn (array $onu): array => [...$onu, 'serial_number' => $serial]);
+        $this->forgetUnconfiguredSerial($olt, $serial);
+
+        $position = ['snmp_olt_id' => $olt->id, 'slot' => $slot, 'port' => $port, 'onu_id' => $onuId];
+        OnuOdpLink::query()->where($position)->update(['serial_number' => $serial]);
+        OnuMapPin::query()->where($position)->update(['serial_number' => $serial]);
+
+        $saveError = null;
+        if ($data['save_config'] ?? false) {
+            try {
+                $save = $executor->saveConfig($olt);
+                $saveError = $save['ok'] ? null : CliOutputSanitizer::clean((string) $save['error']);
+            } catch (\Throwable $exception) {
+                $saveError = CliOutputSanitizer::clean($exception->getMessage());
+            }
+        }
+
+        AuditLogger::log(
+            event: 'onu.replaced',
+            auditable: $olt,
+            properties: [...$properties, 'config_saved' => ($data['save_config'] ?? false) && $saveError === null],
+            description: sprintf('Bind ONU %s di OLT %s: SN %s diganti %s', $iface, $olt->name, $oldSerial !== '' ? $oldSerial : '?', $serial),
+        );
+
+        $message = __('flash.onu_replace_ok', ['interface' => $iface, 'old' => $oldSerial !== '' ? $oldSerial : '—', 'new' => $serial]);
+
+        // SN sudah berganti di OLT: gagal `write` bukan kegagalan bind, tapi harus terlihat —
+        // tanpa write, reboot OLT mengembalikan SN lama dan pelanggan putus lagi.
+        return redirect()
+            ->route('smartolt.port-onus', [$olt, $slot, $port])
+            ->with($saveError === null ? 'success' : 'error', $saveError === null
+                ? $message
+                : $message.' '.__('flash.onu_replace_save_failed').$saveError);
+    }
+
+    /**
+     * Buang SN yang baru saja di-bind dari cache unconfigured supaya tak ditawarkan lagi.
+     */
+    private function forgetUnconfiguredSerial(SnmpOlt $olt, string $serial): void
+    {
+        $snapshot = $olt->last_test_result ?? [];
+        $onus = data_get($snapshot, 'unconfigured_onus.onus');
+
+        if (! is_array($onus)) {
+            return;
+        }
+
+        $onus = array_values(array_filter($onus, fn (array $onu): bool => ($onu['serial_number'] ?? null) !== $serial));
+        data_set($snapshot, 'unconfigured_onus.onus', $onus);
+        data_set($snapshot, 'unconfigured_onus.count', count($onus));
+
+        $olt->forceFill(['last_test_result' => $snapshot])->save();
     }
 
     /**

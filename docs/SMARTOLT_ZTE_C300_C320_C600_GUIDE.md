@@ -280,6 +280,39 @@ SET .1012.3.28.1.1.2/.3.{ifIndex}.{onuId}  s  "…"    # C300/C320
 
 Route: `smartolt.onu.state` (setState), `smartolt.onu.info` (updateOnuInfo). Delete ONU (`no onu {id}`, gated `supports_onu_delete`) via route `smartolt.onu.delete`.
 
+### 5.6a Bind ONU / Ganti ONU (`registration-method sn`) — C300/C320
+
+Padanan fitur "bind ONU" NetNumen: ONU pelanggan rusak diganti unit baru **di port yang sama** tanpa
+register ulang. Hanya SN slot ONU lama yang diganti; type, T-CONT, GEM port, service-port, dan
+`pon-onu-mng` tetap di OLT dan dikirim ulang lewat OMCI begitu ONU baru terdaftar.
+
+```
+conf t
+interface gpon-onu_1/{slot}/{port}:{onuId}
+registration-method sn {SN-baru}
+exit
+write            # opsional, dari checkbox modal (ZteCliProvisioningExecutor::saveConfig, sesi terpisah)
+```
+
+- Sumber sintaks: catatan komunitas C300/C320 (repo `denniseptian/ZTE-C300`, tembolok.id) —
+  **terverifikasi live 29 Sep 2026**: user mengganti ONU pelanggan lewat tombol Bind NMS di OLT produksi
+  dan berhasil. Kalau suatu firmware menolak, executor memunculkan `%Error …` sebagai flash error dan cache
+  tak diubah.
+- **C600 ditutup** (`supports_onu_replace = false`): interface-nya `gpon_onu-1/…`, dan belum ada bukti
+  `registration-method` ada di sana. Buka hanya setelah dicek `?` di perangkat asli.
+- Yang TIDAK ikut: pengaturan yang tersimpan di ONU lama sendiri (web ONU, WiFi yang diatur lewat ACS).
+  Bila ONU dikelola ACS (TR-069), ONU baru terlihat sebagai perangkat baru di sana.
+- Tipe ONU di OLT tidak berubah — paling aman bila ONU baru bermodel sama.
+
+Alur NMS: tombol ikon **Bind** di halaman Unconfigured (global & per-OLT) → modal
+[`BindOnuModal.vue`](../resources/js/Components/SmartOlt/BindOnuModal.vue) memuat kandidat dari
+`smartolt.onu.replace-candidates` (SNMP live satu port, fallback cache; ONU mati di atas) → tinjau
+perintah → `smartolt.onu.replace` ([`SmartOltController::replaceOnu`](../app/Http/Controllers/SmartOltController.php),
+[`ZteRemoteOnuService::replaceSerial`](../app/Services/ZteRemoteOnuService.php)). Server menolak SN yang
+tidak ada di cache unconfigured **port yang sama**, ONU target yang tak ada di cache port, dan SN non-alfanumerik
+(injeksi baris CLI). Sukses: SN di cache port + kolom `serial_number` `onu_odp_links`/`onu_map_pins`
+(berkunci posisi) diperbarui, SN dibuang dari cache unconfigured, audit `onu.replaced` / `onu.replace_failed`.
+
 ### 5.7 Simpan Konfigurasi OLT (`write`)
 
 Aksi OLT-level (bukan per-ONU): persist running-config ke memori. Tombol **"Save Config"** di daftar OLT → [`ZteCliProvisioningExecutor::saveConfig`](../app/Services/ZteCliProvisioningExecutor.php), route `smartolt.config.save`, gated `supports_config_save` + `throttle:olt-refresh`.
@@ -403,6 +436,7 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
   "supports_reboot": true, "reboot_mode": "cli",
   "supports_provisioning": true,
   "supports_onu_delete": true,
+  "supports_onu_replace": true,           // C600 → false (registration-method belum terverifikasi di C600)
   "supports_separate_description": true,  // C600 → false
   "supports_onu_info_write": true, "description_mode": "snmp",   // C600 → false (OID nama tak terpetakan)
   "supports_onu_toggle": true,            // C600 → false (OID admin-state tak terpetakan)
