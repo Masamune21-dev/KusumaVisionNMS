@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AlarmController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\CDataGponPortController;
 use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
@@ -151,6 +152,13 @@ Route::middleware('auth')->group(function () {
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [CDataOltController::class, 'updateOnuInfo'])->name('cdata-olt.onu.info');
     Route::post('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/remote-access', [CDataOltController::class, 'setOnuRemoteAccess'])->name('cdata-olt.onu.remote-access');
     Route::delete('/cdata-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [CDataOltController::class, 'deleteOnu'])->name('cdata-olt.onu.delete');
+    // VLAN & detail port GPON/EPON/GE/XGE C-Data firmware V3 (CLI). Tulis = staf Pusat / pemilik OLT (dicek controller).
+    Route::get('/cdata-olt/{olt}/vlans', [CDataGponPortController::class, 'vlans'])->name('cdata-olt.vlans');
+    Route::post('/cdata-olt/{olt}/vlans', [CDataGponPortController::class, 'storeVlan'])->middleware('throttle:olt-refresh')->name('cdata-olt.vlans.store');
+    Route::get('/cdata-olt/{olt}/port/{kind}/{slot}/{port}', [CDataGponPortController::class, 'portDetail'])
+        ->whereIn('kind', ['gpon', 'epon', 'ge', 'xge'])->whereNumber(['slot', 'port'])->name('cdata-olt.port.detail');
+    Route::post('/cdata-olt/{olt}/port/{kind}/{slot}/{port}/vlan', [CDataGponPortController::class, 'tagPortVlan'])
+        ->whereIn('kind', ['ge', 'xge', 'epon'])->whereNumber(['slot', 'port'])->middleware('throttle:olt-refresh')->name('cdata-olt.port.vlan');
 
     // OLT HiOSO EPON (enterprise 25355, mis. HA7304) — inventori + rename/reboot ONU (CLI).
     Route::get('/hioso-olt', [HiosoOltController::class, 'index'])->name('hioso-olt.index');

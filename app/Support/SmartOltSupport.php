@@ -120,6 +120,23 @@ class SmartOltSupport
             || str_contains(strtolower((string) data_get($olt->last_test_result, 'cdata.firmware_variant', '')), 'v3');
     }
 
+    /**
+     * CLI C-Data generasi V3, GPON maupun EPON (`show vlan all`, `show port info|state|ddm-info|statistics`,
+     * `vlan trunk|hybrid`). Beda dari {@see isCDataGponV3()} yang menandai tabel SNMP GPON `34592…18.12`:
+     * FD1601S/FD1602S tak punya tabel itu, padahal firmware & CLI-nya sama-sama V3. Diuji live 29 Sep 2026:
+     * FD1608S `V3.3.86`, FD1601S `V3.2.5`, EPON FD1304E `V3.4.53`. Versi dibaca dari faceplate
+     * (`panel.device.sw_version`).
+     */
+    public static function hasCDataV3Cli(?SnmpOlt $olt): bool
+    {
+        if ($olt === null) {
+            return false;
+        }
+
+        return self::isCDataGponV3($olt)
+            || (bool) preg_match('/^V3\./i', trim((string) data_get($olt->last_test_result, 'panel.device.sw_version', '')));
+    }
+
     public static function isC600(?SnmpOlt $olt): bool
     {
         if ($olt === null) {
@@ -181,7 +198,7 @@ class SmartOltSupport
     public static function capabilities(string $driver, ?SnmpOlt $olt = null): array
     {
         if ($driver === self::DRIVER_CDATA_EPON) {
-            return self::cdataEponCapabilities();
+            return self::cdataEponCapabilities($olt);
         }
 
         if ($driver === self::DRIVER_CDATA_GPON) {
@@ -258,8 +275,10 @@ class SmartOltSupport
      *
      * @return array<string, mixed>
      */
-    private static function cdataEponCapabilities(): array
+    private static function cdataEponCapabilities(?SnmpOlt $olt = null): array
     {
+        $v3Cli = self::hasCDataV3Cli($olt);
+
         return [
             'driver' => self::DRIVER_CDATA_EPON,
             'vendor_family' => 'C-Data EPON',
@@ -283,6 +302,10 @@ class SmartOltSupport
             'supports_onu_toggle' => true,
             // Simpan running-config via CLI: enable → config → save.
             'supports_config_save' => true,
+            // Halaman VLAN & detail port via CLI V3 (lihat cdataGponCapabilities). Beda EPON: port PON &
+            // uplink umumnya Hybrid dan port PON tak otomatis ikut VLAN baru — terverifikasi live FD1304E.
+            'supports_cli_vlan' => $v3Cli,
+            'supports_cli_port_detail' => $v3Cli,
             // Label port PON disimpan di NMS (tabel olt_port_labels) — perangkat ini tak punya
             // perintah deskripsi port yang terverifikasi, beda dari ZTE yang menulis ke OLT.
             'supports_port_label' => true,
@@ -300,6 +323,7 @@ class SmartOltSupport
     private static function cdataGponCapabilities(?SnmpOlt $olt): array
     {
         $isV3 = self::isCDataGponV3($olt);
+        $v3Cli = self::hasCDataV3Cli($olt);
 
         return [
             'driver' => self::DRIVER_CDATA_GPON,
@@ -328,6 +352,11 @@ class SmartOltSupport
             // Buka/tutup akses remote web ONT via `ont security-mgmt` (klon sintaks ZTE, tak ada di
             // manual resmi — terverifikasi live FD1608S-B1 V3 Jul 2026, efektif juga utk ONT merk ZTE).
             'supports_onu_remote_access' => $isV3,
+            // Halaman VLAN (lihat + buat + tag uplink) & detail port GPON/GE/XGE via CLI
+            // (`show vlan all`, `show port info|ddm-info|statistics`) — firmware V3.x, terverifikasi live
+            // FD1608S (8 PON) & FD1601S (1 PON) 29 Sep 2026; FD1602S (2 PON) memakai firmware yang sama.
+            'supports_cli_vlan' => $v3Cli,
+            'supports_cli_port_detail' => $v3Cli,
             // Label port PON sisi-NMS (lihat catatan di cdataEponCapabilities()).
             'supports_port_label' => true,
             'rx_source_label' => $isV3 ? 'Rx ONU (CLI)' : 'Rx ONU (SNMP DDM)',

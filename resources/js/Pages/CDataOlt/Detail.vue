@@ -6,7 +6,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import OltFaceplate from '@/Components/CDataOlt/OltFaceplate.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, LayoutPanelTop, Pencil, RefreshCw, Server } from '@lucide/vue';
+import { ArrowLeft, Cable, LayoutPanelTop, Network, Pencil, RefreshCw, Server } from '@lucide/vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -42,10 +42,24 @@ const indexTab = computed(() => (props.olt.driver === 'hioso-epon-25355' ? 'hios
 const portCount = (p) => counts.value[`${p.slot}_${p.port}`] ?? { count: 0, online: 0 };
 
 
-// Faceplate: port PON bisa diklik → langsung ke daftar ONU port itu (nama port = kunci).
-const facePortLinks = computed(() => Object.fromEntries(
-    ports.value.map((p) => [p.name, route('cdata-olt.port-onus', [props.olt.id, p.slot, p.port])]),
-));
+// Faceplate: port bisa diklik (nama port = kunci). C-Data firmware V3 → SEMUA port (GPON/EPON/GE/XGE)
+// membuka halaman detail port; family lain → port PON langsung ke daftar ONU-nya.
+const hasPortDetail = computed(() => Boolean(props.olt.capabilities?.supports_cli_port_detail));
+const facePortLinks = computed(() => {
+    if (!hasPortDetail.value) {
+        return Object.fromEntries(
+            ports.value.map((p) => [p.name, route('cdata-olt.port-onus', [props.olt.id, p.slot, p.port])]),
+        );
+    }
+    const links = {};
+    for (const g of panel.value?.groups ?? []) {
+        for (const p of g.ports ?? []) {
+            const m = /^(gpon|epon|ge|xge) \d+\/(\d+)\/(\d+)$/.exec(String(p.name ?? '').trim().toLowerCase());
+            if (m && !p.fixed) links[p.name] = route('cdata-olt.port.detail', [props.olt.id, m[1], Number(m[2]), Number(m[3])]);
+        }
+    }
+    return links;
+});
 const facePortInfo = computed(() => Object.fromEntries(ports.value.map((p) => [p.name, portCount(p)])));
 const canManageOlt = computed(() => Boolean(page.props.auth?.can?.manage_olt));
 
@@ -78,6 +92,12 @@ const fmt = (v) => formatDateTime(v);
                         <SecondaryButton type="button">
                             <Pencil class="mr-2 h-4 w-4" />
                             {{ $t('common.edit') }}
+                        </SecondaryButton>
+                    </Link>
+                    <Link v-if="olt.capabilities.supports_cli_vlan" :href="route('cdata-olt.vlans', olt.id)">
+                        <SecondaryButton type="button">
+                            <Network class="mr-2 h-4 w-4" />
+                            {{ $t('cdatadetail.vlans') }}
                         </SecondaryButton>
                     </Link>
                     <Link :href="route('cdata-olt.pon-ports', olt.id)">
@@ -186,7 +206,13 @@ const fmt = (v) => formatDateTime(v);
                         </div>
                     </div>
                     <div class="p-4 sm:p-6">
-                        <OltFaceplate :panel="panel" :port-links="facePortLinks" :port-info="facePortInfo" />
+                        <OltFaceplate
+                            :panel="panel"
+                            :port-links="facePortLinks"
+                            :port-info="facePortInfo"
+                            :link-hint="hasPortDetail ? $t('faceplate.open_detail') : null"
+                            :click-hint="hasPortDetail ? $t('faceplate.click_hint_detail') : null"
+                        />
                     </div>
                 </div>
             </div>

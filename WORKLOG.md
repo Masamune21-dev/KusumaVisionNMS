@@ -1,5 +1,35 @@
 # Worklog
 
+## 2026-09-30 — C-Data: Halaman VLAN & Detail Port (GPON & EPON, firmware V3)
+
+### Created
+
+- **Halaman VLAN** (`cdata-olt.vlans`, `Pages/CDataOlt/Vlans.vue`): daftar VLAN langsung dari `show vlan all` (ID,
+  deskripsi, tipe Normal/L3, uplink tagged, untagged, port PON, status "lewat uplink"/"belum di uplink"), cari +
+  filter, dan **form Tambah VLAN** (`vlan {id}` + `vlan description`) yang bisa langsung men-tag **beberapa port**
+  (uplink GE/XGE + port PON EPON) dengan konfirmasi.
+- **Halaman detail port** (`cdata-olt.port.detail`, `Pages/CDataOlt/PortDetail.vue`) untuk `gpon|epon|ge|xge`:
+  status, **optik DDM** (diwarnai ambang milik OLT), trafik & counter, VLAN tagged/untagged, **tag VLAN** (Trunk →
+  `vlan trunk`, Hybrid → `vlan hybrid … tagged`), ringkasan ONU (port PON), atribut mentah. Faceplate halaman Detail
+  membuka detail port untuk semua port.
+- `CDataGponPortService` (CLI telnet + parser) & `CDataGponPortController`; kapabilitas `supports_cli_vlan` /
+  `supports_cli_port_detail` = `SmartOltSupport::hasCDataV3Cli()` (versi firmware faceplate `V3.x`); helper
+  `resources/js/lib/cdataPorts.js`; namespace i18n `cdatavlan` + `cdataport`; 8 kunci flash.
+- Test: `CDataGponPortParseTest`, `CDataGponPortWriteTest` (CLI tiruan berskrip), `CDataGponPortPagesTest`.
+
+### Changed
+
+- `InteractsWithCDataCli`: pola error `command incomplete` & `incorrect f/s` (dulu lolos sebagai sukses).
+- `OltFaceplate.vue`: prop opsional `linkHint`/`clickHint`.
+
+### Notes
+
+- Tag VLAN mengirim **gabungan** daftar lama + baru lalu memverifikasi `show port vlan` (tagged & untagged lama harus
+  tetap ada), menolak VLAN yang sedang untagged di port itu; port Access ditolak. Tidak ada `save` otomatis.
+- Diverifikasi live: FD1608S (V3.3.86), FD1601S (V3.2.5, 1 PON), EPON FD1304E (V3.4.53) — termasuk buat VLAN dan tag
+  ke uplink + 8 port EPON. FD1602S memakai firmware yang sama, belum diuji langsung.
+- Perbedaan CLI GPON vs EPON didokumentasikan di `docs/SMARTOLT_CDATA_GUIDE.md` §14.
+
 ## 2026-09-29 — Aplikasi Android: Alamat Server Tanpa Nilai Bawaan
 
 ### Fixed

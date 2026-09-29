@@ -4,7 +4,7 @@
 >
 > Companion: [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md), [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md), [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md), [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md).
 >
-> Terakhir diperbarui: 28 September 2026 (GPON: jalur SNMP NSCRTV `17409.2.8.4`, dukungan FD1601S/FD1602S).
+> Terakhir diperbarui: 29 September 2026 (firmware V3 GPON & EPON: halaman VLAN & detail port via CLI — §14).
 
 C-Data dipasarkan dengan dua keluarga enterprise OID yang **berbeda dan tidak boleh dicampur**. Di repo ini keduanya driver **non-ZTE** yang di-resolve [`SmartOltSnmpServiceResolver`](../app/Services/SmartOltSnmpServiceResolver.php) dan ikut **polling terjadwal** via [`PollOltJob::pollViaScanner`](../app/Jobs/PollOltJob.php) + [`CDataOltScanner`](../app/Services/CData/CDataOltScanner.php):
 
@@ -493,6 +493,8 @@ Uji write terkontrol: rename ke string dummy → reboot 1 ONU non-produksi → e
 | [app/Services/CData/CDataGponSnmpService.php](../app/Services/CData/CDataGponSnmpService.php) | driver SNMP GPON `34592` (legacy `slot.port.onuId` + deteksi V3 + count via `.18.26`) |
 | [app/Services/CData/CDataGponCliService.php](../app/Services/CData/CDataGponCliService.php) | CLI **read** GPON V3 (inventory `show ont info all` + Rx `show ont optical-info`, baca berbasis prompt) |
 | [app/Services/CData/CDataCliWriteService.php](../app/Services/CData/CDataCliWriteService.php) | CLI **write** ONU EPON & GPON (rename/reboot/enable-disable/delete) + `saveConfig` |
+| [app/Services/CData/CDataGponPortService.php](../app/Services/CData/CDataGponPortService.php) | CLI GPON V3: daftar/buat VLAN, tag VLAN uplink, detail port GPON/GE/XGE (info, DDM, statistik) — §14 |
+| [app/Http/Controllers/CDataGponPortController.php](../app/Http/Controllers/CDataGponPortController.php) | halaman VLAN + detail port + aksi tulisnya (§14) |
 | [app/Services/CData/Concerns/InteractsWithCDataCli.php](../app/Services/CData/Concerns/InteractsWithCDataCli.php) | sesi telnet C-Data bersama (login CRLF, banner, navigasi `enable`) |
 | [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh (dipakai polling terjadwal `PollOltJob` **dan** refresh manual) → tulis `last_test_result.port_onus` bentuk-ZTE |
 | [app/Services/CData/CDataFaceplateService.php](../app/Services/CData/CDataFaceplateService.php) | faceplate panel-depan (IF-MIB + tabel device `17409.2.3.1.*`) → cache `last_test_result.panel` |
@@ -502,7 +504,7 @@ Uji write terkontrol: rename ke string dummy → reboot 1 ONU non-produksi → e
 
 Kontrak `SmartOltSnmpDriver` (read): `ping`, `getSystemInfo`, `getPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `getPortRxMap`, `countRegisteredOnus`, `getUnconfiguredOnus`. Dipakai C-Data **dan** HiOSO. ZTE **tidak** memakai kontrak ini (punya `OltSnmpClient` sendiri).
 
-Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `cdata-olt.onu.{reboot,state,info,delete}`. Pemilihan rute lintas halaman (search/monitoring/peta) lewat [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php#L93) → `cdata-olt`.
+Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `cdata-olt.onu.{reboot,state,info,delete}` + VLAN/port firmware V3 `cdata-olt.{vlans,vlans.store,port.detail,port.vlan}` (§14). Pemilihan rute lintas halaman (search/monitoring/peta) lewat [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php#L93) → `cdata-olt`.
 
 ---
 
@@ -562,5 +564,55 @@ Diuji terhadap dua OLT produksi. **Yang tertulis di bawah adalah perilaku nyata*
 ```
 - Rx ONU = kolom ke-2; `--` = N/A. BMKV mengambil optical **dalam sesi telnet yang sama** dgn `show ont info all` (grup per port) lalu enrich `rx_power_dbm`.
 - Perintah `show ont optical-info {port}` **gagal di level enable** (`% Unknown command`) — harus di submode `interface gpon 0/{slot}`.
+
+---
+
+## 14. VLAN & detail port GPON/EPON/GE/XGE (firmware V3, 29 Sep 2026)
+
+Halaman **VLAN** (`cdata-olt.vlans`, `Pages/CDataOlt/Vlans.vue`) dan **detail port** (`cdata-olt.port.detail`,
+`Pages/CDataOlt/PortDetail.vue`, satu halaman untuk `gpon|epon|ge|xge`) — padanan halaman Port Detail ZTE.
+Service [`CDataGponPortService`](../app/Services/CData/CDataGponPortService.php), controller
+[`CDataGponPortController`](../app/Http/Controllers/CDataGponPortController.php) (nama "Gpon" warisan —
+melayani EPON juga). Gated kapabilitas `supports_cli_vlan` / `supports_cli_port_detail` =
+`SmartOltSupport::hasCDataV3Cli()` → `is_v3` **atau** `panel.device.sw_version` diawali `V3.` (GPON & EPON).
+Terverifikasi live: FD1608S-B1 `V3.3.86`, FD1601S-B1 `V3.2.5` (1 PON — format identik), EPON FD1304E
+`V3.4.53` (baca, buat VLAN, tag uplink & 8 port EPON). FD1602S memakai firmware yang sama tapi belum diuji
+langsung — laporan hasil uji dipersilakan. Semua format di bawah
+dibaca dari perangkat asli.
+
+| Perintah | Mode | Catatan |
+| --- | --- | --- |
+| `show vlan all` / `show vlan {id}` | enable & config | blok per VLAN: `VLAN ID`, `VLAN Description`, `User-bridge`, `VLAN Type` (`Normal vlan`/`L3intf vlan`), `Tagged Ports`, `Untagged Ports` (`none` = kosong). VLAN tak ada → output kosong |
+| `show port ddm-info [{kind} 0/{s}/{p}]` | **config saja** (enable → `% Unknown command`) | tanpa argumen = semua port sekaligus. Port PON GPON menyertakan ambang `[lo,hi]` warning/alarm; uplink & EPON tidak. EPON: tanpa spasi setelah `:` dan SFP PON memakai `Product name` (bukan `Ordering Name`). Tanpa modul → `Info: Transceiver is absent.`; GE RJ45 → `Transceiver parm error!` |
+| `interface {gpon\|ge\|xge} 0/{slot}` | config | **per frame/slot** — `interface xge 0/0/1` ditolak `Incorrect F/S parameters [0/0/1]!` |
+| `show port state {p}` | submode interface | **pengganti `show port info` di port EPON** (yang menjawab `% Unknown command`): `Admin state`, `Link  state` (spasi ganda), `Optical Module status`, `Native vlan`, `Maximum frame size`, `Flow-control` — tanpa daftar VLAN (ambil dari `show port vlan`) |
+| `show port info {p}` | submode interface | admin/link/speed/duplex/mode/native + `Tagged Vlan ID` / `Untagged Vlan ID`. Uplink EPON menambah `Link uptime` & `Last down case`. Label beda: uplink `Admin States`/`Link States: Up`, PON `Admin State`/`Link State: on`. Daftar VLAN bisa terbungkus ke baris berikut **tanpa koma** (`…,1114 ⏎ 2658`) |
+| `show port vlan {p}` | submode interface | `Port: … Mode: Trunk  Native-Vlan: 1` + blok `Tagged-Vlan:` / `Untagged-Vlan:` (`--` = kosong) |
+| `show statistics port {p}` | submode interface | `Rx rate(kbps)` / `Tx rate(kbps)` + tabel `Label : RX TX` (Octets, Packets, Discards, Errors, Rate pps, Utilization) |
+| `vlan {id}` → `Create vlan successfully:` · `vlan description {id} {teks}` (hening) | config | deskripsi `<S>` 1-64, satu kata |
+| `vlan trunk {p} {vlanlist}` · `no vlan trunk {p} {vlanlist}` | submode ge/xge/epon | port bermode Trunk (uplink GPON, xge 0/0/2 & 0/0/4 EPON) |
+| `vlan hybrid {p} tagged {vlanlist}` · `no vlan hybrid {p} tagged {vlanlist}` | submode ge/xge/epon | port bermode Hybrid (uplink xge 0/0/1 & semua port PON EPON FD1304E). Mode: `vlan mode {p} access\|hybrid\|trunk` |
+
+**Keputusan desain:**
+
+- **Port GPON otomatis ikut setiap VLAN baru** (VLAN yang baru dibuat langsung ter-tag di gpon 1-8 tanpa perintah; `show this`
+  di `interface gpon 0/0` tak memuat `vlan trunk`). Yang di-tag manual hanya uplink.
+- **Port EPON TIDAK** (di OLT uji ada VLAN uplink tanpa satu pun port EPON, dan VLAN yang hanya ada di satu port EPON) → EPON
+  ditawarkan untuk di-tag di form Tambah VLAN (checkbox per port + "semua port EPON") dan di detail port.
+- **Tag VLAN uplink mengirim gabungan daftar lama + VLAN baru** (`vlan trunk 1 22,24,27-28,…`), bukan VLAN baru
+  saja. Adanya `no vlan trunk {p} {vlanlist}` menandakan perintahnya menambah, tapi bila ternyata mengganti,
+  gabungan tetap aman. Sebelum & sesudahnya dibaca `show port vlan`; VLAN lama yang hilang dilaporkan sebagai error.
+  Port **Trunk** → `vlan trunk`, **Hybrid** → `vlan hybrid {p} tagged`; Access ditolak dengan pesan. VLAN yang sedang
+  untagged di port itu ditolak (menandainya tagged memindahkannya). Verifikasi memastikan tagged **dan** untagged
+  lama tetap ada. Daftar > 200 karakter ditolak (tag lewat CLI). Form Tambah VLAN: satu sesi CLI per port.
+- Buat VLAN menolak ID yang sudah ada; hasil diverifikasi `show vlan {id}` di sesi yang sama.
+- Tidak ada `save` otomatis — sama seperti aksi C-Data lain; halaman menyediakan tombol **Simpan Config**.
+- Tulis = staf Pusat atau pemilik OLT privat (`canEditOltConnection`); partner pada OLT global hanya melihat.
+  Setiap tulis dicatat `audit_logs`.
+- Data dibaca live sebagai *deferred prop* Inertia; baca sukses terakhir disimpan di cache 7 hari
+  (`cdata-gpon:{olt}:vlans`, `…:port:{kind}:{s}:{p}`) dan ditampilkan sebagai `stale` bila OLT tak terjangkau.
+- Faceplate halaman Detail: untuk OLT ber-`supports_cli_port_detail`, **semua** port (GPON/EPON/GE/XGE) membuka detail
+  port (dulu port PON langsung ke daftar ONU; tombol "Lihat ONU" ada di detail port GPON).
+- Pola error CLI baru di `InteractsWithCDataCli`: `% Command incomplete.` dan `Incorrect F/S parameters`.
 
 > Tindak lanjut: bila menemui firmware C-Data GPON **legacy/non-V3**, tabel SNMP `34592.1.3.4.1.1.*` semestinya terisi (jalur `legacyOnus` di `CDataGponSnmpService`) — uji ulang saat perangkat tersedia.

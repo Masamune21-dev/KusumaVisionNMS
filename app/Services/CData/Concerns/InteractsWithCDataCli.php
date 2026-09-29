@@ -16,6 +16,8 @@ trait InteractsWithCDataCli
         'invalid input', 'unknown command', 'ambiguous command', 'incomplete command',
         'command rejected', 'permission denied', 'authorization failed', 'not support',
         'operation failed', 'failure:', '% bad', '% invalid', '% command', '% there is no',
+        // FD1608S V3 (29 Sep 2026): `% Command incomplete.` & `Incorrect F/S parameters [0/0/1]!`.
+        'command incomplete', 'incorrect f/s',
     ];
 
     /**

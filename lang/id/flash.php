@@ -152,4 +152,12 @@ return [
     'gmaps_no_coords' => 'Koordinat tidak ditemukan di link. Pastikan ini link lokasi Google Maps.',
     'vlan_added' => 'VLAN :vlan berhasil ditambahkan ke :interface.',
     'cli_error_prefix' => 'Eksekusi CLI selesai dengan error: ',
+    'cdata_vlan_description_rule' => 'Deskripsi VLAN satu kata: huruf, angka, titik, - atau _ (tanpa spasi).',
+    'cdata_vlan_create_failed' => 'Gagal membuat VLAN: ',
+    'cdata_vlan_created' => 'VLAN :vlan dibuat di OLT.',
+    'cdata_vlan_tag_failed' => 'Gagal menambahkan VLAN ke :interface: ',
+    'cdata_vlan_already_tagged' => 'VLAN :vlan sudah ter-tag di :interface — tidak ada yang diubah.',
+    'cdata_vlan_tagged_ports' => 'VLAN :vlan di-tag ke :ports.',
+    'cdata_vlan_tag_failed_some' => 'Sebagian port gagal di-tag — ',
+    'cdata_config_unsaved' => 'Belum permanen: tekan Simpan Config agar tetap ada setelah OLT reboot.',
 ];

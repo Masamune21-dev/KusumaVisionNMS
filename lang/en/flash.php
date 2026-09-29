@@ -152,4 +152,12 @@ return [
     'gmaps_no_coords' => 'No coordinates found in the link. Make sure it is a Google Maps location link.',
     'vlan_added' => 'VLAN :vlan added to :interface.',
     'cli_error_prefix' => 'CLI execution finished with an error: ',
+    'cdata_vlan_description_rule' => 'VLAN description must be one word: letters, digits, dot, - or _ (no spaces).',
+    'cdata_vlan_create_failed' => 'Failed to create VLAN: ',
+    'cdata_vlan_created' => 'VLAN :vlan created on the OLT.',
+    'cdata_vlan_tag_failed' => 'Failed to add the VLAN to :interface: ',
+    'cdata_vlan_already_tagged' => 'VLAN :vlan is already tagged on :interface — nothing changed.',
+    'cdata_vlan_tagged_ports' => 'VLAN :vlan tagged on :ports.',
+    'cdata_vlan_tag_failed_some' => 'Some ports could not be tagged — ',
+    'cdata_config_unsaved' => 'Not permanent yet: press Save Config so it survives an OLT reboot.',
 ];

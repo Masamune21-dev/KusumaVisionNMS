@@ -11,6 +11,9 @@ const props = defineProps({
     portLinks: { type: Object, default: () => ({}) },
     // Nama port → { count, online } untuk tooltip & angka kecil di bawah port.
     portInfo: { type: Object, default: () => ({}) },
+    // Teks tooltip & petunjuk bila tautan port bukan ke daftar ONU (mis. detail port C-Data GPON).
+    linkHint: { type: String, default: null },
+    clickHint: { type: String, default: null },
 });
 
 /*
@@ -75,9 +78,10 @@ const titleOf = (p) => {
     if (p.fixed) return p.label ?? p.name;
     const info = infoOf(p);
     const base = `${p.name} · ${p.status}`;
-    if (!info) return base;
+    const hint = props.portLinks?.[p.name] ? ` — ${props.linkHint ?? t('faceplate.open_onu')}` : '';
+    if (!info) return props.linkHint ? `${base}${hint}` : base;
     const onus = t('faceplate.onu_count', { online: info.online ?? 0, total: info.count ?? 0 });
-    return props.portLinks?.[p.name] ? `${base} · ${onus} — ${t('faceplate.open_onu')}` : `${base} · ${onus}`;
+    return `${base} · ${onus}${hint}`;
 };
 
 const legend = computed(() => [
@@ -187,7 +191,7 @@ const legend = computed(() => [
                 <span class="fp-legend-swatch" :class="`sw-${item.key}`"></span>
                 <span>{{ item.label }}</span>
             </div>
-            <p v-if="Object.keys(portLinks).length" class="fp-legend-note">{{ $t('faceplate.click_hint') }}</p>
+            <p v-if="Object.keys(portLinks).length" class="fp-legend-note">{{ clickHint ?? $t('faceplate.click_hint') }}</p>
         </div>
     </div>
 </template>
