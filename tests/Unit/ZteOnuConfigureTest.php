@@ -753,6 +753,35 @@ RAW;
         $this->assertStringNotContainsString('cos 0 vlan', $transparent);
     }
 
+    public function test_onu_type_name_keeps_its_case(): void
+    {
+        // Nama onu-type ZTE peka huruf: OLT punya `DualBand`, `DUALBAND` ditolak
+        // "%Code 63904-GPONRM : Not support this ONU". SN tetap di-uppercase.
+        $data = [
+            'slot' => 1, 'port' => 2, 'onu_id' => 10, 'serial_number' => 'zteg0800a1b2',
+            'customer_name' => 'Budi', 'onu_type' => 'DualBand', 'tcont_profile' => 'SERVER',
+            'vlan' => 125, 'service_name' => 'ServiceName', 'wan_mode' => 'dhcp',
+        ];
+
+        $script = (new ZteProvisioningScriptBuilder)->build($data);
+        $this->assertStringContainsString('onu 10 type DualBand sn ZTEG0800A1B2', $script);
+
+        $copy = (new ZteOnuReconfigureScriptBuilder)->buildForCopy($this->parser()->parse($this->sampleRaw()), [
+            'olt_iface' => 'gpon-olt_1/5/4',
+            'onu_iface' => 'gpon-onu_1/5/4:7',
+            'onu_id' => 7,
+            'sn' => 'zteg12345678',
+            'onu_type' => 'DualBand',
+            'is_c600' => false,
+        ]);
+        $this->assertStringContainsString('onu 7 type DualBand sn ZTEG12345678', $copy);
+
+        // Tambah onu-type: sintaks ZTE `onu-type <nama> gpon …` (bukan `onu-type gpon <nama>`).
+        $catalog = new \App\Services\ZteProfileCatalogService($this->createMock(ZteCliProvisioningExecutor::class));
+        $add = $catalog->buildScript('add', ['profile_type' => 'onu_type', 'name' => 'DualBand', 'notes' => '4ETH,4WIFI']);
+        $this->assertStringContainsString("pon\nonu-type DualBand gpon description \"4ETH,4WIFI\"", $add);
+    }
+
     public function test_provisioning_builder_neutralizes_cli_injection_in_free_text_fields(): void
     {
         // Payload: newline + perintah config-mode diselipkan ke field teks-bebas.

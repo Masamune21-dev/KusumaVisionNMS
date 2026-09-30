@@ -137,7 +137,8 @@ class ZteOnuReconfigureScriptBuilder
         $this->diffRemoteOnt([], $config, $mngLines, $discard);
 
         $onuId = (int) $context['onu_id'];
-        $type = strtoupper($this->str($context['onu_type'] ?? '')) ?: 'ALL-ONT';
+        // Nama onu-type peka huruf — jangan di-uppercase (lihat ZteProvisioningScriptBuilder).
+        $type = $this->str($context['onu_type'] ?? '') ?: 'ALL-ONT';
         $sn = strtoupper($this->str($context['sn'] ?? ''));
 
         $lines = [

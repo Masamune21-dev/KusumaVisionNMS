@@ -256,7 +256,8 @@ class ZteOnuCopyService
     {
         $type = preg_replace('/\s.*$/', '', trim((string) ($cached['type_name'] ?? ''))) ?? '';
 
-        return $type !== '' ? strtoupper($type) : 'ALL-ONT';
+        // Pertahankan huruf apa adanya: nama onu-type ZTE peka huruf (`DualBand`).
+        return $type !== '' ? $type : 'ALL-ONT';
     }
 
     /**

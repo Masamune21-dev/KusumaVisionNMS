@@ -16,7 +16,8 @@ class ZteProvisioningScriptBuilder
         $onuId = (int) $data['onu_id'];
         $sn = strtoupper(self::cli((string) $data['serial_number']));
         $name = self::cli((string) $data['customer_name']);
-        $onuType = strtoupper((string) ($data['onu_type'] ?? 'ALL-ONT'));
+        // Nama onu-type ZTE peka huruf: `DualBand` ≠ `DUALBAND` (%Code 63904 Not support this ONU).
+        $onuType = self::cli((string) ($data['onu_type'] ?? 'ALL-ONT')) ?: 'ALL-ONT';
         $tcontProfile = (string) ($data['tcont_profile'] ?? 'SERVER');
         $vlan = (int) $data['vlan'];
         $serviceName = (string) ($data['service_name'] ?? 'ServiceName');

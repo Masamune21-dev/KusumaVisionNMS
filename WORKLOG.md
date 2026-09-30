@@ -1,5 +1,23 @@
 # Worklog
 
+## 2026-09-30 — Nama ONU Type Tak Lagi Diubah ke Huruf Besar
+
+### Fixed
+
+- **Registrasi ONU ditolak `%Code 63904-GPONRM : Not support this ONU`** bila nama onu-type di OLT memakai huruf
+  kecil (mis. `DualBand` hasil `show onu-type`): `ZteProvisioningScriptBuilder` meng-`strtoupper` tipe jadi
+  `onu N type DUALBAND sn …`, padahal nama onu-type ZTE **peka huruf**. Seluruh baris sesudahnya ikut gagal
+  ("Invalid parameter"/"Invalid command") karena ONU tak pernah terbentuk. Tipe bawaan (`ALL-ONT`, `ZTE-F660`, …)
+  sudah huruf besar sehingga bug ini tak terlihat di sana.
+- Uppercase dibuang juga di `ZteOnuReconfigureScriptBuilder::buildForCopy()` (register lanjutan/salin) dan
+  `ZteOnuCopyService::onuTypeToken()` (tipe dari SNMP). SN tetap di-uppercase. Builder C600 sudah benar.
+- **Tambah ONU type dari halaman Profiles** menulis `onu-type gpon <NAMA>` (urutan terbalik). Sintaks ZTE yang benar
+  `onu-type <nama> gpon …`, sesuai running-config C320 (`onu-type F609 gpon description …`).
+
+### Notes
+
+- Test: `ZteOnuConfigureTest::test_onu_type_name_keeps_its_case`; `bash scripts/test.sh` 649 passed.
+
 ## 2026-09-30 — Halaman ODP: Slot / PON Port Jadi Dropdown
 
 ### Changed

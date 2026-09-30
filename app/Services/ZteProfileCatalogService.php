@@ -231,7 +231,7 @@ class ZteProfileCatalogService
             'onu_type' => implode("\n", array_filter([
                 'conf t',
                 'pon',
-                sprintf('onu-type gpon %s%s', strtoupper($name), ($data['notes'] ?? null) ? ' description "'.str_replace('"', '', (string) $data['notes']).'"' : ''),
+                sprintf('onu-type %s gpon%s', $name, ($data['notes'] ?? null) ? ' description "'.str_replace('"', '', (string) $data['notes']).'"' : ''),
                 'exit',
             ])),
             'tcont' => implode("\n", [
