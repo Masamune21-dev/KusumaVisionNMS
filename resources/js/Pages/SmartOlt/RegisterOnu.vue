@@ -132,6 +132,8 @@ const serviceModes = [
 
 // VLAN profile hanya menyetel VLAN ID — Service Name dibiarkan independen
 // (input user / default 'ServiceName'), tidak ikut nama VLAN profile.
+// `immediate`: profil bawaan saat halaman dibuka juga menyetel VLAN ID, karena server
+// selalu memakai VLAN profil (kalau tidak, kolom tampil 100 padahal skrip memakai 25).
 watch(() => form.vlan_profile, (name) => {
     const profile = vlanProfiles.value.find((item) => item.name === name);
     if (!profile) {
@@ -139,7 +141,7 @@ watch(() => form.vlan_profile, (name) => {
     }
 
     form.vlan = profile.vlan;
-});
+}, { immediate: true });
 
 // Mode bridge tak memakai vlan-profile (yang cuma relevan untuk baris wan-ip
 // routed) — kosongkan agar VLAN ID numerik tetap otoritatif.

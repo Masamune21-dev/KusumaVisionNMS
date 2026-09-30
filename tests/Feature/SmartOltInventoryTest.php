@@ -282,6 +282,53 @@ OUT);
         $response->assertOk();
     }
 
+    public function test_register_form_hides_global_profiles_shadowed_by_olt_profiles(): void
+    {
+        $user = User::factory()->create();
+        $olt = SnmpOlt::create([
+            'name' => 'OLT-UJI',
+            'vendor' => 'ZTE C320',
+            'ip' => '10.10.10.6',
+            'snmp_port' => 161,
+            'snmp_read_community' => 'public',
+            'snmp_version' => 'v2c',
+        ]);
+
+        // Migrasi sudah menanam profil global ALL-ONT / SERVER / ServiceName (vlan 100).
+        foreach ([
+            ['onu_type', 'ALL-ONT', null, true],
+            ['onu_type', 'DualBand', null, false],
+            ['tcont', 'SERVER', null, false],
+            ['vlan', 'ServiceName', 25, true],
+        ] as [$type, $name, $vlan, $active]) {
+            SmartOltProfile::create([
+                'snmp_olt_id' => $olt->id, 'profile_type' => $type, 'name' => $name,
+                'vlan' => $vlan, 'source' => 'show onu-type', 'is_active' => $active,
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->get(route('smartolt.register', ['olt' => $olt, 'sn' => 'ZTEG12345678', 'slot' => 2, 'port' => 1]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                // Nama sama → cukup profil milik OLT; profil OLT nonaktif tak ditampilkan.
+                ->where('profiles.onu_type', fn ($rows) => collect($rows)->pluck('name')->all() === ['ALL-ONT']
+                    && collect($rows)->first()['snmp_olt_id'] === $olt->id)
+                // Profil OLT nonaktif → global bernama sama tetap jadi cadangan.
+                ->where('profiles.tcont', fn ($rows) => collect($rows)->pluck('name')->all() === ['SERVER']
+                    && collect($rows)->first()['snmp_olt_id'] === null)
+                ->where('profiles.vlan', fn ($rows) => collect($rows)->pluck('vlan')->all() === [25]));
+
+        // VLAN skrip mengikuti profil milik OLT (25), bukan global bernama sama (100).
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.preview', $olt), [
+                'serial_number' => 'ZTEG12345678', 'slot' => 2, 'port' => 1, 'onu_id' => 3,
+                'customer_name' => 'Budi', 'vlan' => 100, 'vlan_profile' => 'ServiceName', 'wan_mode' => 'dhcp',
+            ])
+            ->assertOk()
+            ->assertJsonPath('script', fn (string $script) => str_contains($script, 'service-port 1 vport 1 user-vlan 25 vlan 25'));
+    }
+
     public function test_register_onu_form_suggests_next_free_onu_id_from_cached_port_snapshot(): void
     {
         $user = User::factory()->create();

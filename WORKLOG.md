@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-09-30 — Dropdown Profil Registrasi ONU Tak Lagi Dobel; VLAN ID Awal Sesuai Profil
+
+### Fixed
+
+- **ONU Type & T-CONT Profile dobel di form Register ONU**: `SmartOltProfileController::profileOptions()` menggabungkan
+  profil milik OLT dengan profil **global** bawaan migrasi (`snmp_olt_id` null: `ALL-ONT`, `SERVER`, `ServiceName`,
+  `INTERNET`) tanpa menyaring nama kembar, jadi setelah sinkron profil dari OLT nama yang sama tampil dua kali. Kini
+  profil global disembunyikan bila OLT punya profil aktif bernama sama (urutan DB dipertahankan). Ikut dibetulkan:
+  saringan `is_active` dulu hanya berlaku ke profil global, sehingga profil OLT yang **dinonaktifkan tetap muncul** di
+  dropdown (lalu ditolak validasi). Berlaku juga untuk opsi registrasi REST API.
+- `SmartOltController::hydrateProvisioningProfiles()` memilih profil VLAN bernama kembar tanpa urutan; kini profil
+  milik OLT menang, sama dengan dropdown.
+- **VLAN ID awal menyesatkan** (`Pages/SmartOlt/RegisterOnu.vue`): watcher `vlan_profile` baru jalan saat profil diganti,
+  jadi saat halaman dibuka kolom VLAN ID tampil `100` sementara skrip (server selalu memakai VLAN profil) memakai VLAN
+  profil bawaan. Watcher kini `immediate`.
+
+### Notes
+
+- Test: `SmartOltInventoryTest::test_register_form_hides_global_profiles_shadowed_by_olt_profiles`.
+  `bash scripts/test.sh` 650 passed, `npm test` 32 passed, `kv-ui-check` RegisterOnu.vue 0 pelanggaran keras.
+
 ## 2026-09-30 — Nama ONU Type Tak Lagi Diubah ke Huruf Besar
 
 ### Fixed

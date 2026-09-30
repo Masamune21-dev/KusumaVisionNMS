@@ -2652,6 +2652,8 @@ class SmartOltController extends Controller
                     ->orWhereNull('snmp_olt_id');
             })
             ->where('name', $data['vlan_profile'])
+            // Nama sama di OLT & global → profil milik OLT yang menang (sama dengan dropdown).
+            ->orderByRaw('CASE WHEN snmp_olt_id IS NULL THEN 1 ELSE 0 END')
             ->first();
 
         if ($profile) {

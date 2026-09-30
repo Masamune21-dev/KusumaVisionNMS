@@ -144,25 +144,29 @@ class SmartOltProfileController extends Controller
             ->orderBy('name');
 
         if ($olt) {
-            $query->where('snmp_olt_id', $olt->id);
+            $query->where(function ($query) use ($olt, $includeGlobalFallback) {
+                $query->where('snmp_olt_id', $olt->id);
 
-            if ($includeGlobalFallback) {
-                $query->orWhere(function ($query) use ($includeInactive) {
-                    $query->whereNull('snmp_olt_id');
-
-                    if (! $includeInactive) {
-                        $query->where('is_active', true);
-                    }
-                });
-            }
+                if ($includeGlobalFallback) {
+                    $query->orWhereNull('snmp_olt_id');
+                }
+            });
         }
 
-        if (! $includeInactive && (! $olt || ! $includeGlobalFallback)) {
+        if (! $includeInactive) {
             $query->where('is_active', true);
         }
 
-        return $query
-            ->get()
+        $profiles = $query->get();
+
+        // Profil global (bawaan instalasi: ALL-ONT, SERVER, ServiceName) hanya cadangan — bila OLT
+        // sudah punya profil bernama sama dari sinkron, yang global disembunyikan agar tak dobel.
+        $oltNames = $profiles->whereNotNull('snmp_olt_id')
+            ->mapWithKeys(fn (SmartOltProfile $profile) => [$profile->profile_type."\0".$profile->name => true]);
+
+        return $profiles
+            ->reject(fn (SmartOltProfile $profile) => $profile->snmp_olt_id === null
+                && $oltNames->has($profile->profile_type."\0".$profile->name))
             ->groupBy('profile_type')
             ->map(fn ($profiles) => $profiles->map(fn (SmartOltProfile $profile) => [
                 'id' => $profile->id,
