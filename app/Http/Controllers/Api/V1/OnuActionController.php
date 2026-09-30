@@ -9,6 +9,7 @@ use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\UnconfiguredOnuDiscovery;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
 use Illuminate\Http\JsonResponse;
@@ -202,16 +203,11 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/unconfigured/refresh — discovery ONU autofind live.
      */
-    public function refreshUnconfigured(SnmpOlt $olt, OltSnmpClient $client): JsonResponse
+    public function refreshUnconfigured(SnmpOlt $olt, UnconfiguredOnuDiscovery $discovery): JsonResponse
     {
         $this->assertNonZteGuard($olt);
 
-        $result = $client->unconfiguredOnusSnapshot($olt);
-        $result['refreshed_at'] = now()->toIso8601String();
-
-        $snapshot = $olt->last_test_result ?? [];
-        data_set($snapshot, 'unconfigured_onus', $result);
-        $olt->forceFill(['last_test_result' => $snapshot])->save();
+        $result = $discovery->refresh($olt);
 
         return response()->json([
             'data' => [

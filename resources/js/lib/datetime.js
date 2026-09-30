@@ -75,3 +75,15 @@ export function formatTimeOfDay(value) {
         timeZone: DISPLAY_TZ,
     }).format(d);
 }
+
+// Waktu relatif mengikuti bahasa aktif: "3 menit yang lalu" / "3 minutes ago", "sekarang" / "now".
+export function formatRelative(value, now = new Date()) {
+    const d = toDate(value);
+    if (!d) return '—';
+    const seconds = Math.round((d.getTime() - now.getTime()) / 1000);
+    const rtf = new Intl.RelativeTimeFormat(activeLocale(), { numeric: 'auto' });
+    for (const [unit, size] of [['day', 86400], ['hour', 3600], ['minute', 60]]) {
+        if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
+    }
+    return rtf.format(0, 'second');
+}

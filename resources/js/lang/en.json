@@ -459,7 +459,12 @@
         "detected_onu": "Detected ONUs",
         "empty_discovery": "No data yet. Run Refresh Discovery.",
         "select_olt": "Select OLT",
-        "select_olt_hint": "Select an OLT above to see unconfigured ONUs"
+        "select_olt_hint": "Select an OLT above to see unconfigured ONUs",
+        "first_seen": "First Seen",
+        "first_seen_hint": "Recorded by NMS on Refresh Discovery; the most recently appeared ONUs are listed first.",
+        "baseline": "Already present when tracking began",
+        "baseline_short": "before tracking",
+        "badge_new": "New"
     },
     "bindonu": {
         "title": "Bind ONU",

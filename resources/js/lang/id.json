@@ -459,7 +459,12 @@
         "detected_onu": "ONU Terdeteksi",
         "empty_discovery": "Belum ada data. Jalankan Refresh Discovery.",
         "select_olt": "Pilih OLT",
-        "select_olt_hint": "Pilih OLT di atas untuk melihat ONU yang belum terkonfigurasi"
+        "select_olt_hint": "Pilih OLT di atas untuk melihat ONU yang belum terkonfigurasi",
+        "first_seen": "Pertama Terlihat",
+        "first_seen_hint": "Dicatat NMS saat Refresh Discovery; ONU yang paling baru muncul ada di atas.",
+        "baseline": "Sudah ada sebelum pencatatan dimulai",
+        "baseline_short": "sebelum pencatatan",
+        "badge_new": "Baru"
     },
     "bindonu": {
         "title": "Bind ONU",

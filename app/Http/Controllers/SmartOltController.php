@@ -24,6 +24,7 @@ use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\Zte\C600MgmtPoolService;
 use App\Services\Zte\OnuRegistrationService;
+use App\Services\Zte\UnconfiguredOnuDiscovery;
 use App\Services\ZteCardUplinkService;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuDetailService;
@@ -791,17 +792,9 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function refreshUnconfigured(SnmpOlt $olt, OltSnmpClient $client): RedirectResponse
+    public function refreshUnconfigured(SnmpOlt $olt, UnconfiguredOnuDiscovery $discovery): RedirectResponse
     {
-        $result = $client->unconfiguredOnusSnapshot($olt);
-        $result['refreshed_at'] = now()->toIso8601String();
-
-        $snapshot = $olt->last_test_result ?? [];
-        data_set($snapshot, 'unconfigured_onus', $result);
-
-        $olt->forceFill([
-            'last_test_result' => $snapshot,
-        ])->save();
+        $result = $discovery->refresh($olt);
 
         $message = $result['ok']
             ? sprintf(__('flash.uncfg_ok_fmt'), $result['count'])

@@ -7,7 +7,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { ClipboardList, Plus, RefreshCw, Replace, Router, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
-import { formatDateTime } from '@/lib/datetime';
+import { formatDateTime, formatRelative } from '@/lib/datetime';
 
 const props = defineProps({
     olts: { type: Array, required: true },
@@ -33,6 +33,12 @@ const doRefresh = () => {
 };
 
 const formatDate = (value) => formatDateTime(value);
+
+// "Baru" = pertama terlihat < 24 jam lalu. Baris `first_seen_baseline` sudah ada saat
+// pencatatan dimulai (waktu aslinya tak diketahui) — tak pernah dilabeli baru.
+const NEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+const isNew = (onu) => Boolean(onu.first_seen_at && !onu.first_seen_baseline
+    && Date.now() - new Date(onu.first_seen_at).getTime() < NEW_WINDOW_MS);
 
 // "Bind ONU": hanya OLT yang mendukung (C300/C320) dan ONU yang port-nya terbaca.
 const canBind = (onu) => Boolean(props.selected_olt?.capabilities?.supports_onu_replace && onu.slot && onu.port);
@@ -123,7 +129,10 @@ const bindTarget = ref(null);
                             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
                                 <Wifi class="h-5 w-5 text-cyan-400" />
                             </div>
-                            <h3 class="text-base font-semibold text-white">{{ $t('unconfigured.detected_onu') }}</h3>
+                            <div class="min-w-0">
+                                <h3 class="text-base font-semibold text-white">{{ $t('unconfigured.detected_onu') }}</h3>
+                                <p class="mt-0.5 text-xs text-slate-500">{{ $t('unconfigured.first_seen_hint') }}</p>
+                            </div>
                         </div>
 
                         <div v-if="snapshot.onus.length === 0" class="px-6 py-10 text-center text-sm text-slate-500">
@@ -139,6 +148,10 @@ const bindTarget = ref(null);
                                             <p class="kv-mobile-card-subtitle">
                                                 <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
                                                 <span v-else>-</span>
+                                            </p>
+                                            <p v-if="onu.first_seen_at" class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                                <span>{{ $t('unconfigured.first_seen') }}: {{ onu.first_seen_baseline ? $t('unconfigured.baseline_short') : formatRelative(onu.first_seen_at) }}</span>
+                                                <span v-if="isNew(onu)" class="kv-pill-success">{{ $t('unconfigured.badge_new') }}</span>
                                             </p>
                                         </div>
                                         <div class="flex shrink-0 gap-2">
@@ -171,6 +184,7 @@ const bindTarget = ref(null);
                                     <tr class="border-b border-white/10 bg-canvas-3/40">
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.serial') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.port') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('unconfigured.first_seen') }}</th>
                                         <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
@@ -180,6 +194,18 @@ const bindTarget = ref(null);
                                         <td class="px-4 py-3 font-mono text-xs font-semibold text-white">{{ onu.serial_number }}</td>
                                         <td class="px-4 py-3 text-xs text-slate-200">
                                             <span v-if="onu.slot && onu.port">Slot {{ onu.slot }} Port {{ onu.port }}</span>
+                                            <span v-else class="text-slate-400">-</span>
+                                        </td>
+                                        <td class="px-4 py-3 text-xs">
+                                            <template v-if="onu.first_seen_at">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-slate-200">{{ formatDate(onu.first_seen_at) }}</span>
+                                                    <span v-if="isNew(onu)" class="kv-pill-success">{{ $t('unconfigured.badge_new') }}</span>
+                                                </div>
+                                                <div class="mt-0.5 text-slate-500">
+                                                    {{ onu.first_seen_baseline ? $t('unconfigured.baseline') : formatRelative(onu.first_seen_at) }}
+                                                </div>
+                                            </template>
                                             <span v-else class="text-slate-400">-</span>
                                         </td>
                                         <td class="px-4 py-3">

@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-09-30 — Unconfigured ONU: Kolom "Pertama Terlihat" & Lencana Baru
+
+### Created
+
+- `App\Services\Zte\UnconfiguredOnuDiscovery`: Refresh Discovery bersama web (`smartolt.unconfigured.refresh`) dan API
+  (`api.olts.unconfigured.refresh`). Menempelkan `first_seen_at` + `first_seen_baseline` ke tiap baris
+  `last_test_result.unconfigured_onus.onus` dan menyimpan peta SN → `{at, baseline}` di
+  `last_test_result.unconfigured_seen` (tanpa tabel/migrasi baru). Waktu = refresh pertama yang melihat SN; SN yang
+  hilang dilupakan (muncul lagi = baru lagi); refresh gagal tak menyentuh peta; refresh pertama pada OLT yang belum
+  pernah dicatat menandai semua baris `baseline`. Daftar diurutkan terbaru di atas.
+- `formatRelative()` di `resources/js/lib/datetime.js` (`Intl.RelativeTimeFormat`, ikut bahasa aktif).
+
+### Changed
+
+- `Pages/SmartOlt/UnconfiguredGlobal.vue`: kolom **Pertama Terlihat** + lencana **Baru** (< 24 jam, bukan baseline) di
+  tabel desktop dan kartu mobile, agar ONU baru bisa dibedakan dari ONU sisa pelanggan putus.
+- i18n `unconfigured.{first_seen,first_seen_hint,baseline,baseline_short,badge_new}` (id + en).
+
+### Notes
+
+- OLT C300/C320 tidak menyimpan waktu kemunculan ONU unconfigured: tabel SNMP `1012.3.13.3.1` kolom `.7` selalu nol,
+  CLI `show gpon onu uncfg` tanpa waktu. Presisi = seberapa sering Refresh Discovery ditekan.
+- Test: `UnconfiguredOnuDiscoveryTest`, `UnconfiguredFirstSeenTest`, Vitest `datetime.spec.js`.
+  `bash scripts/test.sh` 656 passed, `npm test` 34 passed, `kv-ui-check` 0 pelanggaran keras.
+
 ## 2026-09-30 — Dropdown Profil Registrasi ONU Tak Lagi Dobel; VLAN ID Awal Sesuai Profil
 
 ### Fixed
