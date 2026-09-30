@@ -414,7 +414,7 @@ class OltPollingTest extends TestCase
     {
         // Poller Go mengembalikan port tapi 0 ONU untuk C600 (tak punya OID-nya). PollOltJob
         // harus tetap mengisi ONU dari OltSnmpClient::registeredOnus (PHP), bukan menulis 0.
-        $olt = $this->makeOlt(['name' => 'LAS GALERAS', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
+        $olt = $this->makeOlt(['name' => 'OLT-C600-UJI', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
 
         (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, $this->fakeGoPoller([]));
 
@@ -449,7 +449,7 @@ class OltPollingTest extends TestCase
     {
         // Poller Go kini mendukung C600 native — bila ia mengembalikan ONU, itulah yang dipakai
         // (fallback PHP hanya jika Go balik kosong). Bukan lagi selalu di-override ke PHP.
-        $olt = $this->makeOlt(['name' => 'LAS GALERAS', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
+        $olt = $this->makeOlt(['name' => 'OLT-C600-UJI', 'vendor' => 'ZTE C600', 'polling_enabled' => true]);
         $goOnu = [[
             'if_index' => 285278977, 'onu_id' => 5, 'slot' => 3, 'port' => 1,
             'interface' => 'gpon_onu-1/3/1:5', 'type_name' => 'F641', 'serial_number' => 'C600GO5',

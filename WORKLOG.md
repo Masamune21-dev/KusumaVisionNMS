@@ -1,5 +1,15 @@
 # Worklog
 
+## 2026-10-01 — Contoh Nama Pelanggan & Email Diganti Fiktif
+
+### Fixed
+
+- Komentar dan data uji C600 memuat nama pelanggan dan nama lokasi OLT asli dari perangkat pengguna: diganti fiktif
+  ("PELANGGAN CONTOH A/B", `OLT-C600-UJI`, "OLT C600 produksi") di `OltSnmpClient`, `ZteC600ProvisioningScriptBuilder`,
+  `ZteCardUplinkService`, `C600MgmtPoolService`, dan tujuh berkas test (PHP + `NotificationBell.spec.js`).
+- Contoh email `admin@bmkv.net` → `admin@example.com` di `ApiTokenCommand`, `scripts/snapshot.mjs`, dan `ApiV1Test`.
+- Tak ada perubahan perilaku (komentar & data uji saja). Uji: 669 passed, `npm test` 34, build OK.
+
 ## 2026-10-01 — Dokumentasi Diselaraskan dengan Kode
 
 ### Created

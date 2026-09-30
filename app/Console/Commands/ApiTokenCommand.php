@@ -10,8 +10,8 @@ use Illuminate\Console\Command;
  * berguna untuk integrasi server-ke-server (web aplikasi lain / cron / backend).
  *
  * Contoh:
- *   php artisan api:token admin@bmkv.net
- *   php artisan api:token admin@bmkv.net --name="Billing App"
+ *   php artisan api:token admin@example.com
+ *   php artisan api:token admin@example.com --name="Billing App"
  */
 class ApiTokenCommand extends Command
 {

@@ -87,7 +87,7 @@ class OltSnmpClient
 
     // Configured ONU name lives in a SEPARATE table from the ONU table (.20.2.1…): at
     // 1082.500.10.2.3.3.1.2, keyed by the same {ifIndex}.{onuId} index. Verified live it returns the
-    // real customer name (e.g. "MARIA ESMIRNA LIZARDO") even though this firmware masks Name/
+    // real customer name (e.g. "PELANGGAN CONTOH A") even though this firmware masks Name/
     // Description as ******** in CLI `show gpon onu detail-info`. Column .3 there holds the SmartOLT
     // metadata description (zone_…_extid_…_authd_…), not surfaced yet. See
     // docs/ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md.
@@ -138,7 +138,7 @@ class OltSnmpClient
         'soft_ver' => self::C600_CARD_TABLE.'.31',
     ];
 
-    // Configured-type code (.2) → card model, verified live against LAS GALERAS. Used for slots whose
+    // Configured-type code (.2) → card model, verified live against a production C600. Used for slots whose
     // board is offline/absent (detected model .4 is then empty) so cfg_type still resolves.
     private const C600_CARD_TYPE_CODES = [
         656131 => 'SFUB',

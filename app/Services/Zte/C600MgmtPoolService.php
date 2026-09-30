@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Cache;
  *
  * Kunci reliabilitas (terbukti live): **`terminal length 0`** wajib mendahului scan — tanpa itu
  * pager `--More--` memotong output ~1 layar (~12 baris) & sisanya hilang. Dengan pager mati +
- * `execute(..., largeOutput: true)`, ~632 baris mgmt-ip terbaca penuh (~18 dtk) di LAS GALERAS.
+ * `execute(..., largeOutput: true)`, ~632 baris mgmt-ip terbaca penuh (~18 dtk) di OLT C600 produksi.
  *
  * Baris mgmt-ip memuat SEMUA parameter pool → mask/gateway/vlan/priority/host diturunkan dari config
  * OLT, tak perlu setelan manual. CIDR dihitung dari IP contoh & mask.

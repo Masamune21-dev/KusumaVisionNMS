@@ -27,7 +27,7 @@ class C600PortDetailParseTest extends TestCase
         return $ref->invoke($obj, ...$args);
     }
 
-    /** C600 uplink `show interface xgei-1/10/1` — verified live (GAMER on LAS GALERAS). */
+    /** C600 uplink `show interface xgei-1/10/1` — verified live on a production C600. */
     public function test_parse_c600_uplink_interface(): void
     {
         $output = <<<'OUT'

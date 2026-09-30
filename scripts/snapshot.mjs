@@ -4,7 +4,7 @@
 //
 // Jalankan:
 //   npm run snapshot                         # Welcome + Login (publik)
-//   SNAP_USER=admin@bmkv.net SNAP_PASS=... npm run snapshot   # + Dashboard (perlu login)
+//   SNAP_USER=admin@example.com SNAP_PASS=... npm run snapshot   # + Dashboard (perlu login)
 //
 // Env opsional:
 //   BASE_URL (default https://127.0.0.1)  OUT_DIR (default public/img)

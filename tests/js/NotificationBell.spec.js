@@ -27,7 +27,7 @@ import NotificationBell from '@/Components/Shell/NotificationBell.vue';
 const alarm = {
     id: 6502,
     alarm_id: 6502,
-    olt_name: 'LAS GALERAS C600',
+    olt_name: 'OLT-C600-UJI',
     severity: 'minor',
     message: 'ONU offline',
     created_at: new Date().toISOString(),

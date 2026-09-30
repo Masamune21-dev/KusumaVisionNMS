@@ -1178,7 +1178,7 @@ class ZteCardUplinkService
     }
 
     /**
-     * Parse a C600 `show optical-module-info {iface}` block (verified live on LAS GALERAS).
+     * Parse a C600 `show optical-module-info {iface}` block (verified live on a production C600).
      * Differs from the C300/C320 `show interface optical-module-info`: header is
      * "Optical Module Information" (capitalised), PN/SN come from Product-Name/Sequence-Number,
      * and values may carry inline thresholds ("-0.493(dbm) [-10.0, -1.0]"). GPON OLT SFP has no

@@ -12,7 +12,7 @@ class C600CardInventoryTest extends TestCase
      * C600/TITAN chassis card inventory lewat SNMP (zxAnCardTable `.1082.10.1.2.4.1`,
      * index {rack}.{shelf}.{slot}). CLI `show card` tak ter-parse di C600, jadi kolom .2 (kode
      * tipe), .4 (model terdeteksi), .5 (oper-status), .7 (jumlah port), .26/.31 (versi) diverifikasi
-     * live ke LAS GALERAS dan diterjemahkan jadi baris card bergaya `show card`.
+     * live ke OLT C600 produksi dan diterjemahkan jadi baris card bergaya `show card`.
      */
     public function test_card_inventory_decodes_type_status_ports_versions(): void
     {
@@ -41,7 +41,7 @@ class C600CardInventoryTest extends TestCase
             }
         };
 
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $cards = $client->cardInventory($olt);
 
         $this->assertCount(5, $cards);

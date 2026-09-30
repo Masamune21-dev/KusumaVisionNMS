@@ -7,7 +7,7 @@ use RuntimeException;
 
 /**
  * Script provisioning ONU untuk ZTE C600 (Titan) — **Model B / gaya SmartOLT**, direproduksi
- * PERSIS dari running-config ONU yang sudah jalan di C600 lapangan (LAS GALERAS, verifikasi live
+ * PERSIS dari running-config ONU yang sudah jalan di C600 lapangan (OLT C600 pengguna, verifikasi live
  * 18 Jul 2026 atas `gpon_onu-1/3/1:2/:11/:80`).
  *
  * C600 **bukan** C300 dengan nama interface lain — strukturnya beda dan dipisah dari

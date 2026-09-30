@@ -31,7 +31,7 @@ class C600UnconfiguredOnuTest extends TestCase
             }
         };
 
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $rows = $client->unconfiguredOnus($olt);
 
         $this->assertCount(1, $rows);

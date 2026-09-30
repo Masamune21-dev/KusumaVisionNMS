@@ -42,10 +42,10 @@ class ApiV1Test extends TestCase
 
     public function test_login_returns_a_bearer_token(): void
     {
-        User::factory()->admin()->create(['email' => 'admin@bmkv.net', 'password' => 'secret123']);
+        User::factory()->admin()->create(['email' => 'admin@example.com', 'password' => 'secret123']);
 
         $res = $this->postJson('/api/v1/auth/login', [
-            'email' => 'admin@bmkv.net',
+            'email' => 'admin@example.com',
             'password' => 'secret123',
             'device_name' => 'phpunit',
         ]);

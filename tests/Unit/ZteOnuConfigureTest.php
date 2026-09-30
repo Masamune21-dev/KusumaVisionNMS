@@ -726,7 +726,7 @@ RAW;
             }
         };
 
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $result = (new ZteOnuRunningConfigService($executor))->fetchMany($olt, 3, 1, [5, 6]);
 
         $this->assertTrue($result['ok']);
@@ -998,7 +998,7 @@ RAW;
             }
         };
 
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $result = (new ZteOnuRunningConfigService($executor))->fetch($olt, 3, 1, 1);
         $c = $result['config'];
 
@@ -1023,7 +1023,7 @@ RAW;
 
     public function test_c600_capability_is_config_read_only(): void
     {
-        $c600 = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $c600 = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $c320 = new SnmpOlt(['vendor' => 'ZTE C320', 'name' => 'EL VALLE']);
 
         // C600: buka Configure (read) boleh, tapi tulis (preview/apply) MATI.
@@ -1054,7 +1054,7 @@ RAW;
     {
         // ONU tercatat di cache poll → aman masuk config-mode; `show this` cepat, bukan `xpon | begin`.
         $exec = $this->recordingExecutor();
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $olt->last_test_result = ['port_onus' => ['3_1' => ['onus' => [['onu_id' => 1, 'serial_number' => 'ZTEG1']]]]];
 
         $result = (new ZteOnuRunningConfigService($exec))->fetch($olt, 3, 1, 1);
@@ -1070,7 +1070,7 @@ RAW;
     {
         // ONU TIDAK di cache → jangan masuk config-mode (bisa auto-create) → pure-show `xpon | begin`.
         $exec = $this->recordingExecutor();
-        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'LAS GALERAS']);
+        $olt = new SnmpOlt(['vendor' => 'ZTE C600', 'name' => 'OLT-C600-UJI']);
         $olt->last_test_result = ['port_onus' => ['3_1' => ['onus' => [['onu_id' => 1]]]]];
 
         (new ZteOnuRunningConfigService($exec))->fetch($olt, 3, 1, 99); // onu 99 tak ada
