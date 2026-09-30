@@ -52,10 +52,10 @@ class CDataSnmp
             // Subtree tak ada di agent ini ≠ perangkat tak menjawab; tetap RuntimeException agar
             // pemanggil lama yang menangkap RuntimeException tak berubah perilaku.
             if ($errno === SNMP::ERRNO_ERROR_IN_REPLY) {
-                throw new CDataSnmpMissingOid("SNMP walk: OID {$oid} tak tersedia di perangkat");
+                throw new CDataSnmpMissingOid(__('cdata.snmp_oid_unavailable', ['oid' => $oid]));
             }
 
-            throw new RuntimeException("SNMP walk gagal untuk {$oid}");
+            throw new RuntimeException(__('cdata.snmp_walk_failed', ['oid' => $oid]));
         }
 
         $normalized = [];
@@ -79,7 +79,7 @@ class CDataSnmp
     private function assertV2(SnmpOlt $olt): void
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('C-Data hanya mendukung SNMP v1/v2c.');
+            throw new RuntimeException(__('cdata.snmp_v3_unsupported'));
         }
     }
 }

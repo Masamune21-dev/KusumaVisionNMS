@@ -15,14 +15,14 @@ class TelnetSessionController extends Controller
     {
         // Staf Pusat atau pemilik OLT privat saja — partner tidak mendapat
         // CLI penuh ke OLT global yang sekadar di-assign.
-        abort_unless((bool) $request->user()?->canAccessOltSecrets($olt), 403, 'Tidak punya izin telnet ke OLT ini.');
+        abort_unless((bool) $request->user()?->canAccessOltSecrets($olt), 403, __('olt.telnet_forbidden'));
 
         if ($olt->cli_transport !== 'telnet') {
-            return response()->json(['message' => 'CLI transport OLT bukan telnet. Set ke telnet di pengaturan OLT.'], 422);
+            return response()->json(['message' => __('olt.cli_transport_not_telnet')], 422);
         }
 
         if (! $olt->cli_username || ! $olt->cli_password) {
-            return response()->json(['message' => 'Username/password CLI OLT belum diisi.'], 422);
+            return response()->json(['message' => __('olt.cli_credentials_missing')], 422);
         }
 
         $token = TelnetTicket::issue($request->user()->id, $olt->id);

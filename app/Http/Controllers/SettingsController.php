@@ -448,7 +448,7 @@ class SettingsController extends Controller
     private function appInfoPayload(): array
     {
         return [
-            'description' => 'Network Management System FTTH/GPON untuk OLT ZTE & provisioning ONU.',
+            'description' => __('common.app_description'),
             'owner' => 'PT BERKAH MEDIA KUSUMA VISION (BMKV)',
             'stack' => [
                 ['label' => 'Backend', 'value' => 'Laravel '.app()->version()],

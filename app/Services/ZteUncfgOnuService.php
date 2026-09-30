@@ -29,7 +29,7 @@ class ZteUncfgOnuService
         $result = $this->executor->execute($olt, "terminal length 0\nshow gpon onu uncfg");
 
         if (! ($result['ok'] ?? false)) {
-            return ['ok' => false, 'onus' => [], 'error' => $result['error'] ?? 'Eksekusi CLI gagal'];
+            return ['ok' => false, 'onus' => [], 'error' => $result['error'] ?? __('olt.cli_exec_failed')];
         }
 
         return ['ok' => true, 'onus' => $this->parse((string) $result['output']), 'error' => null];

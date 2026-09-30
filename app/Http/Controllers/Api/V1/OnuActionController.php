@@ -45,13 +45,13 @@ class OnuActionController extends Controller
                 'data' => [
                     'ok' => (bool) $result['ok'],
                     'message' => $result['ok']
-                        ? 'Perintah reboot terkirim. ONU restart 30-60 detik.'
-                        : 'Reboot selesai dengan indikasi error.',
+                        ? __('common.onu_reboot_sent')
+                        : __('common.onu_reboot_warn'),
                     'error' => $result['error'] ?? null,
                 ],
             ], $result['ok'] ? 200 : 422);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Reboot ONU gagal: '.$e->getMessage()], 422);
+            return response()->json(['message' => __('flash.onu_reboot_failed').$e->getMessage()], 422);
         }
     }
 
@@ -72,14 +72,14 @@ class OnuActionController extends Controller
         $description = ($data['description'] ?? '') !== '' ? $data['description'] : null;
 
         if ($name === null && $description === null) {
-            return response()->json(['message' => 'Isi minimal nama atau deskripsi ONU.'], 422);
+            return response()->json(['message' => __('flash.onu_info_required')], 422);
         }
 
         try {
             if ($this->isHioso($olt) || $this->isCdata($olt)) {
                 // Non-ZTE hanya punya satu field nama; `description` khusus ZTE (paritas web).
                 if ($name === null) {
-                    return response()->json(['message' => 'OLT ini hanya mendukung ubah nama ONU.'], 422);
+                    return response()->json(['message' => __('common.onu_name_only')], 422);
                 }
 
                 // HiOSO HA7302 (`description_mode='snmp'`): rename via SNMP SET, bukan CLI.
@@ -92,7 +92,7 @@ class OnuActionController extends Controller
                 }
 
                 if (! ($result['ok'] ?? false)) {
-                    return response()->json(['message' => 'Update info ONU gagal: '.($result['error'] ?? '')], 422);
+                    return response()->json(['message' => __('flash.onu_info_failed').($result['error'] ?? '')], 422);
                 }
 
                 // Cache non-ZTE memakai name sekaligus sebagai description (paritas web).
@@ -112,9 +112,9 @@ class OnuActionController extends Controller
                 return $onu;
             });
 
-            return response()->json(['data' => ['ok' => true, 'message' => 'Info ONU diperbarui.']]);
+            return response()->json(['data' => ['ok' => true, 'message' => __('common.onu_info_updated')]]);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Update info ONU gagal: '.$e->getMessage()], 422);
+            return response()->json(['message' => __('flash.onu_info_failed').$e->getMessage()], 422);
         }
     }
 
@@ -146,13 +146,13 @@ class OnuActionController extends Controller
                 'data' => [
                     'ok' => $ok,
                     'message' => $ok
-                        ? "ONU {$onuId} dihapus dari OLT."
-                        : 'Hapus ONU selesai dengan indikasi error.',
+                        ? __('common.onu_deleted', ['onu' => $onuId])
+                        : __('common.onu_delete_warn'),
                     'error' => $result['error'] ?? null,
                 ],
             ], $ok ? 200 : 422);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'Hapus ONU gagal: '.$e->getMessage()], 422);
+            return response()->json(['message' => __('flash.onu_delete_failed').$e->getMessage()], 422);
         }
     }
 
@@ -254,7 +254,7 @@ class OnuActionController extends Controller
         abort_unless(
             (bool) (SmartOltSupport::capabilities($this->driver($olt), $olt)[$capability] ?? false),
             422,
-            'Aksi ini tidak didukung untuk driver OLT ini.',
+            __('common.action_unsupported_driver'),
         );
     }
 
@@ -264,7 +264,7 @@ class OnuActionController extends Controller
         abort_if(
             SmartOltSupport::isNonZte($this->driver($olt)),
             422,
-            'Refresh live via endpoint ini hanya untuk OLT ZTE.',
+            __('common.live_refresh_zte_only'),
         );
     }
 

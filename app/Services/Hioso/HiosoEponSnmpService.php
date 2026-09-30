@@ -439,7 +439,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             return [
                 'ok' => $ok,
                 'output' => $ok ? "SNMP SET {$oid} = \"{$label}\"" : '',
-                'error' => $ok ? null : 'OLT menolak SNMP SET nama ONU (periksa write community / OID).',
+                'error' => $ok ? null : __('hioso.snmp_set_name_rejected'),
             ];
         } catch (Throwable $e) {
             return ['ok' => false, 'output' => '', 'error' => $e->getMessage()];

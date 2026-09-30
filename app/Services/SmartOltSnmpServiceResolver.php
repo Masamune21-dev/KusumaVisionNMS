@@ -54,10 +54,10 @@ class SmartOltSnmpServiceResolver
             SmartOltSupport::DRIVER_CDATA_GPON => new CDataGponSnmpService($this->snmp, $this->cli),
             SmartOltSupport::DRIVER_HIOSO_EPON => app(HiosoEponSnmpService::class),
             SmartOltSupport::DRIVER_ZTE => throw new RuntimeException(
-                "OLT ZTE '{$olt->name}' memakai OltSnmpClient langsung, bukan resolver C-Data."
+                __('olt.resolver_zte_direct', ['name' => $olt->name])
             ),
             default => throw new RuntimeException(
-                "Family OLT '{$olt->name}' belum dikenali — jalankan Test untuk probe sysObjectID."
+                __('olt.family_unknown', ['name' => $olt->name])
             ),
         };
     }

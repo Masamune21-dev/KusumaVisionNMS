@@ -58,7 +58,7 @@ class CDataGponPortService
         }
 
         if (($error = $this->cliDetectError($output)) !== null) {
-            throw new RuntimeException("CLI menolak 'show vlan all': {$error}");
+            throw new RuntimeException(__('cdata.cli_rejected', ['command' => 'show vlan all', 'error' => $error]));
         }
 
         return $this->parseVlans($output);
@@ -92,7 +92,7 @@ class CDataGponPortService
         }
 
         if (($error = $this->cliDetectError($info)) !== null) {
-            throw new RuntimeException("CLI menolak 'show port info|state {$port}': {$error}");
+            throw new RuntimeException(__('cdata.cli_rejected', ['command' => "show port info|state {$port}", 'error' => $error]));
         }
 
         $parsed = $this->parsePortInfo($info);
@@ -134,7 +134,7 @@ class CDataGponPortService
             $this->cliCommand($connection, 'config', 5);
 
             if ($this->findVlan($this->cliCommand($connection, "show vlan {$vlanId}", 10, true), $vlanId) !== null) {
-                return ['ok' => false, 'error' => "VLAN {$vlanId} sudah ada di OLT.", 'output' => '', 'vlan' => null];
+                return ['ok' => false, 'error' => __('cdata.vlan_exists', ['vlan' => $vlanId]), 'output' => '', 'vlan' => null];
             }
 
             $output .= $this->cliCommand($connection, "vlan {$vlanId}", 10);
@@ -149,7 +149,7 @@ class CDataGponPortService
 
         $output = $this->mask($output, $olt);
         $error = $this->cliDetectError($output)
-            ?? ($vlan === null ? "VLAN {$vlanId} tidak muncul di 'show vlan' setelah dibuat." : null);
+            ?? ($vlan === null ? __('cdata.vlan_not_created', ['vlan' => $vlanId]) : null);
 
         return ['ok' => $error === null, 'error' => $error, 'output' => $output, 'vlan' => $vlan];
     }
@@ -167,7 +167,7 @@ class CDataGponPortService
     {
         $kind = $this->kind($kind);
         if (! in_array($kind, self::TAGGABLE_KINDS, true)) {
-            throw new RuntimeException('Tag VLAN dari NMS hanya untuk port GE/XGE/EPON — port GPON otomatis ikut VLAN baru.');
+            throw new RuntimeException(__('cdata.tag_kind_unsupported'));
         }
         $this->assertVlanId($vlanId);
         $name = sprintf('%s 0/%d/%d', $kind, $slot, $port);
@@ -180,18 +180,18 @@ class CDataGponPortService
             $this->cliCommand($connection, 'config', 5);
 
             if ($this->findVlan($this->cliCommand($connection, "show vlan {$vlanId}", 10, true), $vlanId) === null) {
-                return $fail("VLAN {$vlanId} belum ada di OLT. Buat dulu di halaman VLAN.");
+                return $fail(__('cdata.vlan_missing', ['vlan' => $vlanId]));
             }
 
             $this->enterInterface($connection, $kind, $slot);
             $before = $this->parsePortVlan($this->cliCommand($connection, "show port vlan {$port}", 10, true));
 
             if ($before['mode'] === null) {
-                return $fail("Tidak bisa membaca VLAN port {$name}.");
+                return $fail(__('cdata.port_vlan_unreadable', ['port' => $name]));
             }
             $mode = strtolower($before['mode']);
             if (! in_array($mode, ['trunk', 'hybrid'], true)) {
-                return $fail("Port {$name} bermode {$before['mode']}. Tag VLAN dari NMS hanya untuk port Trunk atau Hybrid — ubah mode lewat CLI dulu.", $before['tagged']);
+                return $fail(__('cdata.port_mode_untaggable', ['port' => $name, 'mode' => $before['mode']]), $before['tagged']);
             }
 
             $ranges = self::parseVlanList(implode(',', $before['tagged']));
@@ -200,12 +200,12 @@ class CDataGponPortService
                 return ['ok' => true, 'error' => null, 'output' => '', 'already' => true, 'tagged' => $before['tagged']];
             }
             if (self::vlanListContains($untagged, $vlanId)) {
-                return $fail("VLAN {$vlanId} sudah untagged di {$name}; tidak diubah jadi tagged dari NMS.", $before['tagged']);
+                return $fail(__('cdata.vlan_already_untagged', ['vlan' => $vlanId, 'port' => $name]), $before['tagged']);
             }
 
             $list = self::compressVlanRanges([...$ranges, [$vlanId, $vlanId]]);
             if (strlen($list) > self::MAX_VLANLIST_LENGTH) {
-                return $fail("Daftar VLAN {$name} terlalu panjang untuk dikirim aman dari NMS. Tag lewat CLI.", $before['tagged']);
+                return $fail(__('cdata.vlan_list_too_long', ['port' => $name]), $before['tagged']);
             }
 
             $command = $mode === 'trunk'
@@ -228,10 +228,10 @@ class CDataGponPortService
 
         $error = $this->cliDetectError($output);
         if ($error === null && ! self::vlanListContains($afterTagged, $vlanId)) {
-            $error = "VLAN {$vlanId} belum terlihat di port {$name} setelah perintah dikirim.";
+            $error = __('cdata.vlan_not_on_port', ['vlan' => $vlanId, 'port' => $name]);
         }
         if ($missing !== []) {
-            $error = 'Verifikasi: VLAN '.implode(',', $missing)." hilang dari {$name}. Periksa port lewat CLI segera.";
+            $error = __('cdata.vlans_lost', ['vlans' => implode(',', $missing), 'port' => $name]);
         }
 
         return ['ok' => $error === null, 'error' => $error, 'output' => $output, 'already' => false, 'tagged' => $after['tagged']];
@@ -594,7 +594,7 @@ class CDataGponPortService
         $out = $this->cliCommand($connection, "interface {$kind} 0/{$slot}", 5);
 
         if (($error = $this->cliDetectError($out)) !== null || ! preg_match('/\(config-'.$kind.'-/i', $out)) {
-            throw new RuntimeException("Gagal masuk 'interface {$kind} 0/{$slot}'".($error ? ": {$error}" : '.'));
+            throw new RuntimeException(__('cdata.enter_interface_failed', ['kind' => $kind, 'slot' => $slot]).($error ? ": {$error}" : '.'));
         }
     }
 
@@ -639,7 +639,7 @@ class CDataGponPortService
     {
         $kind = strtolower($kind);
         if (! in_array($kind, self::KINDS, true)) {
-            throw new RuntimeException("Jenis port C-Data tidak dikenal: {$kind}");
+            throw new RuntimeException(__('cdata.unknown_port_kind', ['kind' => $kind]));
         }
 
         return $kind;
@@ -648,7 +648,7 @@ class CDataGponPortService
     private function assertVlanId(int $vlanId): void
     {
         if ($vlanId < 1 || $vlanId > 4094) {
-            throw new RuntimeException('VLAN ID harus 1-4094.');
+            throw new RuntimeException(__('cdata.vlan_id_range'));
         }
     }
 

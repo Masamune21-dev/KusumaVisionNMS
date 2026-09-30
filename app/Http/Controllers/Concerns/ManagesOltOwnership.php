@@ -41,7 +41,7 @@ trait ManagesOltOwnership
     protected function authorizeOltDeletion(SnmpOlt $olt, ?User $user): void
     {
         if ($user && $user->isPartner()) {
-            abort_unless($user->ownsOlt($olt), 403, 'Anda hanya boleh menghapus OLT milik Anda sendiri.');
+            abort_unless($user->ownsOlt($olt), 403, __('olt.delete_own_olt_only'));
         }
     }
 
@@ -80,7 +80,7 @@ trait ManagesOltOwnership
 
             // Normalisasi: port/angka dibandingkan sebagai string agar "23" == 23.
             if ((string) ($incoming ?? '') !== (string) ($current ?? '')) {
-                abort(403, 'Parameter koneksi OLT global (IP, port, SNMP, kredensial CLI) hanya boleh diubah oleh staf Pusat.');
+                abort(403, __('olt.connection_fields_central_only'));
             }
         }
     }
@@ -91,7 +91,7 @@ trait ManagesOltOwnership
     protected function authorizeOltConnectionTest(SnmpOlt $olt, ?User $user): void
     {
         if ($user && ! $user->canEditOltConnection($olt)) {
-            abort(403, 'Uji koneksi OLT global hanya boleh dilakukan staf Pusat atau pemilik OLT.');
+            abort(403, __('olt.connection_test_forbidden'));
         }
     }
 
@@ -100,6 +100,6 @@ trait ManagesOltOwnership
      */
     protected function authorizeOltSecretAccess(SnmpOlt $olt, ?User $user): void
     {
-        abort_unless((bool) $user?->canAccessOltSecrets($olt), 403, 'Akses CLI/backup OLT ini hanya untuk staf Pusat atau pemilik OLT.');
+        abort_unless((bool) $user?->canAccessOltSecrets($olt), 403, __('olt.secret_access_forbidden'));
     }
 }

@@ -90,6 +90,24 @@ class CDataGponPortWriteTest extends TestCase
         $this->assertStringContainsString('210,220 hilang', $result['error']);
     }
 
+    /** Pesan error ikut bahasa pengguna (issue GitHub #1: error tetap bahasa Indonesia di tampilan English). */
+    public function test_error_messages_follow_the_user_locale(): void
+    {
+        app()->setLocale('en');
+
+        $unknownVlan = $this->trunkService(fn () => $this->portVlan('Trunk', '210'), "show vlan 28\r\nOLT(config)# ")
+            ->tagPortVlan($this->olt(), 'xge', 0, 1, 28);
+        $accessPort = $this->trunkService(fn () => $this->portVlan('Access', '--'))
+            ->tagPortVlan($this->olt(), 'xge', 0, 1, 28);
+
+        $this->assertSame('VLAN 28 does not exist on the OLT yet. Create it first on the VLAN page.', $unknownVlan['error']);
+        $this->assertStringStartsWith('Port xge 0/0/1 is in Access mode.', $accessPort['error']);
+
+        app()->setLocale('id');
+        $this->assertStringStartsWith('VLAN 28 belum ada di OLT.', $this->trunkService(fn () => '', "show vlan 28\r\nOLT(config)# ")
+            ->tagPortVlan($this->olt(), 'xge', 0, 1, 28)['error']);
+    }
+
     public function test_tag_refuses_non_trunk_port(): void
     {
         $svc = $this->trunkService(fn () => $this->portVlan('Access', '--'));
@@ -103,7 +121,7 @@ class CDataGponPortWriteTest extends TestCase
 
     public function test_tag_refuses_unknown_vlan_before_entering_interface(): void
     {
-        $svc = $this->trunkService(fn () => $this->portVlan('Trunk', '22'), "show vlan 28\r\nOLT(config)# ");
+        $svc = $this->trunkService(fn () => $this->portVlan('Trunk', '210'), "show vlan 28\r\nOLT(config)# ");
 
         $result = $svc->tagPortVlan($this->olt(), 'xge', 0, 1, 28);
 

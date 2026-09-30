@@ -17,7 +17,7 @@ class EnsureUserRole
         $user = $request->user();
 
         if (! $user || ! in_array($user->role?->value, $roles, true)) {
-            abort(403, 'Anda tidak memiliki akses ke halaman ini.');
+            abort(403, __('common.page_forbidden'));
         }
 
         return $next($request);

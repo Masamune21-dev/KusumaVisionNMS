@@ -23,7 +23,7 @@ class GoSnmpPoller
     public function poll(SnmpOlt $olt, bool $includeRx): array
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('Go SNMP poller belum mendukung SNMP v3.');
+            throw new RuntimeException(__('olt.go_poller_v3_unsupported'));
         }
 
         $command = [

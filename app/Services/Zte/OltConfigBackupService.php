@@ -27,7 +27,7 @@ class OltConfigBackupService
     public function capture(SnmpOlt $olt, string $trigger = OltConfigBackup::TRIGGER_MANUAL, ?int $userId = null): array
     {
         if (SmartOltSupport::driverKey($olt) !== SmartOltSupport::DRIVER_ZTE) {
-            return ['ok' => false, 'changed' => false, 'backup' => null, 'error' => 'Backup config saat ini hanya untuk OLT ZTE.'];
+            return ['ok' => false, 'changed' => false, 'backup' => null, 'error' => __('zte.backup_zte_only')];
         }
 
         // largeOutput: running-config OLT besar bisa streaming puluhan detik tanpa jeda pager.

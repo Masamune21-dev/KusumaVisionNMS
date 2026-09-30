@@ -255,7 +255,7 @@ class SmartOltController extends Controller
         $interface = $request->query('interface', '');
 
         if (! preg_match(self::UPLINK_INTERFACE_REGEX, $interface)) {
-            return response()->json(['error' => 'Parameter interface tidak valid.'], 422);
+            return response()->json(['error' => __('zte.invalid_interface_param')], 422);
         }
 
         try {
@@ -736,7 +736,7 @@ class SmartOltController extends Controller
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
                     ? __('flash.config_saved_write', ['name' => $olt->name])
-                    : 'Simpan konfigurasi selesai dengan indikasi error: '.$result['error'],
+                    : __('zte.config_save_partial').$result['error'],
             );
         } catch (\Throwable $exception) {
             return $back->with('error', __('flash.config_save_failed').$exception->getMessage());
@@ -818,7 +818,7 @@ class SmartOltController extends Controller
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
                         ? sprintf(__('flash.reboot_sent_iface_fmt'), SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)))
-                        : 'Reboot ONU selesai dengan indikasi error: '.$result['error'],
+                        : __('zte.onu_reboot_partial').$result['error'],
                 );
         } catch (\Throwable $exception) {
             return redirect()
@@ -1287,7 +1287,7 @@ class SmartOltController extends Controller
         $dstPort = (int) $data['dst_port'];
 
         if ($dstSlot === $slot && $dstPort === $port) {
-            return response()->json(['ok' => false, 'message' => 'Port tujuan harus berbeda dari port asal.'], 422);
+            return response()->json(['ok' => false, 'message' => __('zte.copy_same_port')], 422);
         }
 
         $onuIds = array_values(array_unique(array_map('intval', $data['onu_ids'])));
@@ -1387,8 +1387,8 @@ class SmartOltController extends Controller
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? "ONU {$onuId} berhasil dihapus dari {$iface}."
-                    : 'Hapus ONU selesai dengan indikasi error: '.$error,
+                    ? __('zte.onu_deleted', ['onu' => $onuId, 'interface' => $iface])
+                    : __('zte.onu_delete_partial').$error,
             );
         } catch (\Throwable $exception) {
             return $back->with('error', __('flash.onu_delete_failed').CliOutputSanitizer::clean($exception->getMessage()));
@@ -1595,14 +1595,18 @@ class SmartOltController extends Controller
         $deleted = count($result['deleted']);
 
         if ($result['failed'] === []) {
-            return $back->with('success', "{$deleted} ONU berhasil dihapus dari {$iface}.");
+            return $back->with('success', __('zte.onus_deleted', ['count' => $deleted, 'interface' => $iface]));
         }
 
         $failed = collect($result['failed'])
             ->map(fn (string $error, int $onuId): string => "ONU {$onuId}: ".CliOutputSanitizer::clean($error))
             ->implode('; ');
 
-        return $back->with('error', "{$deleted} ONU terhapus, ".count($result['failed'])." gagal — {$failed}. Refresh ONU untuk memastikan kondisi port.");
+        return $back->with('error', __('zte.onus_delete_partial', [
+            'deleted' => $deleted,
+            'failed' => count($result['failed']),
+            'failures' => $failed,
+        ]));
     }
 
     /**
@@ -1613,7 +1617,7 @@ class SmartOltController extends Controller
     public function registerMgmtPool(Request $request, SnmpOlt $olt, C600MgmtPoolService $pool): JsonResponse
     {
         if (! SmartOltSupport::isC600($olt)) {
-            return response()->json(['error' => 'Auto mgmt-IP hanya untuk OLT C600.'], 422);
+            return response()->json(['error' => __('zte.mgmt_ip_c600_only')], 422);
         }
 
         $this->assertCapability($olt, 'supports_provisioning');
@@ -1623,7 +1627,7 @@ class SmartOltController extends Controller
             $next = $pool->nextFreeIp($olt, $fresh);
 
             if ($next === null) {
-                return response()->json(['error' => 'Pool mgmt-IP tidak terbaca dari OLT atau sudah penuh.'], 422);
+                return response()->json(['error' => __('zte.mgmt_ip_pool_unavailable')], 422);
             }
 
             // Preset TR069 (ACS url/username) dari OLT → registrasi konsisten dgn ONU lain.
@@ -1655,7 +1659,7 @@ class SmartOltController extends Controller
             try {
                 return response()->json(['script' => $registration->buildScript($olt, $request->all())]);
             } catch (\Throwable) {
-                return response()->json(['script' => '! Lengkapi field wajib (VLAN, profil TCONT, mgmt-ip, ACS) untuk melihat script.']);
+                return response()->json(['script' => __('zte.preview_fill_required')]);
             }
         }
 
@@ -2070,7 +2074,7 @@ class SmartOltController extends Controller
             'poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
             'rx_poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
         ], [
-            'ip.unique' => 'Kombinasi IP + SNMP port ini sudah dipakai OLT lain. Ubah SNMP port bila ingin memakai IP yang sama.',
+            'ip.unique' => __('olt.ip_port_taken'),
         ]);
     }
 
@@ -2493,7 +2497,7 @@ class SmartOltController extends Controller
             // supports_provisioning) dinilai benar — tanpa ini isC600 selalu false di jalur ini.
             (bool) (SmartOltSupport::capabilities($driver, $olt)[$capability] ?? false),
             403,
-            'Aksi ini tidak didukung untuk driver OLT ini.',
+            __('olt.driver_action_unsupported'),
         );
     }
 

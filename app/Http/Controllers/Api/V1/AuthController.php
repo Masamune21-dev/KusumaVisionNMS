@@ -34,7 +34,7 @@ class AuthController extends Controller
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['Email atau kata sandi salah.'],
+                'email' => [__('common.invalid_credentials')],
             ]);
         }
 
@@ -89,7 +89,7 @@ class AuthController extends Controller
 
         $session->delete();
 
-        return response()->json(['data' => ['message' => 'Token dicabut.']]);
+        return response()->json(['data' => ['message' => __('common.token_revoked')]]);
     }
 
     /**

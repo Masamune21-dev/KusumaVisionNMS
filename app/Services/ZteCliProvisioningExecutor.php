@@ -49,18 +49,18 @@ class ZteCliProvisioningExecutor
     public function saveConfig(SnmpOlt $olt): array
     {
         if ($olt->cli_transport !== 'telnet') {
-            throw new RuntimeException('Simpan konfigurasi saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
+            throw new RuntimeException(__('olt.cli_save_telnet_only'));
         }
 
         if (! $olt->cli_username || ! $olt->cli_password) {
-            throw new RuntimeException('Username dan password CLI OLT wajib diisi sebelum simpan konfigurasi.');
+            throw new RuntimeException(__('olt.cli_save_credentials_missing'));
         }
 
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $connection = @fsockopen($olt->ip, $port, $errno, $errstr, 10);
 
         if (! is_resource($connection)) {
-            throw new RuntimeException("Gagal connect Telnet ke {$olt->ip}:{$port}: {$errstr} ({$errno})");
+            throw new RuntimeException(__('olt.telnet_connect_failed', ['ip' => $olt->ip, 'port' => $port, 'error' => $errstr, 'errno' => $errno]));
         }
 
         stream_set_timeout($connection, 2);
@@ -116,18 +116,18 @@ class ZteCliProvisioningExecutor
     private function run(SnmpOlt $olt, string $script, bool $autoConfirmYes, bool $largeOutput = false, bool $waitForPrompt = false): array
     {
         if ($olt->cli_transport !== 'telnet') {
-            throw new RuntimeException('Eksekusi otomatis saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.');
+            throw new RuntimeException(__('olt.cli_exec_telnet_only'));
         }
 
         if (! $olt->cli_username || ! $olt->cli_password) {
-            throw new RuntimeException('Username dan password CLI OLT wajib diisi sebelum eksekusi provisioning.');
+            throw new RuntimeException(__('olt.cli_exec_credentials_missing'));
         }
 
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $connection = @fsockopen($olt->ip, $port, $errno, $errstr, 10);
 
         if (! is_resource($connection)) {
-            throw new RuntimeException("Gagal connect Telnet ke {$olt->ip}:{$port}: {$errstr} ({$errno})");
+            throw new RuntimeException(__('olt.telnet_connect_failed', ['ip' => $olt->ip, 'port' => $port, 'error' => $errstr, 'errno' => $errno]));
         }
 
         stream_set_timeout($connection, 2);
@@ -246,9 +246,8 @@ class ZteCliProvisioningExecutor
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $detail = trim($e->getMessage());
 
-        $message = "Sesi CLI ke {$olt->ip}:{$port} terputus sebelum selesai — pastikan "
-            .'telnet aktif di OLT dan tidak diblokir ACL manajemen untuk IP server ini.'
-            .($detail !== '' ? " (Detail: {$detail})" : '');
+        $message = __('olt.cli_session_dropped', ['ip' => $olt->ip, 'port' => $port])
+            .($detail !== '' ? __('olt.cli_session_detail', ['detail' => $detail]) : '');
 
         return $this->maskSecrets($message, $olt);
     }

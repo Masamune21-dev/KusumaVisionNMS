@@ -253,7 +253,7 @@ class OltSnmpClient
     public function get(SnmpOlt $olt, string $oid): ?string
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('SNMP v3 belum didukung pada tester awal.');
+            throw new RuntimeException(__('olt.snmp_v3_unsupported_get'));
         }
 
         if (class_exists(SNMP::class)) {
@@ -729,13 +729,13 @@ class OltSnmpClient
     public function set(SnmpOlt $olt, string $oid, string $type, string $value): bool
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('SNMP v3 belum didukung pada writer awal.');
+            throw new RuntimeException(__('olt.snmp_v3_unsupported_set'));
         }
 
         $community = $olt->snmp_write_community;
 
         if ($community === null || $community === '') {
-            throw new RuntimeException('SNMP write community OLT wajib diisi untuk operasi tulis.');
+            throw new RuntimeException(__('olt.snmp_write_community_missing'));
         }
 
         if (class_exists(SNMP::class)) {
@@ -916,7 +916,7 @@ class OltSnmpClient
     public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('SNMP v3 belum didukung pada walker awal.');
+            throw new RuntimeException(__('olt.snmp_v3_unsupported_walk'));
         }
 
         if (class_exists(SNMP::class)) {

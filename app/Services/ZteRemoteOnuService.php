@@ -138,7 +138,7 @@ class ZteRemoteOnuService
             : self::ONU_ADMIN_STATE_OID;
 
         if ($stateOid === null) {
-            throw new RuntimeException('Enable/disable ONU belum didukung di OLT C600: OID admin-state belum terpetakan.');
+            throw new RuntimeException(__('zte.c600_toggle_unsupported'));
         }
 
         return $this->snmp->set(
@@ -159,7 +159,7 @@ class ZteRemoteOnuService
 
         if ($name !== null) {
             if ($nameOid === null) {
-                throw new RuntimeException('Ubah nama ONU belum didukung di OLT C600: OID nama belum terpetakan.');
+                throw new RuntimeException(__('zte.c600_rename_unsupported'));
             }
 
             $this->snmp->set($olt, sprintf('%s.%d.%d', $nameOid, $ifIndex, $onuId), 's', $name);

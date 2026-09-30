@@ -71,7 +71,7 @@ class CDataOltController extends Controller
 
             return $redirect->with('success', sprintf(__('flash.olt_added_scan_fmt'), $count));
         } catch (Throwable $exception) {
-            return $redirect->with('success', __('flash.olt_added_scan_failed').$exception->getMessage().') — akan dicoba lagi saat halaman dibuka.');
+            return $redirect->with('success', __('flash.olt_added_scan_failed').$exception->getMessage().__('cdata.scan_retry_on_open'));
         }
     }
 
@@ -437,7 +437,7 @@ class CDataOltController extends Controller
         abort_unless(
             (bool) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)[$capability] ?? false),
             403,
-            'Aksi ini tidak didukung untuk OLT ini.',
+            __('cdata.action_unsupported'),
         );
     }
 
@@ -576,7 +576,7 @@ class CDataOltController extends Controller
             'poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
             'rx_poll_interval_minutes' => ['nullable', 'integer', 'between:1,1440'],
         ], [
-            'ip.unique' => 'Kombinasi IP + SNMP port ini sudah dipakai OLT lain. Ubah SNMP port bila ingin memakai IP yang sama.',
+            'ip.unique' => __('olt.ip_port_taken'),
         ]);
     }
 

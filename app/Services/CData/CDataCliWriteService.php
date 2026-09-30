@@ -87,7 +87,7 @@ class CDataCliWriteService
     public function setRemoteAccess(SnmpOlt $olt, string $iface, int $slot, int $port, int $onuId, bool $enable): array
     {
         if (strtolower($iface) !== 'gpon') {
-            throw new RuntimeException('Remote ONT security-mgmt hanya tersedia di C-Data GPON.');
+            throw new RuntimeException(__('cdata.remote_access_gpon_only'));
         }
 
         $command = $enable
@@ -132,7 +132,7 @@ class CDataCliWriteService
     {
         $iface = strtolower($iface);
         if (! in_array($iface, ['epon', 'gpon'], true)) {
-            throw new RuntimeException("Interface C-Data tidak dikenal: {$iface}");
+            throw new RuntimeException(__('cdata.unknown_interface', ['interface' => $iface]));
         }
 
         $connection = $this->openCliSession($olt);

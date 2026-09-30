@@ -237,7 +237,7 @@ class CDataGponPortController extends Controller
 
     private function authorizeWrite(Request $request, SnmpOlt $olt): void
     {
-        abort_unless($this->canWrite($request, $olt), 403, 'Mengubah VLAN OLT ini hanya untuk staf Pusat atau pemilik OLT.');
+        abort_unless($this->canWrite($request, $olt), 403, __('cdata.vlan_write_forbidden'));
     }
 
     private function assertCapability(SnmpOlt $olt, string $capability): void

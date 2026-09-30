@@ -28,12 +28,12 @@ trait InteractsWithCDataCli
     protected function openCliSession(SnmpOlt $olt)
     {
         if ($olt->cli_transport !== 'telnet') {
-            throw new RuntimeException('CLI C-Data baru mendukung Telnet. Set CLI transport OLT ke telnet.');
+            throw new RuntimeException(__('cdata.cli_telnet_only'));
         }
 
         $connection = @fsockopen($olt->ip, (int) ($olt->cli_port ?: 23), $errno, $errstr, 10);
         if (! $connection) {
-            throw new RuntimeException("Koneksi telnet gagal: {$errstr} ({$errno})");
+            throw new RuntimeException(__('cdata.telnet_connect_failed', ['message' => $errstr, 'code' => $errno]));
         }
 
         stream_set_timeout($connection, 2);

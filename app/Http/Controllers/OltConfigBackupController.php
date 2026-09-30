@@ -49,14 +49,14 @@ class OltConfigBackupController extends Controller
         $result = $service->capture($olt, OltConfigBackup::TRIGGER_MANUAL, request()->user()?->id);
 
         if (! $result['ok']) {
-            return back()->with('error', __('flash.backup_failed').($result['error'] ?? 'kesalahan tidak diketahui'));
+            return back()->with('error', __('flash.backup_failed').($result['error'] ?? __('olt.unknown_error')));
         }
 
         return back()->with(
             'success',
             $result['changed']
-                ? "Backup config OLT {$olt->name} tersimpan (versi baru)."
-                : 'Config tidak berubah sejak backup terakhir — tak ada versi baru dibuat.',
+                ? __('zte.backup_saved', ['name' => $olt->name])
+                : __('zte.backup_unchanged'),
         );
     }
 
@@ -68,8 +68,8 @@ class OltConfigBackupController extends Controller
         return back()->with(
             'success',
             $enabled
-                ? "Backup config harian diaktifkan untuk OLT {$olt->name}."
-                : "Backup config harian dimatikan untuk OLT {$olt->name}.",
+                ? __('zte.backup_daily_enabled', ['name' => $olt->name])
+                : __('zte.backup_daily_disabled', ['name' => $olt->name]),
         );
     }
 
@@ -108,7 +108,7 @@ class OltConfigBackupController extends Controller
 
     private function authorizeSecretAccess(SnmpOlt $olt): void
     {
-        abort_unless((bool) request()->user()?->canAccessOltSecrets($olt), 403, 'Isi backup config OLT ini hanya untuk staf Pusat atau pemilik OLT.');
+        abort_unless((bool) request()->user()?->canAccessOltSecrets($olt), 403, __('olt.backup_content_forbidden'));
     }
 
     /**

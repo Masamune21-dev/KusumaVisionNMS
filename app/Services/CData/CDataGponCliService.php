@@ -30,7 +30,7 @@ class CDataGponCliService
         try {
             $info = $this->cliCommand($connection, 'show ont info all', 30, true);
             if (($error = $this->cliDetectError($info)) !== null) {
-                throw new RuntimeException("CLI menolak 'show ont info all': {$error}");
+                throw new RuntimeException(__('cdata.cli_rejected', ['command' => 'show ont info all', 'error' => $error]));
             }
             $onus = $this->parseOntInfo($info);
 

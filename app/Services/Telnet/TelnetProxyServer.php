@@ -4,6 +4,7 @@ namespace App\Services\Telnet;
 
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Support\Locale;
 use App\Support\Telnet\TelnetIacFilter;
 use App\Support\Telnet\TelnetTicket;
 use Illuminate\Support\Facades\Log;
@@ -52,6 +53,7 @@ class TelnetProxyServer
             'loginBuf' => '',
             'username' => '',
             'password' => '',
+            'locale' => null,
         ];
 
         $conn->on('data', function (string $data) use ($conn, $ctx) {
@@ -149,6 +151,9 @@ class TelnetProxyServer
         $ctx->handshaked = true;
         $ctx->username = (string) $olt->cli_username;
         $ctx->password = (string) $olt->cli_password;
+        // Daemon ini melayani banyak koneksi dalam satu proses (tanpa middleware SetLocale),
+        // jadi pesan [proxy] memakai bahasa pemilik tiket secara eksplisit per koneksi.
+        $ctx->locale = Locale::normalize($user->locale);
 
         $this->setupMessageBuffer($conn, $ctx);
         $this->dialTelnet($conn, $ctx, $olt, $ticket['u']);
@@ -186,7 +191,7 @@ class TelnetProxyServer
     {
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $target = "{$olt->ip}:{$port}";
-        $this->wsSend($conn, "\r\n[proxy] menghubungkan ke {$olt->name} ({$target})...\r\n");
+        $this->wsSend($conn, "\r\n".__('olt.proxy_connecting', ['name' => $olt->name, 'target' => $target], $ctx->locale)."\r\n");
 
         $connector = new Connector(['timeout' => (int) config('telnet.connect_timeout', 10)]);
 
@@ -194,7 +199,7 @@ class TelnetProxyServer
             function (ConnectionInterface $telnet) use ($conn, $ctx, $olt, $userId) {
                 $ctx->telnet = $telnet;
                 Log::info("telnet-proxy: user {$userId} connected to OLT {$olt->id} ({$olt->ip})");
-                $this->wsSend($conn, "[proxy] tersambung. Auto-login sebagai {$ctx->username}...\r\n");
+                $this->wsSend($conn, __('olt.proxy_connected', ['username' => $ctx->username], $ctx->locale)."\r\n");
 
                 if ($ctx->pending !== '') {
                     $telnet->write($ctx->pending);
@@ -218,8 +223,8 @@ class TelnetProxyServer
                     $conn->close();
                 });
             },
-            function (\Throwable $e) use ($conn, $target) {
-                $this->wsSend($conn, "\r\n[proxy] gagal connect ke {$target}: {$e->getMessage()}\r\n");
+            function (\Throwable $e) use ($conn, $ctx, $target) {
+                $this->wsSend($conn, "\r\n".__('olt.proxy_connect_failed', ['target' => $target, 'error' => $e->getMessage()], $ctx->locale)."\r\n");
                 $conn->close();
             },
         );

@@ -439,7 +439,7 @@ class OnuMapController extends Controller
         abort_unless(
             (bool) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)[$capability] ?? false),
             403,
-            'Aksi ini tidak didukung untuk OLT ini.',
+            __('odp.action_unsupported'),
         );
     }
 

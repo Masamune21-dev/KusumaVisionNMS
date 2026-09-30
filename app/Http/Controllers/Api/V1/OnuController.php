@@ -110,7 +110,7 @@ class OnuController extends Controller
 
         if ($onu === null) {
             return response()->json([
-                'message' => 'ONU tidak ditemukan pada snapshot OLT ini.',
+                'message' => __('common.onu_not_in_snapshot'),
             ], 404);
         }
 

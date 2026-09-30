@@ -109,7 +109,7 @@ class OnuRegistrationController extends Controller
         abort_unless(
             (bool) (SmartOltSupport::capabilities($driver, $olt)[$capability] ?? false),
             422,
-            'Aksi ini tidak didukung untuk driver OLT ini.',
+            __('common.action_unsupported_driver'),
         );
     }
 }

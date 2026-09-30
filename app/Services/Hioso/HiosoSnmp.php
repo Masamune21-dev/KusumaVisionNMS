@@ -49,7 +49,7 @@ class HiosoSnmp
 
         $community = (string) $olt->snmp_write_community;
         if ($community === '') {
-            throw new RuntimeException('SNMP write community OLT belum diisi — tak bisa menulis via SNMP.');
+            throw new RuntimeException(__('hioso.snmp_write_community_missing'));
         }
 
         $version = $olt->snmp_version === 'v1' ? SNMP::VERSION_1 : SNMP::VERSION_2C;
@@ -80,7 +80,7 @@ class HiosoSnmp
         }
 
         if (! is_array($rows)) {
-            throw new RuntimeException("SNMP walk gagal untuk {$oid}");
+            throw new RuntimeException(__('hioso.snmp_walk_failed', ['oid' => $oid]));
         }
 
         $normalized = [];
@@ -104,7 +104,7 @@ class HiosoSnmp
     private function assertReadable(SnmpOlt $olt): void
     {
         if ($olt->snmp_version === 'v3') {
-            throw new RuntimeException('HiOSO hanya mendukung SNMP v1/v2c.');
+            throw new RuntimeException(__('hioso.snmp_v3_unsupported'));
         }
     }
 }

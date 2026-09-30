@@ -68,7 +68,7 @@ class DeviceController extends Controller
         if (! $notifier->enabled()) {
             return response()->json(['data' => [
                 'ok' => false,
-                'message' => 'Push FCM belum dikonfigurasi di server (kredensial Firebase belum dipasang).',
+                'message' => __('flash.fcm_not_configured'),
             ]]);
         }
 
@@ -81,18 +81,18 @@ class DeviceController extends Controller
         if ($tokens === []) {
             return response()->json(['data' => [
                 'ok' => false,
-                'message' => 'Perangkat ini belum terdaftar untuk notifikasi. Coba keluar lalu masuk lagi, dan izinkan notifikasi.',
+                'message' => __('common.fcm_device_not_registered'),
             ]]);
         }
 
-        $res = $notifier->sendTest($tokens, '🔔 Tes Notifikasi', 'Push FCM KusumaVision NMS berhasil diterima.');
+        $res = $notifier->sendTest($tokens, __('common.fcm_test_title'), __('common.fcm_test_body'));
 
         return response()->json(['data' => [
             'ok' => $res['ok'],
             'sent' => $res['sent'],
             'message' => $res['ok']
-                ? 'Notifikasi tes terkirim ke '.$res['sent'].' perangkat. Cek bar notifikasi.'
-                : 'Gagal mengirim: '.($res['error'] ?? $res['reason'] ?? 'tidak diketahui'),
+                ? __('common.fcm_test_sent', ['count' => $res['sent']])
+                : __('flash.fcm_send_failed').($res['error'] ?? $res['reason'] ?? __('flash.unknown')),
         ]]);
     }
 }

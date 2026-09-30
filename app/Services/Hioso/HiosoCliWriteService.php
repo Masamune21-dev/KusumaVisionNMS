@@ -52,7 +52,7 @@ class HiosoCliWriteService
     {
         $label = $this->sanitizeName($name);
         if ($label === '') {
-            return ['ok' => false, 'output' => '', 'error' => 'Nama ONU HiOSO tidak boleh kosong (hanya huruf/angka/_-.).'];
+            return ['ok' => false, 'output' => '', 'error' => __('hioso.onu_name_required')];
         }
 
         return $this->runInPon($olt, $port, ["onu {$onuId} name {$label}"]);
@@ -180,7 +180,7 @@ class HiosoCliWriteService
     private function openSession(SnmpOlt $olt)
     {
         if ($olt->cli_transport !== 'telnet') {
-            throw new RuntimeException('CLI HiOSO hanya mendukung Telnet. Set CLI transport OLT ke telnet.');
+            throw new RuntimeException(__('hioso.cli_telnet_only'));
         }
 
         // HA7302 menahan banner sampai opsi telnet IAC dijawab → aktifkan negosiator untuk sesi ini.
@@ -189,7 +189,7 @@ class HiosoCliWriteService
 
         $connection = @fsockopen($olt->ip, (int) ($olt->cli_port ?: 23), $errno, $errstr, 12);
         if (! $connection) {
-            throw new RuntimeException("Koneksi telnet gagal: {$errstr} ({$errno})");
+            throw new RuntimeException(__('hioso.telnet_connect_failed', ['message' => $errstr, 'code' => $errno]));
         }
 
         stream_set_timeout($connection, 2);

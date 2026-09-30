@@ -65,7 +65,7 @@ class ZteCardUplinkService
             $cards = $this->snmp->cardInventory($olt);
 
             if ($cards === []) {
-                throw new RuntimeException('Tabel card SNMP C600 (zxAnCardTable) kosong atau tidak terbaca.');
+                throw new RuntimeException(__('zte.card_table_empty_c600'));
             }
         } else {
             $result = $this->executor->execute($olt, 'show card');
@@ -75,7 +75,7 @@ class ZteCardUplinkService
             if ($cards === []) {
                 $reason = $result['error'] ? ': '.$result['error'] : '';
 
-                throw new RuntimeException('Output show card tidak berisi data card yang bisa diparse'.$reason);
+                throw new RuntimeException(__('zte.show_card_unparseable').$reason);
             }
         }
 
@@ -320,7 +320,7 @@ class ZteCardUplinkService
         $inventory = $this->discoverUplinkInterfaces($cards);
 
         if ($inventory === []) {
-            throw new RuntimeException('Belum ada card uplink aktif untuk discovery interface. Refresh hardware terlebih dahulu.');
+            throw new RuntimeException(__('zte.no_active_uplink_card'));
         }
 
         if (SmartOltSupport::isC600($olt)) {
@@ -464,7 +464,7 @@ class ZteCardUplinkService
         if ($rows === []) {
             $reason = $error ? ': '.$error : '';
 
-            throw new RuntimeException('Tidak ada detail interface yang berhasil diparse'.$reason);
+            throw new RuntimeException(__('zte.no_interface_detail_parsed').$reason);
         }
 
         DB::transaction(function () use ($olt, $rows): void {
@@ -493,7 +493,7 @@ class ZteCardUplinkService
         if ($isC600
             ? ! preg_match('#^gpon_olt-\d+/\d+/\d+$#', $interface)
             : ! preg_match('/^gpon(?:-olt)?_\d+\/\d+\/\d+$/', $interface)) {
-            throw new RuntimeException('Interface GPON tidak valid.');
+            throw new RuntimeException(__('zte.invalid_gpon_interface'));
         }
 
         $statusCommand = "show interface {$interface}";
@@ -511,7 +511,7 @@ class ZteCardUplinkService
         if ($parsed === null) {
             $reason = $result['error'] ? ': '.$result['error'] : '';
 
-            throw new RuntimeException("Output {$interface} tidak bisa diparse{$reason}");
+            throw new RuntimeException(__('zte.interface_output_unparseable', ['interface' => $interface]).$reason);
         }
 
         $metadata = $this->interfaceMetadata($interface);
@@ -560,7 +560,7 @@ class ZteCardUplinkService
         }
 
         if (! preg_match('/^(?:xgei|gei)_\d+\/\d+\/\d+$/', $interface)) {
-            throw new RuntimeException('Interface uplink tidak valid.');
+            throw new RuntimeException(__('zte.invalid_uplink_interface'));
         }
 
         $statusCommand = "show interface port-status {$interface}";
@@ -618,7 +618,7 @@ class ZteCardUplinkService
         if (! $hasData) {
             $reason = $result['error'] ? ': '.$result['error'] : '';
 
-            throw new RuntimeException("Output {$interface} tidak bisa diparse{$reason}");
+            throw new RuntimeException(__('zte.interface_output_unparseable', ['interface' => $interface]).$reason);
         }
 
         $row = SmartOltInterfaceStatus::updateOrCreate(
@@ -642,7 +642,7 @@ class ZteCardUplinkService
     private function refreshC600UplinkInterface(SnmpOlt $olt, string $interface): array
     {
         if (! preg_match('#^(?:xgei|gei)-\d+/\d+/\d+$#', $interface)) {
-            throw new RuntimeException('Interface uplink tidak valid.');
+            throw new RuntimeException(__('zte.invalid_uplink_interface'));
         }
 
         $statusCommand = "show interface {$interface}";
@@ -659,7 +659,7 @@ class ZteCardUplinkService
         if ($parsed === null) {
             $reason = $result['error'] ? ': '.$result['error'] : '';
 
-            throw new RuntimeException("Output {$interface} tidak bisa diparse{$reason}");
+            throw new RuntimeException(__('zte.interface_output_unparseable', ['interface' => $interface]).$reason);
         }
 
         $metadata = $this->interfaceMetadata($interface);
@@ -862,7 +862,7 @@ class ZteCardUplinkService
         $output = $this->cleanCliOutput($result['output']);
 
         if ($this->isInvalidOutput($output)) {
-            throw new RuntimeException('Refresh VLAN gagal: '.($result['error'] ?? 'invalid output'));
+            throw new RuntimeException(__('zte.vlan_refresh_failed').($result['error'] ?? 'invalid output'));
         }
 
         $metadata = $this->interfaceMetadata($interface);
@@ -933,7 +933,7 @@ class ZteCardUplinkService
         if ($isC600
             ? ! preg_match('#^gpon_olt-\d+/\d+/\d+$#', $interface)
             : ! preg_match('/^gpon(?:-olt)?_\d+\/\d+\/\d+$/', $interface)) {
-            throw new RuntimeException('Interface GPON tidak valid.');
+            throw new RuntimeException(__('zte.invalid_gpon_interface'));
         }
 
         // Cegah command-injection lewat free-text: buang CR/LF & kontrol, rapatkan spasi, batasi 64.

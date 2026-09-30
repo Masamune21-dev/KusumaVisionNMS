@@ -1,0 +1,31 @@
+<?php
+
+// Pesan backend khusus OLT ZTE (C300/C320/C600). EN: lang/en/zte.php.
+return [
+    'invalid_interface_param' => 'Parameter interface tidak valid.',
+    'config_save_partial' => 'Simpan konfigurasi selesai dengan indikasi error: ',
+    'onu_reboot_partial' => 'Reboot ONU selesai dengan indikasi error: ',
+    'onu_deleted' => 'ONU :onu berhasil dihapus dari :interface.',
+    'onu_delete_partial' => 'Hapus ONU selesai dengan indikasi error: ',
+    'onus_deleted' => ':count ONU berhasil dihapus dari :interface.',
+    'onus_delete_partial' => ':deleted ONU terhapus, :failed gagal — :failures. Refresh ONU untuk memastikan kondisi port.',
+    'copy_same_port' => 'Port tujuan harus berbeda dari port asal.',
+    'mgmt_ip_c600_only' => 'Auto mgmt-IP hanya untuk OLT C600.',
+    'mgmt_ip_pool_unavailable' => 'Pool mgmt-IP tidak terbaca dari OLT atau sudah penuh.',
+    'preview_fill_required' => '! Lengkapi field wajib (VLAN, profil TCONT, mgmt-ip, ACS) untuk melihat script.',
+    'c600_toggle_unsupported' => 'Enable/disable ONU belum didukung di OLT C600: OID admin-state belum terpetakan.',
+    'c600_rename_unsupported' => 'Ubah nama ONU belum didukung di OLT C600: OID nama belum terpetakan.',
+    'card_table_empty_c600' => 'Tabel card SNMP C600 (zxAnCardTable) kosong atau tidak terbaca.',
+    'show_card_unparseable' => 'Output show card tidak berisi data card yang bisa diparse',
+    'no_active_uplink_card' => 'Belum ada card uplink aktif untuk discovery interface. Refresh hardware terlebih dahulu.',
+    'no_interface_detail_parsed' => 'Tidak ada detail interface yang berhasil diparse',
+    'invalid_gpon_interface' => 'Interface GPON tidak valid.',
+    'invalid_uplink_interface' => 'Interface uplink tidak valid.',
+    'interface_output_unparseable' => 'Output :interface tidak bisa diparse',
+    'vlan_refresh_failed' => 'Refresh VLAN gagal: ',
+    'backup_zte_only' => 'Backup config saat ini hanya untuk OLT ZTE.',
+    'backup_saved' => 'Backup config OLT :name tersimpan (versi baru).',
+    'backup_unchanged' => 'Config tidak berubah sejak backup terakhir — tak ada versi baru dibuat.',
+    'backup_daily_enabled' => 'Backup config harian diaktifkan untuk OLT :name.',
+    'backup_daily_disabled' => 'Backup config harian dimatikan untuk OLT :name.',
+];

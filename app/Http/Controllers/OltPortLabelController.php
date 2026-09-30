@@ -23,7 +23,7 @@ class OltPortLabelController extends Controller
         abort_unless(
             (bool) (SmartOltSupport::capabilities(SmartOltSupport::driverKey($olt), $olt)['supports_port_label'] ?? false),
             403,
-            'OLT ini menamai portnya di perangkat, bukan lewat label NMS.',
+            __('olt.port_label_device_named'),
         );
 
         $data = $request->validate([

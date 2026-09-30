@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-09-30 — Pesan Error Backend Ikut Bahasa Pengguna (ID/EN)
+
+### Changed
+
+- **Teks error/status backend dipindah dari literal Indonesia ke `__()`** (issue #1): di tampilan English, detail error
+  (exception service yang diteruskan controller, `abort`, pesan JSON, pesan validasi kustom) masih berbahasa Indonesia.
+  Grup bahasa baru `lang/{id,en}/`: `olt` (SNMP, telnet/CLI, kepemilikan OLT, proxy telnet), `zte`, `cdata`, `hioso`, `odp`,
+  `common` (API mobile, user, pengaturan). Teks Indonesia identik dengan sebelumnya.
+- Daemon `telnet-proxy`: pesan `[proxy] …` memakai `users.locale` pemilik tiket per koneksi.
+- Pesan validasi "IP + SNMP port sudah dipakai" disatukan ke `olt.ip_port_taken` (ZTE, C-Data, HiOSO).
+
+### Created
+
+- `tests/Unit/LangParityTest`: kunci & placeholder sama di id/en, dan setiap `__('grup.kunci')` literal di `app/` ada di kedua
+  bahasa. `CDataGponPortWriteTest::test_error_messages_follow_the_user_locale` membuktikan pesan en/id.
+
+### Notes
+
+- Sengaja tetap Indonesia: teks yang disimpan/diantrekan sebagai data (pesan alarm + push, item progres task salin-ONU/TR069,
+  error backup config, deskripsi audit) dan log. Rute `api` tak memasang `SetLocale` → pesan API tetap `id`.
+- Setelah update: `php artisan queue:restart` dan `supervisorctl restart kusumavision-telnet-proxy` (kode daemon berubah).
+
 ## 2026-09-30 — Unconfigured ONU: Kolom "Pertama Terlihat" & Lencana Baru
 
 ### Created

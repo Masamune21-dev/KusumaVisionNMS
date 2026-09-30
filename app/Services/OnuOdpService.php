@@ -113,13 +113,18 @@ class OnuOdpService
         // ODP harus milik OLT yang sama (dan dalam scope partner — Odp ber-PartnerOltScope).
         $odp = Odp::query()->where('id', $odpId)->where('snmp_olt_id', $olt->id)->first();
         if ($odp === null) {
-            throw new RuntimeException('ODP tidak ditemukan untuk OLT ini.');
+            throw new RuntimeException(__('odp.odp_not_found_for_olt'));
         }
 
         // ODP terkunci ke satu port — tolak assign ONU dari port lain (jaga integritas,
         // konsisten dgn dropdown yang sudah difilter per-port di odpsForOlt).
         if ($odp->slot !== null && ($odp->slot !== $slot || $odp->port !== $port)) {
-            throw new RuntimeException("ODP ini berada di port {$odp->slot}/{$odp->port}, tidak bisa dipasang ke ONU di port {$slot}/{$port}.");
+            throw new RuntimeException(__('odp.odp_port_mismatch', [
+                'odp_slot' => (string) $odp->slot,
+                'odp_port' => (string) $odp->port,
+                'slot' => $slot,
+                'port' => $port,
+            ]));
         }
 
         // ONU dalam satu ODP pasti di port yang sama → isi port ODP otomatis saat
