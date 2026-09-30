@@ -13,14 +13,14 @@ Panduan operator (langkah pasang, backup, distribusi): [`docs/DOCKER.md`](../DOC
 
 | File | Peran |
 |------|-------|
-| `Dockerfile` | Image multi-stage: (1) `node` build Vite → `public/build`, (2) `golang` build `bin/kv-snmp-poller`, (3) `php:8.3-fpm` runtime + nginx + supervisor + composer install. |
+| `Dockerfile` | Image multi-stage: (0) `composer:2` hanya mengunduh `vendor/tightenco/ziggy` (di-import `app.js`, sedangkan `vendor/` di-`.dockerignore`), (1) `node:22` build Vite → `public/build`, (2) `golang:1.22` build `bin/kv-snmp-poller` (`CGO_ENABLED=0 -mod=mod`), (3) `php:8.3-fpm` runtime + nginx + supervisor + composer install. Semua berkas config & `entrypoint.sh` dinormalkan CRLF→LF saat build. |
 | `docker-compose.yml` | 3 service: `app`, `db` (postgres:16), `redis` (redis:7) + volume & healthcheck. |
-| `.dockerignore` | Kecualikan artefak yang dibangun ulang (vendor/node_modules/bin), rahasia (`.env`), data runtime, dokumentasi. `.env.example` sengaja **tidak** dikecualikan (dibutuhkan saat build). |
+| `.dockerignore` | Kecualikan artefak yang dibangun ulang (vendor/node_modules/bin/public/build), rahasia (`.env`, `.env.*`), data runtime, test, dokumentasi (`docs/`, `*.md`), dan skrip host (`install.sh`, `scripts/`). `.env.example` sengaja **tidak** dikecualikan (dibutuhkan saat build). |
 | `docker/nginx.conf` | Server block (root `public/`, `/telnet-ws` → 127.0.0.1:6002, fastcgi → 127.0.0.1:9000) — adaptasi dari blok nginx `install.sh`. |
-| `docker/php.ini` | Override produksi (memory 512M, upload 20M, opcache on). |
-| `docker/supervisord.conf` | Program di container `app`: php-fpm, nginx, `queue:work`, `schedule:work`, `telnet:proxy`. Semua log → stdout. |
+| `docker/php.ini` | Override produksi (`expose_php Off`, memory 512M, upload/post 20M — cukup untuk foto ODP 12 MB, opcache on tanpa validasi timestamp). |
+| `docker/supervisord.conf` | Program di container `app`: php-fpm, nginx, `queue:work redis --tries=1 --max-time=3600`, `schedule:work`, `telnet:proxy`. Semua log → stdout. |
 | `docker/entrypoint.sh` | First-run/boot: storage skeleton, tunggu DB, APP_KEY persist, migrate, admin opsional, `optimize`, lalu `exec supervisord`. |
-| `.env.docker.example` | Template `.env` **host-side** (dibaca compose, bukan `.env` Laravel): `APP_PORT`, `DB_*`, `ACS_*`, `ADMIN_*`. |
+| `.env.docker.example` | Template `.env` **host-side** (dibaca compose, bukan `.env` Laravel): `APP_PORT`, `APP_URL`, `APP_KEY`, `DB_*`, `ACS_*`, `ADMIN_*`, plus contoh `TRUSTED_PROXIES`/`SESSION_SECURE_COOKIE` (dikomentari) untuk HTTPS lewat reverse proxy di host. |
 | `start.bat`/`stop.bat`/`update.bat`, `start.sh` | Launcher 1-klik. |
 
 ---
@@ -60,7 +60,9 @@ Panduan operator (langkah pasang, backup, distribusi): [`docs/DOCKER.md`](../DOC
 - Runtime **tidak** memakai file `.env` Laravel; config datang dari **environment** yang disuntik compose:
   - `env_file: .env` → nilai tunable user (APP_URL, DB_*, ACS_*, ADMIN_*).
   - blok `environment:` → infrastruktur tetap (host jaringan `db`/`redis`, `REDIS_CLIENT=phpredis`,
-    driver redis untuk session/queue/cache, `SNMP_POLLER_DRIVER=go`, telnet proxy).
+    driver redis untuk session/queue/cache, `SESSION_ENCRYPT=true`, `SNMP_POLLER_DRIVER=go`, telnet proxy,
+    `APP_LOCALE=id`) — menimpa nilai yang sama dari `.env`, jadi bahasa bawaan aplikasi di Docker selalu
+    Indonesia (pengguna tetap bisa berganti bahasa di aplikasi).
 - Entrypoint menjalankan `php artisan optimize` **setelah** env terisi → menghindari gotcha "config
   ter-cache jatuh ke sqlite" (lihat [04](04-instalasi-deploy.md) & memori proyek). Karena app produksi
   memang jalan dengan config ter-cache, ini konsisten.

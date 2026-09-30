@@ -25,8 +25,8 @@ use Illuminate\Support\Facades\Route;
 | Semua rute di-prefix `/api` (bootstrap/app.php) + grup `v1` di bawah ini.
 |
 | SAKLAR ON/OFF — set $apiEnabled=false untuk menutup total permukaan API
-| (semua /api* jadi 404). Setelah mengubah: `sudo systemctl reload php8.3-fpm`.
-| Route tidak di-cache, jadi tak perlu route:cache.
+| (semua /api* jadi 404). Rute API ikut di-cache bersama rute web: setelah
+| mengubah, jalankan `php artisan route:cache` (lalu reload php8.3-fpm).
 */
 
 $apiEnabled = true;

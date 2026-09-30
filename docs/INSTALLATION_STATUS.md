@@ -1,5 +1,18 @@
 # Installation Status
 
+> **Status per 1 Okt 2026:** dokumen ini **catatan historis** instalasi pertama (25–28 Mei 2026) dan tidak
+> diperbarui lagi. Untuk instalasi baru pakai [INSTALL.md](INSTALL.md); peta semua dokumen ada di
+> [docs/README.md](README.md). Yang sudah berubah sejak catatan ini:
+> - Daemon Supervisor kini **tiga**: `kusumavision-worker`, `kusumavision-scheduler`, dan
+>   `kusumavision-telnet-proxy` (terminal telnet di browser, di-proxy nginx `/telnet-ws`).
+> - Polling terjadwal memakai **Go SNMP poller** (`bin/kv-snmp-poller`, `SNMP_POLLER_DRIVER=go` — diisi
+>   otomatis oleh `install.sh`).
+> - Klien Redis produksi `REDIS_CLIENT=phpredis` (paket Predis masih terpasang, tidak dipakai).
+> - Test suite kini ratusan test (dulu 73), **wajib** dijalankan lewat `bash scripts/test.sh` — bukan `php artisan test`
+>   (lihat [handbook 04](handbook/04-instalasi-deploy.md)).
+> - Upload foto ODP butuh `upload_max_filesize ≥ 12M` (override `99-kusumavision-uploads.ini`) dan biner
+>   `cwebp` (opsional).
+
 Tanggal instalasi: 2026-05-25
 Update production lokal: 2026-05-28
 

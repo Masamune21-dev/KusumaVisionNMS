@@ -2,7 +2,8 @@
 
 Dokumentasi teknis lengkap untuk **KusumaVision NMS** — FTTH/GPON Network Management System
 (SmartOLT/NetNumen alternative) milik **PT BERKAH MEDIA KUSUMA VISION (BMKV)** untuk mengelola
-OLT ZTE GPON dan provisioning ONU.
+OLT ZTE GPON (C300/C320/C600), C-Data EPON/GPON, dan HiOSO EPON, provisioning ONU, peta ODP,
+alarm, REST API, dan aplikasi Android.
 
 Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**, melakukan
 **maintenance**, dan **troubleshooting** tanpa harus membaca seluruh kode lebih dulu.
@@ -27,14 +28,14 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 | 07 | [Modul & Fitur](07-modul-fitur.md) | Dashboard, SmartOLT, ONU Monitoring, Reports, dll |
 | 08 | [SNMP & Polling](08-snmp-polling.md) | OltSnmpClient, Go poller, PollOltJob, scheduler |
 | 09 | [CLI & Telnet](09-cli-telnet.md) | Provisioning CLI, executor, browser telnet proxy |
-| 10 | [Alarm & Telegram](10-alarm-telegram.md) | AlarmEvaluator, notifikasi + command bot |
+| 10 | [Alarm & Telegram](10-alarm-telegram.md) | AlarmEvaluator (debounce, root-cause), notifikasi Telegram/FCM + command bot |
 | 11 | [Keamanan, RBAC & Audit](11-keamanan-rbac-audit.md) | Role, demo mode, audit trail, secret handling |
-| 12 | [Frontend](12-frontend.md) | Vue 3 + Inertia, layout, komponen, build Vite |
+| 12 | [Frontend](12-frontend.md) | Vue 3 + Inertia, layout, komponen, tema gelap/terang, i18n ID/EN, build Vite |
 | 13 | [Troubleshooting & Maintenance](13-troubleshooting-maintenance.md) | Gejala → penyebab → solusi |
 | 14 | [Panduan Menambah Fitur](14-panduan-tambah-fitur.md) | Resep langkah demi langkah |
 | 15 | [UI & Tema Dashboard](15-ui-tema-dashboard.md) | Design token, kelas `kv-*`, aturan halaman/komponen baru |
-| 16 | [Peta ONU](16-peta-onu.md) | Peta Leaflet pin ONU lintas-OLT, tile Google keyless, tambah pin & aksi |
-| 17 | [C-Data GPON: SNMP walk & inventory](17-cdata-gpon-snmp-walk.md) | Peta OID FD1608S, inventory ONU V3 via SNMP penuh, CLI enrich SN/Rx |
+| 16 | [Peta ONU & ODP](16-peta-onu.md) | Peta Leaflet pin ONU/ODP lintas-OLT, tile Google keyless, warna/foto ODP, tambah pin & aksi |
+| 17 | [C-Data GPON: SNMP walk & inventory](17-cdata-gpon-snmp-walk.md) | Peta OID NSCRTV (FD1608S & FD1601S/FD1602S), inventory ONU via SNMP, CLI enrich, faceplate |
 | 18 | [Docker Appliance](18-docker-appliance.md) | Kemas seluruh stack jadi container, install lengkap di 1 PC (seperti NetNumen), bagikan ke banyak lokasi |
 
 ---
@@ -47,25 +48,42 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
   [15 — UI & Tema Dashboard](15-ui-tema-dashboard.md).
 - **Site error / daemon mati / data aneh?** Buka [13 — Troubleshooting](13-troubleshooting-maintenance.md).
 - **Mau paham alur data SNMP/polling?** Baca [02 Arsitektur](02-arsitektur.md) lalu [08 SNMP & Polling](08-snmp-polling.md).
+- **Mau menambah dukungan vendor/fitur OLT?** [02 §Driver & capability](02-arsitektur.md#driver--capability-gating),
+  [08](08-snmp-polling.md), [09](09-cli-telnet.md), lalu guide vendor di `docs/`.
+- **Butuh panduan untuk pengguna/operator (bukan developer)?** PDF di [`docs/panduan/`](../panduan/).
 - **Setup mesin baru?** [04 — Instalasi & Deploy](04-instalasi-deploy.md).
 
 ## Konvensi penting (wajib diingat)
 
 1. **`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`** adalah referensi otoritatif sintaks CLI ZTE — jangan
-   menebak perintah, konsultasikan dulu.
-2. Setiap perubahan berarti dicatat di **`WORKLOG.md`** (format Created/Changed/Notes + verifikasi
-   OLT nyata bila ada). Lihat [WORKLOG](../../WORKLOG.md).
+   menebak perintah, konsultasikan dulu (C600: `SMARTOLT_ZTE_C600_GUIDE.md`; C-Data/HiOSO: guide
+   masing-masing). OID/perintah vendor baru hanya masuk kode setelah terverifikasi di perangkat asli.
+2. Setiap perubahan berarti dicatat di **`WORKLOG.md`** (format Created/Changed/Fixed/Notes +
+   verifikasi OLT nyata bila ada), entri terbaru di atas. Lihat [WORKLOG](../../WORKLOG.md).
 3. **Tests jalan di SQLite in-memory** → semua migrasi harus tetap kompatibel SQLite walau app
-   produksi pakai PostgreSQL.
-4. **Produksi memakai config ter-cache.** Sehabis ubah `.env`/config jalankan `php artisan config:cache`
-   lalu restart daemon supervisor. Detail di [04](04-instalasi-deploy.md) & [13](13-troubleshooting-maintenance.md).
-5. **String UI & flash message dalam Bahasa Indonesia.**
+   produksi pakai PostgreSQL. Jalankan **hanya** lewat `bash scripts/test.sh` (+ `npm test`), jangan
+   `php artisan test` polos — di checkout ber-config ter-cache test bisa menyasar database produksi.
+4. **Produksi memakai config & route ter-cache.** Sehabis ubah `.env`/config jalankan
+   `php artisan config:cache`; sehabis menambah rute `php artisan route:cache`; lalu restart daemon
+   supervisor bila perlu. Migrasi dijalankan **sebelum** kode yang membacanya tayang. Detail di
+   [04](04-instalasi-deploy.md), [13](13-troubleshooting-maintenance.md), [14](14-panduan-tambah-fitur.md).
+5. **String yang tampil ke pengguna dwibahasa ID/EN** (frontend `$t()`, backend `__()`), bawaan `id`.
 
 ## Dokumen referensi lain di repo
 
+- [`docs/README.md`](../README.md) — indeks seluruh dokumen di folder `docs/`.
 - [`CLAUDE.md`](../../CLAUDE.md) — instruksi ringkas untuk asisten/agent.
-- [`README.md`](../../README.md) — README publik proyek.
+- [`README.md`](../../README.md) — README proyek.
 - [`WORKLOG.md`](../../WORKLOG.md) — riwayat pekerjaan fase per fase.
-- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi CLI ZTE.
+- [`UI_DESIGN_SYSTEM.md`](../../UI_DESIGN_SYSTEM.md) — design system UI (tema, token, komponen).
+- **Panduan pengguna (PDF)** di [`docs/panduan/`](../panduan/):
+  [`Panduan-NMS-public-id.pdf`](../panduan/Panduan-NMS-public-id.pdf) (Bahasa Indonesia) dan
+  [`NMS-Guide-public-en.pdf`](../panduan/NMS-Guide-public-en.pdf) (English).
+- [`docs/API.md`](../API.md) — REST API v1; [`docs/INSTALL.md`](../INSTALL.md),
+  [`docs/DOCKER.md`](../DOCKER.md), [`docs/BUILD_APK.md`](../BUILD_APK.md) — instalasi, appliance, APK.
+- [`docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](../SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi CLI ZTE;
+  [`docs/SMARTOLT_ZTE_C600_GUIDE.md`](../SMARTOLT_ZTE_C600_GUIDE.md) + `docs/ZTE_C600_*.md` — C600 (terverifikasi).
+- [`docs/SMARTOLT_CDATA_GUIDE.md`](../SMARTOLT_CDATA_GUIDE.md), [`docs/SMARTOLT_HIOSO_GUIDE.md`](../SMARTOLT_HIOSO_GUIDE.md) — C-Data & HiOSO.
 - [`docs/KusumaVision_NMS_PRD.md`](../KusumaVision_NMS_PRD.md) — visi/PRD (bukan scope nyata).
-- PDF-PDF ZTE C600 di folder `docs/` — referensi OID/CLI vendor.
+- PDF-PDF ZTE C600 di folder `docs/` — bahan riset vendor, **tidak terverifikasi**; jangan dipakai
+  sebagai sumber OID.

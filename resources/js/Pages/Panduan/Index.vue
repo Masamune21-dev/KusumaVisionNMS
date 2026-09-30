@@ -4,8 +4,8 @@ import { Head, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-    BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard,
-    LifeBuoy, ListChecks, MapPin, PlugZap, Radar, Rocket, ScrollText, Send,
+    BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard, LifeBuoy,
+    ListChecks, MapPin, Network, PlugZap, Power, Radar, Replace, Rocket, ScrollText, Send,
     ShieldCheck, Smartphone, Sparkles, Terminal, Users, Waypoints, Wrench, WifiOff,
 } from '@lucide/vue';
 
@@ -43,22 +43,25 @@ const SECTION_DEFS = [
     { id: 'peran', icon: ShieldCheck, accent: 'emerald', ordered: false, items: [true, true, true, true] },
     { id: 'navigasi', icon: Compass, accent: 'sky', ordered: false, items: [true, true, true, true] },
     { id: 'dashboard', icon: LayoutDashboard, accent: 'violet', ordered: false, items: [false, false, false] },
-    { id: 'olt', icon: Cable, accent: 'blue', ordered: true, items: [true, true, true, true], tip: true },
-    { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true] },
+    { id: 'olt', icon: Cable, accent: 'blue', ordered: true, items: [true, true, true, true, true], tip: true },
+    { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true, true] },
+    { id: 'port-pon', icon: Power, accent: 'rose', ordered: false, items: [true, true, true, true], tip: true },
+    { id: 'cdata-vlan', icon: Network, accent: 'indigo', ordered: false, items: [true, true, true, true] },
     { id: 'unconfigured', icon: WifiOff, accent: 'amber', ordered: true, items: [false, false] },
-    { id: 'provisioning', icon: PlugZap, accent: 'fuchsia', ordered: true, items: [true, true, true, true, true], tip: true },
-    { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true, true] },
+    { id: 'provisioning', icon: PlugZap, accent: 'fuchsia', ordered: true, items: [true, true, true, true, true, true], tip: true },
+    { id: 'bind-onu', icon: Replace, accent: 'sky', ordered: true, items: [false, false, false, false], tip: true },
+    { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true, true, true, true], tip: true },
     { id: 'monitoring', icon: ListChecks, accent: 'cyan', ordered: false, items: [false, false, false] },
     { id: 'peta', icon: MapPin, accent: 'rose', ordered: true, items: [true, true, true, true] },
-    { id: 'odp', icon: Waypoints, accent: 'emerald', ordered: false, items: [true, true, true, true] },
+    { id: 'odp', icon: Waypoints, accent: 'emerald', ordered: false, items: [true, true, true, true, true, true], tip: true },
     { id: 'alarm', icon: BellRing, accent: 'amber', ordered: false, items: [true, true, true, true, true], tip: true },
     { id: 'telnet', icon: Terminal, accent: 'indigo', ordered: false, items: [false, false] },
     { id: 'report', icon: FileBarChart, accent: 'emerald', ordered: false, items: [true, true, true] },
     { id: 'pengaturan', icon: KeyRound, accent: 'sky', badges: ['Admin'], ordered: false, items: [true, true, true, true, true, true] },
-    { id: 'users', icon: Users, accent: 'violet', badges: ['Admin'], ordered: false, items: [true, true] },
+    { id: 'users', icon: Users, accent: 'violet', badges: ['Admin'], ordered: false, items: [true, true, true] },
     { id: 'partner', icon: Send, accent: 'fuchsia', badges: ['Partner'], ordered: false, items: [true, true] },
-    { id: 'mobile', icon: Smartphone, accent: 'teal', ordered: false, items: [false, false] },
-    { id: 'troubleshooting', icon: LifeBuoy, accent: 'rose', ordered: false, items: [true, true, true, true] },
+    { id: 'mobile', icon: Smartphone, accent: 'teal', ordered: false, items: [true, true, true, true, true] },
+    { id: 'troubleshooting', icon: LifeBuoy, accent: 'rose', ordered: false, items: [true, true, true, true, true, true] },
 ];
 
 const { t } = useI18n({ useScope: 'global' });

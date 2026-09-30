@@ -446,8 +446,8 @@ const viewOnMap = (onu) => {
                 <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.rename_modal_title') }}</h3>
                 <p class="mt-1 font-mono text-xs text-slate-400">{{ renameOnu.interface }}</p>
                 <form class="mt-4" @submit.prevent="submitRename">
-                    <InputLabel for="rename" :value="$t('cdataportonus.rename_label')" />
-                    <TextInput id="rename" v-model="renameValue" class="mt-1 block w-full" maxlength="128" autocomplete="off" />
+                    <InputLabel for="rename" :value="$t('cdataportonus.rename_label_hioso')" />
+                    <TextInput id="rename" v-model="renameValue" class="mt-1 block w-full" maxlength="32" autocomplete="off" />
                     <div class="mt-5 flex justify-end gap-3">
                         <SecondaryButton type="button" @click="renameOnu = null">{{ $t('common.cancel') }}</SecondaryButton>
                         <PrimaryButton type="submit">{{ $t('common.save') }}</PrimaryButton>

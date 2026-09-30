@@ -45,8 +45,9 @@ Tema bernuansa **"dark glass cyber/NOC"** — pas untuk dashboard monitoring jar
 - **Font.** `Manrope` 400–800 (fallback sans), di-set di `tailwind.config.js` dan dimuat dari
   fonts.bunny.net.
 
-> **Mental model:** setiap layar = kartu kaca di atas latar grid statis (gelap atau terang), dengan satu
-> warna aksen cyan/sky untuk aksi & status netral, ditambah warna semantik untuk status lain.
+> **Mental model:** setiap layar = kartu kaca melayang di atas latar grid statis (gelap) atau kanvas
+> datar (terang), dengan satu warna aksen cyan/sky untuk aksi & status netral, ditambah warna
+> semantik untuk status lain.
 
 ---
 
@@ -65,8 +66,10 @@ Tema bernuansa **"dark glass cyber/NOC"** — pas untuk dashboard monitoring jar
 | `purple` | `#a855f7` | Kategori/aksen tambahan |
 | `slate` | `#64748b` | Netral/disabled/"belum ada data" |
 
-(Heks di atas dipakai konsisten di `StatCard.vue` `accentHex` & sublabel dot — pakai nilai yang
-sama bila perlu warna inline untuk chart/dot.)
+(Heks di atas hanya **nilai cadangan**: `StatCard.vue` `accentHex` membaca warna aktif lewat
+`tokenHex('sky-500', '#0ea5e9')` dkk. supaya ikut tema. Untuk warna chart/dot di JS pakai
+`tokenHex()`/`chartTheme()`, jangan heks literal. `orange` tidak ada di `accentHex` — hanya untuk pill
+severity major.)
 
 ### Peran warna semantik (pakai konsisten)
 
@@ -89,7 +92,9 @@ Semua didefinisikan di [`resources/css/app.css`](../../resources/css/app.css) (`
 | `kv-page-compact` | Versi padat (`py-6`) |
 | `kv-container` | Lebar penuh + padding responsif (`px-4 sm:px-6 lg:px-8`) |
 | `kv-container-narrow` | Kontainer ter-pusat `max-w-5xl` (form/halaman fokus) |
-| `kv-grid-bg` | Latar gelap + gradient (sudah dipasang `<main>` oleh layout) |
+| `kv-grid-stage` / `kv-grid-pattern` / `kv-top-light` / `kv-ambient-glow` | Latar shell (kanvas + grid 32 px + spotlight) — **sudah dipasang layout**, jangan diulang di halaman |
+| `kv-app-shell` / `kv-app-scroll` | Kerangka setinggi layar desktop & area gulir konten (lihat §4) |
+| `kv-grid-bg` | Pembungkus relatif transparan — kini hanya dipakai `GuestLayout`/`Welcome.vue` |
 
 ### Permukaan (kartu/panel)
 | Kelas | Fungsi |
@@ -97,6 +102,8 @@ Semua didefinisikan di [`resources/css/app.css`](../../resources/css/app.css) (`
 | `kv-glass-panel` | Panel kaca besar (tabel/section), `overflow-hidden rounded-2xl` |
 | `kv-glass-card` | Kartu kaca dengan padding `p-5` (stat/widget) |
 | `kv-glass-hover` | Tambahan: hover terangkat + glow cyan (gabungkan dgn card/panel) |
+| `kv-stat` | Kartu statistik kecil (label uppercase + angka besar), mis. ringkasan di halaman Port PON |
+| `kv-table-card` | Kartu pembungkus tabel/grid data yang lebih opak (`bg-slate-900/95`) |
 | `kv-glass-header` / `kv-panel-header` / `kv-panel-header-compact` | Header kartu (ikon + judul, border bawah) |
 | `kv-panel`, `kv-card` | **Alias legacy** → identik glass (pakai `kv-glass-*` untuk kode baru) |
 
@@ -168,7 +175,7 @@ ringkas tapi tetap jelas.
 
 Aturan: header dengan ikon-tile + judul; **filter live** → tombol Reset di slot `#actions`;
 **filter server-side** → tombol Reset+Terapkan ikut di akhir baris toolbar. Kontrol selalu
-`kv-filter-control` agar tinggi & gaya sama. Toolbar inline di header tabel (mis. PortOnus, GponPorts)
+`kv-filter-control` agar tinggi & gaya sama. Toolbar inline di header tabel (mis. PortOnus, PonPorts)
 juga memakai `kv-filter-control`/`kv-filter-reset` agar seragam.
 
 ### Tabel responsif (pola wajib untuk data tabular)
@@ -190,19 +197,25 @@ app biasa — ini untuk landing publik saja.
 Semua halaman setelah login dibungkus `Layouts/AuthenticatedLayout.vue`. Yang sudah disediakan
 layout (jangan dibuat ulang di halaman):
 
-- **Sidebar kiri** — logo, daftar `navLinks`, collapse (persist di `localStorage`
+- **Latar** — root `kv-grid-stage kv-app-shell` + lapisan `kv-grid-pattern`, `kv-top-light`,
+  `kv-ambient-glow`. `AuroraBackground`/`ParticleNetwork` **tidak** lagi dipasang di shell (hanya
+  `Welcome`/`GuestLayout`).
+- **Sidebar kiri** — logo, menu berkelompok `navGroups` (label kelompok saat lebar, garis pemisah
+  saat diciutkan; kelompok kosong disembunyikan), collapse (persist di `localStorage`
   `kv-sidebar-collapsed`), drawer di mobile, `SidebarConstellation` + `SystemInfoPanel`
-  (desktop-only, `v-if="isDesktop"` — di HP tak di-mount).
-- **Header atas (desktop)** — trigger search (⌘K), `NotificationBell`, `UserMenu`.
-- **Top bar mobile** — tombol menu, logo, search, bell.
+  (desktop-only, `v-if="isDesktop"` — di HP tak di-mount). Di HP dasar drawer memuat kartu akun,
+  `ThemeSegmented` (pilih tema), Profil, Keluar.
+- **Header atas (desktop)** — trigger search (⌘K), `LanguageSwitcher`, `NotificationBell`, `UserMenu`
+  (berisi pilihan tema Gelap/Terang/Sistem).
+- **Top bar mobile** — tombol menu, logo, search, `LanguageSwitcher`, bell.
 - **Slot `#header`** — header per-halaman (judul + tombol aksi). Ikut scroll.
 - **Banner demo** — otomatis muncul bila `auth.can.is_demo`.
-- **`<main>`** — `kv-grid-bg` + `AuroraBackground` + `ParticleNetwork` + transisi `page`.
-- **Footer** — copyright/atribusi pemilik (dari `branding`, bukan Settings), ikut alur di
-  dasar halaman.
+- **`<main>`** — hanya `<Transition name="page">` di dalam `.kv-app-scroll`; tak ada latar tambahan.
+- **`FlashMessages`** dan `GlobalSearch` dipasang sekali oleh layout.
+- **Footer** — copyright/atribusi pemilik (dari `branding`, bukan Settings), diam di dasar layar
+  (desktop) / di akhir halaman (HP).
 
-**Desktop (≥ lg) = kerangka setinggi layar** (sejak 25 Sep 2026, atas permintaan
-user): `.kv-app-shell` = `100vh` + `overflow: hidden`, sidebar/header/footer diam, dan hanya
+**Desktop (≥ lg) = kerangka setinggi layar** (sejak 25 Sep 2026): `.kv-app-shell` = `100vh` + `overflow: hidden`, sidebar/header/footer diam, dan hanya
 `.kv-app-scroll` (atribut `scroll-region` → preserveScroll Inertia tetap jalan) yang menggulir; menu
 sidebar yang panjang menggulir di dalam `<nav>`. **HP** tetap menggulir di level dokumen dengan top
 bar sticky. Akibatnya: elemen `sticky` di halaman kini berpatokan ke area gulir konten, jadi
@@ -276,8 +289,11 @@ aksi — bukan tabel kosong.
 **Tabel data**: WAJIB dua mode — `kv-table-desktop` (tabel) **dan** `kv-mobile-list` (kartu).
 Jangan kirim tabel lebar tanpa varian mobile.
 
-**Modal/konfirmasi**: aksi destruktif pakai `useConfirm` + `<ConfirmModal>`; modal kustom pakai
-`Components/Modal.vue` (sudah dark glass, `rounded-2xl`). Prop `max-width` menerima
+**Modal/konfirmasi**: aksi destruktif pakai `useConfirm` + `<ConfirmModal>` (varian `danger` —
+bawaan —, `warning`, `info`; contoh: matikan port = `danger`, nyalakan = `warning`). **Dilarang
+`window.confirm()`**. Modal kustom pakai `Components/Modal.vue` (sudah dark glass, `rounded-2xl`) dan
+**render terus** dengan `:show` yang berubah — jangan `v-if` + `:show="true"` (dialog tak pernah
+terbuka, lihat [13](13-troubleshooting-maintenance.md)). Prop `max-width` menerima
 `sm|md|lg|xl|2xl|3xl|4xl|5xl` — pakai `md`/`lg` untuk form pendek, `4xl` ke atas hanya untuk isi
 dua kolom (mis. modal "Kelola ONU" di halaman ODP) supaya nama panjang tak perlu dipotong.
 
@@ -302,21 +318,26 @@ Checklist ini **mengikat** untuk setiap PR yang menyentuh tampilan dashboard:
    (`DangerButton`/`IconButton variant="danger"`). Status pakai warna semantik di §2. **Jangan**
    memperkenalkan warna brand/hue baru tanpa alasan.
 4. **Permukaan tetap kaca semi-transparan.** Tidak ada background putih/solid full-bleed yang
-   menutup aurora + jaring partikel. Konten duduk di `kv-glass-panel`/`kv-glass-card`.
+   menutup latar grid shell. Konten duduk di `kv-glass-panel`/`kv-glass-card` (atau `kv-table-card`
+   untuk tabel padat).
 5. **Responsif & mobile-first.** Padding `px-4 sm:px-6 lg:px-8`. Data tabular = pasangan
    `kv-table-desktop` + `kv-mobile-list`. Target sentuh ≥ 44px (tombol sudah `min-h-11`).
 6. **Pakai komponen yang ada**: `PrimaryButton/SecondaryButton/DangerButton`, `IconButton`
-   (varian `default|primary|danger|success|warning`), `TextInput`/`InputLabel`/`InputError`,
+   (varian `default|primary|info|success|warning|danger`), `TextInput`/`InputLabel`/`InputError`,
    `Modal`/`ConfirmModal`, `Pagination`, `Dropdown`. Ikon **hanya** dari `@lucide/vue`.
 7. **Izin di UI + backend.** Sembunyikan tombol via `auth.can.*` (`manage_users`, `manage_olt`,
-   `is_demo`), tapi **backend tetap menegakkan** (lihat [11](11-keamanan-rbac-audit.md)). Pertimbangkan
-   mode demo (read-only).
-8. **String UI Bahasa Indonesia** (judul, tombol, flash, empty state, `title`/`aria-label`).
+   `manage_olt_inventory`, `add_olt`, `is_partner`, `is_demo`) atau prop izin per-OLT dari controller
+   (mis. `can_set_admin_state`), tapi **backend tetap menegakkan** (lihat
+   [11](11-keamanan-rbac-audit.md)). Pertimbangkan mode demo (read-only).
+8. **String UI dwibahasa ID/EN** (judul, tombol, flash, empty state, `title`/`aria-label`) lewat
+   `$t('ns.kunci')`; kunci wajib ada di `resources/js/lang/id.json` **dan** `en.json` (bahasa Indonesia
+   = default). Label enum backend (jenis/status alarm) diterjemahkan di frontend by-key (`lib/alarm.js`).
 9. **Aksesibilitas dasar.** Tombol ikon punya `title` + `aria-label`. Pakai `focus:ring-*` bawaan
    komponen. Jangan andalkan warna saja untuk status (sertakan teks/ikon).
-10. **Menu sidebar** (bila halaman top-level): tambah item di array `navLinks`
-    [`AuthenticatedLayout.vue`](../../resources/js/Layouts/AuthenticatedLayout.vue) dengan `icon`
-    Lucide, `href: route(...)`, `match` (+ `except` bila perlu), dan gerbang `can` untuk item admin.
+10. **Menu sidebar** (bila halaman top-level): tambah item ke kelompok yang tepat di `navGroups`
+    [`AuthenticatedLayout.vue`](../../resources/js/Layouts/AuthenticatedLayout.vue) dengan `name`
+    (`t('nav.…')`), `icon` Lucide, `href: route(...)`, `match` (+ `except` bila perlu), dan gerbang
+    `can.value.*` (pola `cond && { … }` lalu `.filter(Boolean)`) untuk item terbatas.
 11. **Hati-hati gotcha Vite manifest.** Library banyak-`dynamic-import` (tsParticles, xterm) yang
     dipakai di sebuah Page **harus** dibungkus `defineAsyncComponent`, lalu rebuild (lihat
     [12](12-frontend.md) §gotcha & [13](13-troubleshooting-maintenance.md)).
@@ -344,9 +365,12 @@ Checklist ini **mengikat** untuk setiap PR yang menyentuh tampilan dashboard:
 - [ ] Data tabular punya mode desktop **dan** mobile.
 - [ ] Tombol/aksi pakai komponen standar; ikon Lucide; destruktif → konfirmasi.
 - [ ] Tombol di-gerbang `auth.can.*` + backend menegakkan + cek demo mode.
-- [ ] String Indonesia; ikon punya `title`/`aria-label`.
-- [ ] Item sidebar ditambah (bila top-level) dengan `match` benar.
+- [ ] String lewat `$t()` dengan kunci di `id.json` **dan** `en.json`; ikon punya `title`/`aria-label`.
+- [ ] Tidak ada `window.confirm()`; konfirmasi lewat `useConfirm`.
+- [ ] Item sidebar ditambah (bila top-level) ke `navGroups` dengan `match` benar.
+- [ ] Rute baru → `php artisan route:cache` sebelum build (Ziggy `route()` gagal diam tanpanya).
 - [ ] `npm run build` sukses, tidak ada Page 500 (manifest); cek di mobile & desktop.
+- [ ] Checklist [`UI_DESIGN_SYSTEM.md`](../../UI_DESIGN_SYSTEM.md) §5 terpenuhi sebelum commit frontend.
 - [ ] Entri `WORKLOG.md` ditambah; selesai → `/done`.
 
 ## Selanjutnya

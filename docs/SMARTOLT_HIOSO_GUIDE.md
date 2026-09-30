@@ -1,15 +1,21 @@
-# Panduan OLT HiOSO (HA7304) — KusumaVision NMS
+# Panduan OLT HiOSO (HA7304 & HA7302) — KusumaVision NMS
 
-Terakhir diperbarui: 13 Juli 2026
+Terakhir diperbarui: 1 Oktober 2026
+
+> **Status per 1 Okt 2026.** Disesuaikan dengan kode: varian **HA7302** (SNMP LLID datar, login telnet 3-lapis +
+> IAC, dialek CLI sendiri, rename via SNMP SET) kini dicatat di §2–§5 & §8; perintah hapus yang benar `delete onu …`
+> (bukan `no onu`); `na` pada Rx **bukan** offline (§4). **§7 adalah template dari project lain — tidak berlaku untuk
+> repo ini**; §12 sudah berisi berkas nyata repo ini. Modul **HsAirPo / HSGQ EPON (12170) dihapus 29 Sep 2026** dan
+> label/deteksi **V-Sol** dibuang (driver ini hanya teruji di HiOSO HA7304 & HA7302).
 
 Referensi integrasi OLT EPON HiOSO berbasis chipset HA7304 di **KusumaVision NMS**. Berisi spec SNMP, OID map, CLI command, quirk transport, parser value, contoh data live, dan pemetaan ke kelas/route/halaman nyata repo ini.
 
 Devices target: HiOSO HA7304 (4 PON) dan HA7302 (2 PON), enterprise SNMP `1.3.6.1.4.1.25355` — keduanya teruji live.
 OLT V-Sol **tidak** didukung driver ini (firmware berbeda) dan tidak lagi dikenali sebagai HiOSO.
 
-> **Status implementasi di KusumaVision NMS.** §1–§11 (OID/CLI vendor) sudah diverifikasi live & dipakai.
-> **§7 & §12 memuat template driver dari project lama — bukan penamaan kelas repo ini** (dipertahankan
-> sebagai referensi pola; nama file nyata ada di §12). Implementasi nyata:
+> **Status implementasi di KusumaVision NMS.** §1–§6 & §8–§11 (OID/CLI vendor) sudah diverifikasi live & dipakai.
+> **§7 memuat template driver dari project lama — bukan penamaan kelas repo ini dan TIDAK berlaku di sini**
+> (dipertahankan sebagai referensi pola; nama file & perilaku nyata ada di §12). Implementasi nyata:
 > - SNMP read: [`HiosoEponSnmpService`](../app/Services/Hioso/HiosoEponSnmpService.php) (implements [`SmartOltSnmpDriver`](../app/Contracts/SmartOltSnmpDriver.php)), di-resolve [`SmartOltSnmpServiceResolver`](../app/Services/SmartOltSnmpServiceResolver.php), scan penuh via [`CDataOltScanner`](../app/Services/CData/CDataOltScanner.php), polling terjadwal [`PollOltJob::pollViaScanner`](../app/Jobs/PollOltJob.php).
 > - **Aksi tulis ONU sudah ada** (bukan lagi "menyusul"): rename, reboot, enable/disable, delete via [`HiosoCliWriteService`](../app/Services/Hioso/HiosoCliWriteService.php) (§5.5–§5.6), plus Save Config.
 > - HiOSO punya **controller + rute + halaman sendiri**: [`HiosoOltController`](../app/Http/Controllers/HiosoOltController.php) + rute `hioso-olt.*` + `resources/js/Pages/Hioso/*` (dipisah dari C-Data; tab "OLT HiOSO" di halaman SmartOLT). Detail vendor OID di [handbook/08-snmp-polling.md](handbook/08-snmp-polling.md).
@@ -24,13 +30,18 @@ Tanda OLT termasuk family ini:
 - `sysDescr` (`1.3.6.1.2.1.1.1.0`) → contoh: kosong / generic, tapi vendor string biasanya `HA7304`
 - Vendor signature firmware (`1.3.6.1.4.1.25355.3.1.8.1.1.2.1`) → contoh value: `1.0.0.1/HA7304/SN2018-03-00007`
 - CLI prompt setelah login: `EPON>` (user mode) lalu `EPON#` (enable)
-- ifTable mengandung `Pon-Nni1..4` dan `G1..G4` (kalau 4-PON unit)
+- ifTable mengandung `Pon-Nni1..4` dan `G1..G4` (kalau 4-PON unit) — **HA7302 tidak** punya `Pon-Nni` (§3)
 
-Detection string yang dipakai BMKV (case-insensitive substring match):
+Detection string yang dipakai NMS (case-insensitive substring match):
 
 ```
 hioso | ha7304 | 25355
 ```
+
+`driverKey()` memeriksa ZTE lebih dulu, lalu HiOSO, baru C-Data (supaya needle `epon` milik C-Data tak menangkap HiOSO).
+V-Sol sengaja **tidak** dikenali. Varian **HA7302** dibedakan oleh `SmartOltSupport::isHiosoHa7302()`: substring `ha7302`
+pada signature firmware (`last_test_result.system.firmware`, dari OID `.25355.3.1.8.1.1.2.1`, mis. `v7.76/HA7302CSM/…`),
+sysDescr, vendor, atau nama OLT → capability `is_ha7302`, `vendor_family` = `HiOSO EPON (HA7302)`.
 
 ---
 
@@ -42,7 +53,7 @@ hioso | ha7304 | 25355
 |---|---|
 | Version | v2c |
 | Community read default | `SNMPREAD` (vendor default, sering diganti operator) |
-| Community write | jarang dibuka untuk write (vendor punya CLI-only write policy) |
+| Community write | HA7304: tak dipakai (semua tulis via CLI). **HA7302: wajib diisi untuk rename ONU** (SNMP SET, §5.5); kosong → error `hioso.snmp_write_community_missing` |
 | UDP port | 161 (default) atau non-standar (operator suka tunneling, contoh `2238`) |
 | Timeout minimum aman | **5 detik** (5_000_000 µs) — walk besar 50+ ONU perlu waktu |
 | Retries minimum aman | **2** |
@@ -54,7 +65,7 @@ hioso | ha7304 | 25355
 
 | Parameter | Value |
 |---|---|
-| Transport | Telnet (umum), SSH (jarang di vendor default) |
+| Transport | **Telnet saja di NMS** (`HiosoCliWriteService` menolak transport lain); vendor juga punya SSH |
 | TCP port | 23 (default) atau non-standar |
 | Line ending | **`\r\n` WAJIB** (RFC 854 strict) — `\n` saja diterima sebagai karakter, tapi tidak dianggap submit Enter |
 | Banner | ~225 byte ASCII art `"System Command Line / Welcome"` lalu `"Access Verification ../"` lalu IAC telnet negotiation lalu `"Username:"` |
@@ -70,6 +81,10 @@ hioso | ha7304 | 25355
 1. **CRLF wajib**: kirim username, password, dan setiap command harus diakhiri `\r\n`. Kalau `\n` saja: OLT echo karakter tapi tidak fire Enter → readUntil time-out.
 2. **Telnet option negotiation**: OLT mengirim IAC sequence `FF FB 01 FF FB 03 FF FE 22 FF FD 1F` sebelum prompt Username — strip negotiation bytes saat baca buffer agar match prompt tidak rusak.
 3. **Banner panjang**: tunggu sampai 15 detik untuk prompt `Username:`. Default 8 detik kadang kurang.
+4. **HA7302 menahan banner login sampai opsi IAC telnet dijawab** — tanpa negosiator agen diam dan login timeout.
+   `HiosoCliWriteService` memasang `TelnetIacFilter` khusus HA7302 (HA7304 tetap tanpa IAC).
+5. **HA7302 login 3-lapis**: password login → *Access* password → *Enable* password, semuanya dijawab `cli_password`;
+   `enable` dikirim otomatis saat prompt `>` muncul, sampai prompt `#`.
 
 ---
 
@@ -95,6 +110,13 @@ Saat normalisasi ke framework `(slot, port, onu_id)`:
 | `onu_id` | nomor ONU dalam PON tersebut |
 
 CLI HiOSO pakai 2-level path: `interface epon 0/{port}` → `onu {onuId} <action>`. Bukan 3-level seperti CData EPON (`epon 0/{slot}/{port}`).
+
+**Varian HA7302** (mis. HA7302CSM v7.76, terverifikasi live Jul 2026): SNMP menyajikan ONU sebagai **satu ruang LLID datar**
+— index `.{oltId}.{onu}` dengan `oltId` = 1 dan `onu` = 1..128 — dan IF-MIB **tidak** memuat `Pon-Nni`. OID nama/MAC/Rx/
+link-state kanonik §4.3 tetap sama, jadi inventory + Rx terbaca. Karena tak ada `Pon-Nni`, `getPorts()` mengembalikan
+**satu port EPON agregat** (slot 1 / port 1) dan walk tabel ONU memakai jalur full-table. Pemetaan LLID datar → CLI
+**terverifikasi 1:1** lewat `search mac-address` (index SNMP == onuId CLI; 1 PON = 128 ONU, bukan dibagi /64), sehingga
+aksi CLI per-ONU aktif. CLI HA7302 tidak punya `interface epon`; ONU dialamati `olt/pon/onu` = `1/{port}/{onu}` (§5).
 
 ---
 
@@ -124,7 +146,7 @@ CLI HiOSO pakai 2-level path: `interface epon 0/{port}` → `onu {onuId} <action
 | `ifDescr` | `1.3.6.1.2.1.2.2.1.2` | **TIDAK** | HA7304 expose `Pon-Nni1..4` di sini, tapi itu **NNI uplink internal** (Network-Node Interface), bukan PON downstream physical |
 | `ifOperStatus` | `1.3.6.1.2.1.2.2.1.8` | **TIDAK** | nilai status untuk `Pon-Nni*` tidak nyambung ke PON physical |
 
-**Verifikasi lapangan OLT-HIOSO-NDOKATON:**
+**Verifikasi lapangan (HA7304 4-PON produksi):**
 
 | ifIndex | ifDescr | ifOperStatus | PON physical | ONU online | Mismatch? |
 |---|---|---|---|---|---|
@@ -143,8 +165,8 @@ Bukti tambahan: OLT-side `show epon 0/N optical-ddm` confirms semua 4 PON physic
 4. Status PON = Up bila ada ≥1 ONU online di PON itu; Down bila 0 ONU online tapi ada ONU registered
 
 > ⚠️ **Rx `na` ≠ offline** (terverifikasi live Agu 2026). Sebagian ONU tak dilaporkan DDM-nya oleh
-> OLT — Rx-nya `na` permanen padahal link-nya Up dan trafik jalan. Contoh: OLT-HIOSO-WIDOROKANDANG
-> PON 1 (10 ONU `Up` di CLI, hanya 2 punya Rx) dan OLT-HIOSO-PEKALONGAN PON 3. Menyimpulkan status
+> OLT — Rx-nya `na` permanen padahal link-nya Up dan trafik jalan. Contoh: satu OLT HA7304
+> produksi di PON 1 (10 ONU `Up` di CLI, hanya 2 punya Rx) dan OLT HA7304 lain di PON 3. Menyimpulkan status
 > dari Rx membuat pelanggan aktif tampil "offline" di NMS dan memicu alarm palsu. Gunakan `.39.1`;
 > Rx valid boleh dipakai sebagai bukti pendukung online (cahaya sungguh diterima), tak pernah
 > sebaliknya.
@@ -163,7 +185,7 @@ Bukti tambahan: OLT-side `show epon 0/N optical-ddm` confirms semua 4 PON physic
 
 ### 4.4 Optical Metrics (kandidat, belum di-map lengkap)
 
-PDF vendor menyebutkan beberapa metric optical untuk ONU yang belum dipetakan di BMKV:
+PDF vendor menyebutkan beberapa metric optical untuk ONU yang belum dipetakan di NMS:
 
 | Kandidat objek | Estimasi OID | Catatan |
 |---|---|---|
@@ -192,9 +214,9 @@ OLT side optical (yang sudah confirm via CLI):
 "-20.36"  → -20.36 dBm (online, signal good)
 "-25.53"  → -25.53 dBm (Warning per klasifikasi vendor)
 "-30.10"  → -30.10 dBm (Very Critical)
-"na"      → ONU offline / no signal
-""        → empty (treat as offline)
-"0"       → 0 (treat as no signal / offline)
+"na"      → Rx tak dilaporkan (DDM) — BUKAN bukti offline; status dari link-state `.39.1`
+""        → kosong (Rx null)
+"0"       → 0 (Rx null / tanpa sinyal)
 ```
 
 #### MAC Address (STRING hex 12-char)
@@ -215,7 +237,7 @@ Parser: strip semua karakter non-hex, validasi panjang === 12, split per 2 karak
 | `-24` s/d `-27` | Warning |
 | `-27` s/d `-30` | Critical |
 | `<= -30` | Very Critical |
-| `na` / empty / 0 | Offline |
+| `na` / empty / 0 | Tanpa nilai Rx (status online tetap dari link-state `.39.1`) |
 
 ---
 
@@ -342,11 +364,16 @@ onu {ONU} name {label}
 end
 ```
 
-Constraint label:
-- alfanumerik + `_` `-` `.`
-- spasi tidak diterima → diganti `_` sebelum kirim
-- max 32 karakter
-- contoh valid: `idabendokaton`, `cust_001`, `home.07A`
+Constraint label **HA7304** (`HiosoCliWriteService::sanitizeName`):
+- hanya `[A-Za-z0-9_.-]`; spasi → `_`, karakter lain dibuang, `_ - .` di ujung dipangkas
+- max **32** karakter (form menerima s.d. 128, lalu dipotong 32 oleh service)
+- **tidak boleh kosong** — label kosong (setelah sanitasi) ditolak `hioso.onu_name_required` (HiOSO tak punya "no name" teruji)
+- contoh valid: `pelanggan27`, `cust_001`, `home.07A`
+
+**Rename HA7302** — CLI HA7302 **tidak punya** perintah rename, jadi NMS memakai **SNMP SET** ke OID nama
+`1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1.{oltId}.{onu}` (`HiosoEponSnmpService::setOnuName()` → `HiosoSnmp::set()`, capability
+`description_mode = snmp`). Terverifikasi live round-trip (set → baca berubah → restore). Syarat: **write community** OLT
+terisi. Nama dibersihkan (karakter kontrol dibuang, spasi dirapikan — spasi boleh), maks 32 karakter; kosong = mengosongkan label.
 
 #### Reboot ONU
 
@@ -360,9 +387,20 @@ end
 
 Tidak ada konfirmasi interaktif. ONU langsung restart, biasanya kembali online 30-60 detik.
 
+**HA7302** (node `epon`, tanpa `interface epon`):
+
+```
+configure terminal
+epon
+pon 1/{PON}
+set onu {ONU} reboot
+exit
+end
+```
+
 ### 5.6 Delete / De-register ONU (TERVERIFIKASI LIVE)
 
-Diverifikasi di HA7304 (OLT-HIOSO-NDOKATON) via help CLI. Verb delete/dereg ada di **level interface**
+Diverifikasi di HA7304 produksi via help CLI. Verb delete/dereg ada di **level interface**
 `EPON(epon_0/1)#`, **bukan** di bawah `onu {ONU}`. Sub-command `onu {ONU}` hanya:
 `activate`, `deactivate`, `admin`, `bandwidth`, `catv`, `factory`, `multicast-*`, `name`, `port-isolation`,
 `reboot`, `rstp`, `upgrade`, `vlan` — **tidak ada** delete.
@@ -382,6 +420,17 @@ end
 | Disable / Enable ONU | `onu {ONU} deactivate` / `onu {ONU} activate` | ✅ terverifikasi live & dibuat (`HiosoCliWriteService::setState`; context-help `onu N ?` → keduanya command lengkap `--Press Enter--`) |
 | ❌ salah (ditolak) | `no onu {ONU}`, `onu {ONU} delete` | `% [DEFAULT] Unknown command` |
 
+**HA7302** — semua di node `epon` (setelah `configure terminal`), ONU dialamati `1/{PON}/{ONU}`:
+
+| Aksi | Command HA7302 |
+|---|---|
+| Delete ONU | `delete onu 1/{PON}/{ONU}` (konfirmasi dijawab otomatis) |
+| Disable / Enable ONU | `set pon 1/{PON} onu {ONU} auth-mode deny` / `… auth-mode pass` |
+| Reboot | `pon 1/{PON}` → `set onu {ONU} reboot` → `exit` |
+
+Perintah `show pon` / `show onu all` HA7302 bermasalah (bug firmware); saat verifikasi manual, pencocokan ONU ↔ LLID
+memakai `search mac-address {mac} mask 1`. Kode NMS tidak membaca listing CLI HA7302 — inventory tetap dari SNMP.
+
 **Belum diuji / belum dibuat:** Provisioning ONU baru (flow autofind belum diketahui), bandwidth profile.
 
 ### 5.6b Simpan Konfigurasi OLT (`write`) — persist running-config ke memori
@@ -393,7 +442,8 @@ EPON> enable
 EPON# write            # simpan running-config ke memori OLT
 ```
 
-- Sesi CLI (`openSession`) sudah masuk level `enable` (`EPON#`), jadi service hanya kirim `write`.
+- Sesi CLI (`openSession`) sudah masuk level `enable` (`EPON#`), jadi service hanya kirim `write` — sama untuk HA7304 & HA7302
+  (HA7302 setelah login 3-lapis).
 - `show running-config` di HA7304 dilabeli _"current running system **unsaved** configuration info"_ (lihat §5.3 command tree) → konfirmasi bahwa perubahan perlu di-`write` agar tak hilang saat reboot.
 - Konfirmasi (bila muncul) dijawab otomatis. Gated capability `supports_config_save`.
 
@@ -434,7 +484,7 @@ status Board = Online   bila ada ≥1 PON Up
 status Board = Offline  bila semua PON Down atau tidak ada port aktif
 ```
 
-Label informatif yang dipakai BMKV:
+Label informatif yang dipakai NMS:
 
 | Kondisi | Label |
 |---|---|
@@ -443,7 +493,7 @@ Label informatif yang dipakai BMKV:
 | Semua ONU PON offline | `"Down"` |
 | Sebagian PON down | `"Online (X/Y PON Up)"` (untuk board) |
 
-Contoh akhir di OLT-HIOSO-NDOKATON (snapshot 20 Mei 2026):
+Contoh akhir di HA7304 produksi (snapshot 20 Mei 2026):
 
 ```
 PON 1 | Up (26/27 ONU online)
@@ -455,7 +505,13 @@ Board: Online (3/4 PON Up)
 
 ---
 
-## 7. Implementation Pattern (Template Driver)
+## 7. Implementation Pattern (Template Driver) — ⚠️ TIDAK BERLAKU untuk repo ini
+
+> **Lampiran dari project lain.** Kode di §7 berasal dari project lama (method seperti `setConfig()`,
+> `configureLoginPrompts()`, `sanitizeName()` versi lama) dan **bukan** kelas/perilaku KusumaVision NMS. Beberapa isinya
+> bahkan bertentangan dengan kode sekarang — mis. §7.8 menurunkan `is_online` dari Rx, padahal NMS memakai link-state
+> `.39.1` (§4.3), dan tak ada dukungan HA7302. Dipertahankan hanya sebagai referensi pola; untuk perilaku nyata baca
+> §12 dan kode di `app/Services/Hioso/`.
 
 Untuk replicate ke project lain, ikuti pattern berikut. Bahasa contoh: PHP, tapi konsep portable.
 
@@ -580,7 +636,7 @@ private function sanitizeName(string $value): string
 | `mac_address` | OID `.11.1.{PON}.{ONU}` | format dari hex 12-char |
 | `sn` | sama dgn `mac_address` | EPON tidak punya SN tradisional, MAC = identifier |
 | `rx_power_dbm` | OID `.8.1.{PON}.{ONU}` parsed float | `null` bila `na` |
-| `is_online` | derived: Rx valid AND ≠ 0 | tidak ada OID status eksplisit |
+| `is_online` | derived: Rx valid AND ≠ 0 | tidak ada OID status eksplisit — **usang**: NMS memakai link-state `.39.1` (§4.3) |
 | `port_alias` | `epon 0/1/{PON}` | UI label EPON style |
 | `interface_label` | `epon 0/1/{PON}:{ONU}` | UI label ONU style |
 
@@ -588,17 +644,19 @@ private function sanitizeName(string $value): string
 
 ## 8. Capabilities Profile
 
-Nilai nyata dari [`SmartOltSupport::hiosoEponCapabilities()`](../app/Support/SmartOltSupport.php#L298) (driver key `hioso-epon-25355`):
+Nilai nyata dari [`SmartOltSupport::hiosoEponCapabilities()`](../app/Support/SmartOltSupport.php) (driver key `hioso-epon-25355`):
 
 ```json
 {
     "driver": "hioso-epon-25355",
-    "vendor_family": "HiOSO EPON",
+    "vendor_family": "HiOSO EPON",          // HA7302 → "HiOSO EPON (HA7302)"
     "pon_label": "EPON",
     "port_label": "EPON Port",
     "port_name_prefix": "epon 0",
     "onu_interface_pattern": "epon 0/%d/%d:%d",
     "is_c600": false,
+    "is_ha7302": false,                     // true bila isHiosoHa7302()
+    "read_only": false,
 
     "supports_snmp_rx": true,
     "supports_cli_rx": false,
@@ -612,22 +670,26 @@ Nilai nyata dari [`SmartOltSupport::hiosoEponCapabilities()`](../app/Support/Sma
     "supports_onu_delete": true,
     "supports_separate_description": false,
     "supports_onu_info_write": true,
-    "description_mode": "cli_hioso",
+    "description_mode": "cli_hioso",        // HA7302 → "snmp" (rename via SNMP SET)
 
     "supports_onu_toggle": true,
     "supports_config_save": true,
+    "supports_port_label": true,            // label port PON disimpan di NMS (olt_port_labels), bukan di OLT
 
     "rx_source_label": "Rx ONU (SNMP)"
 }
 ```
 
-Catatan: `supports_onu_toggle` = **`true`** (CLI `onu {id} activate/deactivate`, §5.6) dan `supports_onu_delete` = **`true`** (CLI `delete onu {id}`, §5.6) — keduanya **sudah** diimplementasi, berbeda dari draf lama yang menandainya `false`/roadmap.
+Catatan: `supports_onu_toggle` & `supports_onu_delete` = **`true`** di kedua varian (HA7304 `onu {id} activate|deactivate` /
+`delete onu {id}`; HA7302 `set pon 1/{pon} onu {id} auth-mode pass|deny` / `delete onu 1/{pon}/{id}`, §5.6). Label port PON
+diatur lewat rute bersama `olt.port-label.store` (`OltPortLabelService`, maks 64 karakter) — HiOSO tak punya perintah
+deskripsi port yang terverifikasi, dan labelnya selamat dari scan/poll karena disimpan di luar `last_test_result`.
 
 ---
 
-## 9. Sample Data Live (OLT-HIOSO-NDOKATON)
+## 9. Sample Data Live (HA7304 produksi)
 
-Untuk regression test / unit test parser.
+Untuk regression test / unit test parser. Nama ONU pelanggan di §9.2 dianonimkan.
 
 ### 9.1 Identifikasi
 
@@ -642,10 +704,10 @@ Total ONU registered:  72
 ### 9.2 ONU Name Sample (PON 1)
 
 ```
-.37.1.1.1  = "serlybendokaton"
-.37.1.1.2  = "netandokaton"
-.37.1.1.3  = "aufandokaton"
-.37.1.1.27 = "idabendokaton"
+.37.1.1.1  = "pelanggan01"
+.37.1.1.2  = "pelanggan02"
+.37.1.1.3  = "pelanggan03"
+.37.1.1.27 = "pelanggan27"
 ```
 
 ### 9.3 MAC Sample (PON 1)
@@ -661,7 +723,7 @@ Total ONU registered:  72
 ```
 .8.1.1.1  = "-20.36"  → -20.36 dBm  (Good)
 .8.1.1.4  = "-25.53"  → -25.53 dBm  (Warning)
-.8.1.1.7  = "na"      → offline
+.8.1.1.7  = "na"      → Rx tak dilaporkan (cek link-state .39.1 untuk status)
 .8.1.1.27 = "-19.14"  → -19.14 dBm  (Good)
 ```
 
@@ -692,8 +754,13 @@ Ringkasan semua quirk yang sudah ditemukan, ditulis biar tidak terulang:
 | 6 | Nama ONU tidak boleh spasi | CLI HiOSO sanitasi alfanumerik+`_-.` | replace spasi dengan `_`, strip char invalid |
 | 7 | `show interface epon` tidak ada | firmware HA7304 tidak punya command itu | jangan asumsikan ZTE-style CLI; pakai `show epon 0/{N} optical-ddm` untuk OLT-side metric |
 | 8 | Per-ONU metric optical tidak bisa via CLI | tidak ada equivalent `show gpon onu detail-info` | metric optical ambil via SNMP; **status** per-ONU ADA di CLI: `show onu info epon 0/{PON} all` (§5.4) |
-| 10 | Rx `na` pada ONU yang sebenarnya ONLINE → pelanggan aktif tampil offline + alarm palsu | OLT tak melaporkan DDM sebagian ONU (mis. tipe ONU tertentu); `na` bukan penanda link mati. Gejala live Agu 2026: WIDOROKANDANG PON 1 (10 ONU `Up` di CLI, 2 punya Rx), PEKALONGAN PON 3 | status online dari **link-state `.39.1`** (1=Up/2=Down), bukan dari Rx. Rx valid tetap dipakai sebagai bukti pendukung online; nilai Rx lama hanya dibawa `snmp_stale` sebentar lalu dikosongkan supaya tak menampilkan angka beku |
+| 10 | Rx `na` pada ONU yang sebenarnya ONLINE → pelanggan aktif tampil offline + alarm palsu | OLT tak melaporkan DDM sebagian ONU (mis. tipe ONU tertentu); `na` bukan penanda link mati. Gejala live Agu 2026 di dua OLT HA7304 produksi: PON 1 (10 ONU `Up` di CLI, 2 punya Rx) dan PON 3 OLT lain | status online dari **link-state `.39.1`** (1=Up/2=Down), bukan dari Rx. Rx valid tetap dipakai sebagai bukti pendukung online; nilai Rx lama hanya dibawa `snmp_stale` sebentar lalu dikosongkan supaya tak menampilkan angka beku |
 | 9 | Walk seluruh tabel ONU terpotong di link WAN lossy → total ONU/PON melompat-lompat antar poll (kadang cuma nama/Rx sebagian) | tabel besar pada PON padat + link via port-forward drop paket di tengah walk; timeout/retry cukup tapi burst loss tetap memutus | walk **per-PON** (`{base}.{PON}`, mis. `.11.1.{PON}`) lalu gabung — walk kecil hampir selalu utuh (terverifikasi: full walk truncate, per-PON 27/27 6×). PLUS **carry-forward roster**: poll terpotong hanya menambah/update, tak pernah menghapus ONU dikenal (registrasi EPON stabil); lepas ONU setelah absen `MAX_MISSED_POLLS` (12) poll beruntun |
+| 11 | HA7302: login telnet diam lalu timeout | agen menahan banner sampai opsi IAC telnet dijawab | `TelnetIacFilter` aktif khusus HA7302 di `HiosoCliWriteService` |
+| 12 | HA7302: CLI minta 3 password beruntun | login + *Access* + *Enable* | loop `loginMultiTier()` menjawab semuanya dengan `cli_password`, kirim `enable` saat prompt `>` |
+| 13 | HA7302: tak ada `interface epon` & tak ada rename di CLI | dialek firmware beda | aksi lewat node `epon` (`1/{pon}/{onu}`), rename via SNMP SET OID nama (butuh write community) |
+| 14 | HA7302: IF-MIB tanpa `Pon-Nni` | ONU = ruang LLID datar 1..128 | satu port EPON agregat (slot 1/port 1), walk full-table |
+| 15 | Anti-flap tampilan | satu pembacaan buruk membuat status port berkedip | ONU online baru ditandai offline setelah `MAX_OFFLINE_STRIKES` (2) poll down beruntun; Rx `na` lama dibawa `snmp_stale` maks `MAX_RX_NA_STRIKES` (2) poll |
 
 ---
 
@@ -735,21 +802,25 @@ telnet HOST PORT
 
 ## 12. File Driver di Repo (referensi cepat)
 
+> Bagian ini **berlaku** untuk repo ini (dulu berisi daftar berkas project lama; sudah diganti Juli 2026).
+
 | File | Fungsi |
 |---|---|
-| [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk 3 OID kanonik `.37.1`/`.11.1`/`.8.1` per-PON + anti-flap |
-| [app/Services/Hioso/HiosoSnmp.php](../app/Services/Hioso/HiosoSnmp.php) | koneksi SNMP low-level (`robustWalk`, timeout floor) |
+| [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk **4** OID kanonik `.37.1`/`.11.1`/`.8.1` + link-state `.39.1` per-PON (`robustWalk`, target kelengkapan dari tabel MAC) + carry-forward roster + anti-flap; port agregat & `setOnuName()` (SNMP SET) untuk HA7302 |
+| [app/Services/Hioso/HiosoSnmp.php](../app/Services/Hioso/HiosoSnmp.php) | koneksi SNMP low-level (`robustWalk`, timeout floor, `set()` pakai write community) |
 | [app/Services/Hioso/HiosoValue.php](../app/Services/Hioso/HiosoValue.php) | helper parsing murni (MAC hex, Rx string+`na`, indeks `{PON}.{ONU}`) |
-| [app/Services/Hioso/HiosoCliWriteService.php](../app/Services/Hioso/HiosoCliWriteService.php) | CLI write ONU (rename/reboot/enable-disable/delete) + `saveConfig`; sesi telnet CRLF + banner + `enable` |
+| [app/Services/Hioso/HiosoCliWriteService.php](../app/Services/Hioso/HiosoCliWriteService.php) | CLI write ONU (rename HA7304/reboot/enable-disable/delete) + `saveConfig`; sesi telnet CRLF + banner + `enable`; dialek HA7302 (login 3-lapis, IAC, node `epon`) |
 | [app/Services/Hioso/HiosoFaceplateService.php](../app/Services/Hioso/HiosoFaceplateService.php) | faceplate panel-depan |
 | [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh bersama (dipakai HiOSO **dan** C-Data) → `last_test_result.port_onus` |
 | [app/Contracts/SmartOltSnmpDriver.php](../app/Contracts/SmartOltSnmpDriver.php) | interface read yang di-implement `HiosoEponSnmpService` |
 | [app/Services/SmartOltSnmpServiceResolver.php](../app/Services/SmartOltSnmpServiceResolver.php) | resolver family (`vendor`) → `HiosoEponSnmpService` |
-| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + `driverKey()` (needle `hioso\|ha7304\|25355`) |
-| [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/portOnus/test/refresh/save-config + onu reboot/state/info/delete) |
+| [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | capability matrix + `driverKey()` (needle `hioso\|ha7304\|25355`) + `isHiosoHa7302()` |
+| [app/Support/Telnet/TelnetIacFilter.php](../app/Support/Telnet/TelnetIacFilter.php) | negosiasi IAC telnet (dipakai HA7302) |
+| [app/Services/OltPortLabelService.php](../app/Services/OltPortLabelService.php) | label port PON sisi-NMS (bersama C-Data) |
+| [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/ponPorts/portOnus/test/refresh/save-config + onu reboot/state/info/delete); rename bercabang CLI (HA7304) / SNMP (HA7302) |
 | `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/OltFaceplate.vue`) |
 
-Rute HiOSO (`routes/web.php`, prefix `hioso-olt`): `hioso-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `hioso-olt.onu.{reboot,state,info,delete}`. Pemilihan rute lintas halaman via [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php#L93) → `hioso-olt`.
+Rute HiOSO (`routes/web.php`, prefix `hioso-olt`): `hioso-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,pon-ports,port-onus,port-onus.refresh}` + aksi ONU `hioso-olt.onu.{reboot,state,info,delete}` + label port bersama `olt.port-label.store`. Aksi ONU juga tersedia dari REST API (`OnuActionController`) dan pin peta (`OnuMapController`), keduanya bercabang HA7302. Pemilihan rute lintas halaman via [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php) → `hioso-olt`.
 
 ---
 

@@ -28,10 +28,33 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Solusi**: `php artisan queue:restart` dan/atau
   `supervisorctl restart kusumavision-telnet-proxy`.
 
+### Tombol baru "mati diam" / rute baru 404 padahal test hijau
+- **Penyebab**: produksi memakai **route cache** (`bootstrap/cache/routes-v7.php`, mencakup web **dan**
+  API). Rute yang baru ditambahkan belum ada di cache → endpoint 404/405, dan `route('nama.baru')` di
+  Vue melempar galat Ziggy (daftar rute `@routes` dirender dari koleksi ter-cache) sehingga tombolnya
+  tak bereaksi. Test tetap hijau karena `scripts/test.sh` mengalihkan cache rute.
+- **Solusi**: `php artisan route:cache` (jalankan sebagai `www-data`) **sebelum** `npm run build`,
+  supaya bundel baru tak pernah tayang mendahului rutenya. Cek: `php artisan route:list --name=<nama>`.
+
+### Pesan error tampil bahasa lain / kunci mentah (`olt.telnet_forbidden`)
+- **Latar**: sejak 30 Sep 2026 teks error/status backend lewat `__('grup.kunci')` di
+  `lang/{id,en}/{olt,zte,cdata,hioso,odp,common,reports,system}.php` (+ `flash.php`), frontend
+  lewat `resources/js/lang/{id,en}.json`.
+- **Kunci tampil mentah** → kuncinya belum ada di grup itu (atau salah nama grup). **Tampil Inggris
+  padahal locale `id`** → kunci lupa ditaruh di `lang/id`: `APP_FALLBACK_LOCALE=en` diam-diam jatuh ke
+  Inggris. Penjaga permanen: `tests/Unit/LangParityTest` (kunci & placeholder id = en, setiap
+  `__('g.k')` literal di `app/` ada di kedua bahasa) — jalankan lewat `scripts/test.sh`.
+- **Sengaja tetap Indonesia** (bukan bug): pesan alarm & recovery `AlarmEvaluator`, push FCM, item
+  progres Salin ONU/TR069 Massal, error backup config, deskripsi audit — semuanya disimpan sebagai data
+  oleh worker tanpa locale pengguna. Rute `api` (aplikasi) tak memasang `SetLocale` → selalu `id`.
+  Daemon `telnet-proxy` memakai `users.locale` pemilik tiket.
+- Perubahan `lang/*.php` langsung berlaku di web, tapi worker/daemon yang menampilkan pesan perlu
+  `queue:restart` / restart `kusumavision-telnet-proxy`; perubahan JSON frontend perlu `npm run build`.
+
 ### Test "nyasar" ke PostgreSQL / DB produksi
 - **Penyebab**: config ter-cache dimuat lebih dulu saat boot dan **menang** atas `<env>` di
   `phpunit.xml`, jadi koneksi resolve ke pgsql produksi walau `DB_CONNECTION=sqlite` sudah diset.
-- **Bahaya**: 53 file test memakai `RefreshDatabase`, yang memanggil `migrate:fresh` pada koneksi
+- **Bahaya**: ±60 file test memakai `RefreshDatabase`, yang memanggil `migrate:fresh` pada koneksi
   default = **drop seluruh tabel produksi**.
 - **Solusi**:
   ```bash
@@ -78,6 +101,18 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Solusi**: sudah ditangani handler `vite:preloadError` di `app.js` (reload sekali). Pastikan
   `vite.config.js` tetap `emptyOutDir:false` agar chunk lama tidak terhapus. Hard refresh bila perlu.
 
+### Kunci i18n mentah tampil di layar (mis. `portdetail.title`)
+Kunci belum ada di `resources/js/lang/{id,en}.json`, **atau** ada di sumber tapi bundelnya belum
+di-build ulang. Cek cepat kunci yang dipakai di komponen:
+
+```bash
+grep -rhoE "t\('[a-z0-9_]+\.[a-z0-9_]+'" resources/js --include=*.vue | sort -u
+```
+
+lalu bandingkan dengan isi kedua berkas lang. Fitur baru **wajib** menambah kunci ke dua bahasa,
+dan `npm run build` setelahnya. Hati-hati `git checkout` pada berkas lang — kunci yang belum
+di-commit ikut hilang, dan gejalanya baru terlihat setelah build berikutnya.
+
 ### Aset 503 saat deploy
 - **Penyebab**: prefetch eager Vite (sudah dinonaktifkan di `AppServiceProvider`) atau CDN cache
   dingin. Lihat komentar di `AppServiceProvider::boot()`.
@@ -99,7 +134,7 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Solusi**:
   ```bash
   ls -l bin/kv-snmp-poller          # ada & executable?
-  go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller && chmod +x bin/kv-snmp-poller
+  CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller && chmod +x bin/kv-snmp-poller
   # tes manual:
   KV_SNMP_COMMUNITY=public bin/kv-snmp-poller --host <ip> --version v2c --timeout 10s
   ```
@@ -125,6 +160,20 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 - **Solusi**: cek `SmartOltSupport::isC600()` terdeteksi benar (nama/vendor/sysDescr mengandung
   `c600`). Verifikasi OID via `snmpwalk`. Catat temuan di `WORKLOG.md`.
 
+### HiOSO: Rx `na` padahal ONU online
+- **Gejala**: di OLT HiOSO sebagian ONU tak punya angka redaman (kolom Rx kosong), padahal di OLT
+  statusnya Up dan pelanggan jalan.
+- **Penyebab**: OLT memang **tidak melaporkan DDM** untuk sebagian ONU (tipe ONU tertentu) — OID Rx
+  `25355.3.2.6.14.2.1.8.1` berisi `"na"` permanen. Itu **bukan** tanda offline (terverifikasi live
+  Agu 2026).
+- **Yang benar**: status online HiOSO dari **link-state** `25355.3.2.6.3.2.1.39.1` (1 Up / 2 Down) —
+  `HiosoEponSnmpService`; Rx valid hanya bukti pendukung. Rx lama dibawa `snmp_stale` maks
+  `MAX_RX_NA_STRIKES` (2) poll lalu dikosongkan supaya tak menampilkan angka beku. Firmware tanpa kolom
+  `.39` jatuh ke perilaku lama (berbasis Rx).
+- **Jangan** "memperbaiki" dengan menganggap `na` = offline (dulu memicu alarm palsu). Acuan
+  pembanding: CLI `show onu info epon 0/{PON} all` (kolom `Status`, bukan `Activate`). Rincian:
+  `docs/SMARTOLT_HIOSO_GUIDE.md` quirk #10.
+
 ---
 
 ## CLI / Telnet
@@ -143,7 +192,10 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
   2. `TELNET_PROXY_WS_URL` benar (prod: `wss://domain/telnet-ws`; dev kosong → `ws://host:6002`).
   3. nginx mem-proxy `/telnet-ws` ke `127.0.0.1:6002` (Upgrade/Connection headers).
   4. OLT `cli_transport=telnet` + kredensial terisi (kalau tidak: token 422, proxy 403).
-  5. Tiket TTL hanya ~60s untuk **membuka** WS — buka segera setelah klik.
+  5. Pengguna berhak? Telnet hanya untuk admin/operator atau pemilik OLT privat
+     (`canAccessOltSecrets`) — partner pada OLT yang sekadar di-assign mendapat 403.
+  6. Tiket TTL hanya ~30 dtk dan **sekali pakai** untuk **membuka** WS — buka segera setelah klik.
+     Daemon wajib memakai `APP_KEY` dan cache store (Redis) yang sama dengan web.
 - **Output terpotong/aneh**: cek `TelnetIacFilter` (negotiation) — biasanya OK, tapi firmware
   unik bisa beda.
 
@@ -154,12 +206,50 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 
 ---
 
+## Alarm & port PON
+
+### Port PON dimatikan dari NMS & Save Config
+- **Latar**: "Matikan Port" (ZTE C300/C320) menjalankan `shutdown` **tanpa `write`** — sengaja, supaya
+  port menyala lagi bila OLT reboot. Penanda di NMS adalah alarm `port_disabled` yang terbuka.
+- **Jebakan**: setiap `write` berikutnya ke OLT yang sama menyimpan **seluruh** running-config,
+  termasuk `shutdown` itu. Jalur yang menulis `write`: tombol **Save Config**, edit deskripsi port
+  (`smartolt.port.description`), tag VLAN uplink (`smartolt.port.vlan`), **Bind ONU** dengan centang
+  simpan (bawaan nyala), registrasi C600, dan `write` manual di terminal telnet. Setelah itu port
+  **tetap mati** walau OLT reboot.
+- **Gejala sebaliknya** (tanpa `write`, OLT reboot): port hidup lagi, NMS masih menandainya
+  dimatikan; 10 menit setelah `disabled_at` poll membaca oper UP → penanda dilepas dengan notifikasi
+  "… terbaca menyala lagi (dinyalakan di luar NMS)". Hal yang sama terjadi bila seseorang mengetik
+  `no shutdown` langsung di CLI.
+- **Solusi**: nyalakan port dari tombol NMS **sebelum** menekan Save Config (kecuali memang ingin port
+  mati permanen). Cek port yang sedang dimatikan: Alarms → filter jenis "Port PON dimatikan admin",
+  atau banner amber di Detail Port. Admin status CLI setelah `shutdown` belum pernah diamati teksnya —
+  UI memakai penanda alarm, bukan teks itu.
+- ⚠️ Saat meneliti sintaks di terminal: executor mengirim per baris + Enter, jadi `shutdown ?`
+  **menjalankan** shutdown. Pakai `?` polos.
+
+### Alarm port/ONU tidak muncul di port tertentu
+- Port sedang ditandai `port_disabled` → `port_down`, alarm ONU, dan `odp_down` di port itu ditahan
+  apa pun saklar korelasi ([10 §A](10-alarm-telegram.md#port-yang-dimatikan-dari-nms-port_disabled)).
+- Port down **tanpa ONU terdaftar** dianggap tak dipakai → tidak dialarmkan (episode lama ditutup diam).
+- Debounce 2 poll aktif → fault baru berstatus `pending` (tak tampil di UI) sampai terkonfirmasi di
+  poll berikutnya (~10 menit pada interval 5 menit).
+- Alarm non-persisten (`onu_offline`, `dying_gasp`) hilang dari bel dan filter **Aktif** begitu pengguna
+  membacanya — lihat status **Semua** di halaman Alarms.
+
+---
+
 ## Telegram
 
 ### Notifikasi tidak terkirim
-- **Cek**: `telegram_settings.enabled` + `isReady()` (token + chat_id), `min_severity` tidak
-  menyaring semua, `notify_on_raise/clear` sesuai. Lihat `last_error`/`last_sent_at`.
-- Tombol **Test** di Settings memanggil `sendTest()` — pakai untuk verifikasi cepat.
+- **Kebijakan alarm** kini di **Pengaturan → Alarm** (`alarm_settings`), bukan di tab Bot Telegram:
+  `min_severity`, `notify_on_raise`/`notify_on_clear` (bawaan clear **mati** — notifikasi pemulihan tak
+  terkirim), `notify_types` (daftar eksplisit harus memuat jenisnya, mis. `port_disabled`; `[]` = tak
+  ada yang dikirim). Bot partner memakai filter miliknya sendiri.
+- **Saklar per-OLT**: tombol alarm On/Off di daftar OLT (`snmp_olts.alarms_enabled` untuk admin/operator,
+  `olt_user.alarms_enabled` per partner) menghentikan pengiriman ke penerima itu walau alarm tetap
+  tercatat. OLT privat partner tak pernah dikirim ke admin/operator.
+- **Koneksi**: `telegram_settings.enabled` + `isReady()` (token + chat_id). Lihat
+  `last_error`/`last_sent_at`. Tombol **Test** di tab Bot Telegram memanggil `sendTest()`.
 
 ### Command bot tidak dibalas
 - **Cek**: `commands_enabled` + `webhook_secret` set (`commandsReady()`), webhook terdaftar
@@ -211,7 +301,9 @@ php artisan queue:work / queue:restart # worker
 supervisorctl status                   # daemon prod
 php artisan pail                        # tail log realtime (dev)
 php artisan tinker                      # REPL (cek model/cache)
-php artisan optimize / optimize:clear   # cache config+route+view
+php artisan optimize                    # cache config+route+view (prod; sebagai www-data)
+php artisan route:cache                 # WAJIB setelah menambah rute (lihat di atas)
+# optimize:clear / config:clear di prod menghapus cache produksi — jangan dipakai sebagai jalan pintas
 ./vendor/bin/pint                      # code style
 bash scripts/test.sh                   # PHPUnit — SELALU lewat skrip ini (lihat bagian troubleshooting)
 php artisan horizon                    # dashboard queue (dev)

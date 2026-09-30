@@ -325,8 +325,9 @@ class HiosoOltController extends Controller
     }
 
     /**
-     * Hapus (deregister) ONU HiOSO via CLI `no onu {id}` di dalam `interface epon 0/{port}`
-     * (guide §5.6). Destruktif — gated `supports_onu_delete`.
+     * Hapus (deregister) ONU HiOSO via CLI `delete onu {id}` di dalam `interface epon 0/{port}`
+     * (HA7302: `delete onu 1/{port}/{onu}`; lihat HiosoCliWriteService::delete()). Destruktif —
+     * gated `supports_onu_delete`.
      */
     public function deleteOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, HiosoCliWriteService $hioso): RedirectResponse
     {

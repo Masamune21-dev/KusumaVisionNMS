@@ -1,21 +1,23 @@
 # KusumaVision NMS — REST API v1
 
-API read-only untuk **memonitor jaringan FTTH/GPON** dari aplikasi lain (web app
-lain, aplikasi Android, backend billing, dsb). Cukup panggil endpoint di bawah,
-kirim token, dan baca hasilnya dalam format JSON.
+API untuk **memonitor jaringan FTTH/GPON** dari aplikasi lain (web app lain,
+aplikasi Android, backend billing, dsb) plus sejumlah aksi tulis yang dipakai
+aplikasi Android. Cukup panggil endpoint di bawah, kirim token, dan baca hasilnya
+dalam format JSON.
 
-> ⛔ **STATUS: API DINONAKTIFKAN** (default, demi keamanan selama belum dipakai).
-> Saklarnya `$apiEnabled` di `routes/api.php`. Untuk **mengaktifkan**: ubah
-> `$apiEnabled = true`, lalu `sudo systemctl reload php8.3-fpm`. Selama mati,
-> semua `/api/*` membalas `404` dan tab **Pengaturan → API & Token** menampilkan
-> peringatan + tombol "Buat Token" dinonaktifkan.
+> ✅ **STATUS: API AKTIF** (`$apiEnabled = true` di `routes/api.php`). Saklar itu
+> tetap ada untuk menutup total permukaan API: `false` = semua `/api/*` membalas
+> `404` dan tab **Pengaturan → API & Token** menolak pembuatan token. Karena rute
+> API **ikut di-cache** (`bootstrap/cache/routes-v7.php`), perubahan saklar baru
+> berlaku setelah `php artisan route:cache` — reload PHP-FPM saja tidak cukup.
 
 > **Sifat API ini:** endpoint *baca* mengambil snapshot polling terakhir yang
 > tersimpan di server — cepat dan tidak menyentuh OLT. Aksi *tulis* (register,
 > reboot, rename, **hapus ONU**, refresh live) mengeksekusi Telnet/SNMP sinkron
-> ke OLT dan di-gate role `admin`/`operator`/`partner` (lihat §5).
+> ke OLT dan di-gate role `admin`/`operator`/`partner` (lihat §3 "Aksi tulis").
 
-- Base URL (produksi): `https://nms.kusumavision.net/api/v1`
+- Base URL (server Anda): `https://nms.example.com/api/v1` — ganti `nms.example.com` dengan domain
+  instalasi NMS Anda di semua contoh di bawah
 - Base URL (lokal dev): `http://localhost:8000/api/v1`
 - Format: **JSON** (`Content-Type: application/json`)
 - Zona waktu timestamp: **ISO-8601** (mis. `2026-06-28T10:15:30+07:00`)
@@ -36,10 +38,12 @@ dari browser/JavaScript di domain mana pun).
 > pelanggan, gunakan endpoint ber-token di bagian berikutnya — jangan pernah
 > menaruh data pelanggan di halaman publik.
 >
-> Hasil di-cache 30 detik di server.
+> Hasil di-cache 30 detik di server (kunci cache `api.public.status`). Kena limiter
+> `api` yang sama dengan endpoint ber-token — tanpa token dihitung **per IP**
+> (120 request/menit).
 
 ```bash
-curl https://nms.kusumavision.net/api/v1/public/status
+curl https://nms.example.com/api/v1/public/status
 ```
 
 ```json
@@ -50,7 +54,7 @@ curl https://nms.kusumavision.net/api/v1/public/status
     "online_share": 98.3,
     "alarms": { "active": 3 },
     "olts": [
-      { "name": "OLT-C320-PATI", "reachable": true, "onu_total": 240, "onu_online": 236, "onu_offline": 4, "last_polled_at": "2026-06-28T10:14:00+07:00" }
+      { "name": "OLT-C320-01", "reachable": true, "onu_total": 240, "onu_online": 236, "onu_offline": 4, "last_polled_at": "2026-06-28T10:14:00+07:00" }
     ]
   },
   "meta": { "generated_at": "2026-06-28T10:15:30+07:00" }
@@ -67,7 +71,7 @@ menyegarkan tiap 60 detik:
 
 <script>
 (async function () {
-  const BASE = "https://nms.kusumavision.net/api/v1";
+  const BASE = "https://nms.example.com/api/v1";
   const el = document.getElementById("kv-status");
   async function render() {
     try {
@@ -110,23 +114,26 @@ Accept: application/json
 
 ### 1.1. Login — dapatkan token
 
-`POST /api/v1/auth/login` *(tanpa token — endpoint publik)*
+`POST /api/v1/auth/login` *(tanpa token — endpoint publik; throttle 10 percobaan/menit)*
+
+Kredensial diperiksa terhadap **akun lokal NMS** (`Hash::check` terhadap `users.password`) —
+email & kata sandi yang sama dengan login web.
 
 **Body (JSON):**
 
 | Field         | Wajib | Keterangan                                            |
 |---------------|-------|-------------------------------------------------------|
-| `email`       | ya    | Email akun NMS                                         |
+| `email`       | ya    | Email akun NMS (format email)                          |
 | `password`    | ya    | Kata sandi akun                                        |
-| `device_name` | tidak | Label perangkat (mis. `"Android - Budi"`). Untuk identifikasi token. |
+| `device_name` | tidak | Label perangkat (mis. `"Android - Budi"`) = nama token. Kosong → User-Agent. |
 
 **Contoh (curl):**
 
 ```bash
-curl -X POST https://nms.bmkv.net/api/v1/auth/login \
+curl -X POST https://nms.example.com/api/v1/auth/login \
   -H "Accept: application/json" \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@bmkv.net","password":"rahasia","device_name":"Android - Budi"}'
+  -d '{"email":"admin@example.com","password":"rahasia","device_name":"Android - Budi"}'
 ```
 
 **Respons `200`:**
@@ -139,7 +146,7 @@ curl -X POST https://nms.bmkv.net/api/v1/auth/login \
     "user": {
       "id": 1,
       "name": "Administrator",
-      "email": "admin@bmkv.net",
+      "email": "admin@example.com",
       "role": "admin",
       "role_label": "Administrator",
       "is_admin": true,
@@ -153,11 +160,15 @@ curl -X POST https://nms.bmkv.net/api/v1/auth/login \
 > atau cookie httpOnly / secret store di backend web lain). Token hanya
 > ditampilkan **sekali**.
 
-Kredensial salah → `422`:
+Kredensial salah → `422` (error validasi pada `email`):
 
 ```json
 { "message": "Email atau kata sandi salah.", "errors": { "email": ["Email atau kata sandi salah."] } }
 ```
+
+Body yang tak lolos validasi (mis. `email` kosong atau bukan format email) juga dijawab `422`
+validasi Laravel biasa. Throttle login (10/menit) dijawab `429` bawaan Laravel. Teks `message`
+mengikuti bahasa bawaan server (`APP_LOCALE`, lihat §2).
 
 ### 1.2. Token untuk integrasi server-ke-server (tanpa login)
 
@@ -168,10 +179,22 @@ itu juga bisa melihat & **mencabut** token kapan saja.
 **Atau lewat command** (untuk backend tanpa UI / otomasi):
 
 ```bash
-php artisan api:token admin@bmkv.net --name="Billing App"
+php artisan api:token admin@example.com --name="Billing App"
 ```
 
 Output mencetak token sekali. Pakai sebagai `Authorization: Bearer <token>`.
+
+Token bertindak **atas nama user pemiliknya** — role user itu (admin/operator/partner/demo)
+yang menentukan endpoint mana yang boleh dipanggil (§3).
+
+Semua token — dari login aplikasi (§1.1), tab **API & Token**, maupun `php artisan api:token` —
+punya akses penuh (ability `*`, baca + tulis); yang membatasinya hanya role pemiliknya. Token dari
+tab **API & Token** milik admin yang membuatnya; untuk token atas nama user lain (mis. akun
+`operator` khusus integrasi) pakai `api:token` dengan email user itu.
+
+Umur token mengikuti batas global `SANCTUM_EXPIRATION` (§5) yang berlaku untuk **semua** token.
+`.env.example` mengisinya `43200` menit (30 hari), jadi token integrasi pun perlu diperbarui
+berkala — atau kosongkan nilai itu bila token harus berlaku sampai dicabut.
 
 ### 1.3. Identitas token saat ini
 
@@ -180,6 +203,7 @@ Output mencetak token sekali. Pakai sebagai `Authorization: Bearer <token>`.
 ### 1.4. Logout (cabut token)
 
 `POST /api/v1/auth/logout` → menghapus token yang sedang dipakai. Token tak lagi valid.
+Satu-satunya aksi tulis yang tetap diizinkan untuk akun `demo`.
 
 Token push FCM ponsel itu ikut dicabut: yang didaftarkan lewat sesi ini (kolom
 `fcm_device_tokens.personal_access_token_id`, FK cascade) dan `fcm_token` opsional di body
@@ -194,20 +218,38 @@ dibuang harian (`sanctum:prune-expired`), token push-nya ikut terhapus.
 
 ## 2. Konvensi Umum
 
-- **Sukses** selalu dibungkus `{"data": ...}`. Daftar yang dipaginasi menambah `{"meta": ...}`.
-- **Error** memakai format Laravel standar: `{"message": "...", "errors": {...}}` (errors hanya untuk validasi).
-- Semua endpoint selain login butuh header `Authorization`.
-- **Rate limit:** 120 request / menit per token. Header respons: `X-RateLimit-Limit`, `X-RateLimit-Remaining`. Lewat batas → `429`.
-- **Scoping demo:** akun ber-role `demo` hanya melihat data demo; akun nyata melihat data nyata.
+- **Sukses** dibungkus `{"data": ...}`; daftar menambah `{"meta": ...}`. Satu-satunya
+  pengecualian: `GET /odps/{odp}/photo` yang mengirim berkas gambar (§3.6).
+- **Error** memakai format Laravel standar: `{"message": "...", "errors": {...}}` (errors hanya
+  untuk validasi). Semua `/api/*` selalu dijawab JSON, walau klien lupa
+  `Accept: application/json` (`bootstrap/app.php`).
+- Semua endpoint selain `auth/login` dan `public/status` butuh header `Authorization`.
+- **Rate limit:** limiter `api` = **120 request / menit per user** (per IP bila tanpa token),
+  didefinisikan di `AppServiceProvider`. Header respons: `X-RateLimit-Limit`,
+  `X-RateLimit-Remaining`. Lewat batas → `429`. `auth/login` punya limiter sendiri
+  (10/menit).
+- **Scoping partner:** `PartnerOltScope` berlaku di model OLT & ODP — partner hanya melihat
+  OLT yang di-assign/miliknya; `{olt}`/`{odp}` di luar itu → `404`.
+- **Scoping demo:** akun ber-role `demo` hanya melihat data demo dan **read-only**:
+  `BlockDemoWrites` terpasang di seluruh grup `api`, jadi setiap request non-GET dari akun
+  demo ditolak `403` — termasuk `POST`/`DELETE /devices`; satu-satunya pengecualian
+  `auth/logout`.
+- **Bahasa pesan:** rute `api` tidak memasang `SetLocale` (preferensi bahasa per pengguna hanya
+  berlaku di web), jadi `message` mengikuti bahasa bawaan server `APP_LOCALE` — `id` di
+  `.env.example` (Indonesia), `en` bila variabel itu tidak diisi.
+- **Kapabilitas driver:** aksi yang tak didukung family OLT-nya (mis. registrasi di non-ZTE)
+  dijawab `422` ("Aksi ini tidak didukung untuk driver OLT ini.") — cek dulu `capabilities` di
+  `GET /olts/{olt}`.
 
 ### Kode status
 
 | Kode  | Arti                                                                 |
 |-------|----------------------------------------------------------------------|
 | `200` | OK                                                                    |
-| `401` | Token tidak ada / tidak valid (`{"message":"Unauthenticated."}`)     |
-| `404` | Resource tidak ditemukan                                             |
-| `422` | Validasi gagal (cek `errors`)                                        |
+| `401` | Token tidak ada / tidak valid / kedaluwarsa (`{"message":"Unauthenticated."}`) |
+| `403` | Role tidak berhak / akun demo menulis                               |
+| `404` | Resource tidak ditemukan (termasuk OLT/ODP di luar scope partner)    |
+| `422` | Validasi gagal (cek `errors`), aksi tak didukung driver, atau aksi ke OLT gagal |
 | `429` | Terlalu banyak request (rate limit)                                  |
 | `500` | Kesalahan server                                                     |
 
@@ -215,80 +257,88 @@ dibuang harian (`sanctum:prune-expired`), token push-nya ikut terhapus.
 
 ## 3. Endpoint
 
-Ringkasan:
+Semua path relatif terhadap `/api/v1`. Nama rute (`api.*`) dipakai test & `route:list`.
 
-| Method | Path                                              | Fungsi                                  |
-|--------|---------------------------------------------------|-----------------------------------------|
-| GET    | `/public/status`                                  | **Status agregat, tanpa token** (embed) |
-| POST   | `/auth/login`                                     | Login, dapatkan token                   |
-| GET    | `/me`                                             | Info user token                         |
-| POST   | `/auth/logout`                                    | Cabut token                             |
-| GET    | `/summary`                                        | Ringkasan dashboard (counter)           |
-| GET    | `/olts`                                            | Daftar OLT + status                     |
-| GET    | `/olts/{olt}`                                       | Detail 1 OLT (system, port, ONU)        |
-| GET    | `/onus`                                            | Daftar ONU lintas-OLT (filter+paginasi) |
-| GET    | `/olts/{olt}/onus/{slot}/{port}/{onuId}`           | Detail 1 ONU                            |
-| GET    | `/olts/{olt}/ports/{slot}/{port}/onus`             | Daftar ONU 1 PON port (aplikasi mobile) |
-| GET    | `/olts/{olt}/unconfigured`                          | ONU unconfigured (autofind, ZTE)        |
-| GET    | `/olts/{olt}/register/options`                      | Profil + default form registrasi ONU    |
-| GET    | `/search?q=`                                        | Pencarian global OLT + ONU              |
-| GET    | `/alarms`                                          | Daftar alarm                            |
-| GET    | `/odps`                                            | Daftar ODP (+ jumlah ONU)               |
-| GET    | `/odps/{odp}`                                       | Detail 1 ODP                            |
-| GET    | `/odps/{odp}/onus`                                  | ONU di dalam sebuah ODP                 |
-| GET    | `/odps/{odp}/photo`                                 | Berkas foto ODP (WebP, butuh token)     |
-| GET    | `/map`                                             | Pin ONU + pin ODP untuk peta            |
-| POST   | `/devices`                                          | Daftarkan token FCM (push Android)      |
-| DELETE | `/devices`                                          | Cabut token FCM                         |
+**Publik (tanpa token):**
 
-**Aksi tulis** (butuh role `admin`/`operator`; user `demo` diblokir — 403):
+| Method | Path | Nama rute | Fungsi |
+|--------|------|-----------|--------|
+| GET    | `/public/status` | `api.public.status` | Status agregat untuk embed (§0) |
+| POST   | `/auth/login` | `api.auth.login` | Login, dapatkan token (§1.1) |
 
-| Method | Path                                                    | Fungsi                          |
-|--------|---------------------------------------------------------|---------------------------------|
-| POST   | `/olts/{olt}/register/preview`                          | Preview script CLI (tanpa OLT)  |
-| POST   | `/olts/{olt}/register`                                  | Registrasi ONU (`execute` bool) |
-| POST   | `/olts/{olt}/unconfigured/refresh`                      | Discovery unconfigured live     |
-| POST   | `/olts/{olt}/ports/{slot}/{port}/refresh`               | Re-scan ONU 1 port (live SNMP)  |
-| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot`         | Reboot ONU                      |
-| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name`           | Ubah nama/deskripsi ONU         |
-| DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}`                | Hapus (deregister) ONU dari OLT |
-| POST   | `/odps/{odp}/color`                                     | Warna pin ODP di peta (§3.9)    |
-| POST   | `/odps/{odp}/photo`                                     | Unggah/ganti foto ODP (§3.9)    |
-| DELETE | `/odps/{odp}/photo`                                     | Hapus foto ODP (§3.9)           |
+**Baca** — butuh token; semua role (admin, operator, partner, demo). Grup
+`auth:sanctum` + `throttle:api`:
 
-Contoh hapus ONU (destruktif — deregistrasi permanen dari OLT; gated capability
-`supports_onu_delete`):
+| Method | Path | Nama rute | Fungsi |
+|--------|------|-----------|--------|
+| GET    | `/me` | `api.me` | Info user token (§1.3) |
+| POST   | `/auth/logout` | `api.auth.logout` | Cabut token (§1.4) |
+| GET    | `/summary` | `api.summary` | Ringkasan dashboard (§3.1) |
+| GET    | `/search?q=` | `api.search` | Pencarian global OLT + ONU (§3.11) |
+| GET    | `/olts` | `api.olts.index` | Daftar OLT + status (§3.2) |
+| GET    | `/olts/{olt}` | `api.olts.show` | Detail 1 OLT + `capabilities` (§3.3) |
+| GET    | `/onus` | `api.onus.index` | Daftar ONU lintas-OLT, filter + paginasi (§3.4) |
+| GET    | `/olts/{olt}/ports/{slot}/{port}/onus` | `api.olts.port-onus` | Daftar ONU 1 PON port (§3.12) |
+| GET    | `/olts/{olt}/onus/{slot}/{port}/{onuId}` | `api.olts.onu.show` | Detail 1 ONU (§3.5) |
+| GET    | `/olts/{olt}/unconfigured` | `api.olts.unconfigured` | ONU unconfigured dari snapshot (§3.12) |
+| GET    | `/olts/{olt}/register/options` | `api.olts.register.options` | Bahan form registrasi ONU (§3.13) |
+| GET    | `/alarms` | `api.alarms.index` | Daftar alarm + blok `target` (§3.10) |
+| GET    | `/odps` | `api.odps.index` | Daftar ODP + palet warna (§3.6) |
+| GET    | `/odps/{odp}` | `api.odps.show` | Detail 1 ODP (§3.6) |
+| GET    | `/odps/{odp}/onus` | `api.odps.onus` | ONU di dalam sebuah ODP (§3.7) |
+| GET    | `/odps/{odp}/photo` | `api.odps.photo` | Berkas foto ODP (WebP, butuh token) (§3.6) |
+| GET    | `/map` | `api.map.index` | Pin ONU + pin ODP untuk peta (§3.8) |
+| POST   | `/devices` | `api.devices.store` | Daftarkan token FCM (§3.15) — demo ditolak 403 |
+| DELETE | `/devices` | `api.devices.destroy` | Cabut token FCM (§3.15) — demo ditolak 403 |
+| POST   | `/devices/test` | `api.devices.test` | Kirim push tes ke perangkat sendiri (§3.15) — demo ditolak 403 |
 
-```bash
-curl -X DELETE -H "Authorization: Bearer $TOKEN" \
-  https://nms.kusumavision.net/api/v1/olts/1/onus/1/2/5
-# → { "data": { "ok": true, "message": "ONU 5 dihapus dari OLT.", "error": null } }
-```
+**Aksi tulis** — grup `role:admin,operator,partner` + `BlockDemoWrites`. Akun `demo` ditolak
+`403`; partner otomatis terbatas ke OLT/ODP miliknya atau yang di-assign (`404` di luar itu):
 
-> **Catatan mobile:** endpoint baca `/search`, `/olts/{olt}/ports/.../onus`, `/olts/{olt}/unconfigured`,
-> `/olts/{olt}/register/options`, `/odps*`, `/map` + aksi tulis di atas ditambahkan untuk aplikasi
-> Android (`mobile/`). `/olts/{olt}/register/options` menyertakan blok `odps` (seluruh ODP OLT itu
-> lengkap `slot`/`port`) — klien menyaringnya per PON port dan mengirim balik `odp_id` opsional
-> di `POST /olts/{olt}/register`; kaitan ODP dibuat **setelah** CLI sukses, kegagalannya muncul
-> sebagai `data.odp_error` tanpa membatalkan registrasi.
-> `GET /olts/{olt}` kini menyertakan `capabilities` (mis. `supports_provisioning`, `supports_reboot`,
-> `supports_onu_delete`) agar klien menampilkan/menyembunyikan aksi per-driver. Registrasi ONU &
-> refresh live **ZTE-only** (mode dasar); reboot/rename/delete **bercabang per-family**
-> (ZTE, C-Data EPON/GPON, HiOSO) — perintah CLI menyesuaikan vendor OLT-nya.
-> Aksi write mengeksekusi Telnet/SNMP sinkron (timeout klien ~120 dtk). Push FCM: lihat §7.
+| Method | Path | Nama rute | Fungsi |
+|--------|------|-----------|--------|
+| POST   | `/olts/{olt}/register/preview` | `api.olts.register.preview` | Preview script CLI, tanpa menyentuh OLT (§3.13) |
+| POST   | `/olts/{olt}/register` | `api.olts.register` | Registrasi ONU ZTE (`execute` bool) (§3.13) |
+| POST   | `/olts/{olt}/unconfigured/refresh` | `api.olts.unconfigured.refresh` | Discovery unconfigured live, ZTE-only (§3.12) |
+| POST   | `/olts/{olt}/ports/{slot}/{port}/refresh` | `api.olts.port.refresh` | Re-scan ONU 1 port, semua family (§3.14) |
+| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot` | `api.olts.onu.reboot` | Reboot ONU (§3.14) |
+| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/name` | `api.olts.onu.name` | Ubah nama/deskripsi ONU (§3.14) |
+| DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}` | `api.olts.onu.delete` | Hapus (deregister) ONU dari OLT (§3.14) |
+| POST   | `/odps/{odp}/color` | `api.odps.color` | Warna pin ODP di peta (§3.9) |
+| POST   | `/odps/{odp}/photo` | `api.odps.photo.store` | Unggah/ganti foto ODP (§3.9) |
+| DELETE | `/odps/{odp}/photo` | `api.odps.photo.destroy` | Hapus foto ODP (§3.9) |
+
+> **Catatan mobile:** `GET /olts/{olt}` menyertakan `capabilities` (mis. `supports_provisioning`,
+> `supports_reboot`, `supports_onu_info_write`, `supports_onu_delete`) agar klien
+> menampilkan/menyembunyikan aksi per-driver. Registrasi ONU & discovery unconfigured
+> **ZTE-only**; refresh per-port, reboot, rename, dan delete **bercabang per-family** (ZTE,
+> C-Data EPON/GPON, HiOSO) — perintahnya menyesuaikan vendor OLT. Aksi tulis mengeksekusi
+> Telnet/SNMP sinkron (klien memakai timeout ~120 dtk).
 
 ### Push notifikasi FCM (Firebase)
 
-Aplikasi mendaftarkan token perangkat via `POST /devices` setelah login. Saat `AlarmEvaluator`
-menaikkan/menurunkan alarm, server men-dispatch job (`SendFcmAlarmNotifications`) yang mengirim
-push ke semua token (filter minimal severity `FCM_MIN_SEVERITY`, default `major`). Aktif setelah
-service-account JSON dipasang di `storage/app/firebase/service-account.json` + `FIREBASE_CREDENTIALS`
-di `.env`; tanpa itu fitur dormant (tak memengaruhi polling).
+Aplikasi mendaftarkan token perangkat via `POST /devices` setelah login (dan tiap aplikasi dibuka
+dalam keadaan login); baris itu **terkait sesi Sanctum** yang mendaftarkannya — sesi dihapus
+(logout, `sanctum:prune-expired` harian 03:40) = push berhenti, dan sesi kedaluwarsa disaring
+`FcmDeviceToken::deliverable()`. Saat `AlarmEvaluator` menaikkan/menurunkan alarm, server
+men-dispatch job `SendFcmAlarmNotifications`.
+
+**Alarm mana yang dikirim diatur terpusat di Pengaturan → tab Alarm** (`alarm_settings`, sama
+untuk bot Telegram global & push mobile): severity minimum (`min_severity`), jenis alarm
+(`notify_types`, kosong = semua), kirim saat naik / saat pulih (`notify_on_raise` /
+`notify_on_clear`), dan konfirmasi 2 poll sebelum mengirim (`confirm_before_notify`) — plus
+korelasi root-cause (`suppress_child_alarms`, `group_odp_alarms`). Tab **Notifikasi Mobile**
+hanya mengurus saklar kanal push (`fcm_settings.enabled`), kirim notifikasi manual, dan daftar
+perangkat; saklar alarm per-OLT menentukan penerimanya. Env `FCM_MIN_SEVERITY` (sisa di
+`config/services.php`) tak dibaca kode lagi. Push aktif setelah service-account JSON dipasang
+di `storage/app/firebase/service-account.json` (path bawaan `FIREBASE_CREDENTIALS`; isi variabel
+itu hanya bila berkasnya di tempat lain) dan saklar di **Pengaturan → Notifikasi Mobile**
+dinyalakan; tanpa itu fitur dormant (tak memengaruhi polling).
 
 ### 3.1. `GET /summary` — ringkasan dashboard
 
 ```bash
-curl https://nms.bmkv.net/api/v1/summary \
+curl https://nms.example.com/api/v1/summary \
   -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
 ```
 
@@ -311,7 +361,7 @@ curl https://nms.bmkv.net/api/v1/summary \
   "data": [
     {
       "id": 1,
-      "name": "OLT-C320-PATI",
+      "name": "OLT-C320-01",
       "ip": "10.10.0.1",
       "vendor": "ZTE",
       "driver": "zte",
@@ -331,21 +381,25 @@ curl https://nms.bmkv.net/api/v1/summary \
 }
 ```
 
-`driver` salah satu dari: `zte`, `cdata_epon`, `cdata_gpon`, `hioso_epon`, `unknown`.
+`driver` salah satu dari (konstanta `SmartOltSupport::DRIVER_*`): `zte` (C300/C320/C600),
+`cdata-epon-17409`, `cdata-gpon-34592`, `hioso-epon-25355`, `unknown` (semua kapabilitas
+mati). `is_cdata` hanya `true` untuk dua driver C-Data — HiOSO bernilai `false`.
+Partner hanya menerima OLT miliknya/yang di-assign.
 
 ### 3.3. `GET /olts/{olt}` — detail OLT
 
 `{olt}` = `id` OLT. Mengembalikan field ringkasan (sama seperti di atas) **plus**
-`system` dan `ports`:
+`capabilities`, `system`, dan `ports`:
 
 ```json
 {
   "data": {
     "id": 1,
-    "name": "OLT-C320-PATI",
+    "name": "OLT-C320-01",
     "...": "(field ringkasan seperti pada GET /olts)",
+    "capabilities": { "supports_provisioning": true, "supports_reboot": true, "supports_onu_delete": true, "...": "…" },
     "system": {
-      "sys_name": "OLT-C320-PATI",
+      "sys_name": "OLT-C320-01",
       "sys_descr": "ZTE ZXA10 C320 ...",
       "sys_object_id": "1.3.6.1.4.1.3902...",
       "sys_uptime": "12:34:56:00"
@@ -354,7 +408,7 @@ curl https://nms.bmkv.net/api/v1/summary \
       {
         "if_index": 285278209,
         "name": "gpon-olt_1/1/1",
-        "description": "KETANEN LAMA",
+        "description": "AREA UTARA",
         "slot": 1,
         "port": 1,
         "oper_status": "up",
@@ -389,7 +443,7 @@ Endpoint paling berguna untuk aplikasi monitoring pelanggan.
 | `per_page` | `50`    | Item per halaman (maks `200`)                                    |
 
 ```bash
-curl "https://nms.bmkv.net/api/v1/onus?status=offline&per_page=20" \
+curl "https://nms.example.com/api/v1/onus?status=offline&per_page=20" \
   -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
 ```
 
@@ -398,7 +452,8 @@ curl "https://nms.bmkv.net/api/v1/onus?status=offline&per_page=20" \
   "data": [
     {
       "olt_id": 1,
-      "olt_name": "OLT-C320-PATI",
+      "olt_name": "OLT-C320-01",
+      "port_route": "smartolt.port-onus",
       "olt_cdata": false,
       "slot": 1,
       "port": 1,
@@ -416,33 +471,45 @@ curl "https://nms.bmkv.net/api/v1/onus?status=offline&per_page=20" \
       "online": true,
       "last_down_cause": null,
       "rx_power_dbm": -21.5,
-      "rx_power_label": "-21.5 dBm"
+      "rx_power_label": "-21.5 dBm",
+      "odp_id": 26,
+      "odp_name": "ODP-A01"
     }
   ],
   "meta": { "total": 8, "per_page": 20, "current_page": 1, "last_page": 1, "count": 8 }
 }
 ```
 
+Bentuk satu ONU ini (`OnuInventoryService::normalize()`) dipakai juga oleh
+`/olts/{olt}/ports/{slot}/{port}/onus` dan detail ONU (§3.5):
+
+- `port_route` = nama rute web halaman ONU per port (`smartolt.` / `cdata-olt.` /
+  `hioso-olt.port-onus`); `olt_cdata` = `true` untuk **semua** family non-ZTE (C-Data
+  **dan** HiOSO) — nama field-nya warisan.
+- `odp_id` / `odp_name` = ODP tempat ONU dikaitkan (`null` bila belum).
+- `admin_state` bawaan `"unknown"`, `phase_state` bawaan `"Unknown"` bila family-nya tak
+  melaporkan.
+
 ### 3.5. `GET /olts/{olt}/onus/{slot}/{port}/{onuId}` — detail 1 ONU
 
 ```bash
-curl "https://nms.bmkv.net/api/v1/olts/1/onus/1/1/5" \
+curl "https://nms.example.com/api/v1/olts/1/onus/1/1/5" \
   -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
 ```
 
 Mengembalikan satu objek ONU (bentuk sama seperti elemen `data` pada `/onus`)
 di dalam `{"data": {...}}`, **termasuk `odp_id` + `odp_name`** bila ONU itu sudah
-dikaitkan ke sebuah ODP. Tidak ditemukan → `404`.
+dikaitkan ke sebuah ODP. ONU tak ada di snapshot terakhir → `404`.
 
 ### 3.6. `GET /odps` — daftar ODP
 
 ODP (Optical Distribution Point) = splitter lapangan; satu ODP terkunci ke satu
-OLT + satu PON port. Partner hanya melihat ODP milik OLT yang di-assign padanya.
+OLT + satu PON port. Partner hanya melihat ODP pada OLT miliknya atau yang di-assign padanya.
 
 **Query params:** `olt_id`, `slot`, `port`, `q` (cari nama ODP / nama OLT / catatan).
 
 ```bash
-curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
+curl "https://nms.example.com/api/v1/odps?olt_id=2" \
   -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
 ```
 
@@ -450,11 +517,11 @@ curl "https://nms.bmkv.net/api/v1/odps?olt_id=2" \
 {
   "data": [
     {
-      "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
-      "name": "ODP BANGPE", "slot": 2, "port": 3,
-      "latitude": -6.6129883, "longitude": 111.0610271,
+      "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-02",
+      "name": "ODP-A01", "slot": 2, "port": 3,
+      "latitude": -6.2000512, "longitude": 106.8166231,
       "color": "#22d3ee",
-      "photo_url": "https://nms.bmkv.net/api/v1/odps/26/photo?v=1a2b3c4d",
+      "photo_url": "https://nms.example.com/api/v1/odps/26/photo?v=1a2b3c4d",
       "notes": null, "onu_count": 6
     }
   ],
@@ -473,9 +540,12 @@ resmi dari server (`App\Support\OdpColors`) — klien menampilkannya apa adanya,
 menyalin daftarnya ke dalam aplikasi.
 
 `photo_url` null = ODP belum punya foto. Berkasnya ada di disk **privat**, jadi
-permintaan gambar harus membawa header `Authorization` yang sama seperti panggilan API
-lain (di Flutter: `Image.network(url, headers: {...})`). Query `?v=` berubah tiap foto
-diganti, sehingga respons aman di-cache lama. Mengunggah/menghapus foto tetap web-only.
+permintaan gambar (`GET /odps/{odp}/photo`) harus membawa header `Authorization` yang sama
+seperti panggilan API lain (di Flutter: `Image.network(url, headers: {...})`); ODP tanpa foto
+→ `404`. Query `?v=` berubah tiap foto diganti, sehingga respons aman di-cache lama
+(`Cache-Control: private, max-age=604800`). Mengunggah/menghapus foto lewat endpoint tulis §3.9.
+
+Query `q` juga cocok dengan teks `slot/port` (mis. `2/3`). ODP di luar scope partner → `404`.
 
 ### 3.7. `GET /odps/{odp}/onus` — ONU di dalam sebuah ODP
 
@@ -487,8 +557,8 @@ status live dari snapshot polling terakhir.
   "data": [
     {
       "snmp_olt_id": 2, "slot": 2, "port": 3, "onu_id": 80,
-      "serial_number": "ZTEGCF0995D0", "interface": "gpon-onu_1/2/3:80",
-      "name": "#2310095708 Ika Kulon Studio", "online": true, "has_live": true,
+      "serial_number": "ZTEGC0000080", "interface": "gpon-onu_1/2/3:80",
+      "name": "Pelanggan Contoh", "online": true, "has_live": true,
       "phase_state": "Working", "last_down_cause": "DyingGasp", "admin_state": "active",
       "rx_power_dbm": -25.852, "rx_power_label": "-25.852 dBm",
       "latitude": null, "longitude": null
@@ -513,39 +583,52 @@ tengah default. **Query param:** `olt_id` (opsional).
 {
   "data": {
     "pins": [
-      { "id": 9, "olt_id": 1, "olt_name": "OLT-C320-PATI", "slot": 1, "port": 1,
+      { "id": 9, "olt_id": 1, "olt_name": "OLT-C320-01", "slot": 1, "port": 1,
         "onu_id": 5, "interface": "gpon-onu_1/1/1:5", "serial_number": "ZTEG00000005",
-        "latitude": -6.7, "longitude": 111.0, "customer_name": "Bu Sri",
+        "latitude": -6.205, "longitude": 106.82, "customer_name": "Budi Santoso",
         "address": null, "phone": null, "notes": null,
         "rx_power_dbm": -21.5, "rx_power_label": "-21.50 dBm",
         "online": true, "phase_state": "Working", "last_down_cause": null,
         "admin_state": "active", "has_live": true }
     ],
     "odps": [
-      { "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-SEKARJALAK",
-        "name": "ODP BANGPE", "slot": 2, "port": 3,
-        "latitude": -6.61, "longitude": 111.06, "color": "#22d3ee",
-        "locked": true, "notes": null,
+      { "id": 26, "snmp_olt_id": 2, "olt_name": "OLT-C300-02",
+        "name": "ODP-A01", "slot": 2, "port": 3,
+        "latitude": -6.2, "longitude": 106.8166, "color": "#22d3ee",
+        "photo_url": null, "locked": true, "notes": null,
         "onus": [ /* bentuk sama dengan /odps/{id}/onus */ ] }
     ],
-    "olts": [{ "id": 1, "name": "OLT-C320-PATI" }],
-    "default_center": { "lat": -6.6168, "lng": 111.0568, "zoom": 12 }
+    "olts": [{ "id": 1, "name": "OLT-C320-01" }],
+    "default_center": { "lat": -6.2025, "lng": 106.8183, "zoom": 13 }
   },
-  "meta": { "pins": 0, "odps": 22 }
+  "meta": { "pins": 1, "odps": 22 }
 }
 ```
 
-`default_center` dihitung dari rata-rata pin ONU **dan** pin ODP (fallback: Pati),
-supaya peta tetap terbuka di area kerja meski ONU-nya belum di-pin.
+Payload dirakit `App\Services\Map\OnuMapPayloadService` — sumber yang sama dengan halaman
+peta web (`OnuMapController`), hanya dipangkas dari field khusus web. `photo_url` ODP memakai
+rute ber-token `api.odps.photo`.
+
+`default_center` dihitung dari pin ONU **dan** pin ODP yang terlihat pengguna — **bukan
+rata-rata koordinat** (`OnuMapPayloadService::defaultCenter()`):
+
+- tanpa titik → "wilayah utama" bila diisi (`MAP_HOME_LAT`/`MAP_HOME_LNG`/`MAP_HOME_ZOOM` di
+  `.env` → `services.map.home_*`), kalau tidak tampilan seluruh Indonesia (`-2.5, 118.0`, zoom 5);
+- satu titik → titik itu (zoom 15);
+- wilayah utama diisi dan ada titik dalam radiusnya (`MAP_HOME_RADIUS_KM`, bawaan 20 km) →
+  wilayah utama;
+- selain itu → rata-rata kelompok terpadat (sel grid 0,1°, zoom 13).
+
+Jadi peta tetap terbuka di area kerja meski sebagian ONU belum di-pin.
 
 Peta di aplikasi hampir sepenuhnya **baca-saja**: menambah/menggeser pin & CRUD ODP
-tetap lewat dashboard web — kecuali warna pin ODP (§3.9).
+tetap lewat dashboard web — kecuali warna pin dan foto ODP (§3.9).
 
 ### 3.9. `POST /odps/{odp}/color` — warna pin ODP (tulis)
 
 Warna dipakai mengelompokkan ODP per PON port di peta, jadi **bawaannya mewarnai
-semua ODP di port yang sama**. Butuh role `admin`/`operator`/`partner`; akun `demo`
-ditolak 403, ODP di luar scope partner 404.
+semua ODP di port yang sama**. Butuh role `admin`/`operator`/`partner` (grup tulis, §3);
+akun `demo` ditolak 403, ODP di luar scope partner 404.
 
 | Field | Tipe | Arti |
 |-------|------|------|
@@ -556,7 +639,7 @@ ditolak 403, ODP di luar scope partner 404.
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
   -d 'color=%2322d3ee&apply_to_port=1' \
-  https://nms.kusumavision.net/api/v1/odps/26/color
+  https://nms.example.com/api/v1/odps/26/color
 # → { "data": { "id": 26, "color": "#22d3ee", "color_effective": "#22d3ee", "updated": 4 } }
 ```
 
@@ -571,12 +654,12 @@ endpoint tulis lain (`admin`/`operator`/`partner`; demo 403, ODP luar scope 404)
 
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
-  -F "photo=@odp-bangpe.jpg" \
-  https://nms.kusumavision.net/api/v1/odps/26/photo
+  -F "photo=@odp-a01.jpg" \
+  https://nms.example.com/api/v1/odps/26/photo
 # → { "data": { "id": 26, "photo_url": "https://…/api/v1/odps/26/photo?v=1a2b3c4d", "ok": true } }
 
 curl -X DELETE -H "Authorization: Bearer $TOKEN" \
-  https://nms.kusumavision.net/api/v1/odps/26/photo
+  https://nms.example.com/api/v1/odps/26/photo
 # → { "data": { "id": 26, "photo_url": null, "ok": true } }
 ```
 
@@ -592,10 +675,14 @@ sebelum sampai ke validasi Laravel.
 |------------|----------|---------------------------------------------------------------|
 | `status`   | `active` | `active` \| `cleared` \| `all`                                |
 | `severity` | semua    | `critical` \| `major` \| `minor` \| `warning`                 |
-| `type`     | semua    | `olt_unreachable`,`port_down`,`los`,`dying_gasp`,`onu_offline`,`high_rx_attenuation` |
+| `type`     | semua    | `olt_unreachable`,`port_down`,`port_disabled`,`odp_down`,`los`,`dying_gasp`,`onu_offline`,`high_rx_attenuation` (`AlarmEvent::types()`) |
 | `olt_id`   | semua    | Saring 1 OLT                                                   |
 | `page`     | `1`      | Halaman                                                        |
 | `per_page` | `50`     | Maks `200`                                                     |
+
+Nilai query yang tak dikenal diabaikan (bukan 422). Alarm berstatus `pending` (menunggu
+konfirmasi poll ke-2, lihat Pengaturan → Alarm) **tidak pernah** dikembalikan — hanya
+`active` dan `cleared`. Urut `last_seen_at` terbaru.
 
 ```json
 {
@@ -603,7 +690,7 @@ sebelum sampai ke validasi Laravel.
     {
       "id": 12,
       "olt_id": 1,
-      "olt_name": "OLT-C320-PATI",
+      "olt_name": "OLT-C320-01",
       "type": "onu_offline",
       "type_label": "ONU offline",
       "severity": "major",
@@ -613,6 +700,7 @@ sebelum sampai ke validasi Laravel.
       "port": 1,
       "onu_id": 5,
       "serial_number": "ZTEGC1234567",
+      "customer_name": "Budi Santoso",
       "message": "ONU offline (dying gasp)",
       "first_seen_at": "2026-06-28T09:00:00+07:00",
       "last_seen_at": "2026-06-28T10:14:00+07:00",
@@ -632,24 +720,124 @@ sebelum sampai ke validasi Laravel.
 }
 ```
 
-#### `target` — a dónde navegar (deep-link)
+`scope` = `olt` \| `port` \| `onu` \| `odp`. `customer_name` diambil dari `meta` alarm
+(dibersihkan `cleanCustomerName()`; `null` bila kosong, placeholder, sama dengan serial, atau
+berupa nama interface). `type_label` menyesuaikan teknologi PON OLT
+(mis. "Port EPON down").
 
-`slot`/`port`/`onu_id` de primer nivel son los del **momento en que se registró la alarma**.
-**No navegues con ellos**: si la ONU fue reprovisionada, otra ONU puede ocupar hoy esa
-posición y abrirías el cliente equivocado.
+#### `target` — tujuan navigasi (deep-link)
 
-Usa `target`, que el servidor resuelve siguiendo `serial_number` en el inventario actual:
+`slot`/`port`/`onu_id` tingkat-atas adalah posisi **saat alarm tercatat** (historis).
+**Jangan bernavigasi memakai field itu**: bila ONU diprovisioning ulang, ONU lain bisa kini
+menempati posisi yang sama dan klien akan membuka pelanggan yang salah.
 
-| Campo | Significado |
-|-------|-------------|
-| `resource_type` | `onu` \| `port` \| `olt` — qué pantalla corresponde |
-| `slot`/`port`/`onu_id` | Posición **actual** (puede diferir de la histórica) |
-| `openable` | `false` ⇒ **no** abrir el recurso; como máximo el OLT |
-| `reason` | `null` si todo limpio; si no: `onu_moved` (se siguió el serial), `position_reused` (la ocupa otra ONU), `onu_not_found`, `incomplete_location`, `olt_unavailable` |
+Pakai `target`, yang diputuskan server (`AlarmNotificationTargetResolver::resolveLocation()`,
+resolver yang sama dengan bel notifikasi web) dengan mengikuti `serial_number` di inventaris
+terkini:
 
-`openable` **no** depende de la capability web `supports_cli_onu_detail`: la app móvil tiene
-su propia pantalla de detalle de ONU (alimentada por esta API) y funciona para todas las
-familias. Se resuelve sin SNMP/Telnet — solo con el snapshot cacheado.
+| Field | Arti |
+|-------|------|
+| `resource_type` | `onu` \| `port` \| `olt` — layar tujuan. Alarm `scope=odp` diarahkan ke `port` (daftar ONU port tempat ODP itu), atau `olt` bila ODP belum punya slot/port |
+| `olt_id` | OLT tujuan (`null` bila OLT sudah tak ada) |
+| `slot`/`port`/`onu_id` | Posisi **sekarang** (bisa berbeda dari posisi historis) |
+| `openable` | `false` ⇒ **jangan** buka resource-nya; paling jauh buka OLT-nya |
+| `reason` | `null` bila bersih; selain itu `onu_moved` (serial diikuti ke posisi baru, tetap `openable`), `position_reused` (posisi lama kini ditempati ONU lain), `onu_not_found`, `incomplete_location`, `olt_unavailable` |
+
+`openable` **tidak** bergantung pada capability web `supports_cli_onu_detail`: aplikasi mobile
+punya layar detail ONU sendiri (lewat API ini) yang berlaku untuk semua family. Diputuskan
+tanpa SNMP/Telnet — hanya dari snapshot cache.
+
+### 3.11. `GET /search?q=` — pencarian global
+
+Sumber tunggal `App\Services\GlobalSearchService`, dipakai bersama pencarian web (⌘K).
+`q` minimal 2 karakter (kurang → `data: []`); maksimal 10 hasil: OLT dulu (nama/IP, maks 5),
+lalu ONU dari snapshot cache (serial, nama, interface, **MAC** — ONU EPON tak punya serial
+terpisah). Hasilnya data navigasi terstruktur, bukan URL web:
+
+```json
+{
+  "data": [
+    { "type": "olt", "label": "OLT-C320-01", "sublabel": "10.10.0.1", "olt_id": 1, "olt_name": "OLT-C320-01",
+      "slot": null, "port": null, "onu_id": null, "serial_number": null },
+    { "type": "onu", "label": "ZTEGC1234567", "sublabel": "OLT-C320-01 · 1/1 · Budi Santoso", "olt_id": 1,
+      "olt_name": "OLT-C320-01", "slot": 1, "port": 1, "onu_id": 5, "serial_number": "ZTEGC1234567" }
+  ]
+}
+```
+
+### 3.12. ONU per port & ONU unconfigured
+
+- `GET /olts/{olt}/ports/{slot}/{port}/onus` — ONU satu PON port dari snapshot
+  `last_test_result.port_onus.{slot}_{port}`; `data` = daftar ONU bentuk §3.4 (urut `onu_id`),
+  `meta` = `{olt_id, slot, port, count, refreshed_at}` (`refreshed_at` = kapan port itu terakhir
+  di-scan).
+- `GET /olts/{olt}/unconfigured` — ONU autofind dari snapshot
+  `last_test_result.unconfigured_onus`; `data` = daftar ONU, `meta` = `{olt_id, ok, count, error,
+  refreshed_at}`. Hanya terisi di ZTE; family lain selalu daftar kosong.
+- `POST /olts/{olt}/unconfigured/refresh` *(tulis)* — discovery live (**ZTE-only**; non-ZTE →
+  `422`). `data` = `{ok, count, onus, error, refreshed_at}`; `422` bila discovery gagal.
+
+### 3.13. Registrasi ONU (ZTE, mode dasar)
+
+- `GET /olts/{olt}/register/options` — query opsional `slot`, `port`, `sn`,
+  `suggested_onu_id`. `data` = `{capabilities, profiles, defaults, odps}`: `profiles` = profil
+  onu_type/tcont/vlan/ip per-OLT (fallback global); `defaults` = nilai awal form (saran ONU-id
+  bila slot/port diberikan); `odps` = **seluruh** ODP OLT itu lengkap `slot`/`port` — klien
+  menyaringnya per PON port (slot/port masih bisa diubah pengguna).
+- `POST /olts/{olt}/register/preview` *(tulis)* — body sama dengan register; `data` =
+  `{script}`. Tidak menyentuh OLT.
+- `POST /olts/{olt}/register` *(tulis)* — field utama: `serial_number`, `slot`, `port`, `onu_id`,
+  `customer_name`, `onu_type`, `tcont_profile`, `vlan`/`vlan_profile`, `wan_mode` +
+  `pppoe_username`/`pppoe_password` atau `ip_profile`/`static_ip`/`static_netmask`,
+  `tr069_enabled` + `acs_url`/`acs_username`/`acs_password` (`acs_password` kosong = diisi server
+  dari pengaturan ACS tersimpan — **Pengaturan → ACS / TR069**, fallback env `ACS_PASSWORD` di
+  `config/services.php`; klien hanya menerima `defaults.acs_password_set`), `remote_ont_*`, `odp_id` (opsional), dan `execute` (bool).
+  Aturan lengkapnya `OnuRegistrationService::rules($olt)`.
+
+  Gerbang: capability `supports_provisioning` (non-ZTE → `422`); `execute=true` juga butuh
+  `supports_cli_onu_configure`. Setiap panggilan mencatat baris audit
+  `smartolt_onu_registrations`. `data` = `{status, registration_id, script, output, error}` (+
+  `odp_error` setelah eksekusi) dengan `status` `generated` (tanpa execute) \| `executed` → HTTP
+  `200`, atau `failed` → `422`. Kaitan ODP dibuat **setelah** CLI sukses; kegagalannya muncul sebagai
+  `data.odp_error` tanpa membatalkan registrasi.
+
+### 3.14. Refresh port & aksi ONU (tulis)
+
+Semua di grup tulis (§3). Exception dari OLT → `422 {"message": "..."}`.
+
+- `POST /olts/{olt}/ports/{slot}/{port}/refresh` — re-scan live satu port: ZTE walk subtree
+  tabel ONU port itu; C-Data/HiOSO query per-port lewat driver SNMP-nya. Hasil menimpa
+  `port_onus.{slot}_{port}` (dibaca §3.12). `data` = `{ok, count, error, refreshed_at}`;
+  `422` bila gagal.
+- `POST /olts/{olt}/onus/{slot}/{port}/{onuId}/reboot` — capability `supports_reboot`.
+  `data` = `{ok, message, error}`; `200`/`422`.
+- `POST /olts/{olt}/onus/{slot}/{port}/{onuId}/name` — capability `supports_onu_info_write`.
+  Body `name`, `description` (maks 191, minimal salah satu), `if_index` (ZTE, opsional — dicari
+  dari snapshot bila kosong). C-Data/HiOSO hanya punya `name` (tanpa `name` → `422`); HiOSO
+  HA7302 menulis lewat SNMP SET. Snapshot cache langsung diperbarui. `data` = `{ok, message}`.
+- `DELETE /olts/{olt}/onus/{slot}/{port}/{onuId}` — **destruktif**, deregistrasi permanen dari
+  OLT; capability `supports_onu_delete`. Perintah per family: ZTE `no onu {id}`, C-Data
+  `ont delete {port} {id}`, HiOSO `delete onu {id}` (HA7302 dialeknya sendiri). Sukses → ONU
+  dibuang dari snapshot cache. `data` = `{ok, message, error}`; `200`/`422`.
+
+```bash
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  https://nms.example.com/api/v1/olts/1/onus/1/2/5
+# → { "data": { "ok": true, "message": "ONU 5 dihapus dari OLT.", "error": null } }
+```
+
+### 3.15. Perangkat push (FCM)
+
+- `POST /devices` — body `token` (wajib, maks 255), `device_name`, `platform` (bawaan
+  `android`). Token unik: bila sudah ada, di-rebind ke user & sesi login saat ini.
+  → `{"data": {"registered": true}}`.
+- `DELETE /devices` — body `token`; hanya menghapus milik user sendiri.
+  → `{"data": {"removed": true}}`.
+- `POST /devices/test` — push tes ke semua perangkat user ini yang masih terkirim.
+  → `{"data": {"ok": bool, "sent": int, "message": "..."}}`; `ok=false` (HTTP tetap `200`, tanpa
+  `sent`) bila FCM belum dikonfigurasi atau perangkat belum terdaftar.
+
+Akun `demo` ditolak `403` di ketiganya (semua non-GET, §2).
 
 ---
 
@@ -658,7 +846,7 @@ familias. Se resuelve sin SNMP/Telnet — solo con el snapshot cacheado.
 ### 4.1. JavaScript (fetch) — untuk web aplikasi lain
 
 ```js
-const BASE = "https://nms.bmkv.net/api/v1";
+const BASE = "https://nms.example.com/api/v1";
 
 async function login(email, password) {
   const res = await fetch(`${BASE}/auth/login`, {
@@ -714,12 +902,12 @@ interface NmsApi {
 
 // --- Pemakaian ---
 val api = Retrofit.Builder()
-  .baseUrl("https://nms.bmkv.net/api/v1/")
+  .baseUrl("https://nms.example.com/api/v1/")
   .addConverterFactory(GsonConverterFactory.create())
   .build()
   .create(NmsApi::class.java)
 
-val token = api.login(LoginReq("admin@bmkv.net", "rahasia", "Android - Budi")).data.token
+val token = api.login(LoginReq("admin@example.com", "rahasia", "Android - Budi")).data.token
 val bearer = "Bearer $token"
 val offline = api.onus(bearer, status = "offline").data
 ```
@@ -727,10 +915,10 @@ val offline = api.onus(bearer, status = "offline").data
 ### 4.3. PHP (Guzzle / backend lain)
 
 ```php
-$client = new GuzzleHttp\Client(['base_uri' => 'https://nms.bmkv.net/api/v1/']);
+$client = new GuzzleHttp\Client(['base_uri' => 'https://nms.example.com/api/v1/']);
 
 $token = json_decode($client->post('auth/login', ['json' => [
-    'email' => 'admin@bmkv.net', 'password' => 'rahasia', 'device_name' => 'Billing',
+    'email' => 'admin@example.com', 'password' => 'rahasia', 'device_name' => 'Billing',
 ]])->getBody(), true)['data']['token'];
 
 $onus = json_decode($client->get('onus', [
@@ -743,19 +931,28 @@ $onus = json_decode($client->get('onus', [
 
 ## 5. Catatan operasional (untuk admin server)
 
-- Setelah deploy perubahan rute, **rebuild cache rute** di produksi:
-  `php artisan route:cache && php artisan config:cache`, lalu pastikan nginx
-  meneruskan `/api/*` ke PHP-FPM (umumnya sudah, karena semua di-handle Laravel).
+- **Rute API ikut di-cache** bersama rute web (`bootstrap/cache/routes-v7.php`): rute baru/berubah
+  (termasuk saklar `$apiEnabled`) akan `404`/`405` di produksi sampai `php artisan route:cache`
+  dijalankan ulang. `scripts/test.sh` mengalihkan `APP_ROUTES_CACHE`, jadi test tetap hijau
+  walau cache produksi basi — test lulus ≠ rute sudah aktif. Setelah mengubah `.env`/config:
+  `php artisan config:cache`. nginx cukup meneruskan `/api/*` ke PHP-FPM (semua di-handle Laravel).
 - Migrasi tabel token: `php artisan migrate` (membuat `personal_access_tokens`).
-- Token tak kedaluwarsa otomatis kecuali diatur. Cabut manual lewat `/auth/logout`
-  atau hapus baris di tabel `personal_access_tokens`.
+- **Umur token:** `SANCTUM_EXPIRATION` (menit, dihitung dari waktu terbit — bukan dari pemakaian
+  terakhir) berlaku untuk **semua** token: sesi aplikasi Android, token dari Pengaturan, dan
+  `api:token`. `.env.example` = `43200` (30 hari); kosong = tak pernah kedaluwarsa. Token yang
+  lewat batas dijawab `401` (aplikasi Android lalu meminta login ulang). Setelah mengubahnya:
+  `php artisan config:cache`.
+- Token juga berakhir bila dicabut: `/auth/logout`, "Cabut" di **Pengaturan → API & Token**
+  (token integrasi milik admin) atau **Pengaturan → Notifikasi Mobile** (sesi aplikasi per
+  perangkat), atau hapus barisnya di tabel `personal_access_tokens`. Token kedaluwarsa dibersihkan
+  `sanctum:prune-expired --hours=24` (harian 03:40) — token push FCM-nya ikut terhapus.
 - Memperbesar/mengubah rate limit: edit limiter `api` di
   `app/Providers/AppServiceProvider.php`.
 
 ## 6. Roadmap (belum tersedia di v1)
 
-- Aksi tulis lanjutan: enable/disable ONU (set state).
-- Webhook/push event alarm real-time.
+- Aksi tulis lanjutan: enable/disable ONU (set state) — kini hanya di web.
+- Webhook event alarm untuk server pihak lain (push FCM ke aplikasi Android sudah ada, §3).
 - Filter rentang waktu & ekspor.
 
 Bila butuh salah satu di atas, ajukan agar ditambahkan di `v2`.

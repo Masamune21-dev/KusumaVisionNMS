@@ -8,6 +8,7 @@ yang terpasang ada di [`docs/INSTALLATION_STATUS.md`](../INSTALLATION_STATUS.md)
 
 > 🚀 **Pengguna baru** (bukan developer) sebaiknya mulai dari **[`docs/INSTALL.md`](../INSTALL.md)** —
 > peta keputusan per-OS + minimum spek. Build **APK Android**: **[`docs/BUILD_APK.md`](../BUILD_APK.md)**.
+> Peta seluruh dokumen: **[`docs/README.md`](../README.md)**.
 
 ## ⚡ Cara cepat — `install.sh` (server Ubuntu kosong)
 
@@ -24,7 +25,7 @@ git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 sudo bash install.sh                 # interaktif (tanya bahasa, APP_URL, DB, admin)
 # atau non-interaktif:
-sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=rahasia \
+sudo APP_URL=http://nms.example.com ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=passwordkuat \
      bash install.sh --yes --lang en  # --lang en|id (bahasa installer + bawaan app), default id
 ```
 
@@ -82,7 +83,7 @@ php artisan key:generate          # mengisi APP_KEY (WAJIB — dipakai enkripsi 
 
 # 4. Database
 php artisan migrate
-php artisan db:seed                # DatabaseSeeder → 1 admin test@example.com
+php artisan db:seed                # DatabaseSeeder → 1 admin test@example.com (password factory: "password")
 #   (opsional, HANYA untuk instance demo:) php artisan db:seed --class=DemoSeeder
 
 # 5. Buat user admin nyata (registrasi publik dimatikan). --role=admin wajib (bawaan
@@ -126,9 +127,12 @@ npm run build     # produksi → public/build (emptyOutDir:false: chunk lama dis
 ## Build Go SNMP poller
 
 ```bash
-go build -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
+CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller
 chmod +x bin/kv-snmp-poller
 ```
+`-mod=mod` wajib: root repo punya folder `vendor/` (milik Composer), dan tanpa flag itu Go (go.mod `go 1.18`)
+mencoba mode vendor lalu gagal "inconsistent vendoring". `CGO_ENABLED=0` = biner statis (sama dengan
+`install.sh` & `Dockerfile`).
 Aktif bila `SNMP_POLLER_DRIVER=go` (`config/services.php`) **dan** binary ada + executable
 (`GoSnmpPoller::enabled()`).
 
@@ -156,9 +160,32 @@ SNMP_POLLER_MAX_REPETITIONS=10
 TELNET_PROXY_HOST=127.0.0.1
 TELNET_PROXY_PORT=6002
 TELNET_PROXY_WS_URL=             # prod: wss://domain/telnet-ws (nginx). Dev: kosong → ws://host:6002
-TELNET_PROXY_TICKET_TTL=60
+TELNET_PROXY_TICKET_TTL=30
 TELNET_PROXY_CONNECT_TIMEOUT=10
+
+# Riwayat RX
+SNMP_POLLER_RX_RETENTION_DAYS=3          # sampel mentah onu_rx_samples (ringkasan per jam: onu_rx_hourly)
+
+# HTTPS / reverse proxy
+SESSION_SECURE_COOKIE=true               # hanya bila diakses lewat HTTPS
+TRUSTED_PROXIES=127.0.0.1,::1            # tambah IP/CIDR proxy (Cloudflare Flexible, LB di host lain)
+
+# Umur token API Sanctum (menit; kosong = tak pernah kedaluwarsa)
+SANCTUM_EXPIRATION=43200
+
+# Titik awal peta (opsional; kosong → peta membuka di kelompok titik terpadat)
+MAP_HOME_LAT=
+MAP_HOME_LNG=
+MAP_HOME_ZOOM=12
+MAP_HOME_RADIUS_KM=20
+
+# Password akun DemoSeeder (kosong = dibuat acak, ditampilkan sekali di terminal)
+DEMO_SEED_PASSWORD=
 ```
+
+`SANCTUM_EXPIRATION` berlaku untuk **semua** token API (login aplikasi, Pengaturan → API & Token,
+`php artisan api:token`); `.env.example` memakai 43200 menit (30 hari). `SESSION_SECURE_COOKIE`
+di `.env.example` sengaja kosong — isi `true` hanya bila situs diakses lewat HTTPS.
 
 ## Deploy / refresh produksi
 
@@ -168,6 +195,7 @@ cd /var/www/KusumaVisionNMS
 git pull
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
+CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller   # bila cmd/ berubah
 php artisan migrate --force
 php artisan optimize:clear
 php artisan optimize                 # cache config + route + view
@@ -194,14 +222,14 @@ supervisorctl restart kusumavision-telnet-proxy   # daemon telnet pakai kode bar
   tabel) di sana. Skrip itu mengalihkan cache config+route ke path non-eksisten lalu **abort**
   kecuali DB benar-benar sqlite `:memory:`.
 
-> Memori proyek mencatat dua gotcha ini — patuhi agar tidak menjatuhkan site.
+> Patuhi dua gotcha ini agar tidak menjatuhkan site.
 
 ## Daemon supervisor (produksi)
 
 | Program | Perintah | Fungsi |
 |---------|----------|--------|
-| `kusumavision-worker` | `php artisan queue:work redis --tries=1` | Jalankan `PollOltJob` (polling) |
-| `kusumavision-scheduler` | `php artisan schedule:work` | Trigger `olts:poll` tiap menit |
+| `kusumavision-worker` | `php artisan queue:work redis --tries=1` | Semua job antrean (`PollOltJob`, backup config, salin ONU, TR069 massal, push FCM) |
+| `kusumavision-scheduler` | `php artisan schedule:work` | Jadwal `routes/console.php` (`olts:poll` tiap menit, backup, RX, prune token) |
 | `kusumavision-telnet-proxy` | `php artisan telnet:proxy` | Daemon WS↔telnet (localhost, di-proxy nginx `/telnet-ws`) |
 
 Cek: `supervisorctl status`. Setelah ubah kode job/service: **`php artisan queue:restart`**

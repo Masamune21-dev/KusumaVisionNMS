@@ -5,6 +5,12 @@
 > lewat `snmpwalk`/`snmpget` v2c. Bagian CLI (penamaan interface §3.1, kartu §10, provisioning §11)
 > diturunkan dari `show card` + `show running-config` C600 yang sama. Yang **belum** terbukti ditandai
 > eksplisit — jangan diisi dengan tebakan.
+>
+> **Status per 1 Okt 2026.** Bagian lama dokumen ini tertinggal dari kode dan sudah dikoreksi: nama,
+> deskripsi, admin-state, phase kaya, dan unconfigured C600 **sudah terbaca via SNMP** (§4.1, §5);
+> **provisioning C600 AKTIF** (Model B / SmartOLT TR069, §11) dan sudah dipakai registrasi live; CLI C600 yang
+> dipakai kode dirangkum di §11a. Yang masih tertutup: tulis SNMP (rename/enable-disable), Configure/Copy/TR069
+> Massal, Bind ONU, dan matikan/nyalakan port (§6).
 
 Dokumen ini menggantikan bagian C600 di [`SMARTOLT_ZTE_C300_C320_C600_GUIDE.md`](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md),
 yang OID C600-nya **salah total** (lihat §7). Untuk C300/C320 guide tersebut tetap berlaku.
@@ -56,7 +62,7 @@ Ini beda penting dari C300/C320:
 | OID | Isi di C600 | Contoh |
 |---|---|---|
 | `ifName` (`1.3.6.1.2.1.31.1.1.1.1`) | **nama interface** | `gpon_olt-1/3/1`, `xgei-1/10/1` |
-| `ifDescr` (`1.3.6.1.2.1.2.2.1.2`) | **deskripsi bebas** (nama area/pelanggan) | `LAS GALERAS CENTRO`, `` (kosong) |
+| `ifDescr` (`1.3.6.1.2.1.2.2.1.2`) | **deskripsi bebas** (nama area/pelanggan) | `NAMA AREA`, `` (kosong) |
 
 Di C320 sebaliknya: `ifName` = `gpon_1/2/1`. Jadi tiap family mengeja port yang sama dengan cara berbeda:
 
@@ -105,7 +111,7 @@ Basis: **`1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.{kolom}`**, index **`{ifIndex}.{o
 | `.1` | `…20.2.1.2.1.1` | vendor id ONU | `ZTEG`, `HWTC`, `ZKXX` |
 | `.2` | `…20.2.1.2.1.2` | versi firmware ONU | `V2.4F`, `26AD.A` |
 | `.3` | `…20.2.1.2.1.3` | **serial number** (octet 8 byte: 4 ASCII vendor + 4 byte biner) | `5A 54 45 47 00 8E EB 08` → `ZTEG008EEB08` |
-| **`.7`** | `…20.2.1.2.1.7` | **status online**: `1` = Working, `2` = Offline | — |
+| **`.7`** | `…20.2.1.2.1.7` | **flag online biner**: `1` = Working, `2` = Offline — kini **tidak dibaca kode**; status diganti phase `…10.2.3.8.1.4` (§4.1) | — |
 | `.8` | `…20.2.1.2.1.8` | **model ONU** (ada untuk semua vendor) | `F641`, `HG8145V5`, `HG8145X6-10` |
 | `.15` | `…20.2.1.2.1.15` | model ONU (duplikat `.8` di perangkat uji) | `F641` |
 | `.18` | `…20.2.1.2.1.18` | Timeticks; **jangan dipakai** — 0 untuk banyak ONU yang jelas online | — |
@@ -146,7 +152,7 @@ Rx OLT belum diekspos di UI — kalau nanti dipasang, beri label berbeda, jangan
 Cakupan kolom `.1`/`.3`/`.7`/`.8` = 18/18 ONU di port uji (penuh), jadi `.8` aman dipakai sebagai gerbang
 walk (`$types`). `onuId` **tidak kontigu** — di satu port ditemukan id `1..15, 80, 81, 87`.
 
-### 4.1 Kolom `.7` = status online: cara pembuktiannya
+### 4.1 Status online: bukti kolom `.7`, lalu phase `.10.2.3.8.1.4` (dipakai kode)
 
 Tanpa akses CLI, semantik kolom state dibuktikan lewat **korelasi counter trafik**: tabel counter per-ONU
 `1.3.6.1.4.1.3902.1082.500.10.2.3.2.2.1.1.{ifIndex}.{onuId}` (Counter64) di-snapshot dua kali, lalu ONU yang
@@ -158,12 +164,19 @@ counter-nya naik pasti online.
 | `1/3/2` (33 ONU) | 32/33 cocok; 1 ONU `.7=1` tapi counter diam = ONU online yang sedang sepi (arah error yang wajar) |
 
 Yang menentukan: **nol kasus** counter naik padahal `.7=2` — itu arah yang akan menggugurkan pemetaan.
-Kolom ini hanya pernah bernilai 1 atau 2; ia **flag online biner**, bukan enum fase ZTE, jadi
-`decodePhaseState()` cabang C600 sengaja hanya memetakan `1 => Working`, `2 => Offline`, sisanya `Unknown`.
+Kolom `.7` hanya pernah bernilai 1 atau 2; ia **flag online biner**, bukan enum fase ZTE.
 
-> **Jangan** mengarang kode LOS/DyingGasp/AuthFailed di sini. Enum 7-nilai yang dulu ada di kode
-> (`1=Logging … 7=Offline`) tidak berasal dari perangkat mana pun, dan efeknya `online = ($phase === 4)`
-> selalu false → seluruh ONU C600 terbaca offline.
+**Sejak Juli 2026 kode tidak lagi membaca `.7`.** Status & phase C600 diambil dari tabel state
+**`1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.4`** (index `{ifIndex}.{onuId}` yang sama), diverifikasi live terhadap CLI
+`show gpon onu detail-info` (Phase state): `2` = LOS, `4` = Working, `5` = DyingGasp, `7` = OffLine. `4` cocok
+persis dengan `.7 = 1` di **1343/1343 ONU** (0 selisih), jadi deteksi online tak berubah — bedanya ONU offline kini
+membawa alasannya. `decodePhaseState()` cabang C600 (PHP) dan `decodePhaseStateC600()` (Go) memetakan keempat nilai
+itu; lainnya `Unknown`. Online = `phase == 4` (`OltSnmpClient::C600_PHASE_WORKING`). Ejaan `OffLine` (L besar)
+sengaja dipertahankan dari CLI — frontend menanganinya (`phaseStateLabel()`, filter Offline Monitoring ONU).
+
+> **Jangan** mengarang kode lain di sini. Enum 7-nilai yang dulu ada di kode (`1=Logging … 7=Offline`) tidak
+> berasal dari perangkat mana pun (efeknya seluruh ONU C600 terbaca offline); enum di atas berasal dari tabel state
+> `.10.2.3.8.1.4` yang dicocokkan ke CLI, bukan dari `.7`.
 
 ### 4.2 Kolom yang menyesatkan
 
@@ -172,26 +185,30 @@ Kolom `.4` (nilai `0`/`2`/`65535`) **bukan** state: nilainya berkorelasi sempurn
 
 ---
 
-## 5. Yang BELUM terpetakan di C600
+## 5. Status pemetaan C600 (per 1 Okt 2026)
 
-| Kebutuhan | Status | Dampak di aplikasi |
+Dulu bagian ini berjudul "Yang BELUM terpetakan" — sebagian besar kini sudah terbaca dari perangkat asli (Juli 2026)
+dan dipakai kode PHP (`OltSnmpClient`) **dan** poller Go (`cmd/kv-snmp-poller/main.go`):
+
+| Kebutuhan | Status | Sumber / dampak di aplikasi |
 |---|---|---|
-| Nama / deskripsi ONU **via SNMP** | **tak ditemukan.** Satu-satunya kolom string kosong (`.19`) kosong di semua ONU — OLT uji memang tak menyetel nama, jadi tak ada bukti kolom mana pun. **Catatan:** di **CLI** C600 punya `name` **dan** `description` (terlihat di running-config) — yang hilang hanya OID SNMP-nya | `name`/`description` = `null` dari SNMP; `supports_onu_info_write=false`, `supports_separate_description=false` (keduanya soal jalur SNMP) |
-| Admin state (enable/disable) | **tak ditemukan** | `supports_onu_toggle=false`; `ZteRemoteOnuService::setActiveState()` melempar `RuntimeException` untuk C600 |
-| Last-down cause | **tak ditemukan** | `last_down_cause` = `null` |
-| ~~Rx power ONU~~ | **✅ SUDAH TERPETAKAN** — lihat §4.0 (`…500.20.2.2.2.1.10`) | `supports_snmp_rx=true` |
-| ONU unconfigured (discovery) | **tak ditemukan** (`C600_UNCFG_OIDS = []`) | Halaman Unconfigured kosong untuk C600 |
-| Provisioning | sintaks **beda struktur** dari C300 (§11) — builder C600 ada tapi **belum diuji tulis** | `supports_provisioning=false` untuk C600 |
+| Nama ONU via SNMP | ✅ **baca** | `…1082.500.10.2.3.3.1.2` — nama pelanggan asli walau CLI menyensor `********` ([ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md](ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md)) |
+| Deskripsi ONU via SNMP | ✅ **baca** (mentah) | `…10.2.3.3.1.3` — metadata SmartOLT `zone_…_authd_…`, disimpan apa adanya |
+| Admin-state | ✅ **baca** | `…10.2.3.8.1.1` — `1` enable / `2` disable (27 ONU `2` dicocokkan ke CLI) |
+| Phase / status | ✅ | `…10.2.3.8.1.4` (§4.1) |
+| Last-down cause | tak ada tabel terpisah | 12 kolom tabel state di-probe, tak ada kolom penyebab. Saat ONU **offline**, `last_down_cause` diisi dari phase (LOS/DyingGasp/OffLine); ONU online tetap `Unknown` |
+| Rx power ONU | ✅ | §4.0 (`…500.20.2.2.2.1.10`) |
+| ONU unconfigured | ✅ | `…1082.500.2.2.11.2.1.2` (serial) + `.8` model + `.10` firmware ([ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md](ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md)) |
+| Kartu / chassis | ✅ | SNMP `zxAnCardTable` ([ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md](ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md)) |
+| Provisioning | ✅ **aktif** | Model B / SmartOLT TR069 (§11); WAN pppoe/dhcp/static/bridge ditolak |
+| **Tulis** nama / admin-state via SNMP SET | ❌ belum diuji | `ZteRemoteOnuService` sengaja memakai konstanta tulis `null` untuk C600 → `supports_onu_info_write` & `supports_onu_toggle` = `false`. OID baca di atas **jangan** dipakai untuk SET sebelum diuji ke ONU uji |
+| Reconfigure ONU (Configure/Copy/TR069 Massal) | ❌ | builder delta gaya C300; C600 model vport → `supports_onu_config_write=false` (Configure = baca-saja) |
+| Bind ONU (`registration-method sn`) | ❌ belum dicek | `supports_onu_replace=false` |
+| Matikan/nyalakan port PON | ❌ belum dicek | `supports_port_admin_write=false` |
 
-Konstanta terkait di [`OltSnmpClient`](../app/Services/Snmp/OltSnmpClient.php) sengaja bernilai `null`, dan
-`registeredOnus()` melewati walk untuk kolom `null` (`$walkOptional`). Itu disengaja: lebih baik field kosong
-yang jujur daripada OID tebakan.
-
-Untuk membukanya, dua jalan:
-
-1. **Akses CLI (telnet) ke C600** → korelasikan `show gpon onu state gpon-olt_1/1/3/1` & `show pon power onu-rx`
-   dengan kolom SNMP; ini juga sekaligus memverifikasi penamaan 4-tier.
-2. **File MIB resmi ZTE** untuk `zxAccessNode` `.1082` (bukan PDF pihak ketiga, lihat §7).
+Prinsipnya tetap: lebih baik field kosong / capability mati yang jujur daripada OID atau perintah tebakan. Membuka tulis
+SNMP atau perintah CLI baru di C600 butuh uji di perangkat asli (context-help `?` polos — lihat peringatan executor
+di guide ZTE §5.6b — atau MIB resmi ZTE `zxAccessNode`, bukan PDF pihak ketiga, lihat §7).
 
 ---
 
@@ -201,15 +218,24 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
 
 | Flag | C300/C320 | C600 | Alasan |
 |---|---|---|---|
-| `supports_snmp_rx` | `true` | `true` | Rx ONU terpetakan (§4.0) |
-| `supports_onu_info_write` | `true` | **`false`** | OID nama tak terpetakan |
-| `supports_onu_toggle` | `true` | **`false`** | OID admin-state tak terpetakan |
-| `supports_separate_description` | `true` | `false` | tak ada kolom deskripsi terpisah |
-| `rx_source_label` | `Rx ONU (SNMP)` | `Rx ONU (SNMP)` | — |
-| `supports_provisioning` | `true` | **`false`** | sintaks C600 beda struktur, builder belum diuji tulis (§11) |
+| `vendor_family` | `ZTE GPON` | `ZTE GPON (C600)` | — |
 | `port_name_prefix` | `gpon-olt_1` | `gpon_olt-1` | eja CLI beda per-family (§3.1) |
 | `onu_interface_pattern` | `gpon-onu_1/%d/%d:%d` | `gpon_onu-1/%d/%d:%d` | **3-tier**, bukan 4-tier |
-| `supports_reboot` / `supports_config_save` | `true` | `true` | lewat CLI; **belum diuji di C600** |
+| `supports_snmp_rx` / `supports_cli_rx` | `true` | `true` | Rx ONU terpetakan (§4.0) |
+| `supports_cli_onu_detail` | `true` | `true` | `show gpon onu detail-info gpon_onu-…` terverifikasi live |
+| `supports_cli_onu_configure` | `true` | `true` | Configure dibuka **baca-saja** (§11a) |
+| `supports_onu_config_write` | `true` | **`false`** | builder delta gaya C300; C600 pakai model vport |
+| `supports_provisioning` | `true` | **`true`** | Model B / SmartOLT TR069 (§11) |
+| `supports_reboot` (`reboot_mode=cli`) | `true` | `true` | `pon-onu-mng gpon_onu-…` → `reboot` (belum tercatat diuji di C600) |
+| `supports_onu_delete` | `true` | `true` | `no onu {id}` di `interface gpon_olt-…` (belum tercatat diuji di C600) |
+| `supports_onu_replace` | `true` | **`false`** | `registration-method` belum dicek di C600 |
+| `supports_separate_description` | `true` | `false` | jalur tulis SNMP deskripsi tak ada |
+| `supports_onu_info_write` (`description_mode=snmp`) | `true` | **`false`** | OID tulis nama belum diuji |
+| `supports_onu_toggle` | `true` | **`false`** | OID tulis admin-state belum diuji |
+| `supports_config_save` | `true` | `true` | `write` di `ZXAN#` (terbukti di registrasi live pertama) |
+| `supports_port_description_write` | `true` | `true` | CLI `interface gpon_olt-…` → `description …` → `end` → `write` (belum tercatat diuji di C600) |
+| `supports_port_admin_write` | `true` | **`false`** | `shutdown` belum dicek di C600 |
+| `rx_source_label` | `Rx ONU (SNMP)` | `Rx ONU (SNMP)` | — |
 
 ---
 
@@ -220,12 +246,12 @@ Sebelum 15 Juli 2026 kode memakai OID ini — **semuanya dijawab *No Such Object
 | Konstanta lama | OID lama | Kenyataan |
 |---|---|---|
 | `C600_ONU_TYPE` | `…1082.500.10.2.3.1.1` | cabang `10.2.3.1` tak ada (yang ada `10.2.3.2.2` = counter) |
-| `C600_ONU_NAME` | `…1082.500.10.2.3.1.2` | idem |
+| `C600_ONU_NAME` | `…1082.500.10.2.3.1.2` | idem (yang benar kini: `…10.2.3.3.1.2`, §5) |
 | `C600_ONU_SN` | `…1082.500.10.2.3.1.6` | idem |
-| `C600_ONU_ADMIN_STATE` | `…1082.500.10.2.8.1.1` | cabang `10.2.8` **tak ada sama sekali** |
-| `C600_ONU_PHASE_STATE` | `…1082.500.10.2.8.1.4` | idem |
+| `C600_ONU_ADMIN_STATE` | `…1082.500.10.2.8.1.1` | cabang `10.2.8` **tak ada sama sekali** (yang benar kini: `…10.2.3.8.1.1`) |
+| `C600_ONU_PHASE_STATE` | `…1082.500.10.2.8.1.4` | idem (yang benar kini: `…10.2.3.8.1.4`, §4.1) |
 | `C600_ONU_RX_POWER` | `…1082.500.10.2.11.1.2` | cabang `10.2.11` **tak ada sama sekali** (yang benar: `…500.20.2.2.2.1.10`, §4.0) |
-| `C600_UNCFG_OIDS` | `…1082.500.10.2.2.1.2` | tak ada |
+| `C600_UNCFG_OIDS` | `…1082.500.10.2.2.1.2` | tak ada (yang benar kini: `…500.2.2.11.2.1.2`, §5) |
 
 Akibatnya C600 mana pun terbaca **0 ONU** — diam-diam, tanpa error.
 
@@ -282,6 +308,8 @@ onu 4   ZTEGC1F9D600   F660V5.2      Working  online=true
 ```
 
 Jumlah online (13/18, 27/33) cocok dengan hasil korelasi counter di §4.1 — dua metode independen, angka sama.
+(Snapshot 15 Jul 2026, sebelum phase kaya dipakai: kini ONU offline berlabel `LOS`/`DyingGasp`/`OffLine` dan kolom
+nama terisi dari SNMP.)
 
 ---
 
@@ -312,63 +340,108 @@ dengan `show card`. Kode C600 lama hanya mengenal `GFGH/GFXH/GFXL` (GPON) dan `X
 
 > Tambahkan kode kartu baru **hanya** setelah terlihat di `show card` perangkat nyata.
 
+Catatan implementasi: output `show card` C600 **tidak ter-parse** oleh `ZteCardUplinkService::parseCards()` (format beda
+C300/C320), jadi tombol Refresh Hardware C600 membaca daftar kartu dari SNMP `zxAnCardTable` `.1082.10.1.2.4.1`
+(`OltSnmpClient::cardInventory()`, detail di [ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md](ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md));
+CPU/memori per kartu dari CLI `show processor` (§11a). Tabel `show card` di atas tetap jadi rujukan kode kartu.
+
 ---
 
-## 11. Provisioning C600 — struktur config beda dari C300
+## 11. Provisioning C600 — Model B / SmartOLT TR069 (AKTIF)
 
-> **Status: builder ada, capability MATI.** `supports_provisioning=false` untuk C600.
-> [`ZteC600ProvisioningScriptBuilder`](../app/Services/ZteC600ProvisioningScriptBuilder.php) ditulis dari
-> running-config C600 asli, tapi **belum pernah diuji tulis** ke OLT. Jangan diaktifkan sebelum satu ONU
-> uji benar-benar ter-provision.
+> **Status: AKTIF sejak Juli 2026** (`supports_provisioning=true` untuk C600). Builder
+> [`ZteC600ProvisioningScriptBuilder`](../app/Services/ZteC600ProvisioningScriptBuilder.php) mereproduksi **persis**
+> running-config ONU yang sudah jalan di C600 lapangan (config-mode `show this` atas tiga ONU asli). Registrasi live
+> pertama: semua perintah config diterima; hanya `write` yang gagal karena dikirim dari mode config →
+> diperbaiki dengan `end` sebelum `write` (§11a).
 
 C600 **bukan** C300 dengan nama interface lain. Bedanya struktural:
 
-| | C300 / C320 | C600 |
+| | C300 / C320 | C600 (Model B) |
 |---|---|---|
-| T-CONT | `tcont 1 name 1 profile P` | `tcont 1 profile P` (**tanpa** `name`) |
-| Mode vport | — | `vport-mode manual` + `vport 1 map-type vlan` + `vport-map 1 1 vlan V` |
-| `service-port` | di `interface gpon-onu_…` | di **`interface vport-1/{slot}/{port}.{id}:{vport}`** tersendiri |
-| `service` (pon-onu-mng) | `service N gemport 1 cos 0 vlan V` | `service N gemport 1 vlan V` (**tanpa** `cos`) |
-| TR069 | 2 baris (`state unlock`, lalu `acs …`) | **1 baris** `tr069-mgmt 1 state unlock acs … validate basic username … password … [tag pr1 2 vlan V]` |
-| WAN | `wan-ip 1 mode pppoe/dhcp/static …` | sampel memakai `wan 2 service tr069` + `veip 1 port … ipv4 host …` |
+| T-CONT | `tcont 1 name 1 profile P` | `tcont 1 profile P` + `tcont 2 profile P` (**tanpa** `name`) |
+| GEM port | `gemport 1 name 1 tcont 1` | `gemport 1 name internet tcont 1` + `gemport 2 name mgmt tcont 2` |
+| Mode vport | — | default (**tanpa** `vport-mode manual` / `vport-map` — itu Model A dokumen lama, tak terlihat di lapangan) |
+| `service-port` | di `interface gpon-onu_…` | di **`interface vport-1/{slot}/{port}.{id}:1`** tersendiri, **tanpa** ingress/egress inline; laju downstream opsional lewat `qos traffic-policy {P} direction egress` |
+| `service` (pon-onu-mng) | `service N gemport 1 cos 0 vlan V` | `service vlan{V} gemport {1\|2} vlan {V}` (**tanpa** `cos`), dua layanan: internet + manajemen |
+| Manajemen | — | `mgmt-ip {ip} {mask} vlan {mgmt} priority {p} route 0.0.0.0 0.0.0.0 {gw} host {h}` + `veip 1 port 1232 ipv4 host {h}` |
+| TR069 | 2 baris (`state unlock`, lalu `acs …`) | **1 baris** `tr069-mgmt 1 state unlock acs … validate basic username … password … tag pri {p} vlan {mgmt}` (`tag pri`, bukan `pr1`) |
+| WAN | `wan-ip 1 mode pppoe/dhcp/static …` | hanya `wan 2 service tr069`; pppoe/dhcp/static/bridge **ditolak** (`RuntimeException`) |
+| Simpan | tidak otomatis | skrip diakhiri `end` → `write` |
 
-Script yang dihasilkan builder C600 (mengikuti running-config asli):
+Script yang dihasilkan builder (nilai contoh, bukan data produksi):
 
 ```
-conf t
+configure terminal
 
-interface gpon_olt-1/3/13
-onu 8 type F620IBV9.3.11 sn ZTEGDC480F1C
+interface gpon_olt-1/{slot}/{port}
+onu {id} type {ONU_TYPE} sn {SN}
 exit
 
-interface gpon_onu-1/3/13:8
-name Budi Santoso
-description 8$$Budi Santoso$$
-vport-mode manual
-tcont 1 profile SMARTOLT_DEFAULT_TCONT_GPN
+interface gpon_onu-1/{slot}/{port}:{id}
+name {NAMA}
+description {DESKRIPSI}
+tcont 1 profile {TCONT_INTERNET}
+tcont 2 profile {TCONT_MGMT}
 gemport 1 name internet tcont 1
-vport 1 map-type vlan
-vport-map 1 1 vlan 200
+gemport 2 name mgmt tcont 2
 exit
 
-interface vport-1/3/13.8:1
-service-port 1 user-vlan 200 vlan 200 ingress 10MB egress SMARTOLT-10M-DOWN
-exit
-
-pon-onu-mng gpon_onu-1/3/13:8
-service vlan200 gemport 1 vlan 200
+pon-onu-mng gpon_onu-1/{slot}/{port}:{id}
+mgmt-ip {MGMT_IP} {MASK} vlan {VLAN_MGMT} priority {P} route 0.0.0.0 0.0.0.0 {GATEWAY} host {H}
+[security-mgmt 1 state enable mode forward protocol web https]   # opsional, Remote ONT
+[security-mgmt 5 state enable mode forward protocol web https]
+service vlan{VLAN_DATA} gemport 1 vlan {VLAN_DATA}
+service vlan{VLAN_MGMT} gemport 2 vlan {VLAN_MGMT}
+veip 1 port 1232 ipv4 host {H}
 wan 2 service tr069
-tr069-mgmt 1 state unlock acs http://10.69.69.1:14501 validate basic username u password p tag pr1 2 vlan 601
+tr069-mgmt 1 state unlock acs {ACS_URL} validate basic username {U} password {P} tag pri {P} vlan {VLAN_MGMT}
 exit
+
+interface vport-1/{slot}/{port}.{id}:1
+service-port 1 user-vlan {VLAN_DATA} vlan {VLAN_DATA}
+[qos traffic-policy {POLICY} direction egress]
+exit
+end
+
+write
 ```
 
-**Batas jujur builder ini:** hanya `wan_mode = tr069` yang didukung; `pppoe`/`dhcp`/`static`/`bridge`
-**ditolak dengan `RuntimeException`**, karena satu-satunya sampel C600 yang ada memakai pola TR069/VEIP dan
-sintaks `wan-ip …` gaya C300 tak pernah terlihat di C600. Lebih baik menolak daripada menebak baris write.
+- **Field wajib** (`REQUIRED` di builder + `OnuRegistrationService::c600Rules()`): slot, port, onu_id, SN, nama, ONU type,
+  VLAN & T-CONT internet, VLAN & T-CONT manajemen (VLAN mgmt harus beda dari VLAN data), mgmt IP/mask/gateway, ACS
+  URL/username/password. `priority` & `host` default `2`.
+- **Deskripsi**: kolom Deskripsi eksplisit menang; kosong → `zone_{zona}_authd_{YYYYMMDD}` (zona dari pilihan Zone);
+  tanpa zona → nama. Maks 191 karakter, tanpa karakter kontrol. Semua nilai teks disanitasi (CR/LF/kontrol dibuang).
+- **mgmt-IP otomatis** ([`C600MgmtPoolService`](../app/Services/Zte/C600MgmtPoolService.php), rute
+  `smartolt.register.mgmt-pool`): `terminal length 0` + `show running-config | include mgmt-ip` dibaca sampai prompt
+  kembali, baris yang terpotong line-wrap di-un-wrap, pool (mask/gateway/vlan/priority/host) diturunkan dari config OLT,
+  lalu dipilih IP bebas terendah (kecuali network/gateway/broadcast, IP terpakai di OLT, dan registrasi NMS terbaru).
+  Cache 10 menit.
+- **Preset ACS dari OLT**: tabel SNMP `…1082.500.20.2.14.2.1` (`.2` URL, `.4` username, `.5` password — terbaca polos
+  lewat read community), baris pertama yang terisi, supaya ONU baru memakai ACS yang sama dengan ONU yang sudah ada.
+- Dropdown ONU Type & T-CONT dari katalog profil OLT; model hasil discovery unconfigured ter-preselect.
 
-Yang perlu diuji saat ada akses CLI: (1) apakah urutan input di atas diterima apa adanya; (2) apakah
-`service-port` tanpa `ingress`/`egress` valid; (3) apakah token `tag pr1 2 vlan …` wajib; (4) sintaks WAN
-untuk PPPoE/DHCP/static di C600.
+---
+
+## 11a. CLI C600 yang dipakai kode
+
+Semua baris diverifikasi live di C600 (Juli 2026) kecuali yang ditandai.
+
+| Kebutuhan | Perintah C600 | Catatan |
+|---|---|---|
+| Detail ONU | `show gpon onu detail-info gpon_onu-1/{s}/{p}:{id}` | jalan; `Name`/`Description` disensor `********` oleh firmware (nama dibaca via SNMP) |
+| Running-config ONU (Configure, baca-saja) | `show running-config xpon \| begin interface gpon_onu-…` | `show running-config interface …` → `%Error 140303 Invalid input`; `show onu running config …` → `%Error 140301 Ambiguous` |
+| Running-config cepat | `configure terminal` → `interface {iface}` → `show this` → `exit` → `pon-onu-mng {iface}` → `show this` → `exit` → `exit` | **hanya** bila ONU sudah ada di cache — `interface gpon_onu-…` untuk ONU yang tak ada bisa membuat entri baru |
+| Detail port PON / uplink | `show interface gpon_olt-1/{s}/{p}` · `show interface xgei-1/{s}/{p}` | `port-status` tak ada di C600 |
+| Optik port | `show optical-module-info {iface}` | **tanpa** kata `interface` (beda C300/C320) |
+| VLAN uplink | `show vlan port {iface}` | format identik C300/C320; form tulis ADD & TAG VLAN disembunyikan di C600 |
+| CPU/memori kartu | `show processor` | baris `PFU-1/{slot}/0` / `MPU-1/{slot}/0` (SNMP `.1015` tak ada di C600) |
+| Rx per port (CLI) | `show pon power onu-rx gpon_olt-1/{s}/{p}` | parser punya cabang C600 (ejaan `gpon_onu-`); **belum tercatat diuji live** — Rx C600 utama via SNMP (§4.0) |
+| Scan mgmt-IP | `show running-config \| include mgmt-ip` | §11 |
+| Simpan | `write` | **hanya di `ZXAN#`**; dari mode config → `%Error 140303 Invalid input` → skrip selalu `end` dulu |
+
+Telnet ke C600 bisa diblok ACL manajemen perangkat (port 22/23 menerima TCP tapi tanpa banner) walau SNMP lancar — itu
+setelan OLT, bukan bug aplikasi.
 
 ---
 
@@ -383,7 +456,9 @@ snmpwalk -v2c -c <community> udp:<ip>:<port> 1.3.6.1.2.1.31.1.1.1.1 | grep gpon
 
 # tabel ONU satu port (ifIndex 285278977 = slot 3 port 1)
 snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.3.285278977   # SN
-snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.7.285278977   # state
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.7.285278977   # flag online lama
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.10.2.3.8.1.4.285278977   # phase (dipakai kode)
+snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.10.2.3.3.1.2.285278977   # nama ONU
 snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.20.2.2.2.1.10.285278977  # Rx ONU
 snmpbulkwalk -v2c -c <community> udp:<ip>:<port> -On 1.3.6.1.4.1.3902.1082.500.1.2.4.2.1.2.285278977     # Rx OLT
 

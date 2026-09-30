@@ -6,7 +6,8 @@ worker, scheduler, telnet proxy) berjalan sebagai container; **data tersimpan pe
 antar restart. Cocok dibagikan ke banyak lokasi.
 
 > Ingin memasang langsung ke server Ubuntu tanpa Docker? Pakai `install.sh` (lihat
-> [handbook 04](handbook/04-instalasi-deploy.md)). Dokumen ini khusus jalur Docker.
+> [INSTALL.md §4](INSTALL.md) & [handbook 04](handbook/04-instalasi-deploy.md)). Dokumen ini khusus jalur
+> Docker. Peta seluruh dokumen: [docs/README.md](README.md).
 
 ---
 
@@ -17,7 +18,8 @@ antar restart. Cocok dibagikan ke banyak lokasi.
   - Linux: **Docker Engine** + plugin **compose** (`docker compose version` harus jalan).
 - Koneksi jaringan dari PC ke OLT (SNMP UDP/161 & telnet TCP/23). Container memakai jaringan PC
   (NAT) untuk menjangkau OLT — tidak perlu setelan khusus.
-- RAM ± 2 GB bebas.
+- RAM minimal **4 GB** (± 2 GB bebas untuk container; build image pertama paling berat) — lihat
+  [INSTALL.md §2](INSTALL.md).
 
 Cek: `docker --version` dan `docker compose version` menampilkan versi.
 
@@ -50,6 +52,9 @@ docker compose logs -f app # log app (php-fpm, nginx, worker, scheduler, telnet-
 
 Pertama kali, `app` menunggu DB siap → migrasi → build cache → baru web hidup (lihat log).
 
+Bahasa bawaan aplikasi di Docker = **Indonesia** (`APP_LOCALE: id` dikunci di blok `environment:`
+`docker-compose.yml`); tiap pengguna bisa mengganti bahasa (ID/EN) dari aplikasi.
+
 ---
 
 ## 3. Yang terjadi otomatis saat pertama start
@@ -72,14 +77,14 @@ Pertama kali, `app` menunggu DB siap → migrasi → build cache → baru web hi
 **Cara A — otomatis saat instalasi pertama.** Sebelum start pertama, isi di `.env`:
 ```
 ADMIN_NAME=Administrator
-ADMIN_EMAIL=admin@bmkv.net
+ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=passwordkuat
 ```
 Admin dibuat otomatis (role `admin`) hanya jika belum ada user.
 
 **Cara B — manual, kapan saja:**
 ```bash
-docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin
+docker compose exec app php artisan user:create --name="Admin" --email=admin@example.com --password=passwordkuat --role=admin
 ```
 
 ---
@@ -127,10 +132,10 @@ docker compose up -d --build   # rebuild + jalankan; migrasi jalan otomatis
 ```
 Di Windows bisa pakai **`update.bat`**. Data tetap aman di volume.
 
-Catatan pembaruan (TRUSTED_PROXIES di belakang reverse proxy, ringkasan RX per jam, dua tema, APK baru):
-lihat [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Aplikasi dibuka lewat HTTPS dari reverse proxy
-di luar container? Isi `TRUSTED_PROXIES` (mis. `172.16.0.0/12`) dan `SESSION_SECURE_COOKIE=true` di
-`.env`, lalu `docker compose up -d`.
+Catatan pembaruan (TRUSTED_PROXIES di belakang reverse proxy, ringkasan RX per jam, dua tema, APK baru,
+penghapusan HsAirPo): lihat [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Aplikasi dibuka lewat
+HTTPS dari reverse proxy di luar container? Isi `TRUSTED_PROXIES` (mis. `172.16.0.0/12`) dan
+`SESSION_SECURE_COOKIE=true` di `.env`, lalu `docker compose up -d`.
 
 ---
 

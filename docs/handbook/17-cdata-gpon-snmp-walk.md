@@ -9,6 +9,11 @@ Referensi OID hasil **full SNMP walk** dua OLT C-Data GPON dan cara driver memak
 
 Terkait: [08-snmp-polling.md](08-snmp-polling.md), [16-peta-onu.md](16-peta-onu.md), driver [`CDataGponSnmpService`](../../app/Services/CData/CDataGponSnmpService.php).
 
+> **Status (Sep 2026).** Isi masih sesuai kode. FD1602S (2 PON) belum pernah diuji langsung oleh pengembang — dukungannya
+> berdasar firmware yang sama dengan FD1601S dan laporan pengguna repo ini (dulu terbaca 0 ONU, kini lewat NSCRTV).
+> Halaman **VLAN & detail port** (CLI, firmware V3 GPON & EPON) tidak bergantung pada tabel SNMP di sini — gerbangnya
+> `SmartOltSupport::hasCDataV3Cli()` (versi software faceplate `V3.`), lihat [`SMARTOLT_CDATA_GUIDE.md` §14](../SMARTOLT_CDATA_GUIDE.md).
+
 > **Koreksi 28 Sep 2026.** Driver lama memilih jalur dari probe `34592…18.12.1.1` dan membaca status dari tabel optik `34592…21`. Keduanya ternyata salah untuk sebagian perangkat: FD1601S tak punya tabel `.18.12` → terbaca **0 ONU**; di FD1608S tabel `.21` melaporkan **3 ONU online sebagai offline**. Kini jalur utama = tabel **NSCRTV-FTTX-GPON-MIB `17409.2.8.4`**, dicocokkan 1:1 dengan CLI `show ont info all` di FD1608S (4 offline = 4 offline). Selain itu satu ONU yang namanya dikirim sebagai Hex-STRING (padding NUL) dulu gagal diparse dan tak pernah tampil — kini di-decode.
 
 ## Identitas perangkat
@@ -59,7 +64,7 @@ Kolom lain yang terlihat tapi **belum dipakai**: `.8` admin, `.9` jarak (m), `.1
 | --- | --- | --- |
 | MAC ONU | `17409.2.3.4.7.1.3.<onuIndex>.1` | ada di FD1608S, **kosong** di FD1601S |
 | Status/Rx cadangan | `34592.1.5.1.1.2.21.1.1.<col>` | hanya bila kolom NSCRTV kosong. **Tidak andal**: FD1608S 3 ONU online = `-1`; FD1601S semua `-1`/`--` dan col3 berisi nomor ONU, bukan onuIndex |
-| Penanda `is_v3` | `34592.1.5.1.1.2.18.12.1.1` | ada di FD1608S saja; hanya membuka fitur CLI yang terverifikasi (Rx CLI, Remote ONT) |
+| Penanda `is_v3` | `34592.1.5.1.1.2.18.12.1.1` | ada di FD1608S saja; hanya membuka fitur CLI yang terverifikasi (Rx CLI sebagai sumber utama, Remote ONT FlashV3 `ont security-mgmt`). FD1601S tak punya tabel ini → Rx dari SNMP NSCRTV, Remote ONT tertutup |
 | Legacy FD-ONU-MIB | `34592.1.3.4.1.1.*` | tidak ada di kedua model; dipertahankan untuk firmware lama |
 
 Tabel yang **absen** (`noSuchObject`, errno `SNMP::ERRNO_ERROR_IN_REPLY`) dianggap kosong lewat `CDataSnmpMissingOid`; **timeout** tetap dilempar supaya scan gagal dan cache lama bertahan, bukan tiba-tiba 0 ONU.
@@ -78,6 +83,9 @@ Bila kredensial telnet ada, `getRegisteredOnus()` meng-enrich hasil SNMP dengan 
 - Model dari `17409.2.3.1.2.1.1.3.1`, cadangan `.2.1` (di EPON berisi Hex-STRING nama → dibuang).
 - GPON ≤ 2 PON (FD1601S/FD1602S, datasheet + foto): PON · **GE RJ45 sebaris** · 10GE · **CONSOLE saja**. FD1608S tetap COMBO GE SFP + RJ45 bertumpuk + CONSOLE/MGMT.
 - Gambar produk: `public/img/olt/cdata-gpon-fd1601s.webp`, `cdata-gpon-fd1602s.webp` (dipilih `resources/js/lib/oltImage.js` dari model).
+- Versi software faceplate (`panel.device.sw_version`, mis. `V3.3.86_260113`, `V3.2.5_251111`) menjadi gerbang halaman VLAN & detail port.
+- **Label port PON disimpan di NMS** (tabel `olt_port_labels`, `supports_port_label`), bukan ke perangkat: probe `ifAlias` hanya
+  mengembalikan cerminan nama port bawaan agent, dan tak ada perintah deskripsi port yang terverifikasi.
 
 ## Re-walk cepat
 

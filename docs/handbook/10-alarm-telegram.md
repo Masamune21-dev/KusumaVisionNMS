@@ -15,10 +15,19 @@ sebelumnya dan sesudahnya. Prinsip inti:
 | Type | Scope | Severity | Kondisi raise | Kondisi clear |
 |------|-------|----------|---------------|---------------|
 | `olt_unreachable` | olt | critical | snapshot `ok=false` & sebelumnya `ok` | OLT `ok` lagi |
-| `port_down` | port | critical (di `portAlarm`) | port up → down | port up lagi |
+| `port_down` | port | critical (di `portAlarm`) | port up → down, **dan port punya ONU terdaftar** | port up lagi |
+| `port_disabled` | port | major | **bukan dari poll** — dinaikkan langsung oleh aksi "Matikan Port" di NMS | port dinyalakan dari NMS, atau terbaca UP lewat tenggang 10 menit |
 | `odp_down` | odp | major (di `odpAlarm`) | SEMUA ONU satu ODP (≥2 ONU) offline, sebelumnya masih ada yang online | ada ONU ODP itu online lagi |
-| ONU state (LOS / dying-gasp / offline) | onu | (di `onuStateAlarms`) | online → fault | online lagi |
-| ONU RX out-of-range | onu | warning/major | RX < −28 dBm atau > −8 dBm | kembali ke dalam −26..−10 dBm (histeresis) |
+| `los` / `dying_gasp` / `onu_offline` | onu | major / minor / minor (di `onuStateAlarms`) | online → fault (`phase_state`/`last_down_cause`) | online lagi |
+| `high_rx_attenuation` | onu | warning | RX ≤ −28 dBm atau ≥ −8 dBm, dari bacaan sebelumnya yang sehat | kembali ke dalam −26..−10 dBm (histeresis) |
+
+Daftar jenis kanonis + label: `AlarmEvent::TYPE_LABELS` (label frontend dwibahasa lewat
+`resources/js/lib/alarm.js` → `alarms.type_*`; jenis baru wajib ditambahkan ke `KNOWN_TYPES` di sana).
+
+**Port kosong bukan gangguan** (28 Sep 2026): port yang terbaca utuh (`port_onus.{slot}_{port}.ok ===
+true`) tanpa satu pun ONU terdaftar dianggap tak dipakai — down-nya tidak dialarmkan, dan episode
+`port_down` yang terlanjur terbuka ditutup **diam** (`meta.recovery.silent = true`, tanpa pesan "kembali
+up" yang keliru). Port yang bacaannya gagal/tak lengkap tidak dianggap kosong.
 
 ### Korelasi root-cause (anti banjir notifikasi)
 Hierarki induk→anak, saklarnya `alarm_settings.suppress_child_alarms` (Settings → Alarm, default ON):
@@ -41,6 +50,32 @@ ODP yang gangguannya terlanjur tercatat per-ONU (episode lama) diangkat sekali j
 Sisanya (ODP baru **sebagian** ONU-nya down) dirangkum di layer notifikasi jadi satu pesan berisi
 daftar pelanggan — `OdpAlarmGrouper::group()`, saklar `alarm_settings.group_odp_alarms`.
 
+### Port yang dimatikan dari NMS (`port_disabled`)
+Aksi "Matikan Port" di Detail Port ZTE ([07 §5a](07-modul-fitur.md#5a-matikan--nyalakan-port-pon-zte-c300c320-sep-2026))
+memanggil langsung metode publik `AlarmEvaluator`, bukan menunggu poll:
+
+- **`raisePortDisabled()`** — membuat alarm `port_disabled` (major, scope `port`, signature
+  `port:{slot}/{port}:port_disabled` = `portDisabledSignature()`) langsung **ACTIVE** (tanpa debounce
+  2 poll — aksinya disengaja) dan mengirim **satu** notifikasi lewat `dispatchNotifications()`.
+  `meta` memuat `affected_onus`, `actor`, `disabled_at`. Mematikan port yang sudah bertanda tidak
+  mengirim ulang.
+- **Selama terbuka, alarm ini jadi penanda bagi poll** (`disabledPorts()`): `port_down` untuk port itu
+  tak dievaluasi, port dihitung sebagai induk yang down sehingga **alarm ONU dan `odp_down` di port itu
+  ditahan — apa pun saklar `suppress_child_alarms`**, dan `port_down` lama di port itu ditutup diam
+  ("dimatikan admin — alarm ditutup"). Penanda tetap dipegang saat OLT tak terjangkau.
+- **`clearPortDisabled()`** — dipanggil saat "Nyalakan Port" sukses: menutup penanda dan mengirim
+  **satu** notifikasi pulih ("… dinyalakan lagi dari NMS oleh {user}").
+  ONU yang tetap mati sesudahnya beralarm mandiri di poll berikutnya.
+- **Tenggang 10 menit** (`PORT_DISABLED_GRACE_MINUTES`): port bertanda yang terbaca oper **UP** lewat
+  10 menit sejak `disabled_at` dianggap dinyalakan di luar NMS (CLI langsung, atau OLT reboot karena
+  shutdown tak di-`write`) → penanda dilepas poll dengan satu notifikasi pulih "… terbaca menyala lagi
+  (dinyalakan di luar NMS)". Tenggang menutup jeda SNMP sesaat setelah `shutdown`.
+- UI membaca penanda ini: prop `port_disabled` di `SmartOltController::portDetail` = ada alarm
+  `port_disabled` ACTIVE/PENDING untuk port itu.
+- Notifikasi raise/pulih tetap lewat filter kanal seperti alarm lain (lihat §B); migrasi data
+  `2026_09_30_000001_add_port_disabled_to_alarm_notify_types` menambahkan `port_disabled` ke
+  `alarm_settings.notify_types` yang berupa daftar eksplisit (null = semua jenis, tak disentuh).
+
 Ambang RX (konstanta di kelas):
 ```
 RX_LOW_DBM       = -28.0   RX_HIGH_DBM       = -8.0    (raise)
@@ -50,12 +85,20 @@ ONU dengan `admin_state = disabled` dilewati (tidak dialarmkan).
 
 ### Reconcile (`reconcile()`)
 Membandingkan alarm aktif di DB (`activeAlarms`) dengan yang terdeteksi sekarang (`$detected`):
-- **baru** → buat `AlarmEvent` (status `active`, `first_seen_at`/`last_seen_at`).
+- **baru** → buat `AlarmEvent` — status `pending` bila debounce 2 poll aktif
+  (`confirm_before_notify`, bawaan), dipromosikan ke `active` + dikirim bila fault masih ada di poll
+  berikutnya; `active` langsung bila mode realtime. Pending yang pulih sebelum konfirmasi dihapus diam.
 - **masih ada** → update `last_seen_at`.
 - **hilang** → tandai `cleared` (`cleared_at`) + `buildRecovery()` mengisi konteks pemulihan.
 - Tiap alarm punya `signature` unik untuk dedup; lokasi (`slot/port/onu_id/serial_number`) dan
   `meta` (json) disimpan untuk konteks.
-- Setelah reconcile, raise/clear diteruskan ke `TelegramNotifier::notify()` (bila ada).
+- **hilang** dengan `meta.recovery.silent = true` (port kosong, port yang kini dimatikan admin) →
+  ditutup tanpa notifikasi pemulihan.
+- Setelah reconcile, raise/clear diteruskan `dispatchNotifications()` ke `TelegramNotifier::notify()`
+  dan — bila FCM aktif — job antre `SendFcmAlarmNotifications`. Jalur yang sama dipakai
+  `raisePortDisabled()`/`clearPortDisabled()`.
+- Pesan alarm (`message`, `meta.recovery.message`) **sengaja tetap bahasa Indonesia** — disimpan sebagai
+  data oleh worker tanpa locale pengguna; UI menerjemahkan label jenis/status, bukan isi pesan.
 
 ### Penyajian
 - Halaman **Alarms** (`AlarmController` → `SmartOlt/Alarms.vue`) baca `alarm_events`.
@@ -66,9 +109,32 @@ Membandingkan alarm aktif di DB (`activeAlarms`) dengan yang terdeteksi sekarang
   resolusi ini (pernah jadi bug: seluruh baris C-Data/HiOSO tampil tanpa nama). Fallback lewat
   **posisi** slot/port/onu_id sengaja tidak dipakai — untuk ONU tanpa serial, posisi yang sudah
   dihuni pelanggan lain akan menampilkan nama yang salah pada alarm lama.
-- Bell notifikasi: `HandleInertiaRequests::notificationsPayload()` ambil 8 alarm aktif terbaru
-  → dishare ke semua page. `NotificationsController@markAllRead` set
-  `users.last_notifications_read_at` (penanda sudah dibaca).
+- **Bel notifikasi** — `HandleInertiaRequests` → `App\Services\Alarm\AlarmNotificationService::payloadFor()`:
+  - Maks 8 item (`BELL_LIMIT`). **Belum dibaca didahulukan**; sisa slot diisi alarm ACTIVE yang
+    sudah dibaca tapi berjenis **`PERSISTENT_UNTIL_RECOVERY`** — `high_rx_attenuation`, `port_down`,
+    `port_disabled`, `odp_down`, `los`, `olt_unreachable`. Jenis ini tetap tampil sampai
+    `AlarmEvaluator` menutupnya; `onu_offline` dan `dying_gasp` hilang dari bel begitu dibaca
+    (`dismiss_on_read`). Aturan visibilitas yang sama dipakai filter **Aktif** halaman Alarms
+    (`applyActiveVisibility`).
+  - Status baca per pengguna per alarm di tabel `alarm_notification_reads`, ditambah penanda global
+    `users.last_notifications_read_at`. `markAllRead` menulis satu baris per alarm aktif (upsert) —
+    timestamp saja tak cukup karena poll menyegarkan `last_seen_at` tiap siklus, sehingga badge dulu
+    muncul lagi beberapa menit kemudian. `unread_count` = semua alarm ACTIVE belum dibaca (bukan
+    hanya 8 yang tampil).
+  - Payload membawa ID terstruktur (`resource_type` = scope, `smartolt_id`, `board_id`, `port_id`,
+    `resource_id`, `serial_number`) tapi **sengaja tanpa URL tujuan** (menghitungnya berarti
+    men-decode snapshot OLT di setiap request).
+  - **Deep-link**: klik → `POST notifications.alarms.open` → tandai dibaca →
+    `AlarmNotificationTargetResolver::resolve()` (hanya membaca cache `last_test_result`, tanpa
+    SNMP/Telnet). ONU dicari lewat serial dulu: pindah port → buka posisi sekarang (`onu_moved`);
+    posisi lama kini serial lain → ditolak (`position_reused`); hilang → `onu_not_found`. ONU → detail
+    ONU bila `supports_cli_onu_detail`, selain itu `{prefix}.port-onus?focus={onuId}`; port & ODP
+    ber-slot/port → halaman ONU port itu; OLT (dan ODP tanpa port) → Detail OLT. Gagal → bel
+    menampilkan alasan (`flash.notif_*`) + tautan cadangan ke `alarms.index` terfilter. Lokasi
+    **tidak pernah** di-parse dari `message`.
+  - API/mobile memakai resolver yang sama lewat `resolveLocation()` (blok `target` di
+    `GET /api/v1/alarms`); field `slot/port/onu_id` tingkat-atas di API/FCM adalah posisi historis,
+    jangan dipakai untuk navigasi.
 
 ## B. Notifikasi Telegram
 
@@ -79,12 +145,27 @@ Semua aturan alarm ada di **Pengaturan → tab Alarm** (`SettingsController::upd
 berlaku untuk **semua kanal**: `confirm_before_notify` (debounce 2 poll vs realtime), `min_severity`,
 `notify_on_raise`, `notify_on_clear`, `notify_types` (json, null = semua jenis), `suppress_child_alarms`,
 `group_odp_alarms`. Daftar jenis kanonis + labelnya di `AlarmEvent::TYPE_LABELS` (`AlarmEvent::types()`
-= `olt_unreachable`, `port_down`, `odp_down`, `los`, `dying_gasp`, `onu_offline`, `high_rx_attenuation`).
+= `olt_unreachable`, `port_down`, `port_disabled`, `odp_down`, `los`, `dying_gasp`, `onu_offline`,
+`high_rx_attenuation`). `notify_types` null = semua jenis; daftar kosong `[]` = **tak ada** jenis yang
+dikirim (UI: "Tidak ada yang dicentang — semua notifikasi alarm dimatikan"). Form hanya menimpa
+`notify_types` bila field-nya dikirim. Bawaan instance baru: debounce ON, `min_severity` warning, raise
+ON, **clear OFF**, korelasi ON, grup ODP ON.
 
 `TelegramSetting` (bot global) & `FcmSetting` **mendelegasikan** `minSeverityRank()`/`notifyTypes()`/
 `shouldNotifyType()`/`notifyOnRaise()`/`notifyOnClear()` ke `AlarmSetting` — kolom senama di kedua
 tabel kanal masih ada tapi tak dipakai lagi (dipertahankan demi rollback). **Bot partner**
-(`PartnerTelegramBot`) tetap memakai filter per-bot miliknya sendiri (diatur partner di halamannya).
+(`PartnerTelegramBot`) tetap memakai filter per-bot miliknya sendiri (diatur partner di halamannya) —
+migrasi `port_disabled` di atas **hanya** menyentuh `alarm_settings`, jadi bot partner yang
+`notify_types`-nya daftar eksplisit tidak otomatis menerima jenis baru ini.
+
+Menambah **jenis alarm baru**: konstanta + label di `AlarmEvent`, `KNOWN_TYPES` di `lib/alarm.js` +
+kunci `alarms.type_*` (id/en), putuskan apakah masuk `PERSISTENT_UNTIL_RECOVERY`, dan migrasi data yang
+menambahkannya ke `alarm_settings.notify_types` eksplisit (pola `2026_09_30_000001`).
+
+**Saklar alarm per-OLT = per-penerima, bukan mute evaluasi.** `AlarmEvaluator::evaluate()` selalu
+jalan (event tetap tercatat); tombol On/Off per OLT (`smartolt.alarms.toggle`) hanya menentukan siapa
+yang dikirimi: `snmp_olts.alarms_enabled` untuk admin/operator (bot global + FCM staf),
+`olt_user.alarms_enabled` per partner per OLT (bot & FCM partner).
 
 ### Konfigurasi koneksi — `telegram_settings` (singleton)
 Diatur di **Pengaturan → Bot Telegram** (admin), kini murni koneksi: `enabled`, `bot_token` (enc),
@@ -186,11 +267,13 @@ hasil). Token kedaluwarsa → minta kirim ulang. Tombol "🔎 Cari ONU" di menu 
 (`srh`) karena pencarian butuh argumen teks yang tak bisa lewat tombol.
 
 **Command yang didukung** (`TelegramCommandHandler`): `/menu` (`/start`), `/help`, `/ping`,
-`/status`, `/olt [nama|id]`, `/los [olt]`, `/redaman` (`/rx`) `[olt]`, `/search` (`/cari`)
-`<nama|serial>`, `/alarm`, `/onu` (`/cek`) `<serial|nama>`, `/prov`, `/uncfg` (`/unconfigured`)
-`[nama|id]`, `/refresh` (`/segarkan`) `[nama|id]`, `/id`. Hanya chat di allow-list
-(`isChatAuthorized`) boleh menjalankan command/tombol data — termasuk `callback_query` (dicek ulang
-di `handleCallback`); selain itu `accessDenied`. **Aksi di luar cache**: `/refresh` men-scan ulang
+`/id` (`/chatid`), `/status`, `/olt` (`/olts`) `[nama|id]`, `/los [olt]`, `/redaman` (`/rx`) `[olt]`,
+`/search` (`/cari`) `<nama|serial>`, `/alarm` (`/alarms`), `/onu` (`/cek`) `<serial|nama>`, `/prov`
+(`/provisioning`), `/uncfg` (`/unconfigured`) `[nama|id]`, `/refresh` (`/segarkan`) `[nama|id]`.
+`/menu`, `/help`, `/ping`, dan `/id` terbuka untuk chat mana pun (`/id` menampilkan chat-id untuk
+diisi ke allow-list); selebihnya hanya chat di allow-list (`isChatAuthorized`) yang boleh menjalankan
+command/tombol data — termasuk `callback_query` (dicek ulang di `handleCallback`); selain itu
+`accessDenied`. **Aksi di luar cache**: `/refresh` men-scan ulang
 OLT C-Data via `CDataOltScanner` (sinkron — EPON SNMP cepat, GPON V3 CLI ~10 dtk/OLT) lalu menulis cache
 `port_onus`, supaya menu/port tampil terbaru (OLT ZTE diabaikan — sudah dipoll background); `/uncfg
 [nama|id]` menampilkan ONU ZTE yang belum dikonfigurasi **live dari CLI** (`show gpon onu uncfg` via

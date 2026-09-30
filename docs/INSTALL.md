@@ -5,7 +5,8 @@ Anda, **(2)** pastikan spek minimum terpenuhi, **(3)** ikuti langkah jalur pilih
 menaut ke panduan detailnya.
 
 > Ingin memasang **aplikasi Android (APK)**? Itu terpisah dari server — lihat
-> **[docs/BUILD_APK.md](BUILD_APK.md)**.
+> **[docs/BUILD_APK.md](BUILD_APK.md)**. Cara **memakai** aplikasi (menu demi menu): panduan pengguna PDF
+> di [`docs/panduan/`](panduan/) — peta semua dokumen ada di **[docs/README.md](README.md)**.
 
 ---
 
@@ -79,7 +80,7 @@ container. Data tersimpan permanen di volume. **Paling mudah & portabel.**
      cp .env.docker.example .env      # sekali; edit DB_PASSWORD & ADMIN_* (lihat DOCKER.md §4)
      docker compose up -d --build     # pertama kali agak lama
      ```
-4. Buka **<http://localhost:8080>**. Login pakai admin yang diisi di `.env` (atau buat manual, lihat §5).
+4. Buka **<http://localhost:8080>**. Login pakai admin yang diisi di `.env` (atau buat manual, lihat §6).
 
 📖 **Panduan lengkap** (backup, update, distribusi image prebuilt tanpa source, troubleshooting
 Windows CRLF/WSL): **[docs/DOCKER.md](DOCKER.md)**.
@@ -99,17 +100,20 @@ sudo chown "$USER:$USER" KusumaVisionNMS
 git clone https://github.com/Masamune21-dev/KusumaVisionNMS.git KusumaVisionNMS
 cd KusumaVisionNMS
 
-sudo bash install.sh                 # interaktif — ditanya APP_URL, DB, akun admin
+sudo bash install.sh                 # interaktif — ditanya bahasa, APP_URL, DB, akun admin
+sudo bash install.sh --lang en       # lewati pertanyaan bahasa: installer & aplikasi berbahasa Inggris
 ```
 
 Atau **non-interaktif** (isi via environment variable):
 
 ```bash
 sudo APP_URL=http://nms.example.com \
-     ADMIN_EMAIL=admin@bmkv.net ADMIN_PASSWORD='GANTI_DENGAN_PASSWORD_KUAT' \
+     ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='GANTI_DENGAN_PASSWORD_KUAT' \
      ENABLE_UFW=1 bash install.sh --yes
 ```
 
+- `--lang id|en` (default `id`) = bahasa pesan installer sekaligus bahasa bawaan aplikasi untuk tamu &
+  pengguna baru; tiap pengguna tetap bisa mengganti bahasa dari aplikasi.
 - Skrip **aman dijalankan ulang** (idempotent). Opsi lain: `sudo bash install.sh --help`.
 - Verifikasi kapan saja: `bash scripts/check-requirements.sh`.
 - Di akhir, skrip mencetak **password database** yang digenerate — **simpan**.
@@ -152,12 +156,12 @@ composer dev            # serve + queue + logs + vite
 ## 6. Setelah instalasi (semua jalur)
 
 - **Buat/masuk admin.** Jika belum punya akun (Jalur A/B tanpa `ADMIN_*`), buat:
-  - Docker: `docker compose exec app php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin`
-  - Ubuntu/manual: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=passwordkuat --role=admin`
+  - Docker: `docker compose exec app php artisan user:create --name="Admin" --email=admin@example.com --password=passwordkuat --role=admin`
+  - Ubuntu/manual: `php artisan user:create --name="Admin" --email=admin@example.com --password=passwordkuat --role=admin`
   - Tanpa `--role=admin` akun dibuat sebagai **operator** (tak bisa membuka Pengaturan & Users). Password
     minimal 8 karakter. Akun yang terlanjur operator dinaikkan dari menu **Users** oleh admin lain, atau
     bila belum ada admin sama sekali:
-    `sudo -u postgres psql -d kusumavision_nms -c "UPDATE users SET role='admin' WHERE email='admin@bmkv.net';"`
+    `sudo -u postgres psql -d kusumavision_nms -c "UPDATE users SET role='admin' WHERE email='admin@example.com';"`
     (Docker: `docker compose exec db psql -U kusumavision -d kusumavision_nms -c "…"`).
 - **Cek sehat.** `bash scripts/check-requirements.sh` (Jalur B/C) atau `docker compose ps` (Jalur A).
 - **Tambah OLT pertama.** Login → menu **SmartOLT** → tambah OLT → **Test SNMP**.
@@ -168,8 +172,9 @@ composer dev            # serve + queue + logs + vite
 
 ## 7. Aplikasi Android (APK)
 
-Aplikasi Android **mengonsumsi REST API v1** server ini, jadi server harus jalan lebih dulu dan
-API v1 diaktifkan (Pengaturan → API & Token). Dua pilihan:
+Aplikasi Android **mengonsumsi REST API v1** server ini, jadi server harus jalan lebih dulu. API v1
+**aktif bawaan** (`$apiEnabled = true` di `routes/api.php`); tab **Pengaturan → API & Token** hanya
+menampilkan peringatan bila saklar itu dimatikan. Dua pilihan:
 
 - **Cuma mau pakai** → unduh **APK jadi** dan sideload ke HP. Lihat **[BUILD_APK.md → Install di HP](BUILD_APK.md)**.
 - **Mau build sendiri** (setelah ubah kode mobile) → ikuti **[BUILD_APK.md](BUILD_APK.md)** (install
@@ -185,6 +190,7 @@ API v1 diaktifkan (Pengaturan → API & Token). Dua pilihan:
 | Site 500 setelah ubah `.env`/config | [handbook 04 — Gotcha config cache](handbook/04-instalasi-deploy.md) |
 | Polling tak jalan / data tak ter-refresh | Pastikan daemon `queue`/`scheduler` aktif ([handbook 13](handbook/13-troubleshooting-maintenance.md)) |
 | Build APK gagal (RAM/Gradle/lisensi) | [BUILD_APK.md §Troubleshooting](BUILD_APK.md) |
+| Login gagal **419** di belakang Cloudflare "Flexible" / load balancer | Isi `TRUSTED_PROXIES` ([§9](#9-update-ke-versi-baru)) |
 | Cek requirement kurang apa | `bash scripts/check-requirements.sh` |
 
 ---
@@ -224,11 +230,18 @@ Lalu muat ulang browser dengan Ctrl+Shift+R (nama berkas aset berubah).
 - **Aplikasi Android 1.8.5** — bangun APK baru ([BUILD_APK.md](BUILD_APK.md)); APK lama tetap bisa login.
 - Opsional untuk HTTPS: `SESSION_SECURE_COOKIE=true`. Token aplikasi kini kedaluwarsa setelah
   `SANCTUM_EXPIRATION` menit (contoh 43200 = 30 hari).
+- **Dukungan HsAirPo / HSGQ EPON dihapus** (29 Sep) — **hapus OLT HsAirPo dari NMS sebelum update**,
+  karena setelah update driver, halaman, dan rutenya sudah tidak ada. OLT yang vendornya hanya berisi
+  "V-Sol" juga tak lagi dikenali sebagai HiOSO (driver HiOSO hanya teruji di HA7304 & HA7302).
+- **Alarm baru `port_disabled`** (tombol Matikan/Nyalakan Port PON ZTE C300/C320) — migrasi 30 Sep ikut
+  mencentangnya di daftar jenis alarm yang dinotifikasikan; pastikan `php artisan migrate --force` jalan.
 
 ---
 
 ## Referensi
 
+- **[docs/README.md](README.md)** — peta seluruh dokumentasi per pembaca.
+- **[Panduan pengguna PDF](panduan/)** — `Panduan-NMS-public-id.pdf` / `NMS-Guide-public-en.pdf`.
 - **[README.md](../README.md)** — ikhtisar fitur & stack.
 - **[docs/DOCKER.md](DOCKER.md)** — Docker appliance lengkap.
 - **[handbook 04](handbook/04-instalasi-deploy.md)** — instalasi & deploy teknis.

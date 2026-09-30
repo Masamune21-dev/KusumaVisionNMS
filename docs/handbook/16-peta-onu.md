@@ -20,9 +20,15 @@ dari detail pin. Route: `map.index` (`/map`), nav **Peta ONU**.
 > sewaktu-waktu diblokir Google, pakai layer OpenStreetMap dari switcher (sudah tersedia). Untuk
 > pemakaian resmi/skala besar, ganti ke Google Maps JS API + API key.
 
-- Marker ONU = `L.divIcon` teardrop berwarna **status saja**: hijau = online, merah =
-  offline/LOS/dying-gasp (offline diberi animasi pulsa). Info RX tetap tampil di kartu detail pin,
-  tapi **tidak lagi** menentukan warna pin. Legenda (hijau/merah/ODP kuning) di pojok kanan-bawah.
+- Marker ONU = `L.divIcon` teardrop berwarna **status saja**: hijau `#10b981` (`ONLINE_COLOR`) =
+  online, merah `#ef4444` (`OFFLINE_COLOR`) = offline/LOS/dying-gasp (offline diberi kelas
+  `kv-pin--offline` beranimasi pulsa). Info RX tetap tampil di kartu detail pin, tapi **tidak**
+  menentukan warna pin. Legenda di pojok kanan-bawah: online, offline, dan ODP dengan warna bawaan
+  amber (`DEFAULT_ODP_COLOR`) — ODP yang sudah diwarnai memakai warnanya sendiri. Legenda & kontrol
+  layer dibuat ulang saat ganti bahasa (label Leaflet bukan reaktif Vue).
+- Klik pin/ODP → kartu detail dipusatkan: `Pages/Map/Index.vue` mengukur tinggi kartu lalu
+  `OnuMap.flyTo(lat, lng, zoom, offsetY)` supaya kartu + pin berada di tengah; kartu dibatasi setinggi
+  peta (isi di-scroll di dalam kartu, dipantau `ResizeObserver`) dan digeser `panBy` bila membesar.
 - Hint "belum ada pin" hanya muncul bila pin ONU **dan** pin ODP sama-sama kosong.
 
 ## Kunci / buka posisi pin (ONU & ODP)
@@ -83,9 +89,12 @@ reload halaman. Marker yang sedang diseret (`draggingPinId`/`draggingOdpId`) tak
 
 **Ribuan pin (Sep 2026, 1 → 60 fps pada 5.000 pin + 800 ODP dengan CPU 4× lebih lambat):**
 
-- Pin DOM (teardrop, bisa diseret) hanya dibuat untuk pin **di layar** (+ margin `VIEW_PAD`) dan hanya
-  bila jumlahnya ≤ `DOM_LIMIT` (350). Di atas itu (zoom jauh) semua pin digambar sebagai titik
-  `L.circleMarker` di **satu kanvas** (`dotRenderer`, pane `kvDots`) — tetap bisa diklik.
+- Pin DOM (teardrop, bisa diseret) hanya dibuat untuk pin **di layar** (+ margin `VIEW_PAD` 0,25) dan
+  hanya bila jumlah **pin ONU + pin ODP** di area itu ≤ `DOM_LIMIT` (350) — dihitung ulang tiap
+  `moveend` (`refreshView()`). Di atas itu (zoom jauh) semua pin ONU **dan** ODP digambar sebagai titik
+  `L.circleMarker` di **satu kanvas** (`dotRenderer`, pane `kvDots`; ONU hijau/merah, ODP warnanya,
+  ODP di atas ONU) — tetap bisa diklik. Pin/ODP yang **terpilih** atau sedang diseret selalu tetap
+  marker DOM (`wantsDom()`), jadi pin yang dibuka kuncinya tetap bisa digeser di zoom jauh.
 - Garis ODP→ONU yang diam digabung jadi **dua polyline multi-ruas** (online/offline) di kanvas
   (`lineRenderer`). Animasi aliran (`.kv-flow`, SVG) hanya untuk **ODP terpilih** atau ODP induk pin
   ONU yang terpilih (`flowOdpId()`).
@@ -106,8 +115,8 @@ Tiga jalur (semua bermuara ke `POST map.pins.store`, `updateOrCreate` per kunci 
 1. **Klik di peta** → modal `AddPinModal.vue`: pilih OLT → Port → ONU (dropdown bertingkat) **atau**
    ketik di **search global** (interface/serial/nama/OLT) lalu klik hasil. Koordinat terisi dari titik
    klik (bisa diedit) + field pelanggan opsional.
-2. **Tombol "Add Map" di Port ONUs** (`SmartOlt/PortOnus.vue` & `CDataOlt/PortOnus.vue`, per-ONU,
-   desktop+mobile) → modal 2 opsi:
+2. **Tombol "Add Map" di Port ONUs** (`SmartOlt/PortOnus.vue`, `CDataOlt/PortOnus.vue`,
+   `Hioso/PortOnus.vue`, per-ONU, desktop+mobile) → modal 2 opsi:
    - **Paste link Google Maps** → `POST map.resolve-link` mengekstrak koordinat (regex `@lat,lng` /
      `?q=` / `!3d!4d`; link pendek `maps.app.goo.gl`/`goo.gl` di-follow redirect server-side) → pin
      langsung terpasang.
@@ -119,11 +128,13 @@ Tiga jalur (semua bermuara ke `POST map.pins.store`, `updateOrCreate` per kunci 
 Klik pin → panel detail (nama pelanggan, OLT, slot/port/onu, badge RX, status online, alamat/HP/catatan).
 Tombol (digerbang `capabilities` OLT):
 
-- **Edit Nama** → `POST map.pins.rename` → `OnuMapController::renamePin()` delegasi ke
-  `ZteRemoteOnuService::setInfo()` (ZTE, SNMP SET) atau `CDataCliWriteService::setDescription()` (C-Data,
-  CLI), update cache nama, **redirect balik ke `/map`**.
-- **Reboot** → `POST map.pins.reboot` → `OnuMapController::rebootPin()` delegasi ke service yang sama
-  per jenis OLT, balik ke `/map`.
+- **Edit Nama** (gate `supports_onu_info_write`, maks 128) → `POST map.pins.rename` →
+  `OnuMapController::renamePin()` delegasi ke `ZteRemoteOnuService::setInfo()` (ZTE, SNMP SET),
+  `CDataCliWriteService::setDescription()` (C-Data, CLI), atau HiOSO — `HiosoCliWriteService::setName()`
+  (HA7304, CLI) / `HiosoEponSnmpService::setOnuName()` (HA7302, SNMP SET, `description_mode = 'snmp'`);
+  lalu update cache nama, **redirect balik ke `/map`**.
+- **Reboot** (gate `supports_reboot`) → `POST map.pins.reboot` → `OnuMapController::rebootPin()`
+  delegasi ke service per family (ZTE / C-Data / HiOSO), balik ke `/map`.
 - **Detail ONU** (hanya ZTE + `supports_cli_onu_detail`), **Port** (buka Port ONUs), **Google Maps**
   (link eksternal), **Hapus Pin** (`DELETE map.pins.destroy`).
 
@@ -139,8 +150,11 @@ kunci komposit yang sama dengan pin.
 **Data:**
 
 - Tabel `odps` (migrasi `2026_07_22_000001`): `snmp_olt_id` (per-OLT, ikut `PartnerOltScope` — partner
-  hanya lihat ODP di OLT miliknya), `name`, `latitude/longitude`, `color` (migrasi `2026_08_12_000001`,
-  lihat "Warna pin ODP"), `notes`, `created_by`.
+  hanya lihat ODP di OLT miliknya), `name`, `latitude/longitude`, `slot`/`port` (nullable, migrasi
+  `2026_07_23_000001` — ODP = satu PON port), `locked` (`2026_07_28_000001`), `color` (migrasi
+  `2026_08_12_000001`, lihat "Warna pin ODP"), `photo_path` (`2026_08_12_000002`), `notes`, `created_by`.
+- Alarm: ODP ber-≥2 ONU yang semua ONU-nya offline memicu satu alarm `odp_down` (bukan puluhan alarm
+  ONU) — lihat [10 §A](10-alarm-telegram.md#korelasi-root-cause-anti-banjir-notifikasi).
 - Tabel `onu_odp_links` (migrasi `2026_07_22_000002`): `odp_id` + kunci ONU komposit
   `(snmp_olt_id, slot, port, onu_id)` — **unik 1 ODP per ONU** (assign ulang = pindah ODP),
   `serial_number` jangkar opsional.
@@ -151,7 +165,7 @@ kunci komposit yang sama dengan pin.
 
 **Di peta (`OnuMap.vue` + `OnuMapController::index` prop `odps`):**
 
-- Pin ODP = teardrop **berwarna** (bentuk sama pin ONU, bawaan kuning) + badge angka jumlah ONU
+- Pin ODP = teardrop **berwarna** (bentuk sama pin ONU, bawaan amber `#f59e0b`) + badge angka jumlah ONU
   terhubung — lihat "Warna pin ODP" di bawah.
 - **Garis kabel animasi ODP→ONU** (polyline dashed, aliran via `stroke-dashoffset` CSS) ke setiap ONU
   terhubung yang punya pin — warna garis ikut status ONU (hijau online / merah offline).
@@ -270,9 +284,15 @@ Pusat pengelolaan ODP di luar peta — nav **ODP**, tepat di bawah Peta ONU. Ter
 login, dibatasi `PartnerOltScope` (partner hanya lihat ODP di OLT miliknya); tak ada policy khusus.
 
 - `Pages/Odp/Index.vue`: filter (cari nama, OLT, port/PON) + tabel (Nama · OLT · Port · Jumlah ONU ·
-  Koordinat) dengan paginasi sisi-klien (`usePagination` + `ClientPagination`).
+  Koordinat, thumbnail foto di kolom nama, ikon palet per baris) dengan paginasi sisi-klien
+  (`usePagination` + `ClientPagination`).
 - **Tambah/Edit**: satu modal; koordinat bisa diisi manual atau lewat **tempel link Google Maps**
-  yang memakai ulang endpoint `POST map.resolve-link`.
+  yang memakai ulang endpoint `POST map.resolve-link`. **Slot / Port PON = satu dropdown** (30 Sep 2026)
+  berisi port hasil scan terakhir OLT terpilih, dikelompokkan per slot, label = deskripsi port ZTE
+  (`if_descr`) atau label port sisi-NMS (C-Data/HiOSO), plus "— Belum diketahui —". Data dari
+  `OdpController::portChoices()` yang hanya meng-query kolom JSON `last_test_result->ports` (bukan
+  snapshot penuh). OLT tanpa daftar port jatuh ke dua input angka; port lama yang tak ada di scan
+  terakhir tetap bisa dipertahankan. Validasi server tak berubah (nullable integer).
 - **Kelola ONU**: modal dua daftar (ONU di ODP ini / kandidat) yang dimuat dari
   `GET odp.onus` (JSON). Penambahan & pelepasan memakai ulang `onu-odp.assign` (`odp_id: null` =
   lepas) — **tak ada endpoint tulis baru**.
@@ -280,7 +300,8 @@ login, dibatasi `PartnerOltScope` (partner hanya lihat ODP di OLT miliknya); tak
   ONU tidak ikut menyala. `OdpController::store/update/destroy` memakai `back()` agar bisa dipanggil
   dari peta maupun halaman ODP.
 
-Scope v1: web saja (mobile/API belum).
+CRUD ODP, Kelola ONU, dan geser pin hanya di web. Aplikasi Android membaca daftar/detail ODP dan
+bisa mengganti **warna** serta **foto** ODP (lihat bagian Android di bawah).
 
 ## Rute
 
@@ -305,7 +326,10 @@ Scope v1: web saja (mobile/API belum).
 | GET | `/odp/{odp}/onus` | `odp.onus` | JSON ONU terhubung + kandidat (modal Kelola ONU) |
 
 `map.pins.update` juga menerima `locked` (dan payload koordinat-saja dari geser pin).
-`map.index` menerima query `?focus_odp={id}` untuk membuka kartu detail sebuah ODP langsung.
+`map.index` menerima query `?focus_odp={id}` untuk membuka kartu detail sebuah ODP langsung, dan
+`?focus_olt=&focus_slot=&focus_port=&focus_onu=` ("Lihat di Peta" dari Port ONUs) untuk pin ONU;
+keduanya ikut dipusatkan begitu kartunya muncul. Mode penempatan pin memakai `place_*` dengan pola
+yang sama.
 
 ## Peta & ODP di aplikasi Android (`mobile/`)
 
@@ -314,7 +338,7 @@ Ditambahkan 29 Jul 2026 (APK 1.3.0+17). Navigasi bawah dirombak jadi
 (Alarm dibuka dari kartu di Akun/Dashboard, Pencarian dari ikon 🔍 di AppBar
 Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
 
-**Endpoint yang dipakai** (baca-saja kecuali warna ODP, detail di `docs/API.md` §3.6–3.9):
+**Endpoint yang dipakai** (baca-saja kecuali warna & foto ODP, detail di `docs/API.md` §3.6–3.9):
 
 | Endpoint | Dipakai layar |
 |----------|---------------|
@@ -331,8 +355,9 @@ Dashboard — tombol keluar pindah sepenuhnya ke halaman Akun).
   seperti web (`mt{s}.google.com/vt`, toggle Peta/Satelit) dengan **`fallbackUrl` OSM** dan
   User-Agent browser — kalau Google menolak permintaan dari aplikasi, peta tetap tergambar.
   Layar peta adalah cabang shell sehingga navbar melayang tetap terlihat di atas peta.
-- **Nyaris baca-saja**: menambah/menggeser pin dan CRUD ODP tetap di web. Satu-satunya aksi tulis ODP
-  dari aplikasi adalah **ganti warna pin** (`POST /odps/{odp}/color`, APK 1.4.0+19 — lihat "Warna pin
+- **Nyaris baca-saja**: menambah/menggeser pin dan CRUD ODP tetap di web. Aksi tulis ODP dari
+  aplikasi hanya **ganti warna pin** (`POST /odps/{odp}/color`, APK 1.4.0+19 — lihat "Warna pin
+  ODP") dan **unggah/ganti/hapus foto** (`POST|DELETE /odps/{odp}/photo` — lihat "Foto dokumentasi
   ODP"). Aksi ONU (reboot/rename/hapus) dibuka lewat Detail ONU dari sheet pin.
 - Fokus lintas-layar ("Lihat di peta" pada detail ODP) memakai state Riverpod `mapFocusProvider`,
   **bukan** query URL: tab peta hidup di `IndexedStack` sehingga rutenya tidak dibangun ulang

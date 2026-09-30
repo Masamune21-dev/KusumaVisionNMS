@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO EPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO EPON (HA7304/HA7302)**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 </div>
 
@@ -47,13 +47,16 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 
 ## Fitur Utama
 
-- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO EPON; deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk).
+- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) dan EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk). OLT V-Sol tidak didukung, dan dukungan HsAirPo/HSGQ dihapus pada September 2026.
 - **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power dengan **riwayat panjang** (sampel mentah 24 jam, ringkasan min/rata-rata/maks per jam untuk 7/30 hari), faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
-- **Provisioning ONU (ZTE)** — discovery ONU unconfigured → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **pilih ODP langsung saat registrasi**), reconfigure via delta script atau **editor ONU per bagian gaya NetNumen** (tambah/ubah/hapus T-CONT, GEM, service, VLAN… langsung ke OLT; ONU ber-`onu-profile` dikenali, perubahan yang pasti ditolak dijelaskan, dan profile bisa dilepas), manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
+- **Provisioning ONU (ZTE)** — discovery ONU unconfigured (dengan waktu **pertama terlihat** + lencana *Baru*) → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **Deskripsi** opsional terpisah dari Nama, **pilih ODP langsung saat registrasi**), reconfigure via delta script atau **editor ONU per bagian gaya NetNumen** (tambah/ubah/hapus T-CONT, GEM, service, VLAN… langsung ke OLT; ONU ber-`onu-profile` dikenali, perubahan yang pasti ditolak dijelaskan, dan profile bisa dilepas), manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
+- **Bind ONU (ZTE C300/C320)** — ganti ONU rusak dengan unit baru dari halaman Unconfigured: SN baru menempati slot ONU lama di port yang sama, jadi seluruh konfigurasinya diwarisi tanpa register ulang.
 - **Remote ONU** — reboot, rename, enable/disable, delete (satu atau **banyak sekaligus**), TR069 massal per-port, buka/tutup akses web ONT dari jauh (Remote ONT), dan **terminal Telnet langsung di browser**.
+- **Matikan/nyalakan port PON (ZTE C300/C320)** — admin, atau partner pemilik OLT, bisa mematikan/menyalakan port GPON dari halaman Port-nya. NMS tidak menjalankan `write` sesudahnya, jadi port menyala lagi bila OLT reboot sebelum config-nya disimpan. Mematikan port menaikkan alarm `port_disabled` yang menahan alarm ONU & ODP di port itu; notifikasi terkirim saat port dimatikan maupun saat dinyalakan lagi.
+- **VLAN & detail port C-Data** — di OLT C-Data berfirmware V3 (GPON & EPON): halaman VLAN (daftar, buat, tag ke port uplink/EPON) dan halaman detail per port (status, optik DDM, trafik, VLAN).
 - **Alarm & notifikasi** — alarm engine raise/clear (anti-flap konfirmasi 2 poll + korelasi root-cause), **klik notifikasi langsung membuka ONU/port/OLT yang terdampak** (mengikuti ONU yang pindah port, menolak membuka bila posisinya sudah dipakai pelanggan lain), alarm ONU-down **dikelompokkan per ODP** di Telegram & FCM, notifikasi **Telegram** & **push FCM** ke aplikasi Android, bot Telegram read-only.
 - **Peta ONU & ODP** — sebaran pelanggan di peta (Leaflet), tambah pin dari klik peta atau link Google Maps, **kunci/buka posisi pin** (geser untuk reposisi, tersimpan otomatis), **pin ODP (splitter)** dengan garis kabel animasi ODP→ONU, **halaman ODP tersendiri** (CRUD termasuk memindahkan ODP ke OLT/port lain, filter OLT/port PON, modal Kelola ONU), warna ODP per PON port (ODP baru ikut warna port-nya), kolom & filter ODP di tabel ONU semua vendor. Peta tetap lancar dengan ribuan pin.
-- **Tampilan** — **tema gelap / terang / ikuti sistem** (termasuk halaman login), sidebar berkelompok, tombol/dialog/lencana seragam, dwibahasa (Indonesia / Inggris).
+- **Tampilan** — **tema gelap / terang / ikuti sistem** (termasuk halaman login), sidebar berkelompok, tombol/dialog/lencana seragam, dwibahasa (Indonesia / Inggris) — termasuk pesan error dari server.
 - **Administrasi** — RBAC (admin/operator/partner/demo; partner tidak bisa mengubah koneksi OLT bersama maupun membuka CLI-nya), audit log immutable, report CSV/PDF, backup config OLT terjadwal + save config ke memori OLT (semua vendor), **REST API v1** untuk integrasi.
 - **Aplikasi Android (1.8.5)** — monitoring (termasuk deskripsi port), status ONU beserta sebab down-nya (LOS / Dying Gasp / …), registrasi ONU, reboot/rename, ODP & peta, tema gelap/terang, alarm + push notification yang membuka ONU terdampak; push langsung berhenti begitu ponsel logout ([`mobile/`](mobile/), Flutter).
 
@@ -97,9 +100,12 @@ Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requir
 
 ### Setelah instalasi
 
-1. Buat akun admin (jika belum): `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=PASSWORD_KUAT --role=admin`
+1. Buat akun admin (jika belum): `php artisan user:create --name="Admin" --email=admin@example.com --password=PASSWORD_KUAT --role=admin`
 2. Login → menu **SmartOLT** → tambah OLT → **Test SNMP**.
 3. Opsional dari menu **Pengaturan**: notifikasi Telegram, ACS/TR069, token API, push mobile.
+
+> 📖 Minimum spek, instalasi manual langkah-demi-langkah, dan troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+> Aplikasi **Android (APK)**: APK dibangun untuk server Anda sendiri — isi `API_BASE_URL` saat build ([`docs/BUILD_APK.md`](docs/BUILD_APK.md)). Setelah admin menaruh hasil build di server, pengguna bisa mengunduhnya dari `https://<host>/downloads/kusumavision-nms.apk` (juga tersedia di **Pengaturan → Umum**).
 
 ### Update ke versi baru
 
@@ -108,13 +114,12 @@ Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requir
 optimize, restart worker). **Di belakang Cloudflare "Flexible" atau load balancer di host lain, isi
 `TRUSTED_PROXIES` di `.env`** — bawaannya hanya localhost, kalau tidak login gagal 419.
 
-> 📖 Minimum spek, instalasi manual langkah-demi-langkah, dan troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
-> Aplikasi **Android (APK)**: unduh APK jadi dari `https://<host>/downloads/kusumavision-nms.apk`, atau build sendiri via [`docs/BUILD_APK.md`](docs/BUILD_APK.md).
-
 ---
 
 ## Dokumentasi
 
+- **[`docs/README.md`](docs/README.md) — peta dokumentasi**: semua panduan dikelompokkan per pembaca (pengguna, pemasang, integrator, referensi vendor, developer).
+- **Panduan pengguna (PDF)**: [Bahasa Indonesia](docs/panduan/Panduan-NMS-public-id.pdf) · [English](docs/panduan/NMS-Guide-public-en.pdf) — setiap menu & fitur langkah demi langkah, untuk operator dan administrator.
 - [`docs/INSTALL.md`](docs/INSTALL.md) — panduan master instalasi (semua jalur + minimum spek).
 - [`docs/handbook/`](docs/handbook/README.md) — **Developer Handbook**: arsitektur, skema DB, routing, SNMP/CLI, alarm, keamanan, troubleshooting, panduan menambah fitur.
 - [`docs/DOCKER.md`](docs/DOCKER.md) — Docker appliance (backup, update, distribusi image).

@@ -4,6 +4,18 @@ Dokumen ini mencatat baseline production lokal untuk server KusumaVision NMS.
 Targetnya adalah aplikasi tetap bisa diakses dari jaringan operasional, tetapi file secret,
 debug output, SSH password login, dan port publik yang tidak perlu tetap tertutup.
 
+> **Status per 1 Okt 2026:** baseline di bawah ditulis Mei 2026 untuk akses **HTTP polos di LAN** dan
+> masih berguna sebagai contoh hardening instalasi `install.sh`. Yang perlu disesuaikan:
+> - Tiga daemon Supervisor (daftar §Supervisor sudah diperbarui): `kusumavision-telnet-proxy`
+>   (`php artisan telnet:proxy`, di-proxy nginx `/telnet-ws`) ikut di-restart setelah deploy.
+> - Langkah deploy lengkap (composer, build, Go poller, migrate, cache, restart) ada di
+>   [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru).
+> - Untuk HTTPS (disarankan): `certbot --nginx`, lalu `SESSION_SECURE_COOKIE=true` di `.env`. Di belakang
+>   Cloudflare "Flexible"/load balancer di host lain, isi `TRUSTED_PROXIES` (lihat INSTALL.md §9).
+> - Aplikasi sendiri kini mengirim header **CSP** (`App\Http\Middleware\ContentSecurityPolicy`, termasuk
+>   `frame-ancestors 'self'`); upload foto ODP butuh PHP-FPM `upload_max_filesize ≥ 12M`
+>   (`99-kusumavision-uploads.ini`, ditulis `install.sh`).
+
 ## Current Baseline
 
 - App URL: `http://<IP-LAN>
@@ -46,6 +58,7 @@ php artisan optimize:clear
 php artisan optimize
 chown -R www-data:www-data storage bootstrap/cache
 php artisan queue:restart
+supervisorctl restart kusumavision-telnet-proxy
 ```
 
 Test **selalu** lewat skrip pembungkus, jangan `php artisan test` polos. Di mesin yang config-nya
@@ -186,6 +199,7 @@ Process files:
 ```text
 /etc/supervisor/conf.d/kusumavision-worker.conf
 /etc/supervisor/conf.d/kusumavision-scheduler.conf
+/etc/supervisor/conf.d/kusumavision-telnet-proxy.conf
 ```
 
 Check:
@@ -199,6 +213,7 @@ Expected:
 ```text
 kusumavision-worker:kusumavision-worker_00   RUNNING
 kusumavision-scheduler                       RUNNING
+kusumavision-telnet-proxy                    RUNNING
 ```
 
 ## Dependency Audits
@@ -232,4 +247,4 @@ Expected:
 - dashboard returns `302` to `/login`
 - `.env` returns `403`
 - services are active
-- worker and scheduler are running
+- worker, scheduler, and telnet-proxy are running

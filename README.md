@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, and **HiOSO EPON** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
+A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, and **HiOSO EPON (HA7304/HA7302)** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
 
 </div>
 
@@ -47,13 +47,16 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 
 ## Key Features
 
-- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan), C-Data EPON/GPON, HiOSO EPON; automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo).
+- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) and EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo). V-Sol OLTs are not supported, and HsAirPo/HSGQ support was removed in September 2026.
 - **Monitoring** — PON ports, ONU state (online / LOS / power off / offline) with friendly bilingual labels, RX power with **long-range history** (raw samples for 24 h, hourly min/avg/max summaries for 7/30 days), faceplate view, cross-OLT ONU monitoring (filter by OLT / port / state / **ODP**), customer name as the primary identity in ONU tables, global search (⌘K), dashboard charts, and PON port descriptions editable directly from the dashboard via CLI.
-- **ONU provisioning (ZTE)** — discovery of unconfigured ONUs → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069, **pick the ODP right at registration**), reconfiguration via delta scripts or a **NetNumen-style per-section ONU editor** (add/edit/delete a T-CONT, GEM, service, VLAN… sent straight to the OLT; ONUs bound to an `onu-profile` are detected, blocked changes are explained, and the profile can be released), per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
+- **ONU provisioning (ZTE)** — discovery of unconfigured ONUs (with a **first-seen** time and a *New* badge) → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069, an optional **Description** separate from the name, **pick the ODP right at registration**), reconfiguration via delta scripts or a **NetNumen-style per-section ONU editor** (add/edit/delete a T-CONT, GEM, service, VLAN… sent straight to the OLT; ONUs bound to an `onu-profile` are detected, blocked changes are explained, and the profile can be released), per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
+- **Bind ONU (ZTE C300/C320)** — replace a broken ONU with a new unit from the Unconfigured page: the new serial takes over the old ONU's slot on the same port, so its whole configuration is inherited without re-registering.
 - **Remote ONU management** — reboot, rename, enable/disable, delete (one or **many at once**), bulk TR-069 per port, remote open/close of the ONT web UI (Remote ONT), and a **Telnet terminal directly in the browser**.
+- **PON port on/off (ZTE C300/C320)** — an admin, or the partner that owns the OLT, can shut down or re-enable a GPON port from its Port page. NMS does not run `write` afterwards, so the port comes back up if the OLT reboots before its config is saved. Switching it off raises a `port_disabled` alarm that holds back ONU and ODP alarms on that port; a notification is sent both when the port goes off and when it comes back on.
+- **C-Data VLAN and port pages** — on C-Data OLTs running V3 firmware (GPON and EPON): a VLAN page (list, create, tag to uplink/EPON ports) and a detail page per port (status, DDM optics, traffic, VLANs).
 - **Alarms and notifications** — a raise/clear alarm engine with two-poll anti-flap confirmation and root-cause correlation, **clicking a notification opens the affected ONU/port/OLT** (it follows an ONU that moved ports and refuses to open a position now taken by a different customer), ONU-down alarms **grouped per ODP** on Telegram and FCM, **Telegram** notifications and **FCM push** to the Android app, plus a read-only Telegram bot.
 - **ONU and ODP mapping** — customer distribution on a map (Leaflet), pins added by map click or Google Maps link, **lock/unlock pin position** (drag to reposition, saved automatically), **ODP (splitter) pins** with animated ODP→ONU cable lines, a **dedicated ODP page** (CRUD including moving an ODP to another OLT/port, filter by OLT / PON port, Manage ONUs modal), ODP colours grouped per PON port (new ODPs inherit their port's colour), and an ODP column plus filter in the ONU table for every vendor. The map stays smooth with thousands of pins.
-- **Interface** — **dark / light / follow-system themes** (also on the login page), grouped sidebar, consistent buttons, dialogs and badges, bilingual (Indonesian / English).
+- **Interface** — **dark / light / follow-system themes** (also on the login page), grouped sidebar, consistent buttons, dialogs and badges, bilingual (Indonesian / English) — including error messages returned by the server.
 - **Administration** — RBAC (admin / operator / partner / demo; partners cannot change the connection settings of shared OLTs or open their CLI), immutable audit log, CSV and PDF reports, scheduled OLT config backups plus save-to-OLT-memory for all vendors, and a **REST API v1** for integration.
 - **Android app (1.8.5)** — monitoring (including port descriptions), ONU status with the reason it went down (LOS / Dying Gasp / …), ONU registration, reboot/rename, ODP & map, dark/light themes, and alarms with push notifications that open the affected ONU; push stops as soon as the phone logs out ([`mobile/`](mobile/), Flutter).
 
@@ -97,9 +100,12 @@ The script is idempotent and safe to re-run. Verify with `bash scripts/check-req
 
 ### After installation
 
-1. Create an admin account if you don't have one yet: `php artisan user:create --name="Admin" --email=admin@bmkv.net --password=STRONG_PASSWORD --role=admin`
+1. Create an admin account if you don't have one yet: `php artisan user:create --name="Admin" --email=admin@example.com --password=STRONG_PASSWORD --role=admin`
 2. Log in → **SmartOLT** menu → add an OLT → **Test SNMP**.
 3. Optionally, from the **Settings** menu: Telegram notifications, ACS/TR-069, API tokens, and mobile push.
+
+> 📖 Minimum specs, step-by-step manual installation, and troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+> **Android app (APK)**: the APK is built for your own server — set `API_BASE_URL` when building it ([`docs/BUILD_APK.md`](docs/BUILD_APK.md)). Once an admin places the build on the server, users can download it from `https://<host>/downloads/kusumavision-nms.apk` (also linked from **Settings → General**).
 
 ### Upgrading
 
@@ -108,13 +114,12 @@ The script is idempotent and safe to re-run. Verify with `bash scripts/check-req
 optimize, restart workers). **Behind Cloudflare "Flexible" or a load balancer on another host, set
 `TRUSTED_PROXIES` in `.env`** — only localhost is trusted by default, otherwise logins fail with 419.
 
-> 📖 Minimum specs, step-by-step manual installation, and troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
-> **Android app (APK)**: download the prebuilt APK from `https://<host>/downloads/kusumavision-nms.apk`, or build it yourself using [`docs/BUILD_APK.md`](docs/BUILD_APK.md).
-
 ---
 
 ## Documentation
 
+- **[`docs/README.md`](docs/README.md) — documentation map**: every guide grouped by audience (users, installers, integrators, vendor references, developers).
+- **User guides (PDF)**: [Indonesian](docs/panduan/Panduan-NMS-public-id.pdf) · [English](docs/panduan/NMS-Guide-public-en.pdf) — every menu and feature, step by step, for operators and administrators.
 - [`docs/INSTALL.md`](docs/INSTALL.md) — master installation guide (all paths + minimum specs).
 - [`docs/handbook/`](docs/handbook/README.md) — **Developer Handbook**: architecture, database schema, routing, SNMP/CLI, alarms, security, troubleshooting, and how to add new features.
 - [`docs/DOCKER.md`](docs/DOCKER.md) — Docker appliance (backup, updates, image distribution).

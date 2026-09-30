@@ -2,7 +2,11 @@
 
 ## Purpose
 
-This document explains how SmartOLT discovers unconfigured ONUs on a ZTE TITAN C600 OLT. The procedure was verified by capturing the SNMP traffic between SmartOLT and the OLT and then reproducing the same query from an Ubuntu server. Re-verified live against LAS GALERAS (ZXA10 C600 V1.2.2) — see `app/Services/Snmp/OltSnmpClient.php` (`C600_UNCFG_OIDS`).
+This document explains how SmartOLT discovers unconfigured ONUs on a ZTE TITAN C600 OLT. The procedure was verified by capturing the SNMP traffic between SmartOLT and the OLT and then reproducing the same query from an Ubuntu server. Re-verified live against a production C600 (ZXA10 C600 V1.2.2) — see `app/Services/Snmp/OltSnmpClient.php` (`C600_UNCFG_OIDS`).
+
+> **Status as of 1 Oct 2026:** wired and in use — the NMS Unconfigured page and **Refresh Discovery**
+> (`Zte\UnconfiguredOnuDiscovery`, web + API) list C600 ONUs from this table, and a C600 ONU found here can be
+> registered with the C600 (Model B) builder. **Bind ONU** (`registration-method sn`) is still closed on C600.
 
 ## Confirmed Communication Method
 
@@ -37,7 +41,7 @@ Index structure: `<PON-ifIndex>.<discovery-entry>` — e.g. `285279504.1` (`2852
 | `.13` | Latest observed discovery timestamp | `2026-07-17 17:37:36` |
 | `.14`–`.16` | Internal state/flag values | semantics unverified |
 
-The app currently surfaces only the serial (`.2`) + PON port — same shape as the ZTE C300/C320 unconfigured path. Do not assign business meaning to `.14`–`.16` without verifying against multiple ONU states or the ZTE MIB.
+The app surfaces the serial (`.2`) + PON port (same shape as the ZTE C300/C320 path), enriched best-effort with **model `.8`** (`C600_UNCFG_MODEL`, shown as the *Type* column and pre-selected as ONU Type on Register) and **firmware `.10`** (`C600_UNCFG_FIRMWARE`). The `.12`/`.13` timestamps are **not** used: the NMS records its own "first seen" per SN on Refresh Discovery so every OLT family behaves the same. Do not assign business meaning to `.14`–`.16` without verifying against multiple ONU states or the ZTE MIB.
 
 ## Serial Number Decoding
 
@@ -89,4 +93,4 @@ Result: `2026-07-17 16:05:46`.
 
 ## Scope
 
-This solves **unconfigured ONU discovery** only. It does not make configured ONU customer names/descriptions available over SNMP — the C600 CLI masks configured ONU `Name`/`Description` as `********` (their value equals the OLT CLI password; the real customer names live in SmartOLT's own database).
+This solves **unconfigured ONU discovery** only. Configured ONU names/descriptions are a different table: the C600 CLI masks them as `********` (firmware masking — an earlier guess that the value equals the CLI password was wrong), but they **are** readable over SNMP at `1082.500.10.2.3.3.1.2/.3` — see `ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md`.

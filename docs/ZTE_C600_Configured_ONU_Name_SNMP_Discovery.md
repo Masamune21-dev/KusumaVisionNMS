@@ -2,8 +2,15 @@
 
 Confirmed SNMP objects for reading configured ONU names, descriptions, admin/phase state, and
 serials from a ZTE TITAN C600. OIDs identified by capturing SmartOLT SNMP traffic + reproducing
-from an Ubuntu server, then re-verified live against LAS GALERAS (ZXA10 C600 V1.2.2). Wired up in
-`app/Services/Snmp/OltSnmpClient.php` (`C600_ONU_NAME`, `C600_ONU_ADMIN_STATE`, `C600_ONU_PHASE_STATE`).
+from an Ubuntu server, then re-verified live against a production C600 (ZXA10 C600 V1.2.2). Wired up in
+`app/Services/Snmp/OltSnmpClient.php` (`C600_ONU_NAME`, `C600_ONU_DESCRIPTION`, `C600_ONU_ADMIN_STATE`,
+`C600_ONU_PHASE_STATE`) and mirrored in the Go poller (`cmd/kv-snmp-poller/main.go`: `c600OnuName`, `c600OnuDesc`,
+`c600OnuAdmin`, `c600OnuPhase`).
+
+> **Status as of 1 Oct 2026:** all four columns are wired and **read-only**. Writing them (SNMP SET rename /
+> enable-disable) has never been tested on a C600, so `ZteRemoteOnuService` keeps its C600 write OIDs `null` and
+> `supports_onu_info_write` / `supports_onu_toggle` stay `false` for C600. Do not SET these OIDs until verified on a
+> test ONU.
 
 ## Environment
 
@@ -15,8 +22,8 @@ from an Ubuntu server, then re-verified live against LAS GALERAS (ZXA10 C600 V1.
 
 | Column | Meaning | Example |
 |---:|---|---|
-| `.2` | Configured ONU / customer name | `JOSE DE LA ROSA LAUREAN`, `MARIA ESMIRNA LIZARDO` |
-| `.3` | Description with SmartOLT metadata | `zone_MANUEL CHIQUITO EL CRUSE_extid_2177_authd_20260716` |
+| `.2` | Configured ONU / customer name | `CUSTOMER NAME A`, `CUSTOMER NAME B` |
+| `.3` | Description with SmartOLT metadata | `zone_ZONE WITH SPACES_extid_2177_authd_20260716` |
 | `.5` | Authentication mode code | `1` (consistent with SN auth; keep raw until MIB-confirmed) |
 | `.6` | ONU serial (8-byte octet: 4 ASCII vendor + 4 raw) | `48 57 54 43 89 E6 4C A6` → `HWTC89E64CA6` |
 
@@ -26,7 +33,9 @@ in CLI `show gpon onu detail-info`.** So the app reads C600 ONU names via SNMP, 
 Description parsing (fixed delimiters, do not split zone on spaces):
 `^zone_(.*?)(?:_descr_(.*?))?(?:_extid_([0-9]+))?_authd_([0-9]{8})$` → zone / description / SmartOLT
 external id / authorization date (`YYYYMMDD`). Formats vary (`zone_X_authd_Z`, `zone_X_extid_N_authd_Z`,
-`zone_X_descr_Y_authd_Z`); always keep the raw description too. (Description not surfaced yet.)
+`zone_X_descr_Y_authd_Z`); always keep the raw description too. The app currently stores column `.3` **raw** in the
+ONU `description` field (no structured zone/extid/date parsing yet). New ONUs registered by the NMS C600 builder
+write the same convention (`zone_<zone>_authd_<YYYYMMDD>`) unless the operator fills the Description field.
 
 ## ONU state table — `1082.500.10.2.3.8.1`
 
@@ -40,8 +49,10 @@ admin-disabled ONUs:
 
 `.4 == 4 (Working)` matches the binary ONU-table online flag `.20.2.1.2.1.7 == 1` on **all 1343 ONUs**
 (0 disagreements), so it is used as the C600 phase source: online detection is unchanged, but offline
-ONUs now carry the real reason (LOS / DyingGasp / OffLine). There is no separate last-down-cause table;
-the offline reason is the phase value, exactly how the C600 CLI reports it.
+ONUs now carry the real reason (LOS / DyingGasp / OffLine). There is no separate last-down-cause table
+(12 columns of the state table were probed); the offline reason is the phase value, exactly how the C600 CLI reports
+it — so for **offline** ONUs the app fills `last_down_cause` from the phase (`LOS` / `DyingGasp` / `OffLine`), while
+online ONUs keep `Unknown`. Columns `.5`/`.6` look like DateAndTime timestamps but their order is not verified — unused.
 
 ## Related operational OIDs (observed, not all wired)
 

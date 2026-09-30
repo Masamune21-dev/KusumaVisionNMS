@@ -1,5 +1,55 @@
 # Worklog
 
+## 2026-10-01 — Dokumentasi Diselaraskan dengan Kode
+
+### Created
+
+- **`docs/README.md`** — peta dokumentasi per pembaca (pengguna, pemasang server, integrator, referensi vendor OLT,
+  developer), ditautkan dari `README.md`/`README.id.md` dan handbook.
+- **Panduan pengguna PDF** di `docs/panduan/`: `Panduan-NMS-public-id.pdf` (Bahasa Indonesia) dan
+  `NMS-Guide-public-en.pdf` (English) — setiap menu & fitur langkah demi langkah: instalasi, dashboard, OLT per vendor,
+  registrasi & aksi ONU, peta & ODP, alarm, laporan, pengguna & peran, pengaturan, aplikasi Android, REST API, praktik aman.
+
+### Changed
+
+- **Seluruh dokumentasi diperiksa ulang terhadap kode**:
+  - `README.md`/`README.id.md`: daftar fitur terbaru (model C-Data & HiOSO HA7304/HA7302 yang didukung, V-Sol tidak
+    didukung, HsAirPo dihapus; waktu pertama terlihat & Deskripsi di registrasi; Bind ONU; matikan/nyalakan port PON;
+    VLAN & detail port C-Data V3; pesan error dwibahasa), catatan APK wajib dibangun dengan `API_BASE_URL`, bagian
+    Dokumentasi menautkan peta dokumen & PDF panduan.
+  - `docs/API.md`: API tertulis **aktif** (dulu "dinonaktifkan"); login `auth/login` memeriksa kata sandi lokal, token
+    Sanctum berhak penuh dengan satu umur global `SANCTUM_EXPIRATION`, rate limit, endpoint lengkap per grup, format
+    galat, contoh domain `nms.example.com`.
+  - Instalasi & operasional: `docs/INSTALL.md`, `DOCKER.md`, `BUILD_APK.md` (minSdk, split ABI, `API_BASE_URL` wajib),
+    `DEMO_DEPLOYMENT.md`, `INSTALLATION_STATUS.md`, `LOCAL_PRODUCTION_HARDENING.md`, `mobile/README.md`; status di
+    `KusumaVision_NMS_PRD.md` & `SECURITY_AUDIT_2026-07.md` (dokumen historis).
+  - Panduan vendor: ZTE C300/C320 (matriks capability, deskripsi registrasi, matikan/nyalakan port, peringatan
+    `shutdown ?`), ZTE C600 (provisioning Model B, discovery unconfigured) + 3 catatan SNMP C600, C-Data (penanda
+    firmware V3, VLAN & port), HiOSO (HA7302 lengkap, aturan ubah nama, §7 ditandai tidak berlaku),
+    `public/img/olt/README.md`.
+  - Developer Handbook 01–18 + README: arsitektur ditulis ulang, struktur folder, skema database, tabel rute, modul,
+    SNMP/polling, CLI/telnet, alarm (`port_disabled`), RBAC (`canSetPonPortAdminState`, `canAccessOltSecrets`),
+    frontend & tema, troubleshooting, resep menambah fitur, peta ONU/ODP, C-Data GPON walk, Docker appliance.
+  - `CLAUDE.md`: koreksi fakta (perintah build Go sama dengan `install.sh`, peta ONU mencakup HiOSO, label port
+    C-Data/HiOSO di `PonPorts.vue`/header PortOnus, rute API ter-cache hanya memengaruhi produksi, ~44 namespace i18n,
+    rujukan bagian guide HiOSO).
+- **Panduan dalam aplikasi** (Bantuan → Panduan) disusun ulang dari 20 menjadi 23 bagian, kunci `panduan` 186 → 244
+  (id = en):
+  detail & matikan/nyalakan port PON, VLAN & detail port C-Data V3, Bind ONU, TR069 Massal, kolom ODP, filter alarm di
+  tab Alarm, Android 5 tab (APK dibangun dengan `API_BASE_URL`), pengguna & penugasan OLT; tautan ke PDF di
+  `docs/panduan`.
+- **Teks UI yang menyesatkan dibetulkan**: `cdataform.cli_sub`/`hioso_cli_sub`/`hioso_write_hint`,
+  `cdataportonus.delete_msg_hioso` (perintahnya `delete onu`, bukan `no onu`), modal ubah nama HiOSO kini punya label
+  sendiri `cdataportonus.rename_label_hioso` + `maxlength=32`, contoh nama lokasi dibuang dari `registeronu.bridge_note`.
+  Komentar `routes/api.php` (rute API ikut di-cache → `route:cache`) dan docblock `HiosoOltController::deleteOnu`
+  dibetulkan.
+
+### Notes
+
+- Hanya dokumentasi, teks UI, dan komentar — satu-satunya perubahan perilaku adalah batas input 32 karakter di modal
+  ubah nama ONU HiOSO. Kunci `panduan` yang dirujuk
+  `Pages/Panduan/Index.vue` diverifikasi ada di kedua bahasa; tautan relatif di dokumen yang berubah semuanya valid.
+
 ## 2026-10-01 — Matikan/Nyalakan Port PON ZTE dari NMS
 
 ### Created

@@ -4,8 +4,11 @@ Sumber data untuk **Visualisasi Chassis / Refresh Hardware** pada OLT ZTE C600. 
 di C600 tidak ter-parse oleh `ZteCardUplinkService::parseCards()` (format berbeda dari C300/C320),
 sehingga daftar kartu dibaca langsung dari SNMP.
 
-Semua OID di bawah **diverifikasi live** ke `ZXA10 C600 V1.2.2` (LAS GALERAS, `<IP-mgmt-OLT>`, SNMPv2c)
+Semua OID di bawah **diverifikasi live** ke `ZXA10 C600 V1.2.2` (C600 produksi, `<IP-mgmt-OLT>`, SNMPv2c)
 pada 18 Jul 2026 — cocok 100% dengan hasil `snmpbulkwalk`.
+
+> **Status per 1 Okt 2026:** masih sesuai kode (`OltSnmpClient::C600_CARD_*`). Satu koreksi: CPU/memori kartu C600
+> kini **terisi** dari CLI `show processor`, bukan dibiarkan kosong (lihat catatan kolom `.9`/`.11` di bawah).
 
 ## Tabel
 
@@ -25,11 +28,13 @@ Index = `{rack}.{shelf}.{slot}` (di C600 rack & shelf selalu `1`, jadi suffix = 
 | `.31` | `…4.1.31` | Versi software → `soft_ver` | `"V1.0.9"` / `"N/A"` |
 
 Kolom lain yang ada tapi **belum dipakai**: `.3` kode tipe terdeteksi, `.14` serial, `.23`/`.32` versi
-tambahan, `.9` CPU & `.11` memori (keduanya `0` di semua kartu live → cpu_load/mem_load dibiarkan `null`).
+tambahan, `.9` CPU & `.11` memori (keduanya `0` di semua kartu live → **tidak** dipakai; `cpu_load`/`mem_load` C600 diisi dari
+CLI `show processor` — baris `PFU-1/{slot}/0` / `MPU-1/{slot}/0` — lewat `ZteCardUplinkService::mergeC600ProcessorLoad()`,
+non-fatal bila CLI gagal).
 
 ### Peta kode tipe (`.2`) → model
 
-Diverifikasi live (semua slot di LAS GALERAS):
+Diverifikasi live (semua slot di C600 yang diuji):
 
 | Kode | Model | Jenis |
 |-----:|-------|-------|
@@ -66,7 +71,7 @@ Token status memakai kosakata parser CLI lama supaya `INACTIVE_CARD_STATUSES`
 | 11 | noPower | PWROFF |
 | lain | — | OFFLINE (default) |
 
-## Inventaris live LAS GALERAS (18 Jul 2026)
+## Inventaris live C600 uji (18 Jul 2026)
 
 | Slot | Kode | Model | Status | Port | Board | Software |
 |-----:|-----:|-------|--------|-----:|-------|----------|
@@ -84,5 +89,9 @@ Token status memakai kosakata parser CLI lama supaya `INACTIVE_CARD_STATUSES`
 
 - `App\Services\Snmp\OltSnmpClient::cardInventory($olt)` — walk 6 kolom di atas → baris kartu.
 - `App\Services\ZteCardUplinkService::refreshCardStatus($olt)` — bercabang: C600 → `cardInventory()`,
-  C300/C320 → CLI `parseCards(show card)`. Persist ke `smartolt_card_status` & visualisasi identik.
-- Test: `tests/Unit/C600CardInventoryTest.php`.
+  C300/C320 → CLI `parseCards(show card)`. Persist ke `smartolt_card_statuses` & visualisasi identik. Daftar kartu kosong
+  → error `zte.card_table_empty_c600`.
+- CPU/memori: C600 → CLI `show processor` (`mergeC600ProcessorLoad`); C300/C320 → SNMP `.1015.2.1.1.3.1.{9,11,19}`.
+- Uplink C600 dikenali dari kode kartu `SFUB` (`ZteCardUplinkService::C600_XGEI_CARDS`, juga `XGEI`/`SFUL`/`SFUM`
+  warisan) → interface 3-tier `xgei-1/{slot}/{port}`; kartu GPON `GFGL`/`GFGM`/`GFGN` → `gpon_olt-1/{slot}/{port}`.
+- Test: `tests/Unit/C600CardInventoryTest.php`, `tests/Unit/C600PortDetailParseTest.php` (`show processor`).

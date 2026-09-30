@@ -9,7 +9,9 @@ Panduan lengkap membangun **aplikasi Android KusumaVision NMS** ([`mobile/`](../
 > Anda **mengubah kode** di `mobile/`.
 
 Aplikasi ini **mengonsumsi REST API v1** server NMS (`/api/v1`). Jadi server harus sudah berjalan
-([INSTALL.md](INSTALL.md)) dan **API v1 diaktifkan** (Pengaturan → API & Token) sebelum aplikasi bisa login.
+([INSTALL.md](INSTALL.md)). API v1 **aktif bawaan** (`$apiEnabled = true` di `routes/api.php`); bila
+saklar itu dimatikan, tab **Pengaturan → API & Token** menampilkan peringatan dan aplikasi tak bisa login.
+Cara memakai aplikasi (menu demi menu) ada di panduan pengguna PDF [`docs/panduan/`](panduan/).
 
 ---
 
@@ -31,11 +33,16 @@ Build APK jauh lebih berat dari menjalankan server web (Gradle + Android SDK + F
 - **PC Windows** — paling mudah pakai **Android Studio** (mengurus SDK/JDK otomatis). → [§4b](#4b-windows)
 - **VM / container** — sama seperti Linux headless; pastikan alokasi RAM ≥ 8 GB dan disk ≥ 20 GB. Docker khusus build Flutter dimungkinkan tapi di luar cakupan dokumen ini; lebih praktis VM Ubuntu biasa.
 
-**Hasil build:** APK release ± **53 MB** di `mobile/build/app/outputs/flutter-apk/app-release.apk`.
+**Hasil build:** skrip [`bin/build-apk.sh`](../bin/build-apk.sh) membuat APK **per arsitektur**
+(`--split-per-abi`): `app-arm64-v8a-release.apk` (± 22 MB, HP modern) dan `app-armeabi-v7a-release.apk`
+(± 19 MB, HP 32-bit lama) di `mobile/build/app/outputs/flutter-apk/`. Build manual tanpa split
+menghasilkan satu `app-release.apk` universal yang lebih besar.
 
 **Versi toolchain yang dipakai proyek:** Flutter **3.44** (Dart SDK `^3.12.2`), **JDK 17**, Android
 SDK (platform android-35/36, build-tools 35/36), Gradle 9.x, AGP 9.x, Kotlin 2.3.x.
-`applicationId` = `net.kusumavision.nms`, minSdk = Android **6.0 (API 23)** (disyaratkan Firebase Messaging).
+`applicationId` = `net.kusumavision.nms`, minSdk = bawaan Flutter (`flutter.minSdkVersion` = **API 24,
+Android 7.0** di Flutter 3.44; Firebase Messaging sendiri butuh ≥ API 23). Versi aplikasi saat ini:
+**1.8.5+29** (`mobile/pubspec.yaml`).
 
 ---
 
@@ -168,8 +175,11 @@ API_BASE_URL=https://nms.domain-anda.com/api/v1 bash bin/build-apk.sh
 ```
 
 Skrip [`bin/build-apk.sh`](../bin/build-apk.sh) melakukan: `flutter pub get` → `flutter analyze` →
-`flutter build apk --release` (dengan `--dart-define=API_BASE_URL=...`) → menyalin hasil ke
-`public/downloads/kusumavision-nms.apk` agar bisa **diunduh langsung dari NMS** (lihat [§7](#7-install-apk-di-hp)).
+`flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64` (dengan
+`--dart-define=API_BASE_URL=...`) → menyalin hasil ke `public/downloads/kusumavision-nms.apk` (arm64) dan
+`public/downloads/kusumavision-nms-arm32.apk` (arm32) agar bisa **diunduh langsung dari NMS** (lihat
+[§7](#7-install-apk-di-hp)). Berkas di `public/downloads/` **selalu ditimpa** — itulah APK yang langsung
+diunduh pengguna.
 
 Skrip sudah menyetel `JAVA_HOME`, `ANDROID_SDK_ROOT`, dan `PATH` ke `/opt` — sesuaikan bila toolchain
 Anda di lokasi lain (mis. Windows/macOS, jalankan cara manual di bawah).
@@ -191,8 +201,9 @@ Hasil: `mobile/build/app/outputs/flutter-apk/app-release.apk`.
 ### ⚠️ Wajib bump versi tiap rilis
 
 Sebelum build APK rilis baru, **naikkan `version:` di [`mobile/pubspec.yaml`](../mobile/pubspec.yaml)**
-(format `versionName+versionCode`, mis. `1.1.5+9` → `1.1.6+10`). Android **menolak update** bila
-`versionCode` (angka setelah `+`) sama dengan yang sudah terpasang.
+(format `versionName+versionCode`, mis. `1.8.5+29` → `1.8.6+30`). Android **menolak update** bila
+`versionCode` (angka setelah `+`) sama dengan yang sudah terpasang. Dengan `--split-per-abi`, Flutter
+menambahkan awalan per arsitektur ke `versionCode` (mis. `29` → `2029` untuk arm64, `1029` untuk arm32).
 
 ---
 
@@ -229,9 +240,14 @@ tak bisa merilis update yang dianggap "aplikasi sama" oleh Android.
    *"Install unknown apps"* untuk browser/File Manager yang dipakai → **Izinkan**.
    (Android 8+: Setelan → Aplikasi → [browser] → Instal aplikasi tak dikenal → aktifkan.)
 3. **Buka & install** APK, lalu jalankan aplikasi.
-4. **Login** dengan URL API sudah tertanam (dari `API_BASE_URL` saat build) memakai akun operator/admin NMS.
+4. **Login** dengan URL API sudah tertanam (dari `API_BASE_URL` saat build) memakai akun NMS (email +
+   password yang sama dengan web). Akun **demo** hanya bisa melihat.
 
-> **Syarat HP:** Android **6.0 (API 23) ke atas** (batas dari Firebase Messaging). Push notifikasi
+> **Sesi aplikasi** memakai token Sanctum yang berlaku selama `SANCTUM_EXPIRATION` (bawaan `.env.example`
+> 43200 menit = 30 hari; kosong = tanpa kedaluwarsa), lalu aplikasi meminta login ulang. Sesi juga berakhir
+> saat logout atau bila tokennya dicabut di **Pengaturan → Notifikasi Mobile**.
+
+> **Syarat HP:** Android **7.0 (API 24) ke atas** (minSdk bawaan Flutter 3.44). Push notifikasi
 > hanya aktif bila Firebase dikonfigurasi ([§9](#9-firebase--push-fcm-opsional)); tanpa itu aplikasi
 > tetap berfungsi penuh, hanya tanpa push.
 
@@ -255,8 +271,11 @@ Push notifikasi alarm ke HP aktif setelah:
 
 1. Taruh **`google-services.json`** (dari Firebase Console) di `mobile/android/app/`.
    Plugin google-services di-apply otomatis bila file ini ada.
-2. Di server: taruh service-account JSON di `storage/app/firebase/service-account.json`, set
-   `FIREBASE_CREDENTIALS` di `.env`, lalu `php artisan config:cache` + `php artisan queue:restart`.
+2. Di server: taruh service-account JSON di `storage/app/firebase/service-account.json` (path bawaan;
+   `FIREBASE_CREDENTIALS` di `.env` hanya perlu bila berkasnya di tempat lain), lalu
+   `php artisan config:cache` + `php artisan queue:restart`.
+3. Nyalakan push di **Pengaturan → Notifikasi Mobile**; jenis & tingkat alarm yang dikirim diatur di tab
+   **Alarm**.
 
 Tanpa langkah di atas, aplikasi tetap berjalan penuh — hanya push yang non-aktif. Detail:
 [`mobile/README.md`](../mobile/README.md).
@@ -271,7 +290,8 @@ Tanpa langkah di atas, aplikasi tetap berjalan penuh — hanya push yang non-akt
 | `Android sdkmanager tool not found` / `cmdline-tools component is missing` | Command-line tools belum terpasang / salah folder. Harus di `.../cmdline-tools/latest/`. Ulangi [§4a](#4a-linux-ubuntu--debian--vps-headless) langkah 2. |
 | `Android license status unknown` di `flutter doctor` | Belum terima lisensi. Jalankan `yes \| sdkmanager --licenses` (Linux) atau `flutter doctor --android-licenses` (Windows). |
 | `Unsupported Java` / butuh Java 17 | JDK bukan 17. Set `JAVA_HOME` ke `java-17-openjdk`. |
-| APK terpasang tapi tak bisa login | `API_BASE_URL` salah saat build, atau API v1 belum diaktifkan di server (Pengaturan → API & Token), atau HP tak bisa menjangkau server. |
+| APK terpasang tapi tak bisa login | `API_BASE_URL` salah saat build, API v1 dimatikan di server (`$apiEnabled` di `routes/api.php`), atau HP tak bisa menjangkau server. |
+| Aplikasi hanya menampilkan "alamat server belum diatur" | APK dibangun tanpa `--dart-define=API_BASE_URL`. Build ulang dengan nilai itu ([§5](#5-build-apk)). |
 | Android menolak update ("app not installed") | `versionCode` sama / signature beda. Bump `version:` di `pubspec.yaml`; pastikan pakai keystore yang sama ([§5](#5-build-apk), [§6](#6-signing-rilis)). |
 | `flutter analyze` gagal → build berhenti | Perbaiki error yang dilaporkan, atau build manual (`flutter build apk --release ...`) untuk lewati `analyze`. |
 

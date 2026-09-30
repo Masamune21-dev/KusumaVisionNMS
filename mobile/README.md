@@ -1,23 +1,29 @@
 # KusumaVision NMS — Aplikasi Android (Flutter)
 
-Aplikasi pendamping untuk memonitor & memprovisioning OLT/ONU FTTH GPON dari HP,
-mengonsumsi **REST API v1** KusumaVision NMS (`/api/v1`, lihat `../docs/API.md`).
+Aplikasi pendamping (versi **1.8.5+29**) untuk memonitor & memprovisioning OLT/ONU FTTH dari HP,
+mengonsumsi **REST API v1** KusumaVision NMS (`/api/v1`, lihat `../docs/API.md`). Cara memakainya
+dijelaskan di bab "Aplikasi Android" panduan pengguna PDF (`../docs/panduan/`).
 
 ## Fitur
 
-- **Login** (Sanctum bearer token) + auto-refresh sesi.
-- **Dashboard** ringkasan OLT/ONU/alarm + persentase online.
+- **Login** akun NMS (Sanctum bearer token, disimpan di Keystore Android).
+- **Dashboard** ringkasan OLT/ONU/alarm + persentase online; navigasi bawah Dashboard · OLT · ODP · Peta · Akun.
 - **Pencarian global** (OLT, SN ONU, nama pelanggan) dengan deep-link.
-- **Inventory OLT** → detail OLT → daftar port → **ONU per port** → **detail ONU** (RX power berwarna).
-- **Unconfigured ONU** + discovery live + CTA **Registrasi ONU** (ZTE, mode dasar: preview script → eksekusi).
-- **Aksi ONU**: reboot & ubah nama (admin/operator; demo read-only).
-- **Alarm** dengan filter severity.
-- **Notifikasi push FCM** saat alarm naik/turun (deep-link ke ONU/OLT terkait).
+- **Inventory OLT** (ZTE, C-Data, HiOSO) → detail OLT → daftar port (+ deskripsi) → **ONU per port** →
+  **detail ONU** (RX power berwarna, status beserta sebab down: LOS / Dying Gasp / …).
+- **Unconfigured ONU** + discovery live + **Registrasi ONU** (ZTE, mode dasar: preview script → eksekusi,
+  ODP opsional).
+- **Aksi ONU**: reboot, ubah nama, hapus — mengikuti kapabilitas OLT & peran (demo hanya melihat).
+- **ODP** (daftar, cari, filter OLT, detail berisi ONU, foto dokumentasi, warna pin) & **Peta** ONU/ODP
+  (baca-saja; pin & CRUD ODP tetap di web).
+- **Alarm** dengan filter severity; **notifikasi push FCM** saat alarm naik/turun (deep-link ke ONU/OLT
+  terkait), berhenti begitu ponsel logout.
+- **Akun**: tema Gelap / Terang / Ikuti sistem, tes push, logout.
 
 ## Stack
 
-Flutter 3.44 · Riverpod v2 · dio · go_router · flutter_secure_storage ·
-firebase_core/messaging + flutter_local_notifications · Material 3 dark-glass (aksen cyan/sky).
+Flutter 3.44 · Riverpod v2 · dio · go_router · flutter_secure_storage · flutter_map + latlong2 ·
+firebase_core/messaging + flutter_local_notifications · Material 3 dark-glass (aksen cyan/sky), dua tema.
 
 ## Build
 
@@ -35,7 +41,13 @@ flutter pub get
 flutter build apk --release --dart-define=API_BASE_URL=https://<host>/api/v1
 ```
 
-APK: `mobile/build/app/outputs/flutter-apk/app-release.apk`.
+APK: skrip menghasilkan `app-arm64-v8a-release.apk` + `app-armeabi-v7a-release.apk` (split per ABI) dan
+menyalinnya ke `public/downloads/kusumavision-nms.apk` / `kusumavision-nms-arm32.apk`; build manual di atas
+menghasilkan `app-release.apk` universal. Semua di `mobile/build/app/outputs/flutter-apk/`.
+**Bump `version:` di `pubspec.yaml` tiap rilis** — `versionCode` yang sama ditolak Android saat update.
+
+APK yang dibangun tanpa `--dart-define=API_BASE_URL` sengaja tidak punya alamat bawaan (`lib/core/env.dart`)
+dan hanya menampilkan pesan "alamat server belum diatur" — tidak pernah menghubungi server orang lain.
 
 ## Firebase (FCM)
 
@@ -44,8 +56,9 @@ Push notifikasi aktif setelah:
 1. Taruh `google-services.json` (dari Firebase console) di `mobile/android/app/`.
    Plugin google-services di-apply otomatis bila file ini ada (lihat `android/app/build.gradle.kts`).
 2. Di server, taruh service-account JSON di `storage/app/firebase/service-account.json`
-   dan set `FIREBASE_CREDENTIALS` di `.env` (lihat `config/services.php` → `fcm`),
-   lalu `php artisan config:cache` + `php artisan queue:restart`.
+   (path bawaan `FIREBASE_CREDENTIALS`, lihat `config/services.php` → `fcm`; isi variabel itu hanya bila
+   berkasnya di tempat lain), lalu `php artisan config:cache` + `php artisan queue:restart`.
+3. Nyalakan push di web: **Pengaturan → Notifikasi Mobile**.
 
 Tanpa langkah di atas aplikasi tetap berjalan penuh, hanya push yang non-aktif.
 

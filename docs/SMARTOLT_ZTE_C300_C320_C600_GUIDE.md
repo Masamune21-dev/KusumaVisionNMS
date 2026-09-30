@@ -1,10 +1,15 @@
 # Panduan SmartOLT ZTE C300 / C320 / C600 (ZXA10) — KusumaVision NMS
 
-Terakhir diperbarui: 13 Juli 2026
+Terakhir diperbarui: 1 Oktober 2026
+
+> **Status per 1 Okt 2026.** Disesuaikan ulang dengan kode: C600 kini **provisioning AKTIF** (Model B / SmartOLT
+> TR069) dan membaca nama/admin-state/phase/unconfigured lewat SNMP (§4.3, §4.5, §12); fitur baru C300/C320:
+> kolom Deskripsi saat registrasi (§5.3), Bind ONU terverifikasi live (§5.6a), matikan/nyalakan port PON (§5.6b);
+> matriks capability (§11) mengikuti `SmartOltSupport::capabilities()`.
 
 Dokumen ini adalah **referensi otoritatif** integrasi OLT ZTE GPON ZXA10 (C300, C320, **dan C600 Titan**) di dalam **KusumaVision NMS** (Laravel 12 + Vue 3/Inertia). Berisi spec SNMP, OID map, CLI command, encoding ifIndex composite, parser value, transport telnet, flow provisioning/reconfigure/reboot/profile, capability matrix, data model, route, dan halaman UI — **sesuai kode yang benar-benar berjalan di repo ini**.
 
-> **Catatan sumber.** Versi lama dokumen ini disalin dari project web BMKV lain yang berbasis Blade + kelas `ZteSnmpService`/`ZteCliSessionService`/`ZteCliProvisionService`. **Kelas-kelas itu tidak ada di repo ini.** Isi sekarang sudah dipetakan ulang ke arsitektur nyata KusumaVision NMS: SNMP read `OltSnmpClient` (+ poller Go `GoSnmpPoller`), CLI executor `ZteCliProvisioningExecutor`, script builder `ZteProvisioningScriptBuilder`, aksi ONU `ZteRemoteOnuService`, registrasi `Zte\OnuRegistrationService`, dan halaman **Vue/Inertia** (`resources/js/Pages/SmartOlt/*.vue`).
+> **Catatan sumber.** Versi lama dokumen ini disalin dari project web lain yang berbasis Blade + kelas `ZteSnmpService`/`ZteCliSessionService`/`ZteCliProvisionService`. **Kelas-kelas itu tidak ada di repo ini.** Isi sekarang sudah dipetakan ulang ke arsitektur nyata KusumaVision NMS: SNMP read `OltSnmpClient` (+ poller Go `GoSnmpPoller`), CLI executor `ZteCliProvisioningExecutor`, script builder `ZteProvisioningScriptBuilder`, aksi ONU `ZteRemoteOnuService`, registrasi `Zte\OnuRegistrationService`, dan halaman **Vue/Inertia** (`resources/js/Pages/SmartOlt/*.vue`).
 
 Companion docs:
 - [SMARTOLT_CDATA_GUIDE.md](SMARTOLT_CDATA_GUIDE.md) — OLT non-ZTE C-Data EPON/GPON
@@ -37,11 +42,11 @@ ZTE diperiksa **paling dulu** (sebelum family non-ZTE) supaya needle `epon` mili
 C600 adalah platform Titan dengan **subtree SNMP modern `.1082` (zxAccessNode)**. Deteksinya terpisah dari `driverKey()`, memakai [`SmartOltSupport::isC600()`](../app/Support/SmartOltSupport.php) — substring `c600` pada `vendor` + `name` + `last_test_result.system.sys_descr`, **atau** `sysObjectID` mengandung `3902.1082.1001.600` (jalur kedua ini yang menyelamatkan C600 baru yang belum di-Test dan namanya tak mengandung "C600"). Jadi:
 
 - driver tetap `DRIVER_ZTE` (C600 berbagi seluruh jalur ZTE),
-- `isC600()` menyalakan cabang khusus C600 di dalam driver (OID `.1082`, ifIndex 4-komponen, tanpa OID deskripsi terpisah).
+- `isC600()` menyalakan cabang khusus C600 di dalam driver (OID `.1082`, ifIndex 4-komponen, nama/deskripsi & state ONU dari tabel terpisah — §4.3), dan dipakai juga oleh poller Go (`isC600()` di `cmd/kv-snmp-poller/main.go`, dari sysDescr/sysObjectID).
 
 > **Baca [`SMARTOLT_ZTE_C600_GUIDE.md`](SMARTOLT_ZTE_C600_GUIDE.md) untuk apa pun yang menyangkut C600.** Dokumen ini otoritatif untuk C300/C320; bagian C600-nya dulu berisi OID yang tak pernah diuji ke perangkat dan sudah dikoreksi.
 
-Ringkas perbedaan interface (lihat [`gponOltInterface()`](../app/Support/SmartOltSupport.php#L153) / [`onuInterfaceId()`](../app/Support/SmartOltSupport.php#L146)):
+Ringkas perbedaan interface (lihat [`gponOltInterface()`](../app/Support/SmartOltSupport.php) / [`onuInterfaceId()`](../app/Support/SmartOltSupport.php)):
 
 | | C300 / C320 | C600 |
 |---|---|---|
@@ -87,7 +92,7 @@ Implementasi CLI: [`app/Services/ZteCliProvisioningExecutor.php`](../app/Service
 
 ## 3. Encoding ifIndex Composite ZTE (kritikal)
 
-ONU-table ZTE di-index `{ifIndex}.{onuId}` dengan ifIndex composite. Encoding **beda antara C300/C320 dan C600** — lihat [`OltSnmpClient::zteEncodeIfIndex()`](../app/Services/Snmp/OltSnmpClient.php#L902) / [`decodeIfIndex()`](../app/Services/Snmp/OltSnmpClient.php#L916).
+ONU-table ZTE di-index `{ifIndex}.{onuId}` dengan ifIndex composite. Encoding **beda antara C300/C320 dan C600** — lihat [`OltSnmpClient::zteEncodeIfIndex()`](../app/Services/Snmp/OltSnmpClient.php) / [`decodeIfIndex()`](../app/Services/Snmp/OltSnmpClient.php).
 
 ### 3.1 C300 / C320 — Type-1 composite
 
@@ -141,13 +146,13 @@ Parse slot/port dari nama port lebih andal daripada bit-decode murni; parser IF-
 | ONU last-down cause | `…3902.1012.3.28.2.1.7` | RO | penyebab down terakhir |
 | ONU Rx (per-port) | `…3902.1012.3.50.12.1.1.10` | RO | index `{ifIndex}.{onuId}` |
 
-Phase state enum ([`decodePhaseState`](../app/Services/Snmp/OltSnmpClient.php#L1047)):
+Phase state enum ([`decodePhaseState`](../app/Services/Snmp/OltSnmpClient.php)):
 
 ```
 0 Logging · 1 LOS · 2 Sync MIB · 3 Working(online) · 4 DyingGasp · 5 Auth Failed · 6 Offline
 ```
 
-Last-down-cause enum ([`decodeLastDownCause`](../app/Services/Snmp/OltSnmpClient.php#L1075)):
+Last-down-cause enum ([`decodeLastDownCause`](../app/Services/Snmp/OltSnmpClient.php)):
 
 ```
 0 Normal · 1 LOS · 2 LOSi · 3 LOFi · 4 SFi · 5 LOAi · 6 LOAMi · 7 Deactivated · 8 Manual · 9 DyingGasp
@@ -162,10 +167,20 @@ Interpretasi `last_down_cause` ke bahasa Indonesia di UI: [`resources/js/lib/onu
 > Sudah ditambal 15 Juli 2026 setelah pemetaan live.
 
 Tabel ONU C600 yang benar ada di basis **`.1082.500.20.2.1.2.1.*`** (index `{ifIndex}.{onuId}`), dengan
-`.3` = SN, `.7` = status online (`1`=Working, `2`=Offline), `.8` = model.
+`.3` = SN, `.8` = model (gerbang walk). Kolom lain yang dipakai kode (PHP `OltSnmpClient` **dan** poller Go),
+semuanya ber-index `{ifIndex}.{onuId}` yang sama dan terverifikasi live Juli 2026:
 
-**Referensi lengkap + apa yang belum terpetakan (nama ONU, admin-state, Rx, unconfigured):**
-[`SMARTOLT_ZTE_C600_GUIDE.md`](SMARTOLT_ZTE_C600_GUIDE.md). Section ini hanya berlaku untuk C300/C320.
+| Data | OID | Catatan |
+|---|---|---|
+| Phase / status | `…1082.500.10.2.3.8.1.4` | `2` LOS · `4` Working (= online) · `5` DyingGasp · `7` OffLine. Menggantikan flag biner `.20.2.1.2.1.7` (set online identik 1343/1343 ONU) |
+| Admin-state | `…1082.500.10.2.3.8.1.1` | `1` enable · `2` disable (**baca saja**) |
+| Nama ONU | `…1082.500.10.2.3.3.1.2` | nama pelanggan asli, walau CLI `detail-info` menyensornya `********` (**baca saja**) |
+| Deskripsi ONU | `…1082.500.10.2.3.3.1.3` | metadata SmartOLT mentah `zone_…_[extid_…_]authd_…` |
+| Rx ONU | `…1082.500.20.2.2.2.1.10` | §4.4 |
+| Last-down cause | — | tak ada tabelnya; saat ONU offline diisi dari phase (LOS/DyingGasp/OffLine) |
+
+**Referensi lengkap:** [`SMARTOLT_ZTE_C600_GUIDE.md`](SMARTOLT_ZTE_C600_GUIDE.md) +
+[`ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md`](ZTE_C600_Configured_ONU_Name_SNMP_Discovery.md). Tabel §4.2 hanya berlaku untuk C300/C320.
 
 ### 4.4 Konversi Rx Power (multi-scale)
 
@@ -181,9 +196,9 @@ OID kandidat (`OltSnmpClient::ZTE_UNCFG_OIDS` untuk C300/C320, `C600_UNCFG_OIDS`
 |---|---|
 | C320 V1.2.x | `…3902.1012.3.13.3.1.2` |
 | v2.x SN/MAC/alt | `…3902.1082.500.10.2.1.1` · `…10.2.1.2` · `…10.1.1.1` |
-| **C600** | **belum terpetakan** (`C600_UNCFG_OIDS = []`) — OID lama `…10.2.2.1.2` tak ada di perangkat asli; halaman Unconfigured kosong untuk C600 |
+| **C600** | **`…3902.1082.500.2.2.11.2.1.2`** (serial 8 byte, index `{PON-ifIndex}.{entry}`) + model `.8` & firmware `.10` sebagai pelengkap — terverifikasi live Juli 2026 (`C600_UNCFG_OIDS`, [`ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md`](ZTE_C600_Unconfigured_ONU_SNMP_Discovery.md)). OID lama `…10.2.2.1.2` tak ada di perangkat |
 
-Halaman Unconfigured (`Pages/SmartOlt/Unconfigured.vue`) + service on-demand [`ZteUncfgOnuService`](../app/Services/ZteUncfgOnuService.php); ada juga cross-OLT `Pages/SmartOlt/UnconfiguredGlobal.vue`.
+Halaman Unconfigured (`Pages/SmartOlt/Unconfigured.vue`) + cross-OLT `Pages/SmartOlt/UnconfiguredGlobal.vue`; tombol **Refresh Discovery** (`smartolt.unconfigured.refresh`, juga API `api.olts.unconfigured.refresh`) memakai SNMP lewat [`Zte\UnconfiguredOnuDiscovery`](../app/Services/Zte/UnconfiguredOnuDiscovery.php), yang juga mencatat waktu "pertama terlihat" per SN (OLT tak menyimpannya). CLI `show gpon onu uncfg` ([`ZteUncfgOnuService`](../app/Services/ZteUncfgOnuService.php)) hanya dipakai bot Telegram `/uncfg`.
 
 ---
 
@@ -214,13 +229,20 @@ Interface string di-generate lewat helper `SmartOltSupport::gponOltInterface()` 
 | Atenuasi up/down | `show pon power attenuation gpon-onu_1/…:{onuId}` |
 | Running-config ONU | `show running-config interface gpon-onu_1/…:{onuId}` — [`ZteOnuRunningConfigService`](../app/Services/ZteOnuRunningConfigService.php) (§7) |
 | Profile TCONT/VLAN/IP/ONU-type | `show gpon profile tcont` · `show gpon onu profile vlan` · `show gpon onu profile ip` · `show onu-type` — [`ZteProfileCatalogService`](../app/Services/ZteProfileCatalogService.php) |
-| Backup running-config | `show running-config` — [`Zte\OltConfigBackupService`](../app/Services/Zte/OltConfigBackupService.php) (§14) |
+| Backup running-config | `show running-config` — [`Zte\OltConfigBackupService`](../app/Services/Zte/OltConfigBackupService.php) (§13) |
+
+> **C600 beda sintaks** (terverifikasi live Juli 2026, dipakai kode): running-config per-ONU lewat
+> `show running-config xpon | begin interface {iface}` atau — bila ONU sudah ada di cache — config-mode
+> `interface {iface}` → `show this` (`ZteOnuRunningConfigService`); optik port `show optical-module-info {iface}`
+> (tanpa kata `interface`); detail port `show interface gpon_olt-…` / `xgei-…`; CPU/memori kartu `show processor`.
+> `show running-config interface …` dan `show onu running config …` ditolak C600. Lihat
+> [`SMARTOLT_ZTE_C600_GUIDE.md` §11a](SMARTOLT_ZTE_C600_GUIDE.md).
 
 > `SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` (dokumen ini) adalah **referensi CLI otoritatif** — konsultasikan sebelum menebak sintaks command.
 
 ### 5.3 Provisioning ONU Baru
 
-Script dibangun [`ZteProvisioningScriptBuilder`](../app/Services/ZteProvisioningScriptBuilder.php), dijalankan via [`Zte\OnuRegistrationService`](../app/Services/Zte/OnuRegistrationService.php) → `ZteCliProvisioningExecutor`. Setiap registrasi menulis baris audit ke `smartolt_onu_registrations` (script dibuat dulu, dieksekusi belakangan/opsional).
+Script C300/C320 dibangun [`ZteProvisioningScriptBuilder`](../app/Services/ZteProvisioningScriptBuilder.php), dijalankan via [`Zte\OnuRegistrationService`](../app/Services/Zte/OnuRegistrationService.php) → `ZteCliProvisioningExecutor`. Setiap registrasi menulis baris audit ke `smartolt_onu_registrations` (script dibuat dulu, dieksekusi belakangan/opsional). **C600 memakai builder terpisah** ([`ZteC600ProvisioningScriptBuilder`](../app/Services/ZteC600ProvisioningScriptBuilder.php), Model B / SmartOLT TR069) — lihat §12 dan [`SMARTOLT_ZTE_C600_GUIDE.md` §11](SMARTOLT_ZTE_C600_GUIDE.md).
 
 ```
 conf t
@@ -229,7 +251,7 @@ interface gpon-olt_1/…/{port}
   exit
 interface gpon-onu_1/…:{onuId}
   name {NAME}
-  description {onuId}$${NAME}$$          # C600: dilewati (tak ada deskripsi terpisah)
+  description {DESKRIPSI}                # kolom Deskripsi; kosong → {onuId}$${NAME}$$
   tcont 1 name 1 profile {TCONT_PROFILE}
   gemport 1 name 1 tcont 1
   encrypt 1 enable downstream
@@ -251,11 +273,27 @@ pon-onu-mng gpon-onu_1/…:{onuId}
 | Static | `wan-ip 1 mode static ip-profile {P} ip-address {IP} mask {255.255.255.0}` |
 | Bridge | tanpa baris `wan-ip`; tambah `switchport mode hybrid vport 1` + `service … type internet …` |
 
-`description` di-encode `{onuId}$${name}$$` agar onuId bisa di-parse balik dari running-config; ACS default dari `config('services.acs')` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` di `.env`, tak ada kredensial di repo). Form register lanjutan (`Pages/SmartOlt/RegisterOnu.vue`) punya jalur preview+store (`smartolt.register.*`, `…register.advanced.*`) dengan default dari [`Zte\OnuRegistrationFormDefaults`](../app/Services/Zte/OnuRegistrationFormDefaults.php).
+Mode service `transparent` menghasilkan `service {SERVICE_NAME} gemport 1` (tanpa cos/vlan).
+
+**Kolom Deskripsi (sejak 30 Sep 2026).** Form Register ONU punya kolom Deskripsi opsional di samping Nama:
+
+| Form | Diisi | Kosong |
+|---|---|---|
+| Sederhana (C300/C320) | `description {teks}` | konvensi SmartOLT `{onuId}$${name}$$` (onuId bisa di-parse balik dari running-config) |
+| Lanjutan (C300/C320) | `context.description` → `ZteOnuReconfigureScriptBuilder::buildForRegistration()` | sama dengan Name |
+| C600 | deskripsi eksplisit menang | `zone_{zona}_authd_{YYYYMMDD}` bila ada zona, selain itu nama (`ZteC600ProvisioningScriptBuilder`) |
+
+Validasi C300/C320: opsional, maks **80 karakter**, tanpa karakter kontrol (`SmartOltController::ONU_DESCRIPTION_RULES`);
+C600 maks 191 (`OnuRegistrationService::c600Rules()`). Builder tetap membuang CR/LF (anti-injeksi baris CLI).
+Deskripsi hanya masuk `cli_script` (tak ada kolom baru di audit). Salin ONU & Configure ONU tidak memakai kolom ini, dan
+API/mobile C300/C320 belum punya field-nya (tetap `{id}$$nama$$`). Nama pelanggan yang dibaca NMS tetap dari `name`
+(`SmartOltSupport::customerNameFromOnu()`), deskripsi hanya cadangan.
+
+ACS default dari `AcsSetting::resolved()` (Pengaturan → ACS; cadangan `config('services.acs')` = `ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` di `.env`, tak ada kredensial di repo; password tak pernah dikirim ke props). Form register lanjutan (`Pages/SmartOlt/RegisterOnu.vue`) punya jalur preview+store (`smartolt.register.*`, `…register.advanced.*`) dengan default dari [`Zte\OnuRegistrationFormDefaults`](../app/Services/Zte/OnuRegistrationFormDefaults.php).
 
 ### 5.4 Reconfigure ONU Existing (delta)
 
-[`ZteOnuReconfigureScriptBuilder::build()`](../app/Services/ZteOnuReconfigureScriptBuilder.php): baca running-config live (`ZteOnuRunningConfigService`), bandingkan dengan payload form, emit hanya baris yang berubah (name/tcont/gemport/service-port, tr069 lock/unlock, security-mgmt enable/disable, wan-ip per-index). `buildForCopy()` dipakai fitur **copy ONU ke port lain**. C600: cabang `is_c600` melewati baris deskripsi. Bila tak ada perubahan → script kosong → "Tidak ada perubahan config untuk di-apply".
+[`ZteOnuReconfigureScriptBuilder::build()`](../app/Services/ZteOnuReconfigureScriptBuilder.php): baca running-config live (`ZteOnuRunningConfigService`), bandingkan dengan payload form, emit hanya baris yang berubah (name/tcont/gemport/service-port, tr069 lock/unlock, security-mgmt enable/disable, wan-ip per-index). `buildForCopy()` dipakai fitur **copy ONU ke port lain**; `buildForRegistration()` dipakai register mode Lanjutan. Semua jalur tulis builder ini digerbang `supports_onu_config_write`, yang **mati di C600** (builder masih gaya C300 tcont/gemport/service-port, sedangkan C600 memakai model vport) — Configure C600 = baca-saja, dan Copy ONU, TR069 Massal, serta register Lanjutan ikut tersembunyi di C600. Bila tak ada perubahan → script kosong → "Tidak ada perubahan config untuk di-apply".
 
 ### 5.5 Reboot ONU (CLI)
 
@@ -277,8 +315,12 @@ SET .1012.3.28.1.1.2/.3.{ifIndex}.{onuId}  s  "…"    # C300/C320
 > menulis ke OID sembarang di OLT. `supports_onu_toggle` & `supports_onu_info_write` = `false` untuk C600,
 > dan `ZteRemoteOnuService` melempar `RuntimeException` bila tetap dipanggil. Jangan dibuka dengan OID
 > tebakan; lihat [`SMARTOLT_ZTE_C600_GUIDE.md` §5](SMARTOLT_ZTE_C600_GUIDE.md).
+>
+> Sejak Juli 2026 OID **baca** C600 yang benar sudah terpetakan (nama `.1082.500.10.2.3.3.1.2`, admin-state
+> `.1082.500.10.2.3.8.1.1`, §4.3), tetapi SNMP SET ke kolom itu **belum pernah diuji** — konstanta tulis C600 di
+> `ZteRemoteOnuService` sengaja tetap `null`, capability tetap `false`.
 
-Route: `smartolt.onu.state` (setState), `smartolt.onu.info` (updateOnuInfo). Delete ONU (`no onu {id}`, gated `supports_onu_delete`) via route `smartolt.onu.delete`.
+Route: `smartolt.onu.state` (setState), `smartolt.onu.info` (updateOnuInfo). Delete ONU (CLI `conf t` → `interface {gpon-olt}` → `no onu {id}` → `exit`, gated `supports_onu_delete`) via route `smartolt.onu.delete`; hapus banyak ONU sekaligus dalam **satu sesi CLI** via `smartolt.port-onus.delete` (`ZteRemoteOnuService::deleteMany`, kegagalan dipetakan per ONU dari error CLI).
 
 ### 5.6a Bind ONU / Ganti ONU (`registration-method sn`) — C300/C320
 
@@ -295,8 +337,8 @@ write            # opsional, dari checkbox modal (ZteCliProvisioningExecutor::sa
 ```
 
 - Sumber sintaks: catatan komunitas C300/C320 (repo `denniseptian/ZTE-C300`, tembolok.id) —
-  **terverifikasi live 29 Sep 2026**: user mengganti ONU pelanggan lewat tombol Bind NMS di OLT produksi
-  dan berhasil. Kalau suatu firmware menolak, executor memunculkan `%Error …` sebagai flash error dan cache
+  **terverifikasi live 29 Sep 2026**: ONU pelanggan berhasil diganti lewat tombol Bind NMS di OLT
+  produksi. Kalau suatu firmware menolak, executor memunculkan `%Error …` sebagai flash error dan cache
   tak diubah.
 - **C600 ditutup** (`supports_onu_replace = false`): interface-nya `gpon_onu-1/…`, dan belum ada bukti
   `registration-method` ada di sana. Buka hanya setelah dicek `?` di perangkat asli.
@@ -313,6 +355,47 @@ tidak ada di cache unconfigured **port yang sama**, ONU target yang tak ada di c
 (injeksi baris CLI). Sukses: SN di cache port + kolom `serial_number` `onu_odp_links`/`onu_map_pins`
 (berkunci posisi) diperbarui, SN dibuang dari cache unconfigured, audit `onu.replaced` / `onu.replace_failed`.
 
+### 5.6b Matikan / Nyalakan Port PON (`shutdown` / `no shutdown`) — C300/C320
+
+Tombol **"Matikan Port" / "Nyalakan Port"** di halaman Port Detail (`Pages/SmartOlt/PortDetail.vue`) →
+`POST smartolt.port.admin-state` ([`SmartOltController::storePortAdminState`](../app/Http/Controllers/SmartOltController.php))
+→ [`ZteCardUplinkService::setGponPortAdminState()`](../app/Services/ZteCardUplinkService.php):
+
+```
+configure terminal
+interface gpon-olt_1/{slot}/{port}
+shutdown            # matikan   |   no shutdown   # nyalakan
+exit
+end
+```
+
+- **Tanpa `write`** (keputusan desain): port yang dimatikan akan menyala lagi bila OLT reboot. Sesudahnya status port
+  dibaca ulang (`refreshGponInterface`).
+- Sumber sintaks: context-help `interface gpon-olt_…` di C300 & C320 asli memuat `shutdown`, running-config port memuat
+  `no shutdown` (baca-saja, 30 Sep 2026); **uji live pertama** berhasil di port kosong (0 ONU) sebuah C300 produksi,
+  30 Sep/1 Okt 2026 (matikan lalu nyalakan).
+- Gerbang: capability `supports_port_admin_write` (= C300/C320; **C600 mati**, perintahnya belum dicek di C600 —
+  service juga menolak nama interface selain `gpon-olt_N/N/N`) + `User::canSetPonPortAdminState()`: admin
+  atau partner pemilik OLT; operator dan partner yang sekadar di-assign → 403.
+  `throttle:olt-refresh`; konfirmasi `useConfirm` (danger saat mematikan, menyebut jumlah ONU yang terputus).
+- Audit `port.disabled` / `port.enabled` / `port.disable_failed` / `port.enable_failed`.
+- **Alarm `port_disabled`** (`AlarmEvent::TYPE_PORT_DISABLED`, major): dinaikkan langsung saat port dimatikan
+  (`AlarmEvaluator::raisePortDisabled()`, ACTIVE tanpa debounce, **satu** notifikasi). Selama terbuka ia menahan
+  `port_down` serta alarm ONU & ODP di port itu (apa pun saklar korelasi). Menyalakan port menutupnya dengan **satu**
+  notifikasi pulih (`clearPortDisabled()`, sejak 1 Okt 2026). Port yang terbaca UP lewat tenggang 10 menit dianggap
+  dinyalakan di luar NMS → penanda dilepas (juga dengan notifikasi pulih). Penanda dipertahankan saat OLT tak terjangkau.
+
+> ⚠️ **Jangan uji perintah tulis lewat context-help berargumen.** `ZteCliProvisioningExecutor` mengirim **setiap baris
+> diikuti Enter** (`$command."\n"`), jadi baris `shutdown ?` akan **menjalankan** `shutdown`. Yang aman hanya `?` polos
+> (atau lewat terminal telnet interaktif, bukan executor).
+
+### 5.6c Deskripsi Port PON (CLI) — C300/C320/C600
+
+`smartolt.port.description` → `ZteCardUplinkService::setGponPortDescription()`, gated `supports_port_description_write`
+(true di ketiga family): `configure terminal` → `interface {gpon-olt_1/s/p | gpon_olt-1/s/p}` → `description {teks}` (kosong
+→ `no description`) → `exit` → `end` → `write`. Teks dibersihkan dari CR/LF/kontrol dan dipotong 64 karakter. Beda dari
+C-Data/HiOSO yang labelnya disimpan di NMS (`supports_port_label`).
+
 ### 5.7 Simpan Konfigurasi OLT (`write`)
 
 Aksi OLT-level (bukan per-ONU): persist running-config ke memori. Tombol **"Save Config"** di daftar OLT → [`ZteCliProvisioningExecutor::saveConfig`](../app/Services/ZteCliProvisioningExecutor.php), route `smartolt.config.save`, gated `supports_config_save` + `throttle:olt-refresh`.
@@ -321,7 +404,7 @@ Aksi OLT-level (bukan per-ONU): persist running-config ke memori. Tombol **"Save
 > write
 ```
 
-ZXA10 landing di `#` sehingga `write` langsung jalan. **C300 config besar bisa hening ~30 detik**; `saveConfig` membaca `readUntilIdle(quiet=75s, cap=120s)` — berhenti hanya saat prompt CLI kembali, bukan patokan output sunyi. Berbeda dari **backup config** (§14) yang menyalin `show running-config` terenkripsi ke DB.
+ZXA10 landing di `#` sehingga `write` langsung jalan. **`write` hanya valid di privileged EXEC `ZXAN#`** — dari mode config C600 menjawab `%Error 140303 Invalid input` (terbukti di registrasi C600 live pertama), jadi skrip yang menyertakan `write` (registrasi C600, deskripsi port) selalu `end` dulu; registrasi C300/C320 tidak menulis `write` sendiri. **C300 config besar bisa hening ~30 detik**; `saveConfig` membaca `readUntilIdle(quiet=75s, cap=120s)` — berhenti hanya saat prompt CLI kembali, bukan patokan output sunyi. Berbeda dari **backup config** (§13) yang menyalin `show running-config` terenkripsi ke DB.
 
 ### 5.8 Profile Management
 
@@ -359,11 +442,11 @@ Model [`SnmpOlt`](../app/Models/SnmpOlt.php). Kolom sensitif (`snmp_read_communi
 
 ### 8.3 `smartolt_onu_registrations`
 
-Audit trail provisioning + reconfigure: `snmp_olt_id`, `serial_number`, `slot`, `port`, `onu_id`, `pon_port`, `oid_index`, `customer_name`, `onu_type`, `tcont_profile`, `vlan`, `vlan_profile`, `service_name`, `wan_mode` (enum pppoe/dhcp/static), `pppoe_username`, `pppoe_password` (⚠ text/plaintext — batasi akses), `ip_profile`, `static_ip`, `static_netmask`, `cli_script` (longtext), `status` (`generated|executed|failed|reconfigured|…`), `created_by`; + eksekusi (`execution_output`, `execution_error`, `executed_at`, `executed_by`); + TR069/Remote ONT (`tr069_enabled`, `acs_url/username/password`, `remote_ont_enabled/id/mode/protocol`).
+Audit trail provisioning + reconfigure: `snmp_olt_id`, `serial_number`, `slot`, `port`, `onu_id`, `pon_port`, `oid_index`, `customer_name`, `onu_type`, `tcont_profile`, `vlan`, `vlan_profile`, `service_name`, `wan_mode` (enum pppoe/dhcp/static/bridge/tr069 — `tr069` = registrasi C600), `pppoe_username`, `pppoe_password` (⚠ text/plaintext — batasi akses), `ip_profile`, `static_ip`, `static_netmask`, `cli_script` (longtext), `status` (`generated|executed|failed|reconfigured|…`), `created_by`; + eksekusi (`execution_output`, `execution_error`, `executed_at`, `executed_by`); + TR069/Remote ONT (`tr069_enabled`, `acs_url/username/password`, `remote_ont_enabled/id/mode/protocol`).
 
 ### 8.4 Tabel pendukung
 
-`onu_rx_samples` (history RX per-ONU, disampel `PollOltJob`, di-chart `RxTrendCard`/`PortDetail`/`OnuDetail`), `alarm_events` (+ `alarm_settings`), `polling_events`, `smartolt_card_statuses` / `smartolt_interface_statuses` (hardware cache), `copy_onu_tasks` (§14), `tr069_bulk_tasks` (§14), `olt_config_backups` (§14), `onu_map_pins` (peta ONU), `olt_user` (assignment partner + `alarms_enabled` pivot).
+`onu_rx_samples` (history RX per-ONU, disampel `PollOltJob`, di-chart `RxTrendCard`/`PortDetail`/`OnuDetail`), `alarm_events` (+ `alarm_settings`), `polling_events`, `smartolt_card_statuses` / `smartolt_interface_statuses` (hardware cache), `copy_onu_tasks` (§13), `tr069_bulk_tasks` (§13), `olt_config_backups` (§13), `onu_map_pins` (peta ONU), `olt_user` (assignment partner + `alarms_enabled` pivot).
 
 ---
 
@@ -380,15 +463,17 @@ Controller utama: [`SmartOltController`](../app/Http/Controllers/SmartOltControl
 | GET/PUT/DELETE | `/smartolt/{olt}/edit` · `/smartolt/{olt}` | `smartolt.edit/update/destroy` |
 | POST | `/smartolt/{olt}/test` · `/smartolt/{olt}/refresh` | `smartolt.test` · `smartolt.refresh` |
 | GET | `/smartolt/{olt}/detail` · `/gpon-ports` · `/port-detail` | `smartolt.detail` · `smartolt.gpon-ports` · `smartolt.port.detail` |
+| POST | `/smartolt/{olt}/port-detail/{refresh,vlan,description,admin-state}` (+ GET `/traffic`) | `smartolt.port.{refresh,vlan,description,admin-state}` · `smartolt.port.traffic` |
 | GET | `/smartolt/{olt}/ports/{slot}/{port}/onus` | `smartolt.port-onus` |
-| POST | `…/ports/{slot}/{port}/onus/refresh` · `…/copy` | `smartolt.port-onus.refresh` · `smartolt.port-onus.copy` |
-| GET | `/smartolt/{olt}/unconfigured` · `/smartolt/unconfigured` | `smartolt.unconfigured` · `smartolt.unconfigured-all` |
-| GET/POST | `/smartolt/{olt}/register` (+ `/preview`, `/advanced…`) | `smartolt.register*` |
+| POST | `…/ports/{slot}/{port}/onus/refresh` · `…/delete` · `…/copy` | `smartolt.port-onus.refresh` · `smartolt.port-onus.delete` · `smartolt.port-onus.copy` |
+| GET/POST | `/smartolt/{olt}/unconfigured` (+ `/refresh`) · `/smartolt/unconfigured` | `smartolt.unconfigured` · `smartolt.unconfigured.refresh` · `smartolt.unconfigured-all` |
+| GET/POST | `/smartolt/{olt}/register` (+ `/preview`, `/advanced…`, GET `/mgmt-pool` C600) | `smartolt.register*` · `smartolt.register.mgmt-pool` |
+| GET/POST | `…/ports/{slot}/{port}/replace-candidates` · `…/onus/{onuId}/replace` | `smartolt.onu.replace-candidates` · `smartolt.onu.replace` (Bind ONU) |
 | GET/POST/DELETE | `/smartolt/{olt}/registrations…` | `smartolt.registrations*` |
 | GET…DELETE | `/smartolt/{olt}/profiles…` | `smartolt.profiles*` |
 | POST | `…/onus/{onuId}/{reboot,delete,state,info}` | `smartolt.onu.{reboot,delete,state,info}` |
 | GET | `…/onus/{onuId}/detail` · `/configure` | `smartolt.onu.detail` · `smartolt.onu.configure` |
-| POST | `…/onus/{onuId}/configure/preview` · `/configure` | `smartolt.onu.configure.preview` · `.apply` |
+| POST | `…/onus/{onuId}/configure/preview` · `/configure` · `/configure/item` · `/configure/unbind-profile` | `smartolt.onu.configure.{preview,apply,item,unbind-profile}` |
 | POST | `/smartolt/{olt}/config/save` | `smartolt.config.save` |
 | GET…GET | `/smartolt/{olt}/config-backups…` | `smartolt.config-backups.{index,store,toggle,content,download}` |
 | POST | `…/tr069-bulk` · `…/copy-tasks/{task}` · `…/tr069-bulk/{task}` | `smartolt.tr069-bulk*` · `smartolt.copy-task.status` |
@@ -397,7 +482,7 @@ Controller utama: [`SmartOltController`](../app/Http/Controllers/SmartOltControl
 
 ### 9.2 REST API v1 (mobile / programmatic)
 
-`routes/api.php`, prefix `v1`, Sanctum bearer + `throttle:api`. Read: `api.summary`, `api.olts.index/show`, `api.olts.port-onus`, `api.olts.onu.show`, `api.olts.unconfigured`, `api.olts.register.options`, `api.onus.index`, `api.alarms.index`, `api.search`. Write (`role:admin,operator,partner` + `BlockDemoWrites`): `api.olts.register.preview/store`, `api.olts.unconfigured.refresh`, `api.olts.port.refresh`, `api.olts.onu.reboot/name`. Controller di [`app/Http/Controllers/Api/V1/`](../app/Http/Controllers/Api/V1/). Docs: [API.md](API.md).
+`routes/api.php`, prefix `v1`, Sanctum bearer + `throttle:api`. Read: `api.summary`, `api.olts.index/show`, `api.olts.port-onus`, `api.olts.onu.show`, `api.olts.unconfigured`, `api.olts.register.options`, `api.onus.index`, `api.alarms.index`, `api.search`. Write (`role:admin,operator,partner` + `BlockDemoWrites`): `api.olts.register.preview` · `api.olts.register` (store), `api.olts.unconfigured.refresh`, `api.olts.port.refresh`, `api.olts.onu.reboot/name/delete`. Registrasi lewat API memakai `OnuRegistrationService::rules()` (mode dasar; C300/C320 tanpa field `description`, jadi selalu `{id}$$nama$$`). Controller di [`app/Http/Controllers/Api/V1/`](../app/Http/Controllers/Api/V1/). Docs: [API.md](API.md).
 
 ---
 
@@ -406,12 +491,14 @@ Controller utama: [`SmartOltController`](../app/Http/Controllers/SmartOltControl
 ```
 /smartolt (Index.vue)  → daftar OLT (scoped assignment), badge vendor+capability, tombol per family
   → Detail.vue         → chassis + grid PON port (Up/Down + online/total ONU)
+  → PortDetail.vue     → status/optik/VLAN port · edit deskripsi · Matikan/Nyalakan Port (C300/C320)
   → PortOnus.vue       → tabel ONU (SN, type, phase, admin, Rx, Tx, model, last-down, LAN)
        per-row: Edit Info · Reboot · Enable/Disable · Delete · Detail (CLI) · Configure (CLI)
-       tools: Copy ONU ke port · TR069 Massal · Refresh per-port · Add Map
+       tools: Hapus massal · Copy ONU ke port · TR069 Massal · Refresh per-port · Add Map
+       (C600: Edit Info, Enable/Disable, Copy, TR069 Massal tersembunyi; Configure baca-saja)
   → OnuDetail.vue / ConfigureOnu.vue
-Unconfigured.vue       → discovery SN → Register
-RegisterOnu.vue        → provisioning (preview → store, opsional execute)
+Unconfigured.vue       → discovery SN → Register · Bind (C300/C320, ganti ONU rusak)
+RegisterOnu.vue        → provisioning Sederhana/Lanjutan (C300/C320) atau form C600 Model B (preview → store, opsional execute)
 Registrations.vue      → riwayat audit (execute/hapus baris)
 Profiles.vue           → katalog ONU type/TCONT/VLAN/IP (+ sync dari OLT)
 ConfigBackups.vue      → riwayat backup, toggle harian, backup manual, diff versi
@@ -421,7 +508,7 @@ ConfigBackups.vue      → riwayat backup, toggle harian, backup manual, diff ve
 
 ## 11. Capabilities Matrix (ZTE)
 
-Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOltSupport.php#L192) — beberapa nilai bergantung `isC600()`:
+Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOltSupport.php) — beberapa nilai bergantung `isC600()`:
 
 ```json
 {
@@ -433,19 +520,22 @@ Dari [`SmartOltSupport::capabilities(DRIVER_ZTE, $olt)`](../app/Support/SmartOlt
   "is_c600": false,
   "supports_snmp_rx": true, "supports_cli_rx": true,
   "supports_cli_onu_detail": true, "supports_cli_onu_configure": true,
+  "supports_onu_config_write": true,      // C600 → false (builder delta gaya C300; C600 model vport)
   "supports_reboot": true, "reboot_mode": "cli",
-  "supports_provisioning": true,
+  "supports_provisioning": true,          // C600 juga true (Model B / SmartOLT TR069)
   "supports_onu_delete": true,
-  "supports_onu_replace": true,           // C600 → false (registration-method belum terverifikasi di C600)
+  "supports_onu_replace": true,           // C600 → false (registration-method belum dicek di C600)
   "supports_separate_description": true,  // C600 → false
-  "supports_onu_info_write": true, "description_mode": "snmp",   // C600 → false (OID nama tak terpetakan)
-  "supports_onu_toggle": true,            // C600 → false (OID admin-state tak terpetakan)
+  "supports_onu_info_write": true, "description_mode": "snmp",   // C600 → false (OID tulis belum diuji)
+  "supports_onu_toggle": true,            // C600 → false (OID tulis belum diuji)
   "supports_config_save": true,
+  "supports_port_description_write": true,  // C600 juga true (CLI `description`)
+  "supports_port_admin_write": true,      // C600 → false (shutdown belum dicek di C600)
   "rx_source_label": "Rx ONU (SNMP)"
 }
 ```
 
-ZTE adalah **satu-satunya driver dengan `supports_provisioning`, `supports_cli_onu_detail`, `supports_cli_onu_configure`** — itulah kenapa tombol Register/Configure/Detail-CLI hanya muncul untuk OLT ZTE (bandingkan dengan C-Data/HiOSO di companion guide).
+ZTE adalah **satu-satunya driver dengan `supports_provisioning`, `supports_cli_onu_detail`, `supports_cli_onu_configure`** — itulah kenapa tombol Register/Configure/Detail-CLI hanya muncul untuk OLT ZTE (bandingkan dengan C-Data/HiOSO di companion guide). ZTE juga satu-satunya yang menulis deskripsi port ke perangkat; `supports_port_label` (label port sisi-NMS) sengaja **tidak** ada di ZTE.
 
 ---
 
@@ -456,25 +546,32 @@ ZTE adalah **satu-satunya driver dengan `supports_provisioning`, `supports_cli_o
 | Deteksi | `isC600()` false | `isC600()` true (substring `c600` **atau** sysObjectID `3902.1082.1001.600`) |
 | Interface | `gpon-olt_1/{s}/{p}` | `gpon_olt-1/{s}/{p}` (**3-tier**, beda eja saja) |
 | ifIndex ONU | `0x10000000\|slot<<16\|port<<8` | `1<<28\|1<<24\|1<<16\|slot<<8\|port` |
-| Subtree ONU | `.1012.3.28.*` / `.50.*` | `.1082.500.20.2.1.2.1.*` (zxAccessNode) |
-| Provisioning | ✅ | ❌ (`supports_provisioning=false`, sintaks beda struktur) |
-| Phase enum | mulai 0 (`3=Working`) | mulai 1 (`4=Working`) |
-| Rx | multi-scale auto | OLT-side `raw/1000 = dBm` |
-| Deskripsi ONU | ada (`.28.1.1.3`) | **tidak ada** OID terpisah |
-| Unconfigured | 4 OID kandidat | `.1082.500.10.2.2.1.2` |
-| Kartu/uplink | 3-tier `xgei_1/{slot}` | 4-tier `xgei-1/1/{slot}` ([`ZteCardUplinkService`](../app/Services/ZteCardUplinkService.php)) |
-| Provisioning / reboot / toggle / rename | ✅ | ✅ (interface & OID otomatis dipilih via `isC600`) |
+| Subtree ONU | `.1012.3.28.*` / `.50.*` | `.1082.500.20.2.1.2.1.*` (SN `.3`, model `.8`) + tabel state/nama `.1082.500.10.2.3.{8,3}.1.*` |
+| Phase enum | mulai 0 (`3=Working`) | `.10.2.3.8.1.4`: `2` LOS · `4` Working · `5` DyingGasp · `7` OffLine |
+| Last-down cause | `.28.2.1.7` | tak ada tabel; diisi dari phase saat ONU offline |
+| Rx ONU | `.1012.3.50.12.1.1.10`, multi-scale auto | `.1082.500.20.2.2.2.1.10` — skala & parsing sama dgn C300, sentinel `65535` |
+| Nama / deskripsi ONU | `.28.1.1.2` / `.3` (baca + tulis SNMP) | `.10.2.3.3.1.2` / `.3` (**baca saja**) |
+| Unconfigured | 4 OID kandidat | `.1082.500.2.2.11.2.1.2` (+ model `.8`, firmware `.10`) |
+| Kartu | CLI `show card` | SNMP `zxAnCardTable` `.1082.10.1.2.4.1` ([ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md](ZTE_C600_Card_PON_Uplink_SNMP_Inventory.md)); CPU/mem kartu CLI `show processor` |
+| Uplink | `xgei_1/{slot}/{port}` | `xgei-1/{slot}/{port}` (3-tier, [`ZteCardUplinkService`](../app/Services/ZteCardUplinkService.php)) |
+| Provisioning | ✅ `ZteProvisioningScriptBuilder` (PPPoE/DHCP/static/bridge) | ✅ `ZteC600ProvisioningScriptBuilder` — Model B / SmartOLT TR069 saja, `end` → `write`; WAN pppoe/dhcp/static/bridge **ditolak** |
+| Configure / Copy / TR069 Massal / register Lanjutan | ✅ | ❌ (`supports_onu_config_write=false`; Configure baca-saja) |
+| Reboot · Detail ONU CLI · Save Config · deskripsi port | ✅ | ✅ capability on (Detail ONU & `write` terbukti live; reboot & deskripsi port belum tercatat diuji di C600) |
+| Enable/disable & rename ONU (SNMP SET) | ✅ | ❌ (OID tulis belum diuji) |
+| Bind ONU (`registration-method sn`) | ✅ terverifikasi live 29 Sep 2026 | ❌ belum dicek |
+| Matikan/nyalakan port PON | ✅ (§5.6b) | ❌ belum dicek |
 
-Referensi vendor C600 (PDF di `docs/`): *C600 SNMP OID Management Guide*, *SNMP ifIndex Structure and Calculation*, *SNMP OIDs for ONU Optical Power*, *ONU Admin Status SNMP Configuration*, *Line Card Identification and CLI Codes*, *C600 vs C300 CLI Command Migration Guide*, *SNMP Discovery Guide for C600 Unconfigured ONUs*.
+Referensi vendor C600 (PDF di `docs/`, **tak terverifikasi — jangan dipakai sebagai sumber OID**, lihat C600 guide §7): *C600 SNMP OID Management Guide*, *SNMP ifIndex Structure and Calculation*, *SNMP OIDs for ONU Optical Power*, *ONU Admin Status SNMP Configuration*, *Line Card Identification and CLI Codes*, *C600 vs C300 CLI Command Migration Guide*, *SNMP Discovery Guide for C600 Unconfigured ONUs*.
 
 ---
 
 ## 13. Fitur Modul Khas Repo Ini
 
 - **Copy ONU ke port** (batch) — baca running-config tiap ONU sumber (1 sesi telnet), rebuild registrasi penuh via `ZteOnuReconfigureScriptBuilder::buildForCopy()`, dijalankan queued [`CopyOnusToPortJob`](../app/Jobs/CopyOnusToPortJob.php) + tabel `copy_onu_tasks`, progress modal (route `smartolt.port-onus.copy`, status `smartolt.copy-task.status`).
-- **TR069 Massal per-port** — aktifkan TR069/ACS di **semua ONU satu PON port** ([`ZteTr069BulkService`](../app/Services/ZteTr069BulkService.php), queued [`Tr069BulkConfigJob`](../app/Jobs/Tr069BulkConfigJob.php) + `tr069_bulk_tasks`), dua fase dry-run→execute, skip ONU yang TR069+ACS-nya sudah benar. Modal `Components/SmartOlt/Tr069BulkModal.vue`, gated `supports_cli_onu_configure`.
+- **TR069 Massal per-port** — aktifkan TR069/ACS di **semua ONU satu PON port** ([`ZteTr069BulkService`](../app/Services/ZteTr069BulkService.php), queued [`Tr069BulkConfigJob`](../app/Jobs/Tr069BulkConfigJob.php) + `tr069_bulk_tasks`), dua fase dry-run→execute, skip ONU yang TR069+ACS-nya sudah benar. Modal `Components/SmartOlt/Tr069BulkModal.vue`, gated `supports_onu_config_write` (mati di C600; Copy ONU juga).
 - **Backup konfigurasi OLT** — [`Zte\OltConfigBackupService`](../app/Services/Zte/OltConfigBackupService.php) ambil `show running-config`, simpan ke `olt_config_backups` (`content` encrypted + `$hidden`, `sha256` dedup, `trigger` manual/scheduled). Terjadwal harian (`config_backup_enabled` → `BackupOltConfigsCommand` `olts:backup-config` di `routes/console.php`, `dailyAt 02:30` → `BackupOltConfigJob`); manual sinkron. Halaman `Pages/SmartOlt/ConfigBackups.vue` (diff via `resources/js/lib/linediff.js`). Scope v1 = ZTE.
-- **Delete ONU** — `no onu {onuId}`, gated `supports_onu_delete`, route `smartolt.onu.delete`.
+- **Delete ONU** — `no onu {onuId}`, gated `supports_onu_delete`, route `smartolt.onu.delete`; hapus massal satu sesi CLI via `smartolt.port-onus.delete`.
+- **Bind ONU** (§5.6a) dan **matikan/nyalakan port PON** (§5.6b) — C300/C320 saja.
 - **Terminal telnet browser** — xterm.js via `TelnetProxyServer` + tiket (§2.2).
 - **Peta ONU** — pin lintas OLT ([`OnuMapController`](../app/Http/Controllers/OnuMapController.php), `Pages/Map/Index.vue`), reboot/rename pin punya cabang per family.
 - **Alarm** — [`AlarmEvaluator`](../app/Services/AlarmEvaluator.php) selalu evaluasi (debounce 2-poll, korelasi root-cause); pengiriman notif Telegram/FCM digated saklar per-OLT (`alarms_enabled`) & per-partner (pivot `olt_user.alarms_enabled`).
@@ -495,12 +592,14 @@ Referensi vendor C600 (PDF di `docs/`): *C600 SNMP OID Management Guide*, *SNMP 
 | 8 | Reboot kadang minta konfirmasi | scan output → auto-`y` |
 | 9 | `Test SNMP` menimpa `last_test_result` → ONU jadi 0 | **wajib `array_merge`** ke `last_test_result` |
 | 10 | Akun CLI privilege rendah mendarat di `ZXAN>` → `terminal length 0` ditolak `%Error 20200` | `login()` kirim `enable` bila prompt `>`; `enable` & `terminal length 0` best-effort (tak menggagalkan sesi) |
+| 11 | C600: `write` dari mode config → `%Error 140303 Invalid input` | skrip `end` dulu, baru `write` (§5.7) |
+| 12 | Executor mengirim tiap baris + Enter → context-help berargumen (`shutdown ?`) ikut **dieksekusi** | verifikasi sintaks hanya dengan `?` polos / terminal interaktif (§5.6b) |
 
 ---
 
 ## 15. Sample Data Live
 
-OLT live untuk regression: `id=1` (`OLT-C320-PATI`, ZXAN V2.x) & `id=2`. ONU sample `gpon-onu_1/2/2:1`: SN `ZTEG…`, Type `F660`, phase `3 (Working)`, admin `1 (Active)`, Rx raw `5635 → -18.73 dBm` (cocok CLI `-18.762`).
+OLT live untuk regression: sebuah C320 (ZXAN V2.x) dan satu OLT ZTE lain. ONU sample `gpon-onu_1/2/2:1`: SN `ZTEG…`, Type `F660`, phase `3 (Working)`, admin `1 (Active)`, Rx raw `5635 → -18.73 dBm` (cocok CLI `-18.762`).
 
 ---
 
@@ -510,7 +609,7 @@ OLT live untuk regression: `id=1` (`OLT-C320-PATI`, ZXAN V2.x) & `id=2`. ONU sam
 snmpget  -v2c -c public HOST 1.3.6.1.2.1.1.2.0    # expect iso.3.6.1.4.1.3902
 snmpget  -v2c -c public HOST 1.3.6.1.2.1.1.1.0    # expect ZXA10 C300/C320/C600
 snmpwalk -v2c -c public HOST 1.3.6.1.4.1.3902.1012.3.28.1.1.1     # ONU table (C300/C320)
-snmpwalk -v2c -c public HOST 1.3.6.1.4.1.3902.1082.500.10.2.3.1.1 # ONU table (C600)
+snmpbulkwalk -v2c -c public HOST 1.3.6.1.4.1.3902.1082.500.20.2.1.2.1.8 # ONU table/model (C600; OID lama .10.2.3.1.1 tidak ada)
 snmpwalk -v2c -c public HOST 1.3.6.1.2.1.2.2.1.2 | grep -i gpon   # ifDescr port
 # CLI: telnet HOST → (langsung #) → show gpon onu state gpon-olt_1/… → show pon power onu-rx …
 ```
@@ -533,7 +632,7 @@ Pelepasan: di `interface gpon-olt_1/S/P` jalankan `no onu {id} profile` (`<cr>`;
 `remote`) — terverifikasi dari context-help live 25 Sep 2026. ⚠️ `no onu {id}` TANPA `profile`
 menghapus registrasi ONU. Setelah profile dilepas, tcont/gemport/service dari profile ikut hilang
 dan harus ditulis ulang manual
-(contoh sukses: registrasi #176, `tcont 1 name 1 profile SERVER` … `service PPPOE gemport 1 cos 0
+(contoh sukses di OLT live: `tcont 1 name 1 profile SERVER` … `service PPPOE gemport 1 cos 0
 vlan 2101`). NMS: parser `ZteOnuRunningConfigService` mengisi `onu_profile` + `profile_lines`;
 `ZteOnuReconfigureScriptBuilder::profileConflicts()` memblokir baris yang pasti ditolak;
 `SmartOltController::configureOnuUnbindProfile()` melepas profile + menulis ulang + memulihkan selisih.
@@ -546,20 +645,22 @@ vlan 2101`). NMS: parser `ZteOnuRunningConfigService` mengisi `onu_profile` + `p
 | [`app/Services/Snmp/GoSnmpPoller.php`](../app/Services/Snmp/GoSnmpPoller.php) | shell-out ke `bin/kv-snmp-poller` (polling terjadwal) |
 | [`cmd/kv-snmp-poller/main.go`](../cmd/kv-snmp-poller/main.go) | engine SNMP Go |
 | [`app/Services/ZteCliProvisioningExecutor.php`](../app/Services/ZteCliProvisioningExecutor.php) | sesi telnet, pager, `saveConfig`, error patterns |
-| [`app/Services/ZteProvisioningScriptBuilder.php`](../app/Services/ZteProvisioningScriptBuilder.php) | builder script provisioning |
+| [`app/Services/ZteProvisioningScriptBuilder.php`](../app/Services/ZteProvisioningScriptBuilder.php) | builder script provisioning C300/C320 |
+| [`app/Services/ZteC600ProvisioningScriptBuilder.php`](../app/Services/ZteC600ProvisioningScriptBuilder.php) | builder provisioning C600 (Model B / SmartOLT TR069) |
 | [`app/Services/ZteOnuReconfigureScriptBuilder.php`](../app/Services/ZteOnuReconfigureScriptBuilder.php) | delta reconfigure + `buildForCopy` |
-| [`app/Services/ZteRemoteOnuService.php`](../app/Services/ZteRemoteOnuService.php) | reboot (CLI) + enable/disable & nama/deskripsi (SNMP) |
+| [`app/Services/ZteRemoteOnuService.php`](../app/Services/ZteRemoteOnuService.php) | reboot, delete/deleteMany, Bind `replaceSerial` (CLI) + enable/disable & nama/deskripsi (SNMP) |
 | [`app/Services/ZteOnuDetailService.php`](../app/Services/ZteOnuDetailService.php) | parse `detail-info` |
 | [`app/Services/ZteOnuRunningConfigService.php`](../app/Services/ZteOnuRunningConfigService.php) | parse running-config (pre-fill Configure) |
 | [`app/Services/ZteOnuRxPowerService.php`](../app/Services/ZteOnuRxPowerService.php) | Rx per-port via CLI |
 | [`app/Services/ZteProfileCatalogService.php`](../app/Services/ZteProfileCatalogService.php) | sync/parse profil |
 | [`app/Services/ZteTr069BulkService.php`](../app/Services/ZteTr069BulkService.php) | TR069 massal per-port |
-| [`app/Services/ZteCardUplinkService.php`](../app/Services/ZteCardUplinkService.php) | kartu + uplink (3-tier C300/C320, 4-tier C600) |
+| [`app/Services/ZteCardUplinkService.php`](../app/Services/ZteCardUplinkService.php) | kartu + uplink (3-tier di kedua family, beda eja), deskripsi port, `setGponPortAdminState` (shutdown) |
 | [`app/Services/Zte/OnuRegistrationService.php`](../app/Services/Zte/OnuRegistrationService.php) · [`OltConfigBackupService.php`](../app/Services/Zte/OltConfigBackupService.php) · [`OnuRegistrationFormDefaults.php`](../app/Services/Zte/OnuRegistrationFormDefaults.php) | registrasi, backup, default form |
+| [`app/Services/Zte/C600MgmtPoolService.php`](../app/Services/Zte/C600MgmtPoolService.php) · [`UnconfiguredOnuDiscovery.php`](../app/Services/Zte/UnconfiguredOnuDiscovery.php) | alokasi mgmt-IP & preset TR069 C600 · Refresh Discovery unconfigured |
 | [`app/Support/SmartOltSupport.php`](../app/Support/SmartOltSupport.php) | deteksi family + `isC600()` + capability matrix + helper interface |
 | [`app/Http/Controllers/SmartOltController.php`](../app/Http/Controllers/SmartOltController.php) · [`SmartOltProfileController.php`](../app/Http/Controllers/SmartOltProfileController.php) · [`OltConfigBackupController.php`](../app/Http/Controllers/OltConfigBackupController.php) | HTTP handler |
 | `resources/js/Pages/SmartOlt/*.vue` | UI Inertia (Index/Detail/PortOnus/OnuDetail/ConfigureOnu/RegisterOnu/Registrations/Profiles/Unconfigured/ConfigBackups/OnuMonitor/PortDetail/GponPorts) |
-| `resources/js/Components/SmartOlt/*` | OltChassis · OnuConfigEditor · RxTrendCard · Tr069BulkModal |
+| `resources/js/Components/SmartOlt/*` | OltChassis · OnuConfigEditor · RxTrendCard · Tr069BulkModal · BindOnuModal |
 
 ---
 

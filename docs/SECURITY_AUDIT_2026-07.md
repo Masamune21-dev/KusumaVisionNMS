@@ -1,9 +1,22 @@
 # Audit Keamanan & Checklist Hardening — Juli 2026
 
-Target: `nms.kusumavision.net` (KusumaVision NMS produksi).
+Target: instance produksi KusumaVision NMS milik pengembang.
 Lingkup: review kode attack-surface + patch dependency + hardening infra.
 Referensi terkait: [`LOCAL_PRODUCTION_HARDENING.md`](LOCAL_PRODUCTION_HARDENING.md),
 [handbook 11 — Keamanan/RBAC/Audit](handbook/11-keamanan-rbac-audit.md).
+
+> **Status dokumen (30 Sep 2026): arsip historis.** Temuan & remediasi di bawah dicatat apa adanya
+> per Juli 2026 dan tidak diubah. Beberapa hal sudah bergeser sejak itu:
+> - **CSP sudah terpasang** (middleware `ContentSecurityPolicy`, nonce per-request) — butir opsional
+>   terakhir di §4 sudah dikerjakan.
+> - **Checklist deploy §3** adalah langkah saat itu; langkah update lengkap sekarang (composer, build
+>   frontend, Go poller, migrasi, cache, restart worker & telnet-proxy) ada di
+>   [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Jalankan test hanya lewat `bash scripts/test.sh`,
+>   jangan `php artisan test` polos atau `config:clear` tanpa `config:cache` ulang di server produksi.
+> - **Token API** kini kedaluwarsa setelah `SANCTUM_EXPIRATION` menit (contoh `.env.example` 43200 = 30 hari)
+>   dan token kedaluwarsa dibersihkan harian (`sanctum:prune-expired`).
+> - **Proxy tepercaya** bawaannya hanya localhost; di belakang Cloudflare "Flexible"/load balancer di host
+>   lain isi `TRUSTED_PROXIES` (lihat INSTALL.md §9).
 
 ## 1. Temuan & Remediasi
 
@@ -86,13 +99,13 @@ php artisan queue:restart                           # worker pakai builder → w
       `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
       lalu `sudo nginx -t && sudo systemctl reload nginx`.
 - [ ] **Verifikasi header** setelah reload:
-      `curl -sI https://nms.kusumavision.net | grep -iE "strict-transport|x-frame|x-content|referrer"`
+      `curl -sI https://nms.example.com | grep -iE "strict-transport|x-frame|x-content|referrer"`
 - [ ] **Audit berkala** (mis. bulanan / sebelum rilis): `composer audit` + `npm audit`.
 - [ ] Pastikan `.env` tetap `640 root:www-data` (kalau `root:root`, config clear → jatuh ke sqlite → 500).
 - [ ] Backup DB `kusumavision_nms` terjadwal (di luar server).
 - [ ] Tinjau token Sanctum lama yang tak terpakai (`personal_access_tokens`) secara berkala.
 - [ ] **Rotasi password admin** bila pernah dibuat dengan contoh lama `P@ssw0rd123` (lihat §1.5).
-- [ ] **SNMP community OLT:** docs menyebut OLT live (mis. id=277) memakai community `public`. Bila itu
+- [ ] **SNMP community OLT:** docs menyebut OLT live memakai community `public`. Bila itu
       community asli di OLT produksi, ganti ke nilai non-default di perangkat + batasi UDP/161 via ACL/firewall
       (isu konfig OLT, bukan bocoran repo). Community tersimpan terenkripsi di `snmp_olts`.
 - [ ] (Opsional) Pertimbangkan Content-Security-Policy setelah audit inline script/style Inertia.
