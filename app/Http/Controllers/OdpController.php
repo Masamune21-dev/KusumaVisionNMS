@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Odp;
+use App\Models\OltPortLabel;
 use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
 use App\Services\Odp\OdpPhotoService;
@@ -12,6 +13,7 @@ use App\Support\OdpColors;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -52,18 +54,60 @@ class OdpController extends Controller
             ])
             ->values();
 
+        // Hanya `last_test_result->ports` yang diambil dari DB — cache scan lengkap C300 bisa >1 MB per OLT,
+        // dan men-decode seluruhnya untuk tiap OLT membuat halaman ini lambat (pelajaran halaman Peta).
+        $olts = SnmpOlt::query()->orderBy('name')->get(['id', 'name', 'last_test_result->ports as ports']);
+        $labels = OltPortLabel::query()
+            ->whereIn('snmp_olt_id', $olts->pluck('id'))
+            ->get(['snmp_olt_id', 'slot', 'port', 'label'])
+            ->groupBy('snmp_olt_id');
+
         return Inertia::render('Odp/Index', [
             'odps' => $odps,
-            'olts' => SnmpOlt::query()
-                ->orderBy('name')
-                ->get(['id', 'name'])
-                ->map(fn (SnmpOlt $olt) => ['id' => $olt->id, 'name' => $olt->name])
+            'olts' => $olts
+                ->map(fn (SnmpOlt $olt) => [
+                    'id' => $olt->id,
+                    'name' => $olt->name,
+                    'ports' => $this->portChoices($olt->getAttribute('ports'), $labels->get($olt->id)),
+                ])
                 ->values(),
             // Palet warna pin ODP dikirim dari server (sumber kebenaran App\Support\OdpColors)
             // supaya daftar warnanya tak diduplikasi di frontend.
             'odp_color_palette' => OdpColors::PALETTE,
             'odp_color_default' => OdpColors::DEFAULT,
         ]);
+    }
+
+    /**
+     * Pilihan port PON untuk dropdown Slot / PON port di form ODP, dari scan terakhir OLT (`ports`, bentuk
+     * sama di ZTE/C-Data/HiOSO). Label = deskripsi port di OLT (ZTE `if_descr`) atau label port sisi-NMS
+     * (C-Data/HiOSO). OLT yang belum pernah di-scan → array kosong (form jatuh ke input angka).
+     *
+     * @param  Collection<int, OltPortLabel>|null  $labels
+     * @return list<array{slot: int, port: int, label: ?string}>
+     */
+    private function portChoices(mixed $raw, ?Collection $labels): array
+    {
+        $ports = is_string($raw) ? json_decode($raw, true) : $raw;
+        $nmsLabels = ($labels ?? collect())->mapWithKeys(fn (OltPortLabel $l) => ["{$l->slot}/{$l->port}" => $l->label]);
+
+        return collect(is_array($ports) ? $ports : [])
+            ->filter(fn ($p) => is_array($p) && is_numeric($p['slot'] ?? null) && is_numeric($p['port'] ?? null))
+            ->map(function (array $p) use ($nmsLabels) {
+                $key = (int) $p['slot'].'/'.(int) $p['port'];
+                // Sebagian ZTE mengisi deskripsi port dengan nama port itu sendiri (`gpon_1/2/1`) — bukan label.
+                $descr = trim((string) ($p['if_descr'] ?? ''));
+                if (in_array(strtolower($descr), [strtolower((string) ($p['name'] ?? '')), strtolower((string) ($p['if_name'] ?? ''))], true)) {
+                    $descr = '';
+                }
+                $label = $descr ?: ($nmsLabels[$key] ?? null);
+
+                return ['slot' => (int) $p['slot'], 'port' => (int) $p['port'], 'label' => $label ?: null];
+            })
+            ->unique(fn ($p) => "{$p['slot']}/{$p['port']}")
+            ->sortBy([['slot', 'asc'], ['port', 'asc']])
+            ->values()
+            ->all();
     }
 
     /**

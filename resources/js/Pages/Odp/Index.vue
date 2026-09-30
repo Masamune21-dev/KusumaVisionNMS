@@ -188,6 +188,36 @@ const openEdit = (odp) => {
     formOpen.value = true;
 };
 
+// Dropdown Slot / PON port: pilihan dari scan terakhir OLT terpilih (OdpController::portChoices).
+// OLT yang belum pernah di-scan → daftar kosong → form memakai input angka seperti dulu.
+const formPorts = computed(() => props.olts.find((o) => o.id === Number(form.snmp_olt_id))?.ports ?? []);
+const portSlots = computed(() => {
+    const groups = new Map();
+    for (const p of formPorts.value) {
+        if (!groups.has(p.slot)) groups.set(p.slot, []);
+        groups.get(p.slot).push(p);
+    }
+    return [...groups.entries()].map(([slot, ports]) => ({ slot, ports }));
+});
+const portSel = computed({
+    get: () => (form.slot === '' || form.port === '' ? '' : `${form.slot}/${form.port}`),
+    set: (value) => {
+        const [slot, port] = value ? String(value).split('/') : ['', ''];
+        form.slot = slot === '' ? '' : Number(slot);
+        form.port = port === undefined || port === '' ? '' : Number(port);
+    },
+});
+// Nilai tersimpan yang tak ada di scan terakhir (port dicopot / OLT belum di-scan ulang) tetap tampil apa adanya.
+const portSelMissing = computed(() => portSel.value !== ''
+    && !formPorts.value.some((p) => p.slot === Number(form.slot) && p.port === Number(form.port)));
+const portOptionLabel = (p) => (p.label
+    ? t('odp.port_option_labeled', { slot: p.slot, port: p.port, label: p.label })
+    : t('odp.port_option', { slot: p.slot, port: p.port }));
+// Ganti OLT oleh user (bukan saat modal diisi) → port lama tak berlaku di OLT baru.
+const onFormOltChange = () => {
+    if (portSelMissing.value && formPorts.value.length) portSel.value = '';
+};
+
 // Pindah OLT / ganti port saat edit → ONU yang terhubung akan dilepas server
 // (OnuOdpService::releaseMismatchedLinks). Peringatkan sebelum disimpan.
 const releaseWarning = computed(() => {
@@ -556,21 +586,35 @@ const mapHref = (odp) =>
                     </div>
                     <div class="sm:col-span-2">
                         <InputLabel for="odp_olt" :value="$t('odp.col_olt')" />
-                        <select id="odp_olt" v-model="form.snmp_olt_id" class="kv-input mt-1 block min-h-11 w-full">
+                        <select id="odp_olt" v-model="form.snmp_olt_id" class="kv-input mt-1 block min-h-11 w-full" @change="onFormOltChange">
                             <option v-for="olt in olts" :key="olt.id" :value="olt.id">{{ olt.name }}</option>
                         </select>
                         <InputError class="mt-1" :message="form.errors.snmp_olt_id" />
                     </div>
-                    <div>
-                        <InputLabel for="odp_slot" :value="$t('odp.slot_label')" />
-                        <TextInput id="odp_slot" v-model="form.slot" type="number" min="0" class="mt-1 block w-full" />
-                        <InputError class="mt-1" :message="form.errors.slot" />
+                    <div v-if="formPorts.length" class="sm:col-span-2">
+                        <InputLabel for="odp_pon_port" :value="$t('odp.pon_port_label')" />
+                        <select id="odp_pon_port" v-model="portSel" class="kv-input mt-1 block min-h-11 w-full">
+                            <option value="">{{ $t('odp.port_unknown') }}</option>
+                            <option v-if="portSelMissing" :value="portSel">{{ $t('odp.port_not_scanned', { slot: form.slot, port: form.port }) }}</option>
+                            <optgroup v-for="g in portSlots" :key="g.slot" :label="$t('odp.slot_group', { slot: g.slot })">
+                                <option v-for="p in g.ports" :key="`${p.slot}/${p.port}`" :value="`${p.slot}/${p.port}`">{{ portOptionLabel(p) }}</option>
+                            </optgroup>
+                        </select>
+                        <InputError class="mt-1" :message="form.errors.slot || form.errors.port" />
                     </div>
-                    <div>
-                        <InputLabel for="odp_port" :value="$t('odp.port_label')" />
-                        <TextInput id="odp_port" v-model="form.port" type="number" min="0" class="mt-1 block w-full" />
-                        <InputError class="mt-1" :message="form.errors.port" />
-                    </div>
+                    <template v-else>
+                        <div>
+                            <InputLabel for="odp_slot" :value="$t('odp.slot_label')" />
+                            <TextInput id="odp_slot" v-model="form.slot" type="number" min="0" class="mt-1 block w-full" />
+                            <InputError class="mt-1" :message="form.errors.slot" />
+                        </div>
+                        <div>
+                            <InputLabel for="odp_port" :value="$t('odp.port_label')" />
+                            <TextInput id="odp_port" v-model="form.port" type="number" min="0" class="mt-1 block w-full" />
+                            <InputError class="mt-1" :message="form.errors.port" />
+                        </div>
+                        <p v-if="form.snmp_olt_id" class="text-xs text-amber-300/90 sm:col-span-2">{{ $t('odp.port_manual_hint') }}</p>
+                    </template>
                     <p class="text-xs text-slate-500 sm:col-span-2">{{ $t('odp.port_hint') }}</p>
                     <div
                         v-if="releaseWarning"

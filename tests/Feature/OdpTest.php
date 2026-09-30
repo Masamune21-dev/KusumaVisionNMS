@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Odp;
+use App\Models\OltPortLabel;
 use App\Models\OnuMapPin;
 use App\Models\OnuOdpLink;
 use App\Models\Scopes\PartnerOltScope;
@@ -78,6 +79,33 @@ class OdpTest extends TestCase
                 ->where('odps.0.onu_count', 1)
                 ->where('odps.0.olt_name', 'OLT-A')
                 ->has('olts', 1));
+    }
+
+    public function test_index_offers_pon_port_choices_from_the_last_scan(): void
+    {
+        $scanned = $this->makeOlt('OLT-A', '10.8.0.1');
+        $scanned->forceFill(['last_test_result' => array_merge($scanned->last_test_result, ['ports' => [
+            ['slot' => 2, 'port' => 3, 'name' => 'gpon_1/2/3', 'if_descr' => 'DUSUN UJI'],
+            ['slot' => 1, 'port' => 1, 'name' => 'gpon_1/1/1', 'if_descr' => ''],
+            ['slot' => 1, 'port' => 1, 'name' => 'gpon_1/1/1'],
+            ['slot' => 1, 'port' => 2, 'name' => 'gpon_1/1/2', 'if_descr' => 'gpon_1/1/2'], // deskripsi = nama port
+            ['name' => 'tanpa slot'],
+        ]])])->save();
+        // Label sisi-NMS (C-Data/HiOSO) dipakai bila OLT tak punya deskripsi port sendiri.
+        OltPortLabel::create(['snmp_olt_id' => $scanned->id, 'slot' => 1, 'port' => 1, 'label' => 'LABEL NMS']);
+        $this->makeOlt('OLT-B', '10.8.0.2'); // belum pernah di-scan port-nya → form pakai input angka
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('odp.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('olts.0.name', 'OLT-A')
+                ->where('olts.0.ports', [
+                    ['slot' => 1, 'port' => 1, 'label' => 'LABEL NMS'],
+                    ['slot' => 1, 'port' => 2, 'label' => null],
+                    ['slot' => 2, 'port' => 3, 'label' => 'DUSUN UJI'],
+                ])
+                ->where('olts.1.ports', []));
     }
 
     public function test_partner_only_sees_odps_of_its_own_olt(): void

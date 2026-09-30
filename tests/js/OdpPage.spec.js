@@ -85,3 +85,50 @@ describe("Halaman ODP — tombol warna", () => {
         wrapper.unmount();
     });
 });
+
+describe("Halaman ODP — dropdown Slot / PON port", () => {
+    const mountWith = (olts) => mount(OdpPage, {
+        props: { odps: [odp], olts, odp_color_palette: ["#f59e0b"] },
+        global: { mocks: { $t: (key) => key }, stubs: { teleport: true } },
+        attachTo: document.body,
+    });
+    const openEdit = async (wrapper) => {
+        await wrapper.find("button[title='common.edit']").trigger("click");
+        await flushPromises();
+    };
+
+    it("menampilkan port hasil scan, dikelompokkan per slot, dan memilih port ODP", async () => {
+        const wrapper = mountWith([{ id: 1, name: "OLT-A", ports: [
+            { slot: 1, port: 4, label: null },
+            { slot: 2, port: 3, label: "DUSUN UJI" },
+        ] }]);
+        await openEdit(wrapper);
+
+        const select = wrapper.find("#odp_pon_port");
+        expect(select.exists()).toBe(true);
+        expect(wrapper.findAll("#odp_pon_port optgroup")).toHaveLength(2);
+        expect(select.element.value).toBe("1/4");
+        expect(wrapper.find("#odp_slot").exists()).toBe(false);
+        wrapper.unmount();
+    });
+
+    it("port tersimpan yang tak ada di scan terakhir tetap bisa dipertahankan", async () => {
+        const wrapper = mountWith([{ id: 1, name: "OLT-A", ports: [{ slot: 2, port: 3, label: null }] }]);
+        await openEdit(wrapper);
+
+        const options = wrapper.findAll("#odp_pon_port option");
+        expect(options.some((o) => o.text() === "odp.port_not_scanned")).toBe(true);
+        expect(wrapper.find("#odp_pon_port").element.value).toBe("1/4");
+        wrapper.unmount();
+    });
+
+    it("OLT yang belum di-scan memakai input angka seperti dulu", async () => {
+        const wrapper = mountWith([{ id: 1, name: "OLT-A", ports: [] }]);
+        await openEdit(wrapper);
+
+        expect(wrapper.find("#odp_pon_port").exists()).toBe(false);
+        expect(wrapper.find("#odp_slot").exists()).toBe(true);
+        expect(wrapper.find("#odp_port").exists()).toBe(true);
+        wrapper.unmount();
+    });
+});

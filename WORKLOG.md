@@ -1,5 +1,22 @@
 # Worklog
 
+## 2026-09-30 — Halaman ODP: Slot / PON Port Jadi Dropdown
+
+### Changed
+
+- **Form Tambah/Edit ODP** (`Pages/Odp/Index.vue`): dua input angka "Slot" & "Port PON" diganti satu dropdown
+  "Slot / Port PON" berisi port hasil scan terakhir OLT terpilih, dikelompokkan per slot (`<optgroup>`), dengan
+  opsi "— Belum diketahui —". Kombinasi slot/port yang tak ada di OLT tak bisa dipilih lagi.
+- `OdpController::index`: tiap OLT di prop `olts` membawa `ports` (`portChoices()`) dari `last_test_result->ports`
+  (bentuk sama di ZTE/C-Data/HiOSO); label = deskripsi port ZTE (`if_descr`, diabaikan bila sama dengan nama port)
+  atau label port sisi-NMS (`olt_port_labels`). Hanya kolom JSON `ports` yang di-query, bukan cache scan penuh.
+
+### Notes
+
+- OLT tanpa daftar port dari scan tetap memakai input angka; ODP yang port-nya tak ada di scan terakhir tetap bisa
+  dipertahankan; ganti OLT mengosongkan pilihan port yang tak berlaku. Validasi server tak berubah.
+- Test: `OdpTest::test_index_offers_pon_port_choices_from_the_last_scan` + 3 test Vitest. 648 passed, Vitest 32.
+
 ## 2026-09-30 — C-Data: Halaman VLAN & Detail Port (GPON & EPON, firmware V3)
 
 ### Created
