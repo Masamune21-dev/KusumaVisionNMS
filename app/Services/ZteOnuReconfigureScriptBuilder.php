@@ -106,8 +106,10 @@ class ZteOnuReconfigureScriptBuilder
      * single-service template of {@see ZteProvisioningScriptBuilder}. Same engine
      * as {@see buildForCopy} (full build from empty baseline + `onu N type T sn S`).
      *
+     * `context.description` (opsional) mengisi baris `description`; kosong = sama dengan nama.
+     *
      * @param  array<string, mixed>  $config  granular form values (name, tconts[], gemports[], …)
-     * @param  array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600?:bool}  $context
+     * @param  array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600?:bool, description?:string}  $context
      */
     public function buildForRegistration(array $config, array $context): string
     {
@@ -120,7 +122,7 @@ class ZteOnuReconfigureScriptBuilder
         $mngLines = [];
         $discard = [];
 
-        $this->diffName([], $config, $ifaceLines, $discard);
+        $this->diffName([], $config, $ifaceLines, $discard, $this->str($context['description'] ?? ''));
         $this->diffTconts([], $config, $ifaceLines, $discard);
         $this->diffGemports([], $config, $ifaceLines, $discard);
         $ifaceLines[] = 'encrypt 1 enable downstream';
@@ -170,7 +172,7 @@ class ZteOnuReconfigureScriptBuilder
      * @param  array<int, string>  $lines
      * @param  array<int, array{label:string, from:string, to:string}>  $changes
      */
-    private function diffName(array $baseline, array $target, array &$lines, array &$changes): void
+    private function diffName(array $baseline, array $target, array &$lines, array &$changes, string $description = ''): void
     {
         $old = $this->str($baseline['name'] ?? null);
         $new = $this->str($target['name'] ?? null);
@@ -180,7 +182,7 @@ class ZteOnuReconfigureScriptBuilder
         }
 
         $lines[] = "name {$new}";
-        $lines[] = "description {$new}";
+        $lines[] = 'description '.($description !== '' ? $description : $new);
         $changes[] = $this->change('Name', $old, $new);
     }
 

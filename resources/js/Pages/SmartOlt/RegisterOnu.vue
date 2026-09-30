@@ -111,6 +111,9 @@ const c600OdpOptions = computed(() => odpOptionsFor(c600Form.slot, c600Form.port
 const simpleOdpOptions = computed(() => odpOptionsFor(form.slot, form.port));
 const advOdpOptions = computed(() => odpOptionsFor(advForm.slot, advForm.port));
 
+// Deskripsi yang dipakai builder bila kolom Deskripsi dikosongkan (ZteProvisioningScriptBuilder).
+const simpleAutoDescription = computed(() => `${form.onu_id ?? ''}$$${(form.customer_name ?? '').trim()}$$`);
+
 const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
 const tcontProfiles = computed(() => props.profiles.tcont ?? []);
@@ -369,6 +372,12 @@ const submitC600 = async (execute) => {
                                     <InputError class="mt-1.5" :message="c600Form.errors.zone" />
                                 </div>
                                 <div>
+                                    <InputLabel :value="$t('registeronu.description')" />
+                                    <TextInput v-model="c600Form.description" class="mt-1 w-full" maxlength="191" />
+                                    <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.c600_description_hint') }}</p>
+                                    <InputError class="mt-1.5" :message="c600Form.errors.description" />
+                                </div>
+                                <div>
                                     <InputLabel :value="$t('registeronu.odp')" />
                                     <select v-model="c600Form.odp_id" class="mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 font-mono text-sm shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
                                         <option :value="null">{{ $t('registeronu.odp_none') }}</option>
@@ -575,10 +584,16 @@ const submitC600 = async (execute) => {
                                 <TextInput id="onu_id" v-model="form.onu_id" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.onu_id" />
                             </div>
-                            <div class="md:col-span-2">
+                            <div>
                                 <InputLabel for="customer_name" :value="$t('registeronu.customer_name')" />
                                 <TextInput id="customer_name" v-model="form.customer_name" class="mt-1 block w-full" required />
                                 <InputError class="mt-1.5" :message="form.errors.customer_name" />
+                            </div>
+                            <div>
+                                <InputLabel for="description" :value="$t('registeronu.description')" />
+                                <TextInput id="description" v-model="form.description" class="mt-1 block w-full" maxlength="80" :placeholder="simpleAutoDescription" />
+                                <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.description_hint', { auto: simpleAutoDescription }) }}</p>
+                                <InputError class="mt-1.5" :message="form.errors.description" />
                             </div>
                             <div>
                                 <InputLabel for="odp_id" :value="$t('registeronu.odp')" />
@@ -927,7 +942,7 @@ const submitC600 = async (execute) => {
                         </div>
 
                         <!-- Editor granular -->
-                        <OnuConfigEditor :config="advForm.config" :profiles="profiles" :errors="advForm.errors" />
+                        <OnuConfigEditor :config="advForm.config" :profiles="profiles" :errors="advForm.errors" with-description />
 
                         <input v-model="advForm.oid_index" type="hidden" />
 

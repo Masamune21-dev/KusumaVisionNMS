@@ -28,7 +28,12 @@ class ZteProvisioningScriptBuilder
         // menambah `switchport mode hybrid vport 1` + `service … type internet …`.
         $isBridge = strtolower((string) ($data['wan_mode'] ?? 'pppoe')) === 'bridge';
         $wanLine = $isBridge ? null : $this->wanLine($data, $name);
-        $description = "{$onuId}\$\${$name}\$\$";
+        // Deskripsi dari form bila diisi; kosong = konvensi SmartOLT `{id}$$nama$$`
+        // (dibaca balik oleh SmartOltSupport::cleanCustomerName() bila `name` kosong).
+        $description = self::cli((string) ($data['description'] ?? ''));
+        if ($description === '') {
+            $description = "{$onuId}\$\${$name}\$\$";
+        }
         $isC600 = (bool) ($data['is_c600'] ?? false);
         $oltIface = SmartOltSupport::gponOltInterface($slot, $port, $isC600);
         $onuIface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);

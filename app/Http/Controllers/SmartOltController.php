@@ -56,6 +56,11 @@ class SmartOltController extends Controller
     // Subset uplink saja (traffic live & tag VLAN tak berlaku untuk port GPON).
     private const UPLINK_INTERFACE_REGEX = '/^(?:xgei|gei)[_-]\d+\/\d+\/\d+$/';
 
+    // Deskripsi ONU opsional di registrasi C300/C320 (mode Sederhana & Lanjutan). 80 = nama
+    // terpanjang yang terbaca dari C300 produksi; teks lebih panjang berisiko ditolak OLT di
+    // tengah skrip (ONU sudah terdaftar tapi service belum terpasang).
+    private const ONU_DESCRIPTION_RULES = ['nullable', 'string', 'max:80', 'not_regex:/[\x00-\x1F\x7F]/'];
+
     /**
      * Cache saklar alarm partner per-OLT untuk request ini (id OLT → bool), agar
      * serialisasi daftar OLT tak N+1. Hanya di-isi bila viewer seorang partner.
@@ -523,6 +528,7 @@ class SmartOltController extends Controller
             'defaults' => $isC600 ? $identity : [
                 ...$identity,
                 'customer_name' => '',
+                'description' => '',
                 'onu_type' => $this->firstProfileName($olt, 'onu_type', 'ALL-ONT'),
                 'tcont_profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'),
                 'vlan' => 100,
@@ -552,6 +558,7 @@ class SmartOltController extends Controller
                 'customer_name' => '',
                 'onu_type' => (string) $request->query('model', ''),
                 'zone' => '',
+                'description' => '',
                 'internet_vlan' => 200,
                 'internet_tcont_profile' => $this->firstProfileName($olt, 'tcont', '10MB'),
                 'mgmt_vlan' => 601,
@@ -573,6 +580,7 @@ class SmartOltController extends Controller
             // bisa ditambah/diubah baris per baris.
             'advanced_defaults' => $isC600 ? null : [
                 'name' => '',
+                'description' => '',
                 'tconts' => [['id' => 1, 'name' => '1', 'profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'), 'gap' => 'mode0']],
                 'gemports' => [['id' => 1, 'name' => '1', 'tcont' => 1, 'traffic_up' => '', 'traffic_down' => '']],
                 'service_ports' => [['id' => 1, 'vport' => 1, 'user_vlan' => 100, 'vlan' => 100]],
@@ -1924,6 +1932,7 @@ class SmartOltController extends Controller
             'onu_id' => (int) $request->input('onu_id', 0),
             'oid_index' => (string) $request->input('oid_index', ''),
             'customer_name' => (string) $request->input('customer_name', ''),
+            'description' => (string) $request->input('description', ''),
             'onu_type' => (string) ($request->input('onu_type') ?: 'ALL-ONT'),
             'tcont_profile' => (string) ($request->input('tcont_profile') ?: 'SERVER'),
             'vlan' => (int) $request->input('vlan', 100),
@@ -2090,6 +2099,8 @@ class SmartOltController extends Controller
             'onu_id' => ['required', 'integer', 'between:1,4096'],
             'oid_index' => ['nullable', 'string', 'max:191'],
             'customer_name' => ['required', 'string', 'max:191'],
+            // Kosong = konvensi `{id}$$nama$$` (ZteProvisioningScriptBuilder).
+            'description' => self::ONU_DESCRIPTION_RULES,
             // ODP opsional — dikaitkan setelah CLI sukses (lihat storeOnu()).
             'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
@@ -2216,6 +2227,8 @@ class SmartOltController extends Controller
             'onu_type' => ['required', 'string', 'max:120', 'regex:/^[A-Za-z0-9._-]+$/', $this->activeProfileRule($olt, 'onu_type')],
             'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
             ...$this->reconfigureConfigRules(),
+            // Hanya registrasi — Configure ONU tak menulis description terpisah.
+            'config.description' => self::ONU_DESCRIPTION_RULES,
         ]);
 
         return [
@@ -2227,6 +2240,7 @@ class SmartOltController extends Controller
                 'oid_index' => $validated['oid_index'] ?? null,
                 'onu_type' => $validated['onu_type'],
                 'odp_id' => isset($validated['odp_id']) ? (int) $validated['odp_id'] : null,
+                'description' => (string) ($validated['config']['description'] ?? ''),
             ],
             $validated['config'],
         ];
@@ -2234,7 +2248,7 @@ class SmartOltController extends Controller
 
     /**
      * @param  array<string, mixed>  $header
-     * @return array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600:bool}
+     * @return array{olt_iface:string, onu_iface:string, onu_id:int, sn:string, onu_type:string, is_c600:bool, description:string}
      */
     private function advancedRegistrationContext(SnmpOlt $olt, array $header): array
     {
@@ -2247,6 +2261,7 @@ class SmartOltController extends Controller
             'sn' => (string) $header['serial_number'],
             'onu_type' => (string) $header['onu_type'],
             'is_c600' => $isC600,
+            'description' => (string) ($header['description'] ?? ''),
         ];
     }
 

@@ -82,6 +82,53 @@ class SmartOltAdvancedRegisterTest extends TestCase
         $this->assertNotNull($registration->executed_at);
     }
 
+    public function test_advanced_preview_writes_separate_description(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+        $payload = $this->payload();
+        $payload['config']['description'] = 'Perum Contoh (ODP 3)';
+
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertOk()
+            ->assertJsonPath('script', fn (string $script) => str_contains($script, "name Pelanggan Hotspot\ndescription Perum Contoh (ODP 3)\n"));
+
+        $payload['config']['description'] = str_repeat('x', 81);
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('config.description');
+    }
+
+    public function test_simple_register_writes_separate_description(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+        SmartOltProfile::create(['snmp_olt_id' => null, 'profile_type' => 'tcont', 'name' => 'SERVER', 'is_active' => true]);
+
+        $payload = [
+            'serial_number' => 'ZTEGCAF12345', 'slot' => 1, 'port' => 2, 'onu_id' => 7,
+            'customer_name' => 'Budi Santoso', 'description' => 'Perum Contoh (ODP 3)',
+            'onu_type' => 'ALL-ONT', 'tcont_profile' => 'SERVER', 'vlan' => 100,
+            'service_name' => 'ServiceName', 'wan_mode' => 'dhcp',
+        ];
+
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.preview', $olt), $payload)
+            ->assertOk()
+            ->assertJsonPath('script', fn (string $script) => str_contains($script, "name Budi Santoso\ndescription Perum Contoh (ODP 3)\n"));
+
+        $this->actingAs($user)
+            ->post(route('smartolt.register.store', $olt), [...$payload, 'execute' => false])
+            ->assertRedirect(route('smartolt.registrations', $olt));
+        $this->assertStringContainsString('description Perum Contoh (ODP 3)', SmartOltOnuRegistration::firstOrFail()->cli_script);
+
+        $this->actingAs($user)
+            ->post(route('smartolt.register.store', $olt), [...$payload, 'description' => str_repeat('x', 81), 'execute' => false])
+            ->assertSessionHasErrors('description');
+    }
+
     /**
      * @return array<string, mixed>
      */

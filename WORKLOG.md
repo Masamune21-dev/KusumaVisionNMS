@@ -1,5 +1,25 @@
 # Worklog
 
+## 2026-09-30 — Kolom Deskripsi Terpisah di Registrasi ONU
+
+### Changed
+
+- **Form Register ONU kini punya kolom Deskripsi (opsional) di samping Nama** — dulu baris `description` selalu diturunkan
+  otomatis. Berlaku di ketiga form `Pages/SmartOlt/RegisterOnu.vue`:
+  - **Sederhana (C300/C320)**: diisi → `description <teks>`; kosong → tetap konvensi SmartOLT `{id}$$nama$$`
+    (`ZteProvisioningScriptBuilder`). Placeholder + petunjuk menampilkan nilai otomatis yang akan dipakai.
+  - **Lanjutan**: kolom di bagian "Interface GPON-ONU" lewat prop baru `OnuConfigEditor` `with-description` (hanya di
+    registrasi); nilai dibawa `context.description` ke `ZteOnuReconfigureScriptBuilder::buildForRegistration()`. Kosong →
+    sama dengan Name. Salin ONU & Configure ONU tak berubah.
+  - **C600**: backend sudah menerima `description` (menang atas zona); kini ada inputnya, kosong = zona, lalu nama.
+- Validasi `description` / `config.description` C300/C320: opsional, maks 80 karakter, tanpa karakter kontrol
+  (`SmartOltController::ONU_DESCRIPTION_RULES`); teks lebih panjang berisiko ditolak OLT di tengah skrip.
+- i18n `registeronu.description`, `description_hint`, `adv_description_hint`, `c600_description_hint` (id + en).
+
+### Notes
+
+- Test baru: 2 unit (`ZteOnuConfigureTest`) + 2 feature (`SmartOltAdvancedRegisterTest`).
+
 ## 2026-09-30 — Pesan Error Backend Ikut Bahasa Pengguna (ID/EN)
 
 ### Changed

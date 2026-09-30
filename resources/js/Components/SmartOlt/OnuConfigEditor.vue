@@ -15,6 +15,9 @@ const props = defineProps({
     config: { type: Object, required: true },
     profiles: { type: Object, default: () => ({}) },
     errors: { type: Object, default: () => ({}) },
+    // Registrasi (mode Lanjutan) saja: kolom Deskripsi di samping Name. Configure ONU
+    // tak memakainya — di sana `description` ikut ditulis sama dengan nama saat nama diubah.
+    withDescription: { type: Boolean, default: false },
 });
 
 const cfg = props.config;
@@ -131,10 +134,18 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 
                 <Network class="h-4 w-4 text-cyan-400" />
                 <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">Interface GPON-ONU</h3>
             </header>
-            <div class="p-4 sm:p-6">
-                <InputLabel for="name" value="Name *" />
-                <TextInput id="name" v-model="cfg.name" class="mt-1 block w-full" required />
-                <InputError class="mt-1.5" :message="errors['config.name']" />
+            <div class="grid gap-5 p-4 sm:p-6" :class="withDescription ? 'md:grid-cols-2' : ''">
+                <div>
+                    <InputLabel for="name" value="Name *" />
+                    <TextInput id="name" v-model="cfg.name" class="mt-1 block w-full" required />
+                    <InputError class="mt-1.5" :message="errors['config.name']" />
+                </div>
+                <div v-if="withDescription">
+                    <InputLabel for="cfg_description" :value="$t('registeronu.description')" />
+                    <TextInput id="cfg_description" v-model="cfg.description" class="mt-1 block w-full" maxlength="80" :placeholder="cfg.name" />
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('registeronu.adv_description_hint') }}</p>
+                    <InputError class="mt-1.5" :message="errors['config.description']" />
+                </div>
             </div>
         </section>
 

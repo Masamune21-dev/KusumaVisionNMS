@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteOnuReconfigureScriptBuilder;
 use App\Services\ZteOnuRunningConfigService;
+use App\Services\ZteProfileCatalogService;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\SmartOltSupport;
 use PHPUnit\Framework\TestCase;
@@ -753,6 +754,44 @@ RAW;
         $this->assertStringNotContainsString('cos 0 vlan', $transparent);
     }
 
+    public function test_provisioning_builder_uses_form_description_or_smartolt_fallback(): void
+    {
+        $data = [
+            'slot' => 1, 'port' => 3, 'onu_id' => 12, 'serial_number' => 'ZTEG0800A1B2',
+            'customer_name' => 'Budi Santoso', 'onu_type' => 'ALL-ONT', 'tcont_profile' => 'SERVER',
+            'vlan' => 100, 'service_name' => 'ServiceName', 'wan_mode' => 'dhcp',
+        ];
+
+        $auto = (new ZteProvisioningScriptBuilder)->build($data + ['description' => '  ']);
+        $this->assertStringContainsString("name Budi Santoso\ndescription 12\$\$Budi Santoso\$\$\n", $auto);
+
+        // Deskripsi terpisah dari nama; karakter kontrol dinetralkan (tak bisa menyisipkan baris CLI).
+        $custom = (new ZteProvisioningScriptBuilder)->build($data + ['description' => "Perum Contoh (ODP 3)\nno onu 5"]);
+        $this->assertStringContainsString("name Budi Santoso\ndescription Perum Contoh (ODP 3) no onu 5\n", $custom);
+        $this->assertStringNotContainsString('$$', $custom);
+    }
+
+    public function test_build_for_registration_writes_context_description_but_copy_keeps_name(): void
+    {
+        $config = ['name' => 'Budi Santoso', 'tconts' => [], 'gemports' => [], 'service_ports' => [], 'services' => []];
+        $context = [
+            'olt_iface' => 'gpon-olt_1/1/3',
+            'onu_iface' => 'gpon-onu_1/1/3:12',
+            'onu_id' => 12,
+            'sn' => 'ZTEG0800A1B2',
+            'onu_type' => 'ALL-ONT',
+            'is_c600' => false,
+        ];
+        $builder = new ZteOnuReconfigureScriptBuilder;
+
+        $withDescription = $builder->buildForRegistration($config, $context + ['description' => 'Perum Contoh']);
+        $this->assertStringContainsString("name Budi Santoso\ndescription Perum Contoh\n", $withDescription);
+
+        // Tanpa description (juga jalur Salin ONU) tetap menyamakan description dengan nama.
+        $this->assertStringContainsString("name Budi Santoso\ndescription Budi Santoso\n", $builder->buildForRegistration($config, $context + ['description' => '']));
+        $this->assertStringContainsString("name Budi Santoso\ndescription Budi Santoso\n", $builder->buildForCopy($config + ['description' => 'Deskripsi ONU sumber'], $context));
+    }
+
     public function test_onu_type_name_keeps_its_case(): void
     {
         // Nama onu-type ZTE peka huruf: OLT punya `DualBand`, `DUALBAND` ditolak
@@ -777,7 +816,7 @@ RAW;
         $this->assertStringContainsString('onu 7 type DualBand sn ZTEG12345678', $copy);
 
         // Tambah onu-type: sintaks ZTE `onu-type <nama> gpon …` (bukan `onu-type gpon <nama>`).
-        $catalog = new \App\Services\ZteProfileCatalogService($this->createMock(ZteCliProvisioningExecutor::class));
+        $catalog = new ZteProfileCatalogService($this->createMock(ZteCliProvisioningExecutor::class));
         $add = $catalog->buildScript('add', ['profile_type' => 'onu_type', 'name' => 'DualBand', 'notes' => '4ETH,4WIFI']);
         $this->assertStringContainsString("pon\nonu-type DualBand gpon description \"4ETH,4WIFI\"", $add);
     }
