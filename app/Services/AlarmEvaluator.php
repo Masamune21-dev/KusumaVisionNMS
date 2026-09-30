@@ -10,6 +10,7 @@ use App\Services\Alarm\OdpAlarmGrouper;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -36,6 +37,20 @@ class AlarmEvaluator
     private string $ponLabel = 'GPON';
 
     private ?OdpAlarmGrouper $odp = null;
+
+    /**
+     * Port PON yang sengaja dimatikan dari NMS ("slot/port" => alarm `port_disabled` terbukanya).
+     *
+     * @var array<string, AlarmEvent>
+     */
+    private array $disabledPorts = [];
+
+    /**
+     * Port yang ditandai dimatikan tapi terbaca UP setelah masa tenggang ini dianggap dinyalakan di
+     * luar NMS (CLI langsung) → penandanya ditutup diam. Tenggang menutup jeda SNMP sesaat setelah
+     * `shutdown`; port yang benar-benar di-shutdown tak mungkin oper UP.
+     */
+    private const PORT_DISABLED_GRACE_MINUTES = 10;
 
     public function __construct(private ?TelegramNotifier $telegram = null) {}
 
@@ -70,6 +85,7 @@ class AlarmEvaluator
         // hanya menentukan SIAPA yang menerima notifikasi — di-gerbang di TelegramNotifier
         // & FcmAlarmNotifier (bukan di sini).
         $this->ponLabel = SmartOltSupport::ponLabel($olt);
+        $this->disabledPorts = [];
         // Saklar global debounce 2 poll vs realtime (Settings → Alarm). Dibaca per-evaluasi agar
         // perubahan di UI langsung berlaku pada poll berikutnya tanpa restart.
         $confirm = AlarmSetting::confirmBeforeNotify();
@@ -92,6 +108,13 @@ class AlarmEvaluator
                 ];
             }
 
+            // Penanda port yang dimatikan tetap dipegang selama OLT tak terjangkau.
+            foreach ($open as $signature => $alarm) {
+                if ($alarm->type === AlarmEvent::TYPE_PORT_DISABLED) {
+                    $detected[$signature] = $this->portDisabledDetection($alarm);
+                }
+            }
+
             return $this->reconcile($olt, $open, $detected, [], $confirm);
         }
 
@@ -103,9 +126,21 @@ class AlarmEvaluator
         $onuCountByPort = $this->onuCountByPort($snapshot);
         $downPorts = [];
 
+        // Port yang sengaja dimatikan dari NMS: penandanya tetap terbuka, dianggap induk yang down
+        // (alarm ONU & ODP di bawahnya ditahan), dan tak pernah memicu `port_down`.
+        $this->disabledPorts = $this->disabledPorts($open, $snapshot);
+        foreach ($this->disabledPorts as $key => $alarm) {
+            $detected[$alarm->signature] = $this->portDisabledDetection($alarm);
+            $downPorts[$key] = true;
+        }
+
         foreach ($snapshot['ports'] ?? [] as $port) {
             $slot = (int) ($port['slot'] ?? 0);
             $portNo = (int) ($port['port'] ?? 0);
+
+            if (isset($this->disabledPorts["{$slot}/{$portNo}"])) {
+                continue;
+            }
 
             if (($port['oper_status'] ?? null) === 'down') {
                 $downPorts["{$slot}/{$portNo}"] = true;
@@ -169,8 +204,9 @@ class AlarmEvaluator
                     continue;
                 }
 
-                $parentDown = $suppressChildren
-                    && $this->parentIsDown($onu, $downPorts, $downOdps, $onuOdp);
+                // Port yang dimatikan admin selalu menahan alarm ONU-nya, apa pun saklar korelasi.
+                $parentDown = ($suppressChildren && $this->parentIsDown($onu, $downPorts, $downOdps, $onuOdp))
+                    || isset($this->disabledPorts[((int) ($onu['slot'] ?? 0)).'/'.((int) ($onu['port'] ?? 0))]);
 
                 $parentRecovered = ! $parentDown
                     && $this->parentIsDown($onu, $recoveredPorts, $recoveredOdps, $onuOdp);
@@ -221,9 +257,27 @@ class AlarmEvaluator
             return ['message' => 'OLT kembali terhubung.', 'online' => true];
         }
 
+        if ($alarm->type === AlarmEvent::TYPE_PORT_DISABLED) {
+            // Penanda dilepas poll = port terbaca UP lewat tenggang, dinyalakan di luar NMS (CLI).
+            return [
+                'message' => "{$this->ponLabel} port {$alarm->slot}/{$alarm->port} terbaca menyala lagi (dinyalakan di luar NMS).",
+                'online' => true,
+            ];
+        }
+
         if ($alarm->scope === 'port') {
-            $port = $current['ports']["{$alarm->slot}/{$alarm->port}"] ?? null;
-            $name = $port['name'] ?? "{$alarm->slot}/{$alarm->port}";
+            $key = "{$alarm->slot}/{$alarm->port}";
+            $port = $current['ports'][$key] ?? null;
+            $name = $port['name'] ?? $key;
+
+            // Port down yang kemudian dimatikan admin: bukan pulih, gangguannya kini disengaja.
+            if (isset($this->disabledPorts[$key])) {
+                return [
+                    'message' => "{$this->ponLabel} port {$name} dimatikan admin — alarm ditutup.",
+                    'online' => false,
+                    'silent' => true,
+                ];
+            }
 
             return ['message' => "{$this->ponLabel} port {$name} kembali up.", 'online' => true];
         }
@@ -773,25 +827,185 @@ class AlarmEvaluator
             }
         }
 
-        if ($raisedAlarms !== [] || $clearedAlarms !== []) {
-            ($this->telegram ??= app(TelegramNotifier::class))
-                ->notify($olt, $raisedAlarms, $clearedAlarms);
-
-            // Push FCM ke aplikasi Android — di queue agar tak menahan polling.
-            // Hanya di-dispatch bila kredensial ada DAN diaktifkan admin di Settings.
-            if (app(FcmAlarmNotifier::class)->active()) {
-                SendFcmAlarmNotifications::dispatch(
-                    $olt->id,
-                    array_map(fn (AlarmEvent $a) => $a->id, $raisedAlarms),
-                    array_map(fn (AlarmEvent $a) => $a->id, $clearedAlarms),
-                );
-            }
-        }
+        $this->dispatchNotifications($olt, $raisedAlarms, $clearedAlarms);
 
         return [
             'active' => count($detected),
             'raised' => count($raisedAlarms),
             'cleared' => count($clearedAlarms),
         ];
+    }
+
+    /**
+     * Port PON baru dimatikan dari NMS: catat alarm `port_disabled` ACTIVE dan kirim SATU notifikasi
+     * seketika (tanpa debounce — aksinya disengaja); menyalakannya lagi mengirim satu notifikasi pulih. Alarm ini sekaligus penanda bagi poll berikutnya
+     * bahwa `port_down` & alarm ONU di port itu harus ditahan. Mematikan port yang sudah bertanda
+     * tak mengirim ulang.
+     */
+    public function raisePortDisabled(SnmpOlt $olt, string $interface, int $slot, int $port, int $affectedOnus, ?string $actor = null): AlarmEvent
+    {
+        $this->ponLabel = SmartOltSupport::ponLabel($olt);
+        $now = Carbon::now();
+        $affected = $affectedOnus > 0 ? " — {$affectedOnus} ONU terputus sampai port dinyalakan lagi" : '';
+        $by = $actor !== null && $actor !== '' ? " oleh {$actor}" : '';
+        $data = [
+            'type' => AlarmEvent::TYPE_PORT_DISABLED,
+            'severity' => AlarmEvent::SEVERITY_MAJOR,
+            'status' => AlarmEvent::STATUS_ACTIVE,
+            'scope' => 'port',
+            'slot' => $slot,
+            'port' => $port,
+            'message' => "{$this->ponLabel} port {$interface} dimatikan (shutdown) dari NMS{$by}{$affected}.",
+            'meta' => ['affected_onus' => $affectedOnus, 'actor' => $actor, 'disabled_at' => $now->toIso8601String()],
+            'last_seen_at' => $now,
+        ];
+
+        $existing = $this->openPortDisabled($olt, $slot, $port)->first();
+
+        if ($existing !== null && $existing->status === AlarmEvent::STATUS_ACTIVE) {
+            $existing->update($data);
+
+            return $existing;
+        }
+
+        if ($existing !== null) {
+            $existing->update($data);
+            $alarm = $existing;
+        } else {
+            $alarm = AlarmEvent::create([
+                ...$data,
+                'snmp_olt_id' => $olt->id,
+                'signature' => self::portDisabledSignature($slot, $port),
+                'first_seen_at' => $now,
+            ]);
+        }
+
+        $this->dispatchNotifications($olt, [$alarm], []);
+
+        return $alarm;
+    }
+
+    /**
+     * Port PON dinyalakan lagi dari NMS: tutup penandanya dan kirim SATU notifikasi pemulihan
+     * (permintaan user 1 Okt 2026 — awalnya diam). ONU yang masih mati setelahnya beralarm
+     * mandiri di poll berikutnya. Port tanpa penanda terbuka tak mengirim apa pun.
+     */
+    public function clearPortDisabled(SnmpOlt $olt, int $slot, int $port, ?string $interface = null, ?string $actor = null): void
+    {
+        $this->ponLabel = SmartOltSupport::ponLabel($olt);
+        $name = $interface !== null && $interface !== '' ? $interface : "{$slot}/{$port}";
+        $by = $actor !== null && $actor !== '' ? " oleh {$actor}" : '';
+        $cleared = [];
+
+        foreach ($this->openPortDisabled($olt, $slot, $port)->get() as $alarm) {
+            $alarm->update([
+                'status' => AlarmEvent::STATUS_CLEARED,
+                'cleared_at' => Carbon::now(),
+                'meta' => [...($alarm->meta ?? []), 'recovery' => [
+                    'message' => "{$this->ponLabel} port {$name} dinyalakan lagi dari NMS{$by}.",
+                    'online' => true,
+                ]],
+            ]);
+
+            // Hanya penanda yang dulu memang dikirim (ACTIVE) yang layak dikabarkan pulih.
+            if (data_get($alarm->meta, 'notified') !== false) {
+                $cleared[] = $alarm;
+            }
+        }
+
+        $this->dispatchNotifications($olt, [], $cleared);
+    }
+
+    public static function portDisabledSignature(int $slot, int $port): string
+    {
+        return "port:{$slot}/{$port}:port_disabled";
+    }
+
+    /**
+     * @return Builder<AlarmEvent>
+     */
+    private function openPortDisabled(SnmpOlt $olt, int $slot, int $port)
+    {
+        return AlarmEvent::query()
+            ->where('snmp_olt_id', $olt->id)
+            ->where('signature', self::portDisabledSignature($slot, $port))
+            ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_PENDING]);
+    }
+
+    /**
+     * Penanda `port_disabled` yang masih berlaku di poll ini. Port yang terbaca UP lewat masa
+     * tenggang dilepas (dinyalakan di luar NMS) — jangan sampai penanda basi menahan alarm port hidup.
+     *
+     * @param  Collection<string, AlarmEvent>  $open
+     * @param  array<string, mixed>  $snapshot
+     * @return array<string, AlarmEvent>
+     */
+    private function disabledPorts($open, array $snapshot): array
+    {
+        $operByPort = [];
+        foreach ($snapshot['ports'] ?? [] as $port) {
+            $operByPort[((int) ($port['slot'] ?? 0)).'/'.((int) ($port['port'] ?? 0))] = $port['oper_status'] ?? null;
+        }
+
+        $graceStart = Carbon::now()->subMinutes(self::PORT_DISABLED_GRACE_MINUTES);
+        $disabled = [];
+
+        foreach ($open as $alarm) {
+            if ($alarm->type !== AlarmEvent::TYPE_PORT_DISABLED) {
+                continue;
+            }
+
+            $key = "{$alarm->slot}/{$alarm->port}";
+            $since = data_get($alarm->meta, 'disabled_at');
+            $since = $since ? Carbon::parse($since) : $alarm->first_seen_at;
+
+            if (($operByPort[$key] ?? null) === 'up' && $since !== null && $since->lt($graceStart)) {
+                continue;
+            }
+
+            $disabled[$key] = $alarm;
+        }
+
+        return $disabled;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function portDisabledDetection(AlarmEvent $alarm): array
+    {
+        return [
+            'type' => AlarmEvent::TYPE_PORT_DISABLED,
+            'severity' => $alarm->severity,
+            'scope' => 'port',
+            'slot' => $alarm->slot,
+            'port' => $alarm->port,
+            'message' => $alarm->message,
+            'meta' => $alarm->meta,
+        ];
+    }
+
+    /**
+     * @param  array<int, AlarmEvent>  $raised
+     * @param  array<int, AlarmEvent>  $cleared
+     */
+    private function dispatchNotifications(SnmpOlt $olt, array $raised, array $cleared): void
+    {
+        if ($raised === [] && $cleared === []) {
+            return;
+        }
+
+        ($this->telegram ??= app(TelegramNotifier::class))
+            ->notify($olt, $raised, $cleared);
+
+        // Push FCM ke aplikasi Android — di queue agar tak menahan polling.
+        // Hanya di-dispatch bila kredensial ada DAN diaktifkan admin di Settings.
+        if (app(FcmAlarmNotifier::class)->active()) {
+            SendFcmAlarmNotifications::dispatch(
+                $olt->id,
+                array_map(fn (AlarmEvent $a) => $a->id, $raised),
+                array_map(fn (AlarmEvent $a) => $a->id, $cleared),
+            );
+        }
     }
 }

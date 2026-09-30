@@ -151,6 +151,8 @@ return [
     'alarm_off' => 'Alarms for OLT :name disabled.',
     'gmaps_no_coords' => 'No coordinates found in the link. Make sure it is a Google Maps location link.',
     'vlan_added' => 'VLAN :vlan added to :interface.',
+    'port_disabled' => 'Port :interface disabled. ONUs on this port stay disconnected until it is enabled again.',
+    'port_enabled' => 'Port :interface enabled again.',
     'cli_error_prefix' => 'CLI execution finished with an error: ',
     'cdata_vlan_description_rule' => 'VLAN description must be one word: letters, digits, dot, - or _ (no spaces).',
     'cdata_vlan_create_failed' => 'Failed to create VLAN: ',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ManagesOltOwnership;
 use App\Jobs\CopyOnusToPortJob;
 use App\Jobs\Tr069BulkConfigJob;
 use App\Models\AcsSetting;
+use App\Models\AlarmEvent;
 use App\Models\CopyOnuTask;
 use App\Models\OnuMapPin;
 use App\Models\OnuOdpLink;
@@ -16,6 +17,7 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
+use App\Services\AlarmEvaluator;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
@@ -192,6 +194,8 @@ class SmartOltController extends Controller
             ];
         }
 
+        $isGponPort = $type === 'gpon' && $slot !== null;
+
         return Inertia::render('SmartOlt/PortDetail', [
             'olt' => $this->serializeOlt($olt),
             'interface' => $interface,
@@ -201,6 +205,14 @@ class SmartOltController extends Controller
             'card_type' => $detail['card_type'] ?? null,
             'detail' => $detail,
             'onu_summary' => $onuSummary,
+            // Matikan/nyalakan port: admin atau partner pemilik OLT (lihat storePortAdminState()).
+            'can_set_admin_state' => $isGponPort && (bool) $request->user()?->canSetPonPortAdminState($olt),
+            // Port sedang dimatikan dari NMS = ada alarm `port_disabled` terbuka.
+            'port_disabled' => $isGponPort && AlarmEvent::query()
+                ->where('snmp_olt_id', $olt->id)
+                ->where('signature', AlarmEvaluator::portDisabledSignature($slot, $port))
+                ->whereIn('status', [AlarmEvent::STATUS_ACTIVE, AlarmEvent::STATUS_PENDING])
+                ->exists(),
         ]);
     }
 
@@ -324,6 +336,68 @@ class SmartOltController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Matikan (`shutdown`) / nyalakan (`no shutdown`) port PON via CLI, tanpa `write`.
+     * Hanya admin atau partner pemilik OLT. Mematikan menaikkan alarm `port_disabled`
+     * (satu notifikasi) yang menahan alarm port & ONU di bawahnya; menyalakan menutupnya diam.
+     */
+    public function storePortAdminState(Request $request, SnmpOlt $olt, ZteCardUplinkService $service, AlarmEvaluator $alarms): JsonResponse
+    {
+        $this->assertCapability($olt, 'supports_port_admin_write');
+        abort_unless((bool) $request->user()?->canSetPonPortAdminState($olt), 403);
+
+        $data = $request->validate([
+            'slot' => ['required', 'integer', 'min:0', 'max:99'],
+            'port' => ['required', 'integer', 'min:0', 'max:99'],
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $slot = (int) $data['slot'];
+        $port = (int) $data['port'];
+        $enabled = (bool) $data['enabled'];
+        $interface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $onus = data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []);
+        $affected = is_array($onus) ? count($onus) : 0;
+        $properties = ['interface' => $interface, 'slot' => $slot, 'port' => $port, 'enabled' => $enabled, 'onu_count' => $affected];
+
+        try {
+            $result = $service->setGponPortAdminState($olt, $interface, $enabled);
+        } catch (\Throwable $e) {
+            $result = ['ok' => false, 'error' => $e->getMessage()];
+        }
+
+        if (! $result['ok']) {
+            $error = CliOutputSanitizer::clean((string) ($result['error'] ?? 'unknown'));
+            AuditLogger::log(
+                event: $enabled ? 'port.enable_failed' : 'port.disable_failed',
+                auditable: $olt,
+                properties: [...$properties, 'error' => $error],
+                description: sprintf('%s port %s di OLT %s GAGAL: %s', $enabled ? 'Menyalakan' : 'Mematikan', $interface, $olt->name, $error),
+            );
+
+            return response()->json(['ok' => false, 'message' => __('flash.cli_error_prefix').$error], 422);
+        }
+
+        if ($enabled) {
+            $alarms->clearPortDisabled($olt, $slot, $port, $interface, $request->user()?->name);
+        } else {
+            $alarms->raisePortDisabled($olt, $interface, $slot, $port, $affected, $request->user()?->name);
+        }
+
+        AuditLogger::log(
+            event: $enabled ? 'port.enabled' : 'port.disabled',
+            auditable: $olt,
+            properties: $properties,
+            description: sprintf('%s port %s di OLT %s (%d ONU)', $enabled ? 'Menyalakan' : 'Mematikan', $interface, $olt->name, $affected),
+        );
+
+        return response()->json([
+            'ok' => true,
+            'disabled' => ! $enabled,
+            'message' => __($enabled ? 'flash.port_enabled' : 'flash.port_disabled', ['interface' => $interface]),
+        ]);
     }
 
     public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService): Response

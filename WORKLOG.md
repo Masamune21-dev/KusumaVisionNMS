@@ -1,5 +1,34 @@
 # Worklog
 
+## 2026-10-01 — Matikan/Nyalakan Port PON ZTE dari NMS
+
+### Created
+
+- **Tombol "Matikan Port" / "Nyalakan Port"** di `Pages/SmartOlt/PortDetail.vue` (port GPON C300/C320) → rute
+  `POST smartolt.port.admin-state` → `SmartOltController::storePortAdminState()` →
+  `ZteCardUplinkService::setGponPortAdminState()`: `configure terminal` / `interface gpon-olt_1/s/p` / `shutdown` |
+  `no shutdown` / `exit` / `end`, **tanpa `write`** (port menyala lagi bila OLT reboot), lalu status port dibaca ulang.
+  Konfirmasi `useConfirm` (danger saat mematikan, menyebut jumlah ONU yang terputus); setiap aksi & kegagalannya dicatat
+  `AuditLogger` (`port.disabled|enabled|disable_failed|enable_failed`).
+- Capability `supports_port_admin_write` (C300/C320; C600 mati sampai sintaksnya dicek). Izin server-side
+  `User::canSetPonPortAdminState()`: admin, atau partner pemilik OLT (`ownsOlt`); operator & partner yang sekadar
+  di-assign → 403.
+- **Alarm `port_disabled`** (`AlarmEvent::TYPE_PORT_DISABLED`, major): dinaikkan langsung saat port dimatikan
+  (`AlarmEvaluator::raisePortDisabled()`, ACTIVE + satu notifikasi tanpa debounce) dan menjadi penanda bagi poll: selama
+  terbuka, `port_down` tak dievaluasi dan alarm ONU/ODP di port itu ditahan. Menyalakan port menutupnya dengan satu
+  notifikasi pulih (`clearPortDisabled()`). Port yang terbaca UP lewat tenggang 10 menit dianggap dinyalakan di luar NMS
+  → penanda dilepas (dengan notifikasi pulih). Pengiriman Telegram+FCM diekstrak ke `dispatchNotifications()`.
+- Migrasi data `2026_09_30_000001_add_port_disabled_to_alarm_notify_types`: `port_disabled` ikut dicentang di
+  `alarm_settings.notify_types` yang berupa daftar eksplisit (null = semua jenis, dibiarkan).
+- i18n `alarms.type_port_disabled` + 8 kunci `portdetail.*`, `flash.port_disabled|port_enabled`; badge admin
+  `activate`/`deactivate` kini hijau/merah.
+
+### Notes
+
+- Perintah `shutdown` terlihat di context-help `interface gpon-olt_…` C300 & C320 asli; diuji di port PON kosong.
+- ⚠️ Executor CLI mengirim per baris + Enter: context-help `shutdown ?` akan MENJALANKAN shutdown — kirim `?` polos saja.
+- Test baru `SmartOltPortAdminStateTest` (6).
+
 ## 2026-09-30 — Kolom Deskripsi Terpisah di Registrasi ONU
 
 ### Changed

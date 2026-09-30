@@ -44,6 +44,14 @@ class AlarmEvent extends Model
     public const TYPE_PORT_DOWN = 'port_down';
 
     /**
+     * Port PON sengaja dimatikan (`shutdown`) dari NMS. Dinaikkan langsung oleh aksi user
+     * (satu notifikasi), bukan oleh poll; selama terbuka, `port_down` dan alarm ONU di port itu
+     * ditahan, dan menyalakannya lagi mengirim satu notifikasi pulih
+     * ({@see App\Services\AlarmEvaluator::raisePortDisabled()}).
+     */
+    public const TYPE_PORT_DISABLED = 'port_disabled';
+
+    /**
      * SEMUA ONU satu ODP (splitter lapangan) offline serentak → akar masalahnya ODP/kabel
      * distribusinya, bukan tiap pelanggan. Satu alarm ini mewakili seluruh ONU di dalamnya;
      * alarm ONU anaknya disupres dari notifikasi ({@see App\Services\AlarmEvaluator}).
@@ -65,6 +73,7 @@ class AlarmEvent extends Model
     public const TYPE_LABELS = [
         self::TYPE_OLT_UNREACHABLE => 'OLT tidak terhubung',
         self::TYPE_PORT_DOWN => 'Port PON down',
+        self::TYPE_PORT_DISABLED => 'Port PON dimatikan admin',
         self::TYPE_ODP_DOWN => 'ODP down (semua ONU offline)',
         self::TYPE_LOS => 'Loss of Signal (LOS)',
         self::TYPE_DYING_GASP => 'Power Off',
@@ -89,6 +98,10 @@ class AlarmEvent extends Model
     {
         if ($type === self::TYPE_PORT_DOWN) {
             return "Port {$ponLabel} down";
+        }
+
+        if ($type === self::TYPE_PORT_DISABLED) {
+            return "Port {$ponLabel} dimatikan admin";
         }
 
         return self::TYPE_LABELS[$type] ?? $type;

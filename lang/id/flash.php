@@ -151,6 +151,8 @@ return [
     'alarm_off' => 'Alarm untuk OLT :name dimatikan.',
     'gmaps_no_coords' => 'Koordinat tidak ditemukan di link. Pastikan ini link lokasi Google Maps.',
     'vlan_added' => 'VLAN :vlan berhasil ditambahkan ke :interface.',
+    'port_disabled' => 'Port :interface dimatikan. ONU di port ini terputus sampai port dinyalakan lagi.',
+    'port_enabled' => 'Port :interface dinyalakan lagi.',
     'cli_error_prefix' => 'Eksekusi CLI selesai dengan error: ',
     'cdata_vlan_description_rule' => 'Deskripsi VLAN satu kata: huruf, angka, titik, - atau _ (tanpa spasi).',
     'cdata_vlan_create_failed' => 'Gagal membuat VLAN: ',

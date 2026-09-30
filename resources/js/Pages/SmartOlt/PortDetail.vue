@@ -1,4 +1,6 @@
 <script setup>
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime, formatTimeOfDay } from '@/lib/datetime';
@@ -6,7 +8,8 @@ import { parseOnuDescription } from '@/lib/onu';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
+import { useConfirm } from '@/Composables/useConfirm';
+import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, Power, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
 import { defineAsyncComponent, computed, onBeforeUnmount, reactive, ref } from 'vue';
 // Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
 // grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
@@ -28,6 +31,10 @@ const props = defineProps({
     card_type: { type: String, default: null },
     detail: { type: Object, default: null },
     onu_summary: { type: Object, default: null },
+    // Admin Pusat / partner pemilik OLT (server-side: User::canSetPonPortAdminState).
+    can_set_admin_state: { type: Boolean, default: false },
+    // Ada alarm `port_disabled` terbuka = port dimatikan dari NMS.
+    port_disabled: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -73,8 +80,8 @@ const formatDate = (value) => formatDateTime(value);
 
 const statusBadge = (status) => {
     const s = String(status ?? '').toLowerCase();
-    if (['up', 'enable', 'inservice'].includes(s)) return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
-    if (['down', 'disable', 'loopback'].includes(s)) return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
+    if (['up', 'enable', 'inservice', 'activate'].includes(s)) return 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30';
+    if (['down', 'disable', 'loopback', 'deactivate'].includes(s)) return 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30';
     return 'bg-slate-500/15 text-slate-300 ring-1 ring-white/10';
 };
 
@@ -290,6 +297,56 @@ const submitDesc = async () => {
         descForm.submitting = false;
     }
 };
+
+// ── Matikan/nyalakan port PON (CLI shutdown / no shutdown, tanpa write) ─────
+const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+const canSetAdminState = computed(() =>
+    isGpon.value
+    && props.can_set_admin_state
+    && props.olt.cli_transport === 'telnet'
+    && Boolean(props.olt.capabilities?.supports_port_admin_write),
+);
+// Dimatikan dari NMS (alarm terbuka) ATAU admin status CLI terbaca non-aktif (shutdown di luar NMS).
+const portIsShutdown = computed(() =>
+    props.port_disabled || /deactiv|shutdown|disabl/i.test(String(d.value.admin_status ?? '')),
+);
+const affectedOnus = computed(() => d.value.registered_onu_count ?? props.onu_summary?.total ?? 0);
+const adminForm = reactive({ submitting: false });
+const adminToast = reactive({ show: false, ok: true, message: '' });
+
+const setAdminState = async (enabled) => {
+    const ok = await confirm({
+        title: t(enabled ? 'portdetail.enable_confirm_title' : 'portdetail.disable_confirm_title'),
+        message: enabled
+            ? t('portdetail.enable_confirm_msg', { iface: props.interface })
+            : t('portdetail.disable_confirm_msg', { iface: props.interface, count: affectedOnus.value }),
+        confirmLabel: t(enabled ? 'portdetail.enable_port' : 'portdetail.disable_port'),
+        cancelLabel: t('common.cancel'),
+        variant: enabled ? 'warning' : 'danger',
+    });
+
+    if (!ok) return;
+
+    adminForm.submitting = true;
+    adminToast.show = false;
+    try {
+        const { data } = await window.axios.post(route('smartolt.port.admin-state', props.olt.id), {
+            slot: props.slot,
+            port: props.port,
+            enabled,
+        });
+        adminToast.ok = data.ok;
+        adminToast.message = data.message;
+        router.reload({ only: ['detail', 'port_disabled'] });
+    } catch (e) {
+        adminToast.ok = false;
+        adminToast.message = t('portdetail.request_failed_prefix', { msg: e.response?.data?.message ?? e.message });
+    } finally {
+        adminToast.show = true;
+        adminForm.submitting = false;
+        setTimeout(() => { adminToast.show = false; }, 8000);
+    }
+};
 </script>
 
 <template>
@@ -327,6 +384,16 @@ const submitDesc = async () => {
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         {{ $t('portdetail.refresh_from_olt') }}
                     </PrimaryButton>
+                    <template v-if="canSetAdminState">
+                        <SecondaryButton v-if="portIsShutdown" type="button" :disabled="adminForm.submitting" @click="setAdminState(true)">
+                            <Power class="mr-2 h-4 w-4" />
+                            {{ adminForm.submitting ? $t('portdetail.admin_state_running') : $t('portdetail.enable_port') }}
+                        </SecondaryButton>
+                        <DangerButton v-else type="button" :disabled="adminForm.submitting" @click="setAdminState(false)">
+                            <Power class="mr-2 h-4 w-4" />
+                            {{ adminForm.submitting ? $t('portdetail.admin_state_running') : $t('portdetail.disable_port') }}
+                        </DangerButton>
+                    </template>
                 </div>
             </div>
         </template>
@@ -335,6 +402,15 @@ const submitDesc = async () => {
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
                 <div v-if="!hasData" class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-5 py-8 text-center text-sm text-amber-200" v-html="$t('portdetail.no_data')"></div>
+
+                <p v-if="adminToast.show" role="status" class="rounded-lg border px-4 py-3 text-sm"
+                   :class="adminToast.ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-red-500/30 bg-red-500/10 text-red-200'">
+                    {{ adminToast.message }}
+                </p>
+                <div v-if="port_disabled" class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                    <Power class="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{{ $t('portdetail.disabled_banner') }}</span>
+                </div>
 
                 <div class="grid gap-6 lg:grid-cols-2">
                     <!-- Status -->
@@ -592,5 +668,6 @@ const submitDesc = async () => {
                 </div>
             </div>
         </div>
+        <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>
 </template>

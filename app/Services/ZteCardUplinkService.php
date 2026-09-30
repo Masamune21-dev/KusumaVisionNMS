@@ -964,6 +964,38 @@ class ZteCardUplinkService
     }
 
     /**
+     * Matikan (`shutdown`) atau nyalakan (`no shutdown`) port PON. Sengaja TANPA `write`:
+     * port yang dimatikan menyala lagi bila OLT reboot (keputusan user 30 Sep 2026).
+     * Status port dibaca ulang setelahnya supaya halaman detail menampilkan admin status baru.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function setGponPortAdminState(SnmpOlt $olt, string $interface, bool $enabled): array
+    {
+        if (SmartOltSupport::isC600($olt) || ! preg_match('/^gpon-olt_\d+\/\d+\/\d+$/', $interface)) {
+            throw new RuntimeException(__('zte.invalid_gpon_interface'));
+        }
+
+        $result = $this->executor->execute($olt, implode("\n", [
+            'configure terminal',
+            "interface {$interface}",
+            $enabled ? 'no shutdown' : 'shutdown',
+            'exit',
+            'end',
+        ]));
+
+        if ($result['ok']) {
+            try {
+                $this->refreshGponInterface($olt, $interface);
+            } catch (Throwable) {
+                //
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function parseCards(string $output): array

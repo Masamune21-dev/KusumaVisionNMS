@@ -232,6 +232,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Boleh mematikan/menyalakan port PON (memutus sampai 128 pelanggan sekaligus):
+     * admin untuk OLT global, partner hanya untuk OLT privat miliknya sendiri.
+     * Operator tidak boleh.
+     */
+    public function canSetPonPortAdminState(SnmpOlt $olt): bool
+    {
+        return $this->isAdmin() || ($this->isPartner() && $this->ownsOlt($olt));
+    }
+
+    /**
      * Boleh membuka CLI telnet & membaca isi backup running-config OLT
      * (keduanya memuat rahasia perangkat). Staf Pusat atau pemilik OLT privat.
      */

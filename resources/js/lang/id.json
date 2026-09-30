@@ -735,6 +735,7 @@
         "showing": "Menampilkan {from}–{to} dari {total} alarm",
         "type_olt_unreachable": "OLT tidak terhubung",
         "type_port_down": "Port PON down",
+        "type_port_disabled": "Port PON dimatikan admin",
         "type_odp_down": "ODP down (semua ONU offline)",
         "type_los": "Loss of Signal (LOS)",
         "type_dying_gasp": "Listrik Mati",
@@ -851,7 +852,15 @@
         "view_onu_list": "Lihat Daftar ONU",
         "request_failed_prefix": "Request gagal: {msg}",
         "description_placeholder": "Deskripsi port (mis. nama area/pelanggan)",
-        "description_hint": "Disimpan ke OLT via CLI (maks. 64 karakter). Kosongkan untuk menghapus."
+        "description_hint": "Disimpan ke OLT via CLI (maks. 64 karakter). Kosongkan untuk menghapus.",
+        "disable_port": "Matikan Port",
+        "enable_port": "Nyalakan Port",
+        "admin_state_running": "Mengirim ke OLT…",
+        "disable_confirm_title": "Matikan port PON?",
+        "disable_confirm_msg": "Port {iface} akan di-shutdown dan {count} ONU di port ini langsung terputus sampai port dinyalakan lagi. Perubahan tidak disimpan ke memori OLT, jadi port menyala lagi bila OLT reboot. Notifikasi dikirim saat port dimatikan dan saat dinyalakan lagi; alarm port dan ONU di port ini ditahan selama port mati.",
+        "enable_confirm_title": "Nyalakan port PON?",
+        "enable_confirm_msg": "Port {iface} akan dinyalakan lagi (no shutdown). Satu notifikasi \"port menyala lagi\" dikirim; ONU yang tetap offline setelahnya beralarm seperti biasa.",
+        "disabled_banner": "Port ini sedang dimatikan dari NMS. Alarm port dan ONU di port ini ditahan sampai port dinyalakan lagi."
     },
     "registeronu": {
         "subtitle": "{olt} · provisioning ONU + eksekusi langsung ke OLT",

@@ -266,6 +266,9 @@ class SmartOltSupport
             // Edit deskripsi port PON via CLI `interface … / description …` — jalan di ketiga
             // family ZTE (C300/C320/C600), penamaan interface via gponOltInterface(). Bukan SNMP.
             'supports_port_description_write' => true,
+            // Matikan/nyalakan port PON via CLI `interface gpon-olt_… / shutdown | no shutdown`.
+            // Perintahnya terlihat di context-help C300 & C320 asli (30 Sep 2026); C600 belum dicek.
+            'supports_port_admin_write' => ! $isC600,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }

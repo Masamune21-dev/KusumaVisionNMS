@@ -735,6 +735,7 @@
         "showing": "Showing {from}–{to} of {total} alarms",
         "type_olt_unreachable": "OLT unreachable",
         "type_port_down": "PON port down",
+        "type_port_disabled": "PON port disabled by admin",
         "type_odp_down": "ODP down (all ONUs offline)",
         "type_los": "Loss of Signal (LOS)",
         "type_dying_gasp": "Power Off",
@@ -851,7 +852,15 @@
         "view_onu_list": "View ONU List",
         "request_failed_prefix": "Request failed: {msg}",
         "description_placeholder": "Port description (e.g. area/customer name)",
-        "description_hint": "Saved to the OLT via CLI (max 64 chars). Leave empty to clear."
+        "description_hint": "Saved to the OLT via CLI (max 64 chars). Leave empty to clear.",
+        "disable_port": "Disable Port",
+        "enable_port": "Enable Port",
+        "admin_state_running": "Sending to OLT…",
+        "disable_confirm_title": "Disable PON port?",
+        "disable_confirm_msg": "Port {iface} will be shut down and {count} ONUs on it are disconnected immediately until the port is enabled again. The change is not saved to OLT memory, so the port comes back up if the OLT reboots. A notification is sent when the port is disabled and again when it is enabled; port and ONU alarms on this port are held while it is disabled.",
+        "enable_confirm_title": "Enable PON port?",
+        "enable_confirm_msg": "Port {iface} will be enabled again (no shutdown). One \"port enabled again\" notification is sent; ONUs that stay offline afterwards alarm as usual.",
+        "disabled_banner": "This port is disabled from the NMS. Port and ONU alarms on it are held until the port is enabled again."
     },
     "registeronu": {
         "subtitle": "{olt} · ONU provisioning + direct execution to the OLT",
