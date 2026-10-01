@@ -65,6 +65,25 @@ class PartnerTelegramBotTest extends TestCase
         ]);
     }
 
+    public function test_port_disabled_type_is_ticked_for_partner_bots_with_explicit_type_lists(): void
+    {
+        $bot = fn (?array $types) => PartnerTelegramBot::create([
+            'user_id' => User::factory()->partner()->create()->id,
+            'enabled' => true, 'bot_token' => '999:UJI', 'chat_id' => '0800',
+            'min_severity' => 'warning', 'notify_on_raise' => true, 'notify_on_clear' => true,
+            'notify_types' => $types,
+        ]);
+        $explicit = $bot(['port_down', 'los']);
+        $all = $bot(null);
+
+        (require database_path('migrations/2026_10_01_000001_add_port_disabled_to_partner_bot_notify_types.php'))->up();
+
+        // Partner yang mematikan/menyalakan port di OLT-nya sendiri kini menerima notifikasinya.
+        $this->assertSame(['port_down', 'los', 'port_disabled'], $explicit->fresh()->notify_types);
+        $this->assertTrue($explicit->fresh()->shouldNotifyType(AlarmEvent::TYPE_PORT_DISABLED));
+        $this->assertNull($all->fresh()->notify_types);
+    }
+
     public function test_alarm_for_assigned_olt_reaches_partner_bot_and_global(): void
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true], 200)]);

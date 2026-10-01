@@ -1,5 +1,16 @@
 # Worklog
 
+## 2026-10-01 — Bot Telegram Partner Ikut Menerima Alarm "Port PON Dimatikan"
+
+### Fixed
+
+- Migrasi `port_disabled` sebelumnya hanya mencentang jenis baru di `alarm_settings` (bot utama + push). Bot Telegram
+  partner punya filter sendiri (`partner_telegram_bots.notify_types`); yang daftarnya eksplisit tak pernah menerima
+  `port_disabled`, jadi partner yang mematikan/menyalakan port PON di OLT-nya sendiri tak dapat notifikasi. Migrasi data
+  `2026_10_01_000001_add_port_disabled_to_partner_bot_notify_types` mencentangnya (daftar null = semua jenis dibiarkan).
+- Test `test_port_disabled_type_is_ticked_for_partner_bots_with_explicit_type_lists`. Handbook 10: resep jenis alarm
+  baru kini menyebut dua migrasi. Uji: 670 passed, `npm test` 34, build OK.
+
 ## 2026-10-01 — Contoh Nama Pelanggan & Email Diganti Fiktif
 
 ### Fixed

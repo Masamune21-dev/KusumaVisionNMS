@@ -155,12 +155,16 @@ ON, **clear OFF**, korelasi ON, grup ODP ON.
 `shouldNotifyType()`/`notifyOnRaise()`/`notifyOnClear()` ke `AlarmSetting` — kolom senama di kedua
 tabel kanal masih ada tapi tak dipakai lagi (dipertahankan demi rollback). **Bot partner**
 (`PartnerTelegramBot`) tetap memakai filter per-bot miliknya sendiri (diatur partner di halamannya) —
-migrasi `port_disabled` di atas **hanya** menyentuh `alarm_settings`, jadi bot partner yang
-`notify_types`-nya daftar eksplisit tidak otomatis menerima jenis baru ini.
+karena itu jenis baru perlu migrasi **kedua** untuk `partner_telegram_bots.notify_types` eksplisit
+(`2026_10_01_000001_add_port_disabled_to_partner_bot_notify_types`; dulu hanya `alarm_settings` yang
+diperbarui, sehingga partner yang mematikan port di OLT-nya sendiri tidak menerima notifikasinya). Jenis
+`odp_down` (Agu 2026) tidak pernah dimigrasikan ke bot partner — bot partner dengan daftar lama bisa tidak
+menerima gangguan ODP total sama sekali (alarm ONU anaknya ditahan).
 
 Menambah **jenis alarm baru**: konstanta + label di `AlarmEvent`, `KNOWN_TYPES` di `lib/alarm.js` +
 kunci `alarms.type_*` (id/en), putuskan apakah masuk `PERSISTENT_UNTIL_RECOVERY`, dan migrasi data yang
-menambahkannya ke `alarm_settings.notify_types` eksplisit (pola `2026_09_30_000001`).
+menambahkannya ke `alarm_settings.notify_types` **dan** `partner_telegram_bots.notify_types` yang eksplisit
+(pola `2026_09_30_000001` + `2026_10_01_000001`).
 
 **Saklar alarm per-OLT = per-penerima, bukan mute evaluasi.** `AlarmEvaluator::evaluate()` selalu
 jalan (event tetap tercatat); tombol On/Off per OLT (`smartolt.alarms.toggle`) hanya menentukan siapa
