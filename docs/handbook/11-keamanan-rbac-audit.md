@@ -23,7 +23,11 @@ Gerbang per-OLT:
   OLT privat (`ManagesOltOwnership::authorizeOltUpdate`/`authorizeOltConnectionTest`); juga gerbang
   tulis VLAN C-Data.
 - `canAccessOltSecrets($olt)` — telnet browser (token **dan** daemon proxy) dan isi backup
-  running-config: `canManageOlt()` + (admin/operator atau pemilik OLT).
+  running-config: `canManageOlt()` + (admin/operator atau pemilik OLT). Daftar OLT menampilkan tombol
+  Telnet hanya bila `serializeOlt().can_telnet` (= gerbang ini) dan Test SNMP hanya bila
+  `connection_locked` false — dulu kedua tombol tampil lalu 403.
+- `canWriteOltUplinkConfig($olt)` — tulis config uplink yang langsung `write` (tag VLAN uplink ZTE):
+  `canManageOlt()` + (admin/operator atau partner pemilik OLT).
 - `canSetPonPortAdminState($olt)` — matikan/nyalakan port PON: `isAdmin() || (isPartner() &&
   ownsOlt($olt))` — **admin**, atau **partner pemilik OLT privat**. Operator & partner yang sekadar
   di-assign → 403.
@@ -97,12 +101,10 @@ berlaku untuk semua rute. Sebagian besar aksi ONU ZTE di `smartolt.*` (reboot, s
 salin, TR069 Massal) memang hanya dijaga cakupan + capability + demo — semua peran non-demo sudah
 `canManageOlt()`.
 
-> ⚠️ **Perilaku saat ini — tag VLAN uplink ZTE** (`POST smartolt.port.vlan` → `storePortVlan` →
-> `ZteCardUplinkService::addAndTagVlan()`): **tanpa gerbang peran maupun capability** selain cakupan
-> OLT dan demo, dan skripnya **`write` otomatis** (`vlan {id}` + `switchport vlan {id} tag` + `write`).
-> Jadi operator dan partner yang sekadar di-assign bisa men-tag VLAN ke uplink OLT global dan
-> sekaligus menyimpan running-config. Bandingkan padanan C-Data yang dijaga `canEditOltConnection()`
-> dan tanpa `save` otomatis. Belum diubah — dicatat sebagai temuan.
+> **Tag VLAN uplink ZTE** (`POST smartolt.port.vlan` → `storePortVlan` → `ZteCardUplinkService::addAndTagVlan()`,
+> skripnya **`write` otomatis**) sejak 1 Okt 2026 dijaga `canWriteOltUplinkConfig()`: admin/operator di semua OLT,
+> partner hanya di OLT privat miliknya; selain itu 403 (`olt.uplink_write_forbidden`) sebelum CLI. Form VLAN di
+> `PortDetail.vue` hanya tampil bila prop `can_write_uplink_vlan` true. Dulu tanpa gerbang peran sama sekali.
 
 ### Share ke frontend
 `HandleInertiaRequests::share()` mengirim `auth.can` (`manage_users`, `manage_olt`,

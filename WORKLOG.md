@@ -1,5 +1,20 @@
 # Worklog
 
+## 2026-10-01 — VLAN Uplink ZTE Digerbang Peran; Tombol Telnet & Test SNMP Ikut Izin Server
+
+### Fixed
+
+- **Tag VLAN uplink ZTE** (`smartolt.port.vlan`, `write` otomatis) dulu tanpa gerbang peran: operator dan partner yang
+  sekadar di-assign bisa men-tag VLAN ke uplink OLT global sekaligus menyimpan running-config. Kini
+  `User::canWriteOltUplinkConfig()`: admin/operator di semua OLT, partner hanya di OLT privat miliknya; selain itu 403
+  `olt.uplink_write_forbidden` (id/en) sebelum CLI. Form VLAN di `PortDetail.vue` hanya tampil bila
+  `can_write_uplink_vlan`.
+- **Tombol Telnet** di daftar OLT dulu tampil untuk semua `canManageOlt` padahal server mensyaratkan
+  `canAccessOltSecrets` (partner di OLT global → 403). Kini mengikuti `serializeOlt().can_telnet`. Tombol **Test SNMP**
+  (masalah sama) kini disembunyikan bila `connection_locked`.
+- Test baru `OltAccessGateTest` (2). Handbook 07/11 dan panduan PDF publik (ID/EN) diperbarui. Uji: 672 passed,
+  `npm test` 34, build OK, `kv-ui-check` 0.
+
 ## 2026-10-01 — Bot Telegram Partner Ikut Menerima Alarm "Port PON Dimatikan"
 
 ### Fixed

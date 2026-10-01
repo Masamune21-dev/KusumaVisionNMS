@@ -2,6 +2,7 @@
 
 // Generic OLT backend messages (SNMP/telnet/ownership). ID: lang/id/olt.php.
 return [
+    'uplink_write_forbidden' => 'Adding uplink VLANs is limited to admins/operators, or a partner on their own OLT.',
     'telnet_forbidden' => 'You do not have permission to open telnet to this OLT.',
     'delete_own_olt_only' => 'You may only delete OLTs that you own.',
     'connection_fields_central_only' => 'Connection parameters of a global OLT (IP, port, SNMP, CLI credentials) can only be changed by head-office staff.',

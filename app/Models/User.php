@@ -250,6 +250,15 @@ class User extends Authenticatable
         return $this->canManageOlt() && ($this->isCentralStaff() || $this->ownsOlt($olt));
     }
 
+    /**
+     * Boleh menulis konfigurasi uplink OLT yang langsung disimpan permanen (tambah & tag VLAN
+     * uplink ZTE, auto `write`): admin/operator di semua OLT; partner hanya di OLT privat miliknya.
+     */
+    public function canWriteOltUplinkConfig(SnmpOlt $olt): bool
+    {
+        return $this->canManageOlt() && ($this->isCentralStaff() || $this->ownsOlt($olt));
+    }
+
     public function canManageUsers(): bool
     {
         return $this->role === UserRole::Admin;

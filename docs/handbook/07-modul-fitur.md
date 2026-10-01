@@ -122,8 +122,8 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - **Page**: `SmartOlt/PortDetail.vue` — status link, trafik (chart live untuk uplink), optical/SFP (redaman RX/TX + threshold), VLAN tagged (uplink), ringkasan ONU + tombol ke daftar ONU (GPON), edit deskripsi (GPON).
 - `ZteCardUplinkService` menyediakan status interface, mapping VLAN, info optik, refresh per-interface, tambah VLAN, deskripsi, dan admin-state port PON.
 - **Tag VLAN uplink** (`smartolt.port.vlan` → `addAndTagVlan()`): `vlan {id}` + `switchport vlan {id} tag`
-  **lalu `write` otomatis**. Perilaku saat ini: tak ada gerbang peran/capability selain cakupan OLT
-  (route-model binding + `PartnerOltScope`) dan `BlockDemoWrites` — lihat catatan di
+  **lalu `write` otomatis**. Dijaga `canWriteOltUplinkConfig()` (sejak 1 Okt 2026): admin/operator di semua OLT,
+  partner hanya di OLT privat miliknya — lihat
   [11](11-keamanan-rbac-audit.md#penegakan-akses-3-lapis).
 
 ### 5a. Matikan / nyalakan port PON (ZTE C300/C320, Sep 2026)

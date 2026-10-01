@@ -2,6 +2,7 @@
 
 // Pesan backend OLT generik (SNMP/telnet/kepemilikan). EN: lang/en/olt.php.
 return [
+    'uplink_write_forbidden' => 'Menambah VLAN uplink hanya untuk admin/operator, atau partner di OLT miliknya sendiri.',
     'telnet_forbidden' => 'Tidak punya izin telnet ke OLT ini.',
     'delete_own_olt_only' => 'Anda hanya boleh menghapus OLT milik Anda sendiri.',
     'connection_fields_central_only' => 'Parameter koneksi OLT global (IP, port, SNMP, kredensial CLI) hanya boleh diubah oleh staf Pusat.',

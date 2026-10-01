@@ -35,6 +35,8 @@ const props = defineProps({
     can_set_admin_state: { type: Boolean, default: false },
     // Ada alarm `port_disabled` terbuka = port dimatikan dari NMS.
     port_disabled: { type: Boolean, default: false },
+    // Tambah & tag VLAN uplink (auto write): admin/operator, atau partner di OLT miliknya sendiri.
+    can_write_uplink_vlan: { type: Boolean, default: false },
 });
 
 const page = usePage();
@@ -613,7 +615,7 @@ const setAdminState = async (enabled) => {
                             {{ $t('portdetail.no_vlan') }}
                         </div>
 
-                        <div class="mt-5 border-t border-white/10 pt-5">
+                        <div v-if="can_write_uplink_vlan" class="mt-5 border-t border-white/10 pt-5">
                             <label for="vlan-add" class="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">{{ $t('portdetail.add_vlan_label') }}</label>
                             <form class="flex flex-col gap-2 sm:flex-row sm:items-center" @submit.prevent="submitVlan">
                                 <input

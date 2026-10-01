@@ -207,6 +207,7 @@ class SmartOltController extends Controller
             'onu_summary' => $onuSummary,
             // Matikan/nyalakan port: admin atau partner pemilik OLT (lihat storePortAdminState()).
             'can_set_admin_state' => $isGponPort && (bool) $request->user()?->canSetPonPortAdminState($olt),
+            'can_write_uplink_vlan' => $type === 'uplink' && (bool) $request->user()?->canWriteOltUplinkConfig($olt),
             // Port sedang dimatikan dari NMS = ada alarm `port_disabled` terbuka.
             'port_disabled' => $isGponPort && AlarmEvent::query()
                 ->where('snmp_olt_id', $olt->id)
@@ -284,6 +285,10 @@ class SmartOltController extends Controller
 
     public function storePortVlan(Request $request, SnmpOlt $olt, ZteCardUplinkService $service): JsonResponse
     {
+        // Tag VLAN uplink langsung `write` ke OLT — hanya admin/operator, atau partner di OLT privat
+        // miliknya (dulu tanpa gerbang peran).
+        abort_unless((bool) $request->user()?->canWriteOltUplinkConfig($olt), 403, __('olt.uplink_write_forbidden'));
+
         $data = $request->validate([
             'interface' => ['required', 'string', 'regex:'.self::UPLINK_INTERFACE_REGEX],
             'vlan_id' => ['required', 'integer', 'min:1', 'max:4094'],
@@ -2436,6 +2441,8 @@ class SmartOltController extends Controller
             // Kolom koneksi (IP/port/SNMP/CLI) terkunci untuk partner pada OLT
             // global yang di-assign — ditegakkan server (ManagesOltOwnership::authorizeOltUpdate).
             'connection_locked' => ! (bool) auth()->user()?->canEditOltConnection($olt),
+            // Tombol Telnet hanya untuk yang lolos gerbang server (TelnetSessionController).
+            'can_telnet' => (bool) auth()->user()?->canAccessOltSecrets($olt),
             'polling_enabled' => (bool) $olt->polling_enabled,
             // Efektif per-penerima: partner lihat saklar webhook-nya sendiri (pivot),
             // admin/operator lihat saklar OLT.

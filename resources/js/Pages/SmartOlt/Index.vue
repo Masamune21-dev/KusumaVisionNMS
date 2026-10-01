@@ -363,7 +363,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton :title="$t('common.test_snmp')" @click="testOlt(olt)">
+                                    <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton :href="route('smartolt.edit', olt.id)" :title="$t('common.edit')">
@@ -381,7 +381,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                        v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
                                         variant="primary"
                                         :title="$t('common.telnet_to_olt')"
                                         @click="openTelnet(olt)"
@@ -488,7 +488,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton :title="$t('common.test_snmp')" @click="testOlt(olt)">
+                                            <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton :href="route('smartolt.edit', olt.id)" :title="$t('common.edit')">
@@ -506,7 +506,7 @@ const formatDate = (value) => formatDateTime(value);
                                                 <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                                v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
                                                 variant="primary"
                                                 :title="$t('common.telnet_to_olt')"
                                                 @click="openTelnet(olt)"
@@ -625,7 +625,7 @@ const formatDate = (value) => formatDateTime(value);
                                     >
                                         <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
+                                    <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
                                         <RefreshCw class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton :href="nonZteRoute('edit', olt.id)" :title="$t('common.edit')">
@@ -640,7 +640,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                        v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
                                         variant="primary"
                                         :title="$t('common.telnet_to_olt')"
                                         @click="openTelnet(olt)"
@@ -746,7 +746,7 @@ const formatDate = (value) => formatDateTime(value);
                                             >
                                                 <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
+                                            <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
                                                 <RefreshCw class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton :href="nonZteRoute('edit', olt.id)" :title="$t('common.edit')">
@@ -761,7 +761,7 @@ const formatDate = (value) => formatDateTime(value);
                                                 <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt && olt.cli_transport === 'telnet'"
+                                                v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
                                                 variant="primary"
                                                 :title="$t('common.telnet_to_olt')"
                                                 @click="openTelnet(olt)"
