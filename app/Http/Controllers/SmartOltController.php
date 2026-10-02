@@ -2250,7 +2250,9 @@ class SmartOltController extends Controller
             'config.services.*.cos' => ['nullable', 'integer', 'between:0,7'],
             'config.services.*.vlan' => ['nullable', 'integer', 'between:1,4094'],
             'config.vlan_ports' => ['array'],
-            'config.vlan_ports.*.port_type' => ['nullable', Rule::in(['eth', 'wifi'])],
+            // VEIP (`veip_N`) dipakai ONU HGU routed/bridge; builder & parser running-config
+            // sudah memetakannya — tanpa ini registrasi/Configure ONU ber-VEIP ditolak 422.
+            'config.vlan_ports.*.port_type' => ['nullable', Rule::in(['eth', 'wifi', 'veip'])],
             'config.vlan_ports.*.port' => ['nullable', 'integer', 'between:1,8'],
             'config.vlan_ports.*.mode' => ['nullable', 'string', 'max:32'],
             'config.vlan_ports.*.vlan' => ['nullable', 'integer', 'between:1,4094'],

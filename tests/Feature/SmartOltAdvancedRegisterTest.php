@@ -101,6 +101,27 @@ class SmartOltAdvancedRegisterTest extends TestCase
             ->assertJsonValidationErrors('config.description');
     }
 
+    public function test_advanced_preview_accepts_veip_uni_vlan(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+        $payload = $this->payload();
+        $payload['config']['vlan_ports'] = [
+            ['port_type' => 'veip', 'port' => 1, 'mode' => 'hybrid', 'def_vlan' => 100, 'priority' => null],
+        ];
+
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertOk()
+            ->assertJsonPath('script', fn (string $script) => str_contains($script, 'vlan port veip_1 mode hybrid def-vlan 100'));
+
+        $payload['config']['vlan_ports'][0]['port_type'] = 'pots';
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('config.vlan_ports.0.port_type');
+    }
+
     public function test_simple_register_writes_separate_description(): void
     {
         $user = User::factory()->create();

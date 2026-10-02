@@ -176,13 +176,13 @@ export const sections = [
                 icon: 'Globe',
                 label: 'UNI VLAN',
                 columns: [
-                    { key: 'port_type', label: 'Port', fmt: (r) => `${r.port_type ?? 'eth'}_0/${r.port ?? '?'}` },
+                    { key: 'port_type', label: 'Port', fmt: (r) => (r.port_type === 'veip' ? `veip_${r.port ?? '?'}` : `${r.port_type ?? 'eth'}_0/${r.port ?? '?'}`) },
                     { key: 'mode', label: 'Mode' },
                     { key: 'def_vlan', label: 'Def VLAN' },
                     { key: 'priority', label: 'Priority' },
                 ],
                 fields: [
-                    { key: 'port_type', label: 'Port type', type: 'select', options: () => ['eth', 'wifi'], immutable: true },
+                    { key: 'port_type', label: 'Port type', type: 'select', options: () => ['eth', 'wifi', 'veip'], immutable: true },
                     { key: 'port', label: 'Port', type: 'number', min: 1, max: 8, immutable: true },
                     { key: 'mode', label: 'Mode', type: 'select', options: () => ['tag', 'hybrid', 'trunk', 'transparent'] },
                     { key: 'def_vlan', label: 'Def VLAN', type: 'number', min: 1, max: 4094, showIf: (r) => ['tag', 'hybrid'].includes(r.mode) },

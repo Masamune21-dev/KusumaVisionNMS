@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-10-02 — UNI VLAN VEIP Ditolak Saat Registrasi Lanjutan
+
+### Fixed
+
+- Registrasi lanjutan (dan Configure ONU) dengan baris UNI VLAN **VEIP** gagal 422 "The selected
+  config.vlan_ports.0.port_type is invalid", dan pratinjau CLI menampilkan "Failed to load script preview". Pilihan VEIP
+  sudah ada di `OnuConfigEditor.vue`, builder (`veip_{N}`), dan parser running-config, tapi aturan
+  `config.vlan_ports.*.port_type` di `SmartOltController::reconfigureConfigRules()` masih `eth|wifi`. Kini
+  `eth|wifi|veip` — sekaligus memulihkan Configure ONU untuk ONU yang running-config-nya memuat `vlan port veip_N …`.
+- Editor per seksi (`onuConfigSections.js`): opsi Port type kini memuat `veip`, kolom Port menampilkan `veip_1`
+  (dulu `veip_0/1`).
+
+### Notes
+
+- Test baru `test_advanced_preview_accepts_veip_uni_vlan`. 673 test lulus lewat `scripts/test.sh`, `npm test` 34 lulus.
+
 ## 2026-10-01 — VLAN Uplink ZTE Digerbang Peran; Tombol Telnet & Test SNMP Ikut Izin Server
 
 ### Fixed
