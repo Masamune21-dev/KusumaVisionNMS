@@ -1,5 +1,59 @@
 # Worklog
 
+## 2026-10-02 — Lisensi Dependensi: ApexCharts → Chart.js, typed.js → Efek Ketik Sendiri
+
+Dua dependensi frontend berganti lisensi saat naik versi mayor, sehingga bertentangan dengan lisensi MIT repo
+ini:
+- **typed.js 3.0.0 = GPL-3.0** (versi 2.1.0 masih MIT);
+- **ApexCharts 5.x = lisensi komunitas dual**: gratis hanya untuk organisasi beromzet < US$2 juta, perlu lisensi
+  OEM bila disematkan di platform yang dipakai pihak lain. Ini membebani pengguna yang self-host tanpa sadar.
+
+Keduanya diganti dengan komponen permisif.
+
+### Changed
+
+- **Grafik → Chart.js 4.5.1 (MIT)**; `apexcharts`, `vue3-apexcharts`, `typed.js` dicopot.
+  - `Components/Charts/ChartCanvas.vue`: satu-satunya tempat Chart.js dibuat, dimuat malas lewat
+    `import('@/lib/charts')`. Hasilnya chunk dinamis ±170 KB (dulu 1,1 MB). Grafik di-update di tempat saat
+    data/tema berubah.
+  - `lib/charts.js`: registrasi bagian yang dipakai saja + plugin kecil `kvZones` (pita zona & garis ambang).
+  - `lib/chartOptions.js`: potongan opsi yang ikut tema (`lineChartOptions`, `axisX/Y`, `tooltip`, `areaFill`,
+    `withAlpha`, `timeTicks`).
+  - Dipindah: `StatCard`, `OnuStatusDonut`, `PollingTrendCard`, `RxTrendCard`, `PortDetail`.
+  - Kurva memakai interpolasi `monotone`: puncak/lembah tetap di titik data, tidak melampauinya.
+  - Sumbu waktu Tren RX: centang di jam/hari bulat zona tampilan.
+  - Gauge RX `OnuDetail` → `Components/Charts/ArcGauge.vue` (SVG murni).
+- **Terminal hero `Welcome.vue`** → `lib/typewriter.js`, buatan sendiri:
+  - smart backspace;
+  - berhenti saat terminal di luar layar;
+  - statis untuk `prefers-reduced-motion`.
+- `lib/datetime.js`: + `formatAxisTime()`, `displayTzOffsetMs()`. `vite.config.js`: pengecualian `apexcharts`
+  dihapus.
+- Dokumen: `UI_DESIGN_SYSTEM.md`, handbook `01-overview`, `12-frontend` (+ paragraf lisensi),
+  `INSTALLATION_STATUS`, PRD, komentar CSP & `scripts/snapshot.mjs`.
+
+### Created
+
+- `tests/Unit/LisensiDependensiTest.php`: menolak paket npm/Composer non-permisif.
+  - Paket aplikasi wajib MIT/ISC/BSD/Apache/0BSD/Unlicense/CC0/BlueOak.
+  - Alat build npm boleh MPL-2.0 & CC-BY-4.0.
+  - Composer boleh LGPL (dompdf).
+  - `gsap` dikecualikan dengan alasan tertulis.
+
+  Terbukti menangkap apexcharts, vue3-apexcharts, dan typed.js di lockfile lama.
+- `tests/Feature/BundelAsetTest.php` ditulis ulang: chunk Chart.js wajib dinamis & tidak masuk entry mana pun.
+- Vitest: `chartOptions.spec.js`, `typewriter.spec.js`, + 2 kasus `datetime.spec.js`.
+
+### Notes
+
+- Verifikasi:
+  - PHPUnit 675 lulus;
+  - Vitest 42 lulus;
+  - `kv-ui-check` 0 pelanggaran;
+  - Playwright di server lokal (SQLite + `DemoSeeder`, akun demo): Dashboard tampil dengan 5 grafik di tema
+    gelap & terang, tanpa error console;
+  - Welcome: efek ketik, berhenti di luar layar, dan mode gerak-dikurangi diuji.
+
 ## 2026-10-02 — UNI VLAN VEIP Ditolak Saat Registrasi Lanjutan
 
 ### Fixed

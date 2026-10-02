@@ -1,16 +1,11 @@
 <script setup>
-import { defineAsyncComponent, computed } from 'vue';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
+import { computed } from 'vue';
+// Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
+import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
 import { useI18n } from 'vue-i18n';
 import { CircleDot } from '@lucide/vue';
+import { tooltip } from '@/lib/chartOptions';
 import { formatDateTime } from '@/lib/datetime';
-import { chartTheme, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -27,49 +22,41 @@ const warning = computed(() => props.onu.warning ?? 0);
 const online = computed(() => Math.max(0, onlineCount.value - warning.value));
 const offline = computed(() => Math.max(0, props.onu.offline ?? total.value - onlineCount.value));
 
-const series = computed(() => [online.value, warning.value, offline.value]);
+const STATUS_HEX = ['#10b981', '#f59e0b', '#ef4444'];
 
 const onlinePct = computed(() => total.value > 0 ? Math.round((online.value / total.value) * 1000) / 10 : 0);
 const warningPct = computed(() => total.value > 0 ? Math.round((warning.value / total.value) * 1000) / 10 : 0);
 const offlinePct = computed(() => total.value > 0 ? Math.round((offline.value / total.value) * 1000) / 10 : 0);
 
-const chartOptions = computed(() => {
-    const c = chartTheme();
-
-    return {
-    chart: { type: 'donut', background: 'transparent', animations: { enabled: false } },
+const chartData = computed(() => ({
     labels: [t('dashboard.status_online'), t('dashboard.status_warning'), t('dashboard.status_offline')],
-    colors: ['#10b981', '#f59e0b', '#ef4444'],
-    legend: { show: false },
-    stroke: { width: 0 },
-    plotOptions: {
-        pie: {
-            donut: {
-                size: '74%',
-                labels: {
-                    show: true,
-                    name: { show: true, color: c.label, fontSize: '11px', offsetY: 22 },
-                    value: { show: true, color: c.text, fontSize: '28px', fontWeight: 700, offsetY: -10 },
-                    total: {
-                        show: true,
-                        label: t('dashboard.donut_total'),
-                        color: c.label,
-                        fontSize: '11px',
-                        formatter: () => total.value.toLocaleString('id-ID'),
-                    },
-                },
-            },
-        },
+    datasets: [{
+        data: [online.value, warning.value, offline.value],
+        backgroundColor: STATUS_HEX,
+        borderWidth: 0,
+        hoverOffset: 4,
+    }],
+}));
+
+// Angka total di tengah digambar sebagai HTML di atas kanvas (lihat template).
+const chartOptions = computed(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    cutout: '74%',
+    layout: { padding: 4 },
+    plugins: {
+        legend: { display: false },
+        tooltip: tooltip({
+            label: (ctx) => ` ${ctx.label}: ${Number(ctx.parsed).toLocaleString('id-ID')}`,
+        }),
     },
-    tooltip: { theme: c.tooltip, y: { formatter: (v) => v.toLocaleString('id-ID') } },
-    dataLabels: { enabled: false },
-    };
-});
+}));
 
 const legend = computed(() => [
-    { label: t('dashboard.status_online'), value: online.value, pct: onlinePct.value, color: '#10b981', dot: 'bg-emerald-400' },
-    { label: t('dashboard.status_warning'), value: warning.value, pct: warningPct.value, color: '#f59e0b', dot: 'bg-amber-400' },
-    { label: t('dashboard.status_offline'), value: offline.value, pct: offlinePct.value, color: '#ef4444', dot: 'bg-red-400' },
+    { label: t('dashboard.status_online'), value: online.value, pct: onlinePct.value, dot: 'bg-emerald-400' },
+    { label: t('dashboard.status_warning'), value: warning.value, pct: warningPct.value, dot: 'bg-amber-400' },
+    { label: t('dashboard.status_offline'), value: offline.value, pct: offlinePct.value, dot: 'bg-red-400' },
 ]);
 
 const formattedUpdated = computed(() =>
@@ -87,8 +74,12 @@ const formattedUpdated = computed(() =>
         </div>
 
         <div class="flex flex-1 flex-col items-center gap-2 px-4 py-4">
-            <div v-if="total > 0" class="flex-shrink-0">
-                <VueApexCharts :key="theme" type="donut" height="180" width="180" :options="chartOptions" :series="series" />
+            <div v-if="total > 0" class="relative h-[180px] w-[180px] flex-shrink-0">
+                <ChartCanvas type="doughnut" :height="180" :data="chartData" :options="chartOptions" :label="t('dashboard.onu_status')" />
+                <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="text-3xl font-bold tabular-nums text-slate-100">{{ total.toLocaleString('id-ID') }}</span>
+                    <span class="mt-0.5 text-xs text-slate-400">{{ t('dashboard.donut_total') }}</span>
+                </div>
             </div>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
                 {{ t('dashboard.no_onu_data') }}

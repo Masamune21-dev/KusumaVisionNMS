@@ -76,6 +76,38 @@ export function formatTimeOfDay(value) {
     }).format(d);
 }
 
+// Label sumbu waktu grafik, tanpa akhiran zona supaya sumbu ringkas:
+// "14.00" (jam) atau "2 Okt" (date: true) — keduanya di zona tampilan.
+export function formatAxisTime(value, { date = false } = {}) {
+    const d = toDate(value);
+    if (!d) return '';
+    const opts = date
+        ? { day: 'numeric', month: 'short' }
+        : { hour: '2-digit', minute: '2-digit', hour12: false };
+    return new Intl.DateTimeFormat(activeLocale(), { ...opts, timeZone: DISPLAY_TZ }).format(d);
+}
+
+// Selisih zona tampilan terhadap UTC dalam milidetik pada saat tertentu
+// (Asia/Jakarta = +25.200.000). Dipakai grafik untuk menaruh centang sumbu di
+// jam bulat zona tampilan, bukan jam bulat UTC.
+export function displayTzOffsetMs(value) {
+    const d = toDate(value) ?? new Date();
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat('en-US', {
+            timeZone: DISPLAY_TZ,
+            hourCycle: 'h23',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        }).formatToParts(d).map((p) => [p.type, p.value]),
+    );
+    const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+    return asUtc - Math.floor(d.getTime() / 1000) * 1000;
+}
+
 // Waktu relatif mengikuti bahasa aktif: "3 menit yang lalu" / "3 minutes ago", "sekarang" / "now".
 export function formatRelative(value, now = new Date()) {
     const d = toDate(value);

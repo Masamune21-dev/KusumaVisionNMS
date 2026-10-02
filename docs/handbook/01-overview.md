@@ -33,7 +33,7 @@ Lisensi open-source MIT (lihat `LICENSE`). Autentikasi memakai login lokal **Lar
 | PDF report | `barryvdh/laravel-dompdf` |
 | Routing JS | `tightenco/ziggy` (route() di Vue) |
 | CLI ke OLT | **Telnet** (raw TCP via phpseclib hanya untuk util; SSH belum diwire) |
-| Charts | ApexCharts (`vue3-apexcharts`, dimuat malas) |
+| Charts | Chart.js (MIT, dimuat malas lewat `Components/Charts/ChartCanvas.vue`) |
 | Peta | **Leaflet** (tile Google keyless + fallback OSM) |
 | Terminal browser | `@xterm/xterm` + addon-fit |
 | Notifikasi | Bot **Telegram** (push alarm + inbound command, bot global + bot per partner) + **FCM** (`kreait/laravel-firebase`) |

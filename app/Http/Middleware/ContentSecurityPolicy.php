@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\Response;
  * Memakai nonce per-request: Laravel Vite (@vite) dan Ziggy (@routes) ikut
  * menyematkan nonce yang sama, sehingga satu-satunya skrip inline (blok Ziggy)
  * lolos tanpa harus membuka script-src ke 'unsafe-inline' — jadi CSP tetap
- * memberi mitigasi XSS nyata. Style dibiarkan 'unsafe-inline' karena ApexCharts,
+ * memberi mitigasi XSS nyata. Style dibiarkan 'unsafe-inline' karena Chart.js,
  * Leaflet, dan AOS menyuntik style inline saat runtime.
  *
  * Satu sumber CSP: sengaja di sisi aplikasi (bukan nginx) agar konsisten di
@@ -71,7 +71,7 @@ class ContentSecurityPolicy
             "frame-ancestors 'self'",
             "form-action 'self'",
             "script-src {$script}",
-            // ApexCharts/Leaflet/AOS menyuntik style inline; @font dari bunny.net.
+            // Chart.js/Leaflet/AOS menyuntik style inline; @font dari bunny.net.
             "style-src 'self' 'unsafe-inline' https://fonts.bunny.net",
             "font-src 'self' https://fonts.bunny.net data:",
             // Tiles peta (Google/OSM) + marker data/blob.

@@ -22,7 +22,7 @@ Product Name: KusumaVision NMS
 > | ONU Provisioning (autofind, register, VLAN, T-CONT, PPPoE, TR069) | ✅ ZTE saja (C600: tanpa WAN PPPoE/DHCP/static). Plus TR069 massal per port & salin ONU antar-port. |
 > | Remote ONU (reboot, enable/disable, WiFi, remote management) | ⚠️ Reboot/rename/hapus lintas family, enable/disable (C300/C320, C-Data, HiOSO), Remote ONT. **Pengaturan WiFi tidak dikelola NMS** — TR-069 sebatas menulis ACS URL ke ONU (registrasi & TR069 massal per port). |
 > | Alarm engine | ✅ OLT unreachable, port down/disabled, ODP down, LOS, dying gasp, ONU offline, redaman tinggi. **Tidak ada** alarm "ONU flapping" — yang ada debounce 2 poll anti-flap. "Uplink down" tidak dievaluasi terpisah. |
-> | Frontend Vue 3 + Inertia + Tailwind + ApexCharts | ✅ Sesuai (plus Leaflet untuk peta, xterm.js untuk terminal). |
+> | Frontend Vue 3 + Inertia + Tailwind + ApexCharts | ✅ Sesuai, grafik kini Chart.js (ApexCharts 5 bukan lagi open source, diganti 2 Okt 2026); plus Leaflet untuk peta, xterm.js untuk terminal. |
 > | Backend Laravel 12 + Redis | ✅ Sesuai. **Horizon & Reverb** terpasang sebagai paket, tetapi worker produksi memakai `queue:work` (supervisor) dan tidak ada event broadcast realtime; Reverb hanya menyumbang dependensi `react/socket` untuk proxy telnet. |
 > | Polling engine GoLang + gosnmp | ✅ `bin/kv-snmp-poller` untuk polling terjadwal (jatuh balik ke PHP). SNMP hanya v1/v2c. |
 > | SSH/Telnet client | ⚠️ **Telnet saja** — SSH belum tersambung ke eksekutor mana pun. |
@@ -137,7 +137,7 @@ Menjadi platform NMS FTTH modern, realtime, modular, scalable, dan mudah digunak
 - Vue 3
 - Inertia.js
 - TailwindCSS
-- ApexCharts
+- Chart.js
 
 ## Backend
 - Laravel 12

@@ -49,7 +49,7 @@ async function shoot(page, name, { fullPage = false } = {}) {
 
 async function settle(page) {
   await page.waitForLoadState('networkidle').catch(() => {});
-  // Beri waktu animasi hero (tsParticles/typed.js/AOS/gsap) & chart ApexCharts selesai.
+  // Beri waktu animasi hero (tsParticles/efek ketik/AOS/gsap) & grafik Chart.js selesai.
   await sleep(2500);
 }
 

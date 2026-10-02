@@ -1,14 +1,11 @@
 <script setup>
-import { defineAsyncComponent, computed } from 'vue';
+import { computed } from 'vue';
 import { router } from '@inertiajs/vue3';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
-import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
+// Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
+import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
+import { areaFill, axisX, axisY, hairline, lineChartOptions, TIME_STEP_DAY, timeTicks, withAlpha } from '@/lib/chartOptions';
+import { formatAxisTime, formatClock } from '@/lib/datetime';
+import { tokenHex } from '@/lib/theme';
 import { TrendingDown } from '@lucide/vue';
 
 const props = defineProps({
@@ -31,8 +28,6 @@ const points = computed(() =>
 
 const hasData = computed(() => points.value.length > 0);
 
-const series = computed(() => [{ name: 'RX power', data: points.value }]);
-
 const stats = computed(() => {
     if (!hasData.value) return null;
     const ys = points.value.map((p) => p.y);
@@ -43,46 +38,77 @@ const stats = computed(() => {
     return { last, min, max, avg };
 });
 
-// Batas sumbu Y supaya pita zona terisi penuh (-28/-25 = ambang warning/kritis sisi rendah).
-const yMin = computed(() => (hasData.value ? Math.min(-30, ...points.value.map((p) => p.y)) - 1 : -30));
-const yMax = computed(() => (hasData.value ? Math.max(-8, ...points.value.map((p) => p.y)) + 1 : -8));
+// Batas sumbu Y supaya pita zona terisi penuh (-28/-25 = ambang warning/kritis sisi rendah),
+// dibulatkan ke kelipatan 5 supaya centangnya bulat (-30, -25, -20, …).
+const yMin = computed(() => Math.floor(((hasData.value ? Math.min(-30, ...points.value.map((p) => p.y)) : -30) - 1) / 5) * 5);
+const yMax = computed(() => Math.ceil(((hasData.value ? Math.max(-8, ...points.value.map((p) => p.y)) : -8) + 1) / 5) * 5);
 
-const chartOptions = computed(() => ({
-    chart: { type: 'area', background: 'transparent', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false } },
-    colors: [tokenHex('cyan-400', '#22d3ee')],
-    dataLabels: { enabled: false },
-    stroke: { curve: 'smooth', width: 2 },
-    fill: { type: 'gradient', gradient: { shadeIntensity: 0.3, opacityFrom: 0.35, opacityTo: 0.05 } },
-    markers: { size: points.value.length <= 60 ? 3 : 0, strokeWidth: 0, hover: { size: 5 } },
-    grid: { borderColor: themeHexA('--kv-slate-400', 0.12, 'rgba(148,163,184,0.12)'), strokeDashArray: 4 },
-    xaxis: {
-        type: 'datetime',
-        labels: { style: { colors: tokenHex('slate-400', '#94a3b8'), fontSize: '10px' }, datetimeUTC: false },
-        axisBorder: { color: themeHexA('--kv-slate-400', 0.2, 'rgba(148,163,184,0.2)') },
-        axisTicks: { color: themeHexA('--kv-slate-400', 0.2, 'rgba(148,163,184,0.2)') },
-    },
-    yaxis: {
-        min: yMin.value,
-        max: yMax.value,
-        tickAmount: 5,
-        labels: { style: { colors: tokenHex('slate-400', '#94a3b8'), fontSize: '10px' }, formatter: (v) => `${v.toFixed(0)}` },
-        title: { text: 'dBm', style: { color: tokenHex('slate-500', '#64748b'), fontSize: '10px', fontWeight: 400 } },
-    },
-    tooltip: {
-        theme: chartTheme().tooltip,
-        x: { format: 'dd MMM HH:mm' },
-        y: { formatter: (v) => `${v.toFixed(2)} dBm` },
-    },
-    annotations: {
-        yaxis: [
-            { y: -25, y2: yMax.value, fillColor: '#10b981', opacity: 0.06, borderColor: 'transparent' },
-            { y: -28, y2: -25, fillColor: '#f59e0b', opacity: 0.08, borderColor: 'transparent' },
-            { y: yMin.value, y2: -28, fillColor: '#ef4444', opacity: 0.08, borderColor: 'transparent' },
-            { y: -25, borderColor: '#f59e0b', strokeDashArray: 4, opacity: 0.4 },
-            { y: -28, borderColor: '#ef4444', strokeDashArray: 4, opacity: 0.4 },
-        ],
-    },
-}));
+const chartData = computed(() => {
+    const cyan = tokenHex('cyan-400', '#22d3ee');
+
+    return {
+        datasets: [{
+            label: 'RX power',
+            data: points.value,
+            borderColor: cyan,
+            backgroundColor: areaFill(cyan, 0.35, 0.05),
+            pointBackgroundColor: cyan,
+            borderWidth: 2,
+            fill: 'start',
+            cubicInterpolationMode: 'monotone',
+            pointRadius: points.value.length <= 60 ? 3 : 0,
+            pointBorderWidth: 0,
+            pointHoverRadius: 5,
+        }],
+    };
+});
+
+const chartOptions = computed(() => {
+    const xs = points.value.map((p) => p.x);
+    const xMin = xs.length ? Math.min(...xs) : 0;
+    const xMax = xs.length ? Math.max(...xs) : 0;
+    const { step } = timeTicks(xMin, xMax, 6);
+    const tick = { color: tokenHex('slate-400', '#94a3b8'), font: { size: 10 } };
+
+    return lineChartOptions({
+        tooltipCallbacks: {
+            title: (items) => (items.length ? formatClock(items[0].parsed.x) : ''),
+            label: (ctx) => ` ${ctx.parsed.y.toFixed(2)} dBm`,
+        },
+        plugins: {
+            kvZones: {
+                bands: [
+                    { from: -25, to: yMax.value, color: withAlpha('#10b981', 0.06) },
+                    { from: -28, to: -25, color: withAlpha('#f59e0b', 0.08) },
+                    { from: yMin.value, to: -28, color: withAlpha('#ef4444', 0.08) },
+                ],
+                lines: [
+                    { value: -25, color: withAlpha('#f59e0b', 0.4) },
+                    { value: -28, color: withAlpha('#ef4444', 0.4) },
+                ],
+            },
+        },
+        scales: {
+            x: {
+                ...axisX({ ...tick, callback: (v) => formatAxisTime(v, { date: step >= TIME_STEP_DAY }) }),
+                type: 'linear',
+                min: xMin,
+                max: xMax,
+                border: { color: hairline(0.2) },
+                // Centang di jam/hari bulat zona tampilan (pengganti sumbu datetime ApexCharts).
+                afterBuildTicks: (scale) => {
+                    scale.ticks = timeTicks(scale.min, scale.max, 6).values.map((value) => ({ value }));
+                },
+            },
+            y: axisY({ ...tick, stepSize: 5, callback: (v) => `${Number(v).toFixed(0)}` }, {
+                min: yMin.value,
+                max: yMax.value,
+                grid: { color: withAlpha(tokenHex('slate-400', '#94a3b8'), 0.12) },
+                title: { display: true, text: 'dBm', color: tokenHex('slate-500', '#64748b'), font: { size: 10 } },
+            }),
+        },
+    });
+});
 
 const setRange = (key) => {
     if (key === props.range) return;
@@ -138,7 +164,7 @@ const fmt = (v) => (v === null || v === undefined ? '—' : `${v.toFixed(2)} dBm
                         <p class="text-sm font-semibold text-amber-300 tabular-nums">{{ fmt(stats.min) }}</p>
                     </div>
                 </div>
-                <VueApexCharts :key="theme" type="area" height="240" :options="chartOptions" :series="series" />
+                <ChartCanvas type="line" :height="240" :data="chartData" :options="chartOptions" label="RX power (dBm)" />
             </template>
             <div v-else class="flex flex-1 items-center justify-center py-12 text-center text-sm text-slate-500">
                 {{ $t('shell.rx_empty') }}

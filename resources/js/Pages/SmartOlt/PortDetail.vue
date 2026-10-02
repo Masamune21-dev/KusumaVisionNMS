@@ -10,15 +10,10 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, Power, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
-import { defineAsyncComponent, computed, onBeforeUnmount, reactive, ref } from 'vue';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
-import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+// Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
+import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
+import { areaFill, axisY, hairline, lineChartOptions } from '@/lib/chartOptions';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -124,44 +119,34 @@ const chartMaxMbps = computed(() =>
     niceAxisMax(Math.max(0, ...[...trafficHistory.input, ...trafficHistory.output].filter(Number.isFinite))),
 );
 
-const chartOptions = computed(() => ({
-    chart: {
-        type: 'area',
-        background: 'transparent',
-        foreColor: chartTheme().muted,
-        animations: { enabled: true, easing: 'linear', dynamicAnimation: { speed: 800 } },
-        toolbar: { show: false },
-        zoom: { enabled: false },
-    },
-    stroke: { curve: 'smooth', width: 2 },
-    colors: [RX_COLOR, TX_COLOR],
-    fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 95, 100] } },
-    dataLabels: { enabled: false },
-    markers: { size: 0, hover: { size: 4 } },
-    xaxis: {
-        categories: trafficHistory.labels,
-        labels: { show: false },
-        axisTicks: { show: false },
-        axisBorder: { show: false },
-    },
-    yaxis: {
-        labels: { minWidth: 76, formatter: (v) => formatMbps(v), style: { colors: tokenHex('slate-500', '#64748b') } },
-        min: 0,
-        max: chartMaxMbps.value,
-        tickAmount: AXIS_TICKS,
-        forceNiceScale: true,
-    },
-    tooltip: { theme: chartTheme().tooltip, y: { formatter: (v) => formatMbps(v) } },
-    legend: { position: 'top', horizontalAlign: 'left', labels: { colors: tokenHex('slate-300', '#cbd5e1') } },
-    // Dulu rgba(0,0,0,0.08): garis hitam di panel gelap = tak terlihat. Kini
-    // garis rambut yang ikut tema, sama seperti grafik lain.
-    grid: { strokeDashArray: 3, borderColor: themeHexA('--kv-white', 0.06, 'rgba(255,255,255,0.06)') },
-}));
+// Larik di-spread supaya computed ikut terpicu setiap kali titik baru di-push.
+const chartData = computed(() => {
+    const line = { fill: 'start', cubicInterpolationMode: 'monotone', borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 };
 
-const chartSeries = computed(() => [
-    { name: 'RX / In', data: [...trafficHistory.input] },
-    { name: 'TX / Out', data: [...trafficHistory.output] },
-]);
+    return {
+        labels: [...trafficHistory.labels],
+        datasets: [
+            { ...line, label: 'RX / In', data: [...trafficHistory.input], borderColor: RX_COLOR, backgroundColor: areaFill(RX_COLOR, 0.35, 0.05), pointBackgroundColor: RX_COLOR },
+            { ...line, label: 'TX / Out', data: [...trafficHistory.output], borderColor: TX_COLOR, backgroundColor: areaFill(TX_COLOR, 0.35, 0.05), pointBackgroundColor: TX_COLOR },
+        ],
+    };
+});
+
+// Tanpa animasi: data bergeser satu titik tiap polling, dan animasi Chart.js
+// menganimasikan nilai per indeks — garis tampak "bergelombang", bukan bergulir.
+const chartOptions = computed(() => lineChartOptions({
+    legend: true,
+    tooltipCallbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatMbps(ctx.parsed.y)}` },
+    scales: {
+        x: { display: false },
+        y: axisY({ stepSize: chartMaxMbps.value / AXIS_TICKS, callback: (v) => formatMbps(v) }, {
+            min: 0,
+            max: chartMaxMbps.value,
+            grid: { color: hairline(0.06) },
+            afterFit: (scale) => { scale.width = Math.max(scale.width, 76); },
+        }),
+    },
+}));
 
 const fetchTraffic = async () => {
     try {
@@ -579,7 +564,7 @@ const setAdminState = async (enabled) => {
                         <div v-if="isUplink" class="mt-4">
                             <p v-if="trafficError" class="mb-2 text-xs text-red-300">{{ $t('portdetail.traffic_error', { error: trafficError }) }}</p>
                             <div v-if="liveTrafficEnabled" class="rounded-lg border border-white/10 bg-canvas-3/40 p-2">
-                                <VueApexCharts :key="theme" type="area" height="260" :options="chartOptions" :series="chartSeries" />
+                                <ChartCanvas type="line" :height="260" :data="chartData" :options="chartOptions" label="Throughput RX/TX" />
                             </div>
                             <p v-else class="rounded-lg border border-dashed border-white/10 bg-canvas-3/30 px-4 py-8 text-center text-sm text-slate-500" v-html="$t('portdetail.live_hint')"></p>
                         </div>

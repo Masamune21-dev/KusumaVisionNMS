@@ -1,13 +1,9 @@
 <script setup>
-import { defineAsyncComponent, computed } from 'vue';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
-import { chartTheme, tokenHex, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
+import { computed } from 'vue';
+// Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
+import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
+import { areaFill } from '@/lib/chartOptions';
+import { tokenHex } from '@/lib/theme';
 
 const props = defineProps({
     label: { type: String, required: true },
@@ -41,33 +37,17 @@ const accentHex = computed(() => ({
     slate: tokenHex('slate-500', '#64748b'),
 }[props.accent] ?? tokenHex('sky-500', '#0ea5e9')));
 
-const sparkOptions = computed(() => ({
-    chart: {
-        type: 'area',
-        sparkline: { enabled: true },
-        animations: { enabled: false },
-        parentHeightOffset: 0,
-        toolbar: { show: false },
-    },
-    stroke: { curve: 'smooth', width: 2 },
-    fill: {
-        type: 'gradient',
-        gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.45,
-            opacityTo: 0,
-            stops: [0, 100],
-        },
-    },
-    colors: [accentHex.value],
-    grid: { padding: { top: 0, right: 0, bottom: 0, left: 0 } },
-    tooltip: {
-        theme: chartTheme().tooltip,
-        x: { show: false },
-        y: { formatter: (v) => v, title: { formatter: () => props.sparklineLabel } },
-        marker: { show: false },
-    },
-}));
+// Sparkline murni hiasan: wadahnya pointer-events-none, jadi tanpa tooltip,
+// sumbu, maupun interaksi.
+const sparkOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    events: [],
+    layout: { padding: { top: 2, bottom: 2 } },
+    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    scales: { x: { display: false }, y: { display: false, grace: '8%' } },
+};
 
 const hasVariance = computed(() => {
     const arr = props.sparkline ?? [];
@@ -77,21 +57,35 @@ const hasVariance = computed(() => {
     return max - min > 0;
 });
 
-const sparkSeries = computed(() => [{ name: props.sparklineLabel, data: props.sparkline.length > 0 ? props.sparkline : [0, 0, 0, 0, 0, 0, 0] }]);
+const sparkData = computed(() => {
+    const values = props.sparkline.length > 0 ? props.sparkline : [0, 0, 0, 0, 0, 0, 0];
+
+    return {
+        labels: values.map((_, i) => i),
+        datasets: [{
+            data: values,
+            borderColor: accentHex.value,
+            backgroundColor: areaFill(accentHex.value, 0.45, 0),
+            borderWidth: 2,
+            fill: 'start',
+            cubicInterpolationMode: 'monotone',
+            pointRadius: 0,
+        }],
+    };
+});
 </script>
 
 <template>
     <div class="kv-glass-card kv-glass-hover relative overflow-hidden">
         <!-- Sparkline floats top-right, isolated from text flow -->
         <div class="pointer-events-none absolute right-4 top-4 hidden h-16 w-36 sm:block lg:w-40">
-            <VueApexCharts
+            <ChartCanvas
                 v-if="hasVariance"
-                :key="theme"
-                type="area"
-                height="64"
-                width="100%"
+                type="line"
+                :height="64"
+                :data="sparkData"
                 :options="sparkOptions"
-                :series="sparkSeries"
+                :label="sparklineLabel"
             />
             <span
                 v-else

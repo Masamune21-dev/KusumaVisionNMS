@@ -39,8 +39,7 @@ Update production lokal: 2026-05-28
 - Reverb
 - Predis
 - phpseclib
-- ApexCharts
-- vue3-apexcharts
+- Chart.js
 - @lucide/vue
 
 ## Local App Configuration

@@ -156,8 +156,9 @@ jadi menambahkannya **tidak menggeser tema gelap satu piksel pun**.
 | `bg-canvas-3/<α>` | permukaan cekung: header tabel, kotak kode ringan, panel samping | token, ikut tema (bukan `bg-slate-950`) |
 
 Helper JS (`@/lib/theme`): `useTheme`, `setTheme`, `cycleTheme`, `themeRgb`, `themeRgba`,
-`themeHex`, `themeHexA`, `chartTheme()`, `tokenHex()`. ApexCharts wajib heks
-(`themeHex`/`tokenHex`), bukan `themeRgb`.
+`themeHex`, `themeHexA`, `chartTheme()`, `tokenHex()`. `chartTheme()` sisa era ApexCharts dan tak lagi
+dipakai sejak grafik pindah ke Chart.js (2 Okt 2026). Grafik wajib heks (`themeHex`/`tokenHex`),
+bukan `themeRgb`.
 
 ### Aturan menulis kelas
 
@@ -168,7 +169,8 @@ Helper JS (`@/lib/theme`): `useTheme`, `setTheme`, `cycleTheme`, `themeRgb`, `th
 | Scrim modal | `bg-black/60–70` atau `bg-slate-950/60+` | — |
 | Keluaran CLI/skrip OLT | `data-theme="dark"` + kelas `kv-terminal` | membiarkannya ikut tema (warna sintaks dirancang untuk latar gelap) |
 | Gambar perangkat fisik (rak `OltChassis`, faceplate `OltFaceplate`) | **ikut tema**: rak memakai kelas token biasa; faceplate memakai variabel `--fp-*` dengan set perak di `[data-theme='light'] .fp` | — |
-| Warna di JS (ApexCharts, Leaflet) | `chartTheme()`, `tokenHex('cyan-400')`, `themeHexA('--kv-white', .05)` di dalam `computed`, plus `:key="theme"` pada `<VueApexCharts>` | heks literal untuk teks/grid/stop 300–400 |
+| Warna di JS — grafik (Chart.js) | `<ChartCanvas>` (`Components/Charts`) + potongan opsi `@/lib/chartOptions` (`lineChartOptions`, `axisX/Y`, `tooltip`, `areaFill`, `withAlpha`) dirakit di dalam `computed`; tema berganti → grafik di-update di tempat, tanpa `:key`. Gauge: `<ArcGauge>` (SVG) | heks literal untuk teks/grid/stop 300–400; impor statis `chart.js` |
+| Warna di JS — Leaflet | `tokenHex('cyan-400')`, `themeHexA('--kv-white', .05)` di dalam `computed` | heks literal untuk teks/grid/stop 300–400 |
 | `<style scoped>` | `rgb(var(--kv-slate-300))` dst.; varian terang dengan selektor `[data-theme="light"] .kelas` | `:global(...)` (Vue bisa menelan seluruh selektor) |
 
 - Stop **500/600 setiap ramp aksen dipatok** sama di kedua tema; seri status grafik boleh heks 500.

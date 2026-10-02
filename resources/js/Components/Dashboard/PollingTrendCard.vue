@@ -1,13 +1,9 @@
 <script setup>
-import { defineAsyncComponent, computed, ref } from 'vue';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
-import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
+import { computed, ref } from 'vue';
+// Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
+import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
+import { areaFill, axisX, axisY, lineChartOptions } from '@/lib/chartOptions';
+import { tokenHex } from '@/lib/theme';
 import { router } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { ChevronDown, TrendingUp } from '@lucide/vue';
@@ -33,61 +29,43 @@ const setRange = (value) => {
     router.get(route('dashboard'), { range: value }, { preserveScroll: true, preserveState: true });
 };
 
-const chartOptions = computed(() => ({
-    // chartTheme() dibaca di sini supaya opsi dihitung ulang saat tema berganti.
-    chart: {
-        foreColor: chartTheme().muted,
-        type: 'line',
-        toolbar: { show: false },
-        background: 'transparent',
-        animations: { enabled: false },
-    },
-    stroke: { curve: 'smooth', width: [2.5, 2] },
-    colors: [tokenHex('cyan-400', '#22d3ee'), tokenHex('red-500', '#ef4444')],
-    grid: {
-        borderColor: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)'),
-        strokeDashArray: 4,
-        padding: { top: 0, right: 8, bottom: 0, left: 8 },
-    },
-    xaxis: {
-        categories: props.trend.labels ?? [],
-        labels: {
-            style: { colors: tokenHex('slate-500', '#64748b'), fontSize: '11px' },
-            rotate: 0,
-            hideOverlappingLabels: true,
-            showDuplicates: false,
-        },
-        tickAmount: Math.min(6, (props.trend.labels?.length ?? 1) - 1),
-        axisBorder: { color: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)') },
-        axisTicks: { color: themeHexA('--kv-white', 0.05, 'rgba(255,255,255,0.05)') },
-    },
-    yaxis: {
-        labels: { style: { colors: tokenHex('slate-500', '#64748b'), fontSize: '11px' }, formatter: (v) => Math.round(v) },
-    },
-    legend: {
-        position: 'top',
-        horizontalAlign: 'left',
-        labels: { colors: tokenHex('slate-300', '#cbd5e1') },
-        markers: { width: 10, height: 10, radius: 10 },
-        itemMargin: { horizontal: 12 },
-    },
-    tooltip: { theme: chartTheme().tooltip },
-    dataLabels: { enabled: false },
-    fill: {
-        type: 'gradient',
-        gradient: {
-            shadeIntensity: 1,
-            opacityFrom: 0.25,
-            opacityTo: 0,
-            stops: [0, 100],
-        },
+const chartData = computed(() => {
+    const success = tokenHex('cyan-400', '#22d3ee');
+    const failed = tokenHex('red-500', '#ef4444');
+    const line = { fill: 'start', cubicInterpolationMode: 'monotone', pointRadius: 0, pointHoverRadius: 4 };
+
+    return {
+        labels: props.trend.labels ?? [],
+        datasets: [
+            {
+                ...line,
+                label: t('dashboard.polling_success'),
+                data: props.trend.success ?? [],
+                borderColor: success,
+                backgroundColor: areaFill(success, 0.25, 0),
+                pointBackgroundColor: success,
+                borderWidth: 2.5,
+            },
+            {
+                ...line,
+                label: t('dashboard.polling_failed'),
+                data: props.trend.failed ?? [],
+                borderColor: failed,
+                backgroundColor: areaFill(failed, 0.25, 0),
+                pointBackgroundColor: failed,
+                borderWidth: 2,
+            },
+        ],
+    };
+});
+
+const chartOptions = computed(() => lineChartOptions({
+    legend: true,
+    scales: {
+        x: axisX({ autoSkip: true, maxTicksLimit: 7 }),
+        y: axisY({ precision: 0, maxTicksLimit: 6, callback: (v) => Math.round(v) }, { beginAtZero: true }),
     },
 }));
-
-const series = computed(() => [
-    { name: t('dashboard.polling_success'), data: props.trend.success ?? [] },
-    { name: t('dashboard.polling_failed'), data: props.trend.failed ?? [] },
-]);
 
 const totalSuccess = computed(() => props.trend.totals?.success ?? 0);
 const totalFailed = computed(() => props.trend.totals?.failed ?? 0);
@@ -143,7 +121,7 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
 
         <div class="grid gap-4 px-2 py-4 sm:grid-cols-[1fr_180px] sm:gap-2 sm:px-3">
             <div class="min-h-[240px]">
-                <VueApexCharts :key="theme" type="area" height="260" :options="chartOptions" :series="series" />
+                <ChartCanvas type="line" :height="260" :data="chartData" :options="chartOptions" :label="t('dashboard.polling_trend_title')" />
             </div>
             <div class="flex flex-col justify-center gap-4 border-t border-white/5 px-4 pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
                 <div>

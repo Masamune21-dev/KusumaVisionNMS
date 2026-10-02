@@ -9,16 +9,10 @@ import {
     Activity, ArrowLeft, ChevronDown, Clock, Fingerprint, Gauge, ListChecks,
     RefreshCw, Settings, Signal, Terminal, Zap,
 } from '@lucide/vue';
-import { defineAsyncComponent, computed } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-// Dimuat MALAS. Apexcharts 1,1 MB, dan halaman yang tidak menampilkan satu
-// grafik pun tidak boleh ikut membayarnya. Perhatikan juga vite.config.js:
-// aturan `manualChunks` yang menyebut apexcharts JUSTRU membatalkan kemalasan
-// ini — Rollup mengangkat chunk bernama itu jadi impor statis milik app.js.
-const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'));
-import { chartTheme, themeHexA, tokenHex, useTheme } from '@/lib/theme';
-
-const { theme } = useTheme();
+import ArcGauge from '@/Components/Charts/ArcGauge.vue';
+import { tokenHex } from '@/lib/theme';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -85,32 +79,8 @@ const rxZoneLabel = computed(() => {
 });
 // Petakan RX (-30…-5 dBm) ke 0…100% busur gauge.
 const rxGaugePct = computed(() => (rxVal.value === null ? 0 : clampPct(rxVal.value, -30, -5)));
-const rxGaugeSeries = computed(() => [Math.round(rxGaugePct.value * 10) / 10]);
-const rxGaugeOptions = computed(() => ({
-    chart: { type: 'radialBar', background: 'transparent', sparkline: { enabled: true }, animations: { enabled: false } },
-    plotOptions: {
-        radialBar: {
-            startAngle: -135,
-            endAngle: 135,
-            hollow: { size: '68%' },
-            track: { background: themeHexA('--kv-slate-400', 0.15, 'rgba(148,163,184,0.15)'), strokeWidth: '100%' },
-            dataLabels: {
-                name: { show: true, offsetY: 30, color: chartTheme().label, fontSize: '12px' },
-                value: {
-                    show: true,
-                    offsetY: -12,
-                    color: rxHex(rxVal.value),
-                    fontSize: '24px',
-                    fontWeight: 700,
-                    formatter: () => (rxVal.value === null ? '—' : rxVal.value.toFixed(2)),
-                },
-            },
-        },
-    },
-    fill: { colors: [rxHex(rxVal.value)] },
-    stroke: { lineCap: 'round' },
-    labels: [`dBm · ${rxZoneLabel.value}`],
-}));
+const rxText = computed(() => (rxVal.value === null ? '—' : rxVal.value.toFixed(2)));
+const rxGaugeLabel = computed(() => `RX Power ${rxText.value} dBm · ${rxZoneLabel.value}`);
 
 const attMeta = (v) => {
     if (v === null) return { color: 'bg-slate-600', label: '—' };
@@ -264,7 +234,10 @@ const refresh = () => router.reload({ preserveScroll: true });
                         <div class="flex flex-1 flex-col p-5 sm:p-6">
                             <!-- RX speedometer -->
                             <div class="flex flex-col items-center">
-                                <VueApexCharts :key="theme" type="radialBar" height="220" width="100%" :options="rxGaugeOptions" :series="rxGaugeSeries" />
+                                <ArcGauge :percent="rxGaugePct" :color="rxHex(rxVal)" :label="rxGaugeLabel">
+                                    <span class="text-2xl font-bold tabular-nums" :class="rxToneCur.text">{{ rxText }}</span>
+                                    <span class="mt-1 text-xs text-slate-400">dBm · {{ rxZoneLabel }}</span>
+                                </ArcGauge>
                                 <div class="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
                                     <span class="rounded-full px-2 py-0.5 font-medium ring-1" :class="[rxToneCur.bg, rxToneCur.text, rxToneCur.ring]">RX Power</span>
                                     <span class="text-slate-500">{{ $t('onudetail.safe_zone') }} <span class="text-emerald-400">-25…-10 dBm</span></span>

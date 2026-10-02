@@ -108,7 +108,9 @@ pernah `window.confirm()`**), `useLocale` (ganti bahasa seketika + persist ke se
 `usePagination` (paginasi sisi klien untuk daftar dari cache), `useRxLevel` (ambang redaman RX
 bersama tabel & peta).
 
-**lib:** `theme` (tema + `chartTheme()`/`tokenHex()` untuk ApexCharts), `datetime` (zona tampilan
+**lib:** `theme` (tema + `tokenHex()`), `chartOptions` (potongan opsi Chart.js yang ikut tema), `charts`
+(registrasi Chart.js — hanya lewat `import()` di `Components/Charts/ChartCanvas.vue`), `typewriter` (efek
+ketik terminal landing), `datetime` (zona tampilan
 tetap, `formatRelative()` via `Intl.RelativeTimeFormat`), `alarm` & `audit` (label enum/audit
 dwibahasa by-key), `onu` (sebab down terakhir), `onuConfigSections`, `odpColors`, `oltImage`,
 `cdataPorts`, `linediff` (diff backup config), `particles`/`perf` (efek landing).
@@ -134,8 +136,8 @@ Setiap Page bisa akses lewat `usePage().props`:
   `axios.patch(route('profile.theme'))` → 204 — **bukan** kunjungan Inertia (yang akan menghapus
   token API sekali-tampil di halaman Pengaturan).
 - Menulis kelas: ikuti `UI_DESIGN_SYSTEM.md` §3a (`text-onaccent`, `bg-canvas-3` bukan
-  `bg-slate-950`, `kv-terminal` dikunci gelap; chassis & faceplate ikut tema). Grafik ApexCharts
-  memakai `chartTheme()`/`tokenHex()` dan `watch(theme)` supaya ikut berganti.
+  `bg-slate-950`, `kv-terminal` dikunci gelap; chassis & faceplate ikut tema). Grafik (Chart.js)
+  merakit opsinya dari `@/lib/chartOptions` di dalam `computed`, jadi ikut berganti tema tanpa dibuat ulang.
 
 ## i18n (ID/EN)
 
@@ -157,11 +159,19 @@ Setiap Page bisa akses lewat `usePage().props`:
 ## Pustaka frontend penting
 - **vue-i18n** — dwibahasa (lihat di atas).
 - **Leaflet** — peta ONU/ODP (komponen dimuat malas).
-- **ApexCharts** (`vue3-apexcharts`) — grafik dashboard/report (sengaja **tidak** dijadikan
-  manual chunk supaya tetap dimuat malas).
+- **Chart.js** (MIT) — grafik dashboard, Tren RX, trafik port; dibungkus `Components/Charts/ChartCanvas.vue`
+  yang memuatnya malas (`import('@/lib/charts')`, chunk ±170 KB). Sengaja **tidak** disebut di `manualChunks`
+  (dijaga `tests/Feature/BundelAsetTest`). Gauge RX = `Components/Charts/ArcGauge.vue` (SVG, tanpa pustaka).
+  Menggantikan ApexCharts sejak 2 Okt 2026 — ApexCharts 5 bukan lagi open source.
 - **@xterm/xterm** + `addon-fit` — terminal telnet.
 - **@number-flow/vue** — animasi angka stat card.
-- **gsap, aos, lenis, typed.js, tsparticles** — animasi/efek landing & shell.
+- **gsap, aos, lenis, tsparticles** — animasi/efek landing & shell. Efek ketik terminal hero =
+  `@/lib/typewriter` buatan sendiri (typed.js 3 berlisensi GPL-3.0, dilepas 2 Okt 2026).
+
+**Lisensi dependensi** dijaga `tests/Unit/LisensiDependensiTest.php`: paket npm/Composer yang ikut ke
+aplikasi wajib permisif (MIT/BSD/Apache/ISC/…; LGPL boleh untuk PHP; gsap dikecualikan dengan alasan
+tertulis). Test gagal saat sebuah paket berganti lisensi waktu naik versi — cek dulu sebelum menambah
+pengecualian.
 - **@lucide/vue** — ikon.
 
 ## Build & deploy frontend

@@ -46,7 +46,7 @@ import { useI18n } from 'vue-i18n';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import Typed from 'typed.js';
+import { createTypewriter } from '@/lib/typewriter';
 import { isLowPowerDevice, prefersReducedMotion } from '@/lib/perf';
 
 defineProps({
@@ -208,6 +208,8 @@ const mobileOpen = ref(false);
 const scrolled = ref(false);
 const activeShot = ref('dashboard');
 const cliEl = ref(null);
+const cliText = ref('');
+const cliAnimated = ref(false);
 const statsEl = ref(null);
 const stepsLineEl = ref(null);
 const galleryPaused = ref(false);
@@ -483,7 +485,7 @@ const companyLinks = computed(() => [
 
 /* ===== Animation engine: GSAP + ScrollTrigger + Lenis ===== */
 let lenis = null;
-let typed = null;
+let typewriter = null;
 let statsObserver = null;
 let cliObserver = null;
 const lenisRaf = (time) => lenis && lenis.raf(time * 1000);
@@ -512,37 +514,30 @@ onMounted(() => {
     window.addEventListener('scroll', onWindowScroll, { passive: true });
     onWindowScroll();
 
-    // CLI typewriter (hero terminal)
-    if (cliEl.value) {
-        if (reduced) {
-            cliEl.value.textContent = 'show gpon onu state gpon-olt_1/1/1';
-        } else {
-            typed = new Typed(cliEl.value, {
-                strings: [
-                    'show gpon onu state gpon-olt_1/1/1',
-                    'show pon power onu-rx gpon-onu_1/1/1:1',
-                    'show gpon onu uncfg',
-                    'show card',
-                ],
-                typeSpeed: 45,
-                backSpeed: 18,
-                backDelay: 1700,
-                startDelay: 500,
-                loop: true,
-                smartBackspace: true,
-                cursorChar: '▋',
-            });
-        }
-    }
+    // CLI typewriter (hero terminal) — @/lib/typewriter, pengganti typed.js (GPL-3.0).
+    if (reduced) {
+        cliText.value = 'show gpon onu state gpon-olt_1/1/1';
+    } else if (cliEl.value) {
+        cliAnimated.value = true;
+        typewriter = createTypewriter(
+            [
+                'show gpon onu state gpon-olt_1/1/1',
+                'show pon power onu-rx gpon-onu_1/1/1:1',
+                'show gpon onu uncfg',
+                'show card',
+            ],
+            (text) => { cliText.value = text; },
+            { typeSpeed: 45, backSpeed: 18, backDelay: 1700, startDelay: 500 },
+        );
 
-    // Typewriter loop:true berjalan selamanya — termasuk saat hero sudah jauh
-    // di atas layar. Hentikan saat off-screen, lanjutkan saat kembali terlihat.
-    if (typed && cliEl.value) {
+        // Berulang selamanya — termasuk saat hero sudah jauh di atas layar.
+        // Hentikan saat off-screen, lanjutkan saat kembali terlihat (pengamat
+        // juga memanggil callback sekali begitu dipasang → itulah start pertama).
         cliObserver = new IntersectionObserver(
             (entries) => {
                 for (const en of entries) {
-                    if (en.isIntersecting) typed.start();
-                    else typed.stop();
+                    if (en.isIntersecting) typewriter.start();
+                    else typewriter.stop();
                 }
             },
             { threshold: 0 },
@@ -629,7 +624,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('scroll', onWindowScroll);
     stopGallery();
-    typed?.destroy();
+    typewriter?.stop();
     statsObserver?.disconnect();
     cliObserver?.disconnect();
     ScrollTrigger.getAll().forEach((t) => t.kill());
@@ -862,7 +857,8 @@ onBeforeUnmount(() => {
                                     <div class="text-emerald-400">✓ Connected — ZXAN login: admin</div>
                                     <div class="flex flex-wrap items-center gap-1.5">
                                         <span class="text-cyan-400">OLT-SENTRAL#</span>
-                                        <span ref="cliEl" class="text-slate-200"></span>
+                                        <span ref="cliEl" class="text-slate-200">{{ cliText }}</span>
+                                        <span v-if="cliAnimated" class="cli-cursor text-slate-200" aria-hidden="true">▋</span>
                                     </div>
                                 </div>
                             </div>
@@ -1313,6 +1309,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Kursor terminal hero (dulu disuntikkan typed.js sebagai .typed-cursor). */
+.cli-cursor {
+    animation: kv-cli-blink 0.7s infinite;
+}
+@keyframes kv-cli-blink {
+    50% { opacity: 0; }
+}
+
 /* === Hero intro: animasi CSS murni (tidak bergantung GSAP) === */
 .reveal-hero {
     animation: kv-hero-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;

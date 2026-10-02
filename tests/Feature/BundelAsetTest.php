@@ -9,11 +9,13 @@ use Tests\TestCase;
  *
  * Ada satu kekeliruan yang lolos berbulan-bulan tanpa terlihat, karena tidak ada
  * satu pun test yang memeriksa HASIL build: aturan `manualChunks` yang memaksa
- * apexcharts ke chunk bernama sendiri membuat Rollup mengangkatnya menjadi impor
- * STATIS milik app.js. Akibatnya ±1,1 MB grafik ikut diunduh, didekompres, dan
- * dikompilasi di SETIAP halaman — termasuk daftar ONU dan Peta yang tidak punya
- * satu grafik pun.
+ * pustaka grafik (dulu ApexCharts) ke chunk bernama sendiri membuat Rollup
+ * mengangkatnya menjadi impor STATIS milik app.js. Akibatnya ±1,1 MB grafik ikut
+ * diunduh, didekompres, dan dikompilasi di SETIAP halaman — termasuk daftar ONU
+ * dan Peta yang tidak punya satu grafik pun.
  *
+ * Sejak 2 Okt 2026 grafik memakai Chart.js, dimuat lewat import() di
+ * Components/Charts/ChartCanvas.vue ke chunk `resources/js/lib/charts.js`.
  * Kode sumbernya terlihat benar; yang salah hanya keluaran build. Jadi yang
  * diperiksa di sini memang manifest, bukan berkas .vue.
  */
@@ -54,13 +56,21 @@ class BundelAsetTest extends TestCase
         return array_keys($terlihat);
     }
 
-    public function test_apexcharts_tidak_pernah_jadi_impor_statis_entry_mana_pun(): void
+    private const CHUNK_GRAFIK = 'resources/js/lib/charts.js';
+
+    /** Kunci manifest yang berisi kode pustaka grafik. */
+    private function kodeGrafik(string $kunci): bool
+    {
+        return $kunci === self::CHUNK_GRAFIK || str_contains($kunci, 'node_modules/chart.js');
+    }
+
+    public function test_grafik_tidak_pernah_jadi_impor_statis_entry_mana_pun(): void
     {
         $manifest = $this->manifest();
 
         // Diperiksa untuk SEMUA entry, bukan hanya app.js: NMS juga memakai
         // Pages/Welcome.vue sebagai entry terpisah (halaman depan publik), dan
-        // halaman itu paling tidak boleh menyeret 1,1 MB grafik.
+        // halaman itu paling tidak boleh menyeret pustaka grafik.
         $entries = array_keys(array_filter(
             $manifest,
             fn (array $c) => ! empty($c['isEntry']),
@@ -71,31 +81,39 @@ class BundelAsetTest extends TestCase
         foreach ($entries as $entry) {
             $terlihat = [];
             $statis = $this->statisDari($manifest, $entry, $terlihat);
-            $pelanggar = array_values(array_filter($statis, fn (string $k) => str_contains($k, 'apexcharts')));
+            $pelanggar = array_values(array_filter($statis, fn (string $k) => $this->kodeGrafik($k)));
 
             $this->assertSame([], $pelanggar, implode("\n", [
-                "apexcharts kembali menjadi impor STATIS dari entry `{$entry}`.",
-                'Artinya ±1,1 MB grafik diunduh & dikompilasi di setiap halaman, juga yang tanpa grafik.',
+                "Pustaka grafik kembali menjadi impor STATIS dari entry `{$entry}`.",
+                'Artinya grafik diunduh & dikompilasi di setiap halaman, juga yang tanpa grafik.',
                 'Penyebab yang sudah pernah terjadi: aturan `manualChunks` di vite.config.js yang',
-                'menyebut apexcharts — Rollup mengangkat chunk bernama menjadi dependensi statis entry.',
-                'Grafik harus tetap masuk lewat `defineAsyncComponent`.',
+                'menyebut pustaka grafik — Rollup mengangkat chunk bernama menjadi dependensi statis entry.',
+                'Chart.js hanya boleh masuk lewat import() di Components/Charts/ChartCanvas.vue.',
             ]));
         }
     }
 
-    public function test_apexcharts_tetap_dimuat_secara_dinamis_oleh_dashboard(): void
+    public function test_grafik_tetap_dimuat_secara_dinamis_oleh_dashboard(): void
     {
         $manifest = $this->manifest();
 
         $this->assertArrayHasKey('resources/js/Pages/Dashboard.vue', $manifest);
+        $this->assertArrayHasKey(self::CHUNK_GRAFIK, $manifest, 'Chunk grafik tidak ada di manifest.');
+        $this->assertTrue((bool) ($manifest[self::CHUNK_GRAFIK]['isDynamicEntry'] ?? false), 'Chunk grafik bukan entry dinamis.');
 
-        $dinamis = $manifest['resources/js/Pages/Dashboard.vue']['dynamicImports'] ?? [];
-        $cocok = array_values(array_filter($dinamis, fn (string $k) => str_contains($k, 'apexcharts')));
+        // ChartCanvas berada di chunk bersama yang diimpor statis oleh Dashboard;
+        // chunk itulah yang memuat grafik secara dinamis.
+        $terlihat = [];
+        $statis = $this->statisDari($manifest, 'resources/js/Pages/Dashboard.vue', $terlihat);
+        $pemuat = array_values(array_filter(
+            $statis,
+            fn (string $k) => in_array(self::CHUNK_GRAFIK, $manifest[$k]['dynamicImports'] ?? [], true),
+        ));
 
         $this->assertNotEmpty(
-            $cocok,
-            'Dashboard tidak lagi memuat apexcharts secara dinamis — grafiknya mungkin hilang, '
-            .'atau malah kembali ditarik statis. Periksa defineAsyncComponent di Components/Dashboard/StatCard.vue.',
+            $pemuat,
+            'Dashboard tidak lagi memuat grafik secara dinamis — grafiknya mungkin hilang, '
+            .'atau malah kembali ditarik statis. Periksa Components/Charts/ChartCanvas.vue.',
         );
     }
 
