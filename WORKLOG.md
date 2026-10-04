@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-10-05 — Dashboard: Grafik Tren Polling Selebar Kartu & Tak Lagi Anjlok di Ujung Kanan
+
+### Fixed
+
+- Titik paling kanan grafik Tren Aktivitas Jaringan adalah jam yang **belum selesai**, sehingga garisnya selalu
+  anjlok di ujung. `DashboardStatsService::pollingTrend()` kini hanya memuat bucket yang sudah lengkap
+  (24 × 1 jam / 28 × 6 jam / 30 × 1 hari; jendela berakhir di awal bucket berjalan). Totalnya ikut jendela yang
+  sama, jadi bisa tertinggal ≤ 1 bucket.
+- `PollingTrendCard.vue`: label sumbu X dihitung mundur dari bucket terbaru, rentang 7 hari berlabel tanggal.
+  Kolom total di kanan dulu memotong plot di ±72% lebar kartu; kini total satu baris di atas grafik (titiknya
+  jadi legenda) dan grafik selebar kartu.
+
+### Notes
+
+- Test baru `DashboardTest::test_polling_trend_only_counts_completed_buckets`: bucket yang sedang berjalan tidak ikut dihitung.
+
 ## 2026-10-02 — Lisensi Dependensi: ApexCharts → Chart.js, typed.js → Efek Ketik Sendiri
 
 Dua dependensi frontend berganti lisensi saat naik versi mayor, sehingga bertentangan dengan lisensi MIT repo

@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\AlarmEvent;
+use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\Dashboard\DashboardStatsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class DashboardTest extends TestCase
@@ -86,5 +89,40 @@ class DashboardTest extends TestCase
             ->has('provisioning', 4)
             ->has('recent_alarms', 1)
         );
+    }
+
+    public function test_polling_trend_only_counts_completed_buckets(): void
+    {
+        config(['app.display_timezone' => 'Asia/Jakarta']);
+        $this->travelTo(Carbon::parse('2026-10-04 05:32:00', 'Asia/Jakarta'));
+
+        $event = fn (string $at, bool $success = true) => (new PollingEvent)->forceFill([
+            'kind' => PollingEvent::KIND_OLT_POLL,
+            'success' => $success,
+            'created_at' => Carbon::parse($at, 'Asia/Jakarta'),
+            'updated_at' => Carbon::parse($at, 'Asia/Jakarta'),
+        ])->save();
+
+        $event('2026-10-03 04:59:00');          // sebelum jendela 24 jam
+        $event('2026-10-03 05:10:00');          // bucket pertama
+        $event('2026-10-04 04:05:00');
+        $event('2026-10-04 04:40:00');
+        $event('2026-10-04 04:59:00', false);   // bucket terakhir yang sudah lengkap
+        $event('2026-10-04 05:10:00');          // jam berjalan: belum lengkap, tak ikut
+        $event('2026-10-04 05:31:00', false);
+
+        $trend = app(DashboardStatsService::class)->pollingTrend('24h');
+
+        $this->assertCount(24, $trend['labels']);
+        $this->assertSame('05:00', $trend['labels'][0]);
+        $this->assertSame('04:00', $trend['labels'][23]);
+        $this->assertSame(1, $trend['success'][0]);
+        $this->assertSame(2, $trend['success'][23]);
+        $this->assertSame(1, $trend['failed'][23]);
+        $this->assertSame(['success' => 3, 'failed' => 1], $trend['totals']);
+
+        $week = app(DashboardStatsService::class)->pollingTrend('7d');
+        $this->assertCount(28, $week['labels']);
+        $this->assertSame('03 Oct 18:00', end($week['labels']));   // 00:00–06:00 masih berjalan
     }
 }

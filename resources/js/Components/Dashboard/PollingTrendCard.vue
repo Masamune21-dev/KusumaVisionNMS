@@ -31,7 +31,7 @@ const setRange = (value) => {
 
 const chartData = computed(() => {
     const success = tokenHex('cyan-400', '#22d3ee');
-    const failed = tokenHex('red-500', '#ef4444');
+    const failed = tokenHex('rose-500', '#f43f5e');
     const line = { fill: 'start', cubicInterpolationMode: 'monotone', pointRadius: 0, pointHoverRadius: 4 };
 
     return {
@@ -59,13 +59,32 @@ const chartData = computed(() => {
     };
 });
 
-const chartOptions = computed(() => lineChartOptions({
-    legend: true,
-    scales: {
-        x: axisX({ autoSkip: true, maxTicksLimit: 7 }),
-        y: axisY({ precision: 0, maxTicksLimit: 6, callback: (v) => Math.round(v) }, { beginAtZero: true }),
-    },
-}));
+// Jarak antar-centang dalam jumlah bucket: 4 jam, 1 hari (4 × 6 jam), 5 hari.
+const TICK_STEP = { '24h': 4, '7d': 4, '30d': 5 };
+
+const chartOptions = computed(() => {
+    const labels = props.trend.labels ?? [];
+    const last = labels.length - 1;
+    const step = TICK_STEP[props.range] ?? 4;
+    // Label 7 hari "03 Oct 18:00": jam di tiap centang harian selalu sama, cukup tanggalnya.
+    const tickText = (index) => (props.range === '7d' ? String(labels[index] ?? '').replace(/\s\d{2}:\d{2}$/, '') : labels[index]);
+
+    return lineChartOptions({
+        // Legenda = titik warna di baris total di atas grafik.
+        scales: {
+            x: {
+                ...axisX({ callback: (value) => tickText(value) }),
+                // Centang dihitung mundur dari bucket terbaru supaya ujung kanan selalu
+                // berlabel; autoSkip bawaan menghitung dari kiri dan membiarkan
+                // beberapa bucket terakhir tanpa label.
+                afterBuildTicks: (scale) => {
+                    scale.ticks = scale.ticks.filter((tick) => (last - tick.value) % step === 0);
+                },
+            },
+            y: axisY({ precision: 0, maxTicksLimit: 6, callback: (v) => Math.round(v) }, { beginAtZero: true }),
+        },
+    });
+});
 
 const totalSuccess = computed(() => props.trend.totals?.success ?? 0);
 const totalFailed = computed(() => props.trend.totals?.failed ?? 0);
@@ -119,22 +138,38 @@ const failureRate = computed(() => total.value > 0 ? Math.round((totalFailed.val
             </div>
         </div>
 
-        <div class="grid gap-4 px-2 py-4 sm:grid-cols-[1fr_180px] sm:gap-2 sm:px-3">
-            <div class="min-h-[240px]">
-                <ChartCanvas type="line" :height="260" :data="chartData" :options="chartOptions" :label="t('dashboard.polling_trend_title')" />
-            </div>
-            <div class="flex flex-col justify-center gap-4 border-t border-white/5 px-4 pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+        <!-- Total di atas grafik (titik warnanya sekaligus legenda), supaya grafik memakai
+             lebar penuh kartu; dulu kolom total di kanan memakan ±200 px yang separuhnya kosong. -->
+        <div class="flex flex-1 flex-col gap-4 px-5 py-4 sm:px-6">
+            <div class="flex flex-wrap gap-x-10 gap-y-3">
                 <div>
-                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ t('dashboard.total_success') }}</p>
-                    <p class="mt-1 text-2xl font-bold text-white">{{ totalSuccess.toLocaleString('id-ID') }}</p>
-                    <p v-if="total > 0" class="mt-0.5 text-xs font-medium text-emerald-400">{{ successRate }}%</p>
-                    <p v-else class="mt-0.5 text-xs text-slate-500">{{ t('dashboard.no_data_yet') }}</p>
+                    <p class="flex items-center gap-2 text-xs text-slate-400">
+                        <span class="h-2 w-2 rounded-full bg-cyan-400" aria-hidden="true" />
+                        {{ t('dashboard.total_success') }}
+                    </p>
+                    <p class="mt-1 flex items-baseline gap-2">
+                        <span class="text-2xl font-semibold tabular-nums text-white">{{ totalSuccess.toLocaleString('id-ID') }}</span>
+                        <span v-if="total > 0" class="text-xs font-medium tabular-nums text-emerald-400">{{ successRate }}%</span>
+                        <span v-else class="text-xs text-slate-500">{{ t('dashboard.no_data_yet') }}</span>
+                    </p>
                 </div>
                 <div>
-                    <p class="text-xs uppercase tracking-wider text-slate-500">{{ t('dashboard.total_failed') }}</p>
-                    <p class="mt-1 text-2xl font-bold text-white">{{ totalFailed.toLocaleString('id-ID') }}</p>
-                    <p v-if="total > 0" class="mt-0.5 text-xs font-medium text-red-400">{{ failureRate }}%</p>
-                    <p v-else class="mt-0.5 text-xs text-slate-500">&mdash;</p>
+                    <p class="flex items-center gap-2 text-xs text-slate-400">
+                        <span class="h-2 w-2 rounded-full bg-rose-500" aria-hidden="true" />
+                        {{ t('dashboard.total_failed') }}
+                    </p>
+                    <p class="mt-1 flex items-baseline gap-2">
+                        <span class="text-2xl font-semibold tabular-nums text-white">{{ totalFailed.toLocaleString('id-ID') }}</span>
+                        <span v-if="total > 0" class="text-xs font-medium tabular-nums text-rose-400">{{ failureRate }}%</span>
+                    </p>
+                </div>
+            </div>
+            <!-- Mengisi sisa tinggi kartu (baris dashboard setinggi kartu ONU Status di
+                 sebelahnya). Kanvas diletakkan absolut supaya ukurannya tidak ikut
+                 mendorong tinggi baris — kalau tidak, Chart.js bisa membesar terus. -->
+            <div class="relative min-h-56 flex-1">
+                <div class="absolute inset-0">
+                    <ChartCanvas type="line" height="100%" :data="chartData" :options="chartOptions" :label="t('dashboard.polling_trend_title')" />
                 </div>
             </div>
         </div>

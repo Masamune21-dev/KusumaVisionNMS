@@ -86,12 +86,16 @@ class DashboardStatsService
             default => [24, 60],
         };
 
+        // Hanya bucket yang sudah lengkap. Bucket yang sedang berjalan baru berisi
+        // sebagian polling, sehingga titik paling kanan selalu tampak anjlok
+        // (mis. 180 pada pukul 05.32 padahal jam penuh ±355).
         $bucketCount = (int) (($hours * 60) / $bucketMinutes);
-        $end = $this->alignToBucket(now(), $bucketMinutes);
-        $start = $end->copy()->subMinutes(($bucketCount - 1) * $bucketMinutes);
+        $until = $this->alignToBucket(now(), $bucketMinutes);
+        $start = $until->copy()->subMinutes($bucketCount * $bucketMinutes);
 
         $events = PollingEvent::query()
             ->where('created_at', '>=', $start)
+            ->where('created_at', '<', $until)
             ->get(['success', 'created_at']);
 
         $buckets = [];
@@ -120,9 +124,16 @@ class DashboardStatsService
 
         $displayTz = config('app.display_timezone', 'Asia/Jakarta');
 
+        // Bucket 6 jam (7 hari) butuh tanggal: tanpa itu sumbu X berisi jam yang sama
+        // berulang ("06:00 06:00 …") karena tiap centang berjarak tepat sehari.
+        $labelFormat = match (true) {
+            $bucketMinutes >= 1440 => 'd M',
+            $bucketMinutes > 60 => 'd M H:i',
+            default => 'H:i',
+        };
+
         foreach ($buckets as $bucket) {
-            $labels[] = $bucket['label']->copy()->setTimezone($displayTz)
-                ->format($bucketMinutes >= 1440 ? 'd M' : 'H:i');
+            $labels[] = $bucket['label']->copy()->setTimezone($displayTz)->format($labelFormat);
             $success[] = $bucket['success'];
             $failed[] = $bucket['failed'];
             $totalSuccess += $bucket['success'];
