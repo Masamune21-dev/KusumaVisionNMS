@@ -3,17 +3,18 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
 import OltPortLabel from '@/Components/OltPortLabel.vue';
+import PortOnuStats from '@/Components/CDataOlt/PortOnuStats.vue';
+import PortSwitcher from '@/Components/CDataOlt/PortSwitcher.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
-import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
-import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff } from '@lucide/vue';
+import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -43,18 +44,24 @@ const canEditPortLabel = computed(
 const portLabel = computed(() => props.port_labels?.[`${props.slot}_${props.port}`] ?? null);
 const search = ref(props.q ?? '');
 
+const phaseFilter = ref('all'); // 'all' | 'online' | 'offline'
 const odpFilter = ref('all'); // 'all' | 'none' | <odp id>
 
 const onus = computed(() => props.snapshot?.onus ?? []);
 const filtered = computed(() => {
     const needle = search.value.trim().toLowerCase();
     return onus.value.filter((o) => {
+        if (phaseFilter.value === 'online' && !o.online) return false;
+        if (phaseFilter.value === 'offline' && o.online) return false;
         if (odpFilter.value === 'none' && odpIdFor(o) !== null) return false;
         if (odpFilter.value !== 'all' && odpFilter.value !== 'none' && odpIdFor(o) !== Number(odpFilter.value)) return false;
         if (!needle) return true;
         return [o.serial_number, o.name, o.interface, o.mac].some((v) => String(v ?? '').toLowerCase().includes(needle));
     });
 });
+
+const hasFilter = computed(() => search.value.trim() !== '' || phaseFilter.value !== 'all' || odpFilter.value !== 'all');
+const clearFilters = () => { search.value = ''; phaseFilter.value = 'all'; odpFilter.value = 'all'; };
 
 const rxClass = (dbm) => {
     if (dbm === null || dbm === undefined) return 'text-slate-500';
@@ -65,7 +72,6 @@ const rxClass = (dbm) => {
 const isFocus = (o) => props.focus != null && String(o.onu_id) === String(props.focus);
 
 const refresh = () => router.post(route('hioso-olt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, { preserveScroll: true });
-const fmt = (v) => formatDateTime(v);
 
 const caps = computed(() => props.olt.capabilities ?? {});
 const canManage = computed(() => Boolean(page.props.auth?.can?.manage_olt));
@@ -204,7 +210,7 @@ const viewOnMap = (onu) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-center gap-3">
                     <Link :href="route('hioso-olt.detail', olt.id)" :title="$t('common.back')" :aria-label="$t('common.back')" class="text-slate-400 hover:text-white">
                         <ArrowLeft class="h-5 w-5" />
@@ -226,50 +232,91 @@ const viewOnMap = (onu) => {
                         </div>
                     </div>
                 </div>
-                <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
-                    <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}
-                </SecondaryButton>
+                <div class="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+                    <PortSwitcher
+                        :olt-id="olt.id"
+                        :slot="slot"
+                        :port="port"
+                        :ports="olt.last_test_result?.ports ?? []"
+                        :labels="port_labels"
+                        :pon-label="olt.capabilities.pon_label"
+                        route-name="hioso-olt.port-onus"
+                    />
+                    <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
+                        <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}
+                    </SecondaryButton>
+                </div>
             </div>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
-            <div class="w-full px-4 sm:px-6 lg:px-8">
+            <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
+
+                <PortOnuStats :snapshot="snapshot" />
 
                 <div class="kv-table-card">
-                    <div class="flex flex-col gap-3 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                        <div>
-                            <h3 class="text-base font-semibold text-white">{{ $t('cdataportonus.onu_on_port', { slot, port }) }}</h3>
-                            <p class="text-xs text-slate-400">
-                                {{ $t('cdataportonus.onu_count', { count: onus.length }) }}
-                                <span v-if="snapshot?.refreshed_at">{{ $t('cdataportonus.updated_suffix', { date: fmt(snapshot.refreshed_at) }) }}</span>
-                            </p>
+                    <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                        <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
+                            <Router class="h-5 w-5 text-cyan-400" />
                         </div>
-                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <select
-                                v-if="odps.length"
-                                v-model="odpFilter"
-                                :title="$t('portonus.filter_odp')"
-                                class="w-full rounded-lg border-white/10 bg-canvas-3/40 text-sm text-slate-200 focus:border-cyan-500 focus:ring-cyan-500 sm:w-auto"
+                        <div>
+                            <h3 class="text-base font-semibold text-white">
+                                {{ $t('cdataportonus.onu_on_port', { slot, port }) }}
+                                <span v-if="onus.length" class="ml-1 text-sm font-normal tabular-nums text-slate-500">({{ filtered.length }}/{{ onus.length }})</span>
+                            </h3>
+                            <p v-if="snapshot?.error" class="mt-0.5 text-xs text-rose-400">{{ snapshot.error }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Cari & filter — tata letak sama dengan halaman ONU per port ZTE -->
+                    <div v-if="onus.length > 0" class="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-6">
+                        <div class="relative flex-1">
+                            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                            <input
+                                v-model="search"
+                                type="text"
+                                :placeholder="$t('cdataportonus.search_placeholder')"
+                                :aria-label="$t('cdataportonus.search_placeholder')"
+                                class="kv-filter-control !pl-9 !pr-9"
+                            />
+                            <button
+                                v-if="search"
+                                type="button"
+                                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                                :title="$t('common.clear')"
+                                :aria-label="$t('common.clear')"
+                                @click="search = ''"
                             >
+                                <X class="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select v-model="phaseFilter" :aria-label="$t('portonus.filter_all_phase')" class="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500 sm:flex-none">
+                                <option value="all">{{ $t('portonus.filter_all_phase') }}</option>
+                                <option value="online">{{ $t('portonus.filter_online') }}</option>
+                                <option value="offline">{{ $t('portonus.filter_offline') }}</option>
+                            </select>
+                            <select v-if="odps.length" v-model="odpFilter" :title="$t('portonus.filter_odp')" :aria-label="$t('portonus.filter_odp')" class="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-slate-900/60 pl-3 pr-8 text-sm text-slate-100 shadow-inner shadow-black/20 focus:border-cyan-500 focus:ring-cyan-500 sm:flex-none">
                                 <option value="all">{{ $t('portonus.odp_all') }}</option>
                                 <option value="none">{{ $t('portonus.odp_unassigned') }}</option>
                                 <option v-for="odp in odps" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
                             </select>
-                            <div class="relative sm:w-64">
-                                <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                                <input
-                                    v-model="search"
-                                    type="text"
-                                    :placeholder="$t('cdataportonus.search_placeholder')"
-                                    class="w-full rounded-lg border-white/10 bg-canvas-3/40 pl-9 text-sm text-slate-200 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-cyan-500"
-                                />
-                            </div>
+                            <SecondaryButton v-if="hasFilter" type="button" class="w-full justify-center sm:w-auto" @click="clearFilters">{{ $t('common.reset') }}</SecondaryButton>
                         </div>
                     </div>
 
                     <div v-if="onus.length === 0" class="px-6 py-16 text-center">
                         <p class="text-sm font-semibold text-slate-200">{{ $t('cdataportonus.empty_title') }}</p>
                         <p class="mt-1 text-sm text-slate-500">{{ $t('cdataportonus.empty_hint') }}</p>
+                    </div>
+
+                    <div v-else-if="filtered.length === 0" class="px-6 py-14 text-center">
+                        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-800/60 ring-1 ring-slate-500/30">
+                            <Search class="h-7 w-7 text-slate-400" />
+                        </div>
+                        <h3 class="text-sm font-semibold text-slate-200">{{ $t('portonus.nomatch_title') }}</h3>
+                        <p class="mt-1 text-sm text-slate-500">{{ $t('portonus.nomatch_sub') }}</p>
+                        <SecondaryButton type="button" class="mt-4" @click="clearFilters">{{ $t('portonus.reset_filter') }}</SecondaryButton>
                     </div>
 
                     <template v-else>

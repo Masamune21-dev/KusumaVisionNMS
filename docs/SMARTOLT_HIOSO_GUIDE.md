@@ -818,7 +818,7 @@ telnet HOST PORT
 | [app/Support/Telnet/TelnetIacFilter.php](../app/Support/Telnet/TelnetIacFilter.php) | negosiasi IAC telnet (dipakai HA7302) |
 | [app/Services/OltPortLabelService.php](../app/Services/OltPortLabelService.php) | label port PON sisi-NMS (bersama C-Data) |
 | [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/ponPorts/portOnus/test/refresh/save-config + onu reboot/state/info/delete); rename bercabang CLI (HA7304) / SNMP (HA7302) |
-| `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/OltFaceplate.vue`) |
+| `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/{OltFaceplate,PortSwitcher,PortOnuStats}.vue`; pemilih port tersembunyi di HA7302 yang hanya punya 1 port agregat) |
 
 Rute HiOSO (`routes/web.php`, prefix `hioso-olt`): `hioso-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,pon-ports,port-onus,port-onus.refresh}` + aksi ONU `hioso-olt.onu.{reboot,state,info,delete}` + label port bersama `olt.port-label.store`. Aksi ONU juga tersedia dari REST API (`OnuActionController`) dan pin peta (`OnuMapController`), keduanya bercabang HA7302. Pemilihan rute lintas halaman via [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php) → `hioso-olt`.
 

@@ -30,6 +30,10 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - **Page**: `Pages/Dashboard.vue` + komponen `Components/Dashboard/*`.
 - **Isi props**: `cards` (statCards), `polling_trend` (range 24h/7d/30d), `olt_inventory`
   (per model), `olts` (status), `recent_alarms`, `provisioning` (ringkasan).
+- `DashboardStatsService::pollingTrend()` hanya memuat bucket yang **sudah lengkap** (24 × 1 jam /
+  28 × 6 jam / 30 × 1 hari; jendela berakhir di awal bucket berjalan, sejak 4 Okt 2026) supaya titik
+  paling kanan tak tampak anjlok; totalnya ikut jendela yang sama, jadi bisa tertinggal ≤ 1 bucket.
+  `PollingTrendCard` menghitung label sumbu X mundur dari bucket terbaru.
 - **Sumber data**: `polling_events` (tren), `last_test_result` (status & ONU count), `alarm_events`,
   `smartolt_onu_registrations`.
 - Komponen: `StatCard`, `PollingTrendCard`, `OltInventoryList`, `OnuStatusDonut`,
@@ -177,6 +181,13 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 ### 6c. Family non-ZTE
 - C-Data (`Pages/CDataOlt/PortOnus.vue`) & HiOSO (`Pages/Hioso/PortOnus.vue`) punya halaman ONU per
   port sendiri (rename/reboot/enable-disable/delete via CLI, label port sisi-NMS di header, kolom ODP).
+  Sejak 4 Okt 2026 polanya disamakan dengan ZTE: **pemilih port** ◀ dropdown ▶ di header
+  (`Components/CDataOlt/PortSwitcher.vue`; daftar port dari cache `olt.last_test_result.ports`, tanpa
+  SNMP/perubahan controller; opsi memuat label sisi-NMS; tersembunyi bila OLT hanya punya satu port,
+  mis. HiOSO HA7302 agregat), **kartu status** Status data / Total ONU / Online / Refresh terakhir
+  (`Components/CDataOlt/PortOnuStats.vue`), dan baris toolbar cari + filter **Online/Offline** (dari
+  `onu.online`; tanpa filter admin-state karena EPON/HiOSO melaporkan `unknown`) + filter ODP + Reset.
+  Halaman ZTE masih menulis pemilih port & kartunya inline (belum memakai komponen ini).
 - **C-Data firmware V3 — VLAN & detail port** (Sep 2026): halaman `cdata-olt.vlans`
   (`Pages/CDataOlt/Vlans.vue`: daftar `show vlan all`, buat VLAN, tag ke beberapa port sekaligus) dan
   `cdata-olt.port.detail` (`Pages/CDataOlt/PortDetail.vue`, `gpon|epon|ge|xge`: status, optik DDM +

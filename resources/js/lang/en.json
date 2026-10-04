@@ -1348,6 +1348,8 @@
         "port-onu_i2": "the refresh button performs a live SNMP read for that port/OLT (rate-limited to avoid stressing the OLT).",
         "port-onu_i3s": "Port label (C-Data/HiOSO)",
         "port-onu_i3": "the Add port label pencil icon in the header stores a label in the NMS (not written to the OLT), also shown in the Android app; ZTE ports use the port description on the OLT.",
+        "port-onu_i4s": "Switch port & filters",
+        "port-onu_i4": "the ◀ ▶ buttons and dropdown in the header open another port on the same OLT; the search box and the Online/Offline and ODP filters sit above the table, and the summary cards show the total and online ONU count.",
         "port-pon_title": "Port Detail & Disable/Enable PON Port (ZTE)",
         "port-pon_intro": "Click a port on the chassis image in a ZTE OLT's detail page to open Port Detail: status, optics/SFP, and traffic — the Refresh from OLT button reads them live over CLI.",
         "port-pon_i0s": "Port description & uplink VLAN",

@@ -44,7 +44,7 @@ const SECTION_DEFS = [
     { id: 'navigasi', icon: Compass, accent: 'sky', ordered: false, items: [true, true, true, true] },
     { id: 'dashboard', icon: LayoutDashboard, accent: 'violet', ordered: false, items: [false, false, false] },
     { id: 'olt', icon: Cable, accent: 'blue', ordered: true, items: [true, true, true, true, true], tip: true },
-    { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true, true] },
+    { id: 'port-onu', icon: Radar, accent: 'teal', ordered: false, items: [true, true, true, true, true] },
     { id: 'port-pon', icon: Power, accent: 'rose', ordered: false, items: [true, true, true, true], tip: true },
     { id: 'cdata-vlan', icon: Network, accent: 'indigo', ordered: false, items: [true, true, true, true] },
     { id: 'unconfigured', icon: WifiOff, accent: 'amber', ordered: true, items: [false, false] },

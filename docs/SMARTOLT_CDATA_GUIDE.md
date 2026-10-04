@@ -537,11 +537,11 @@ Uji write terkontrol: rename ke string dummy → reboot 1 ONU non-produksi → e
 | [app/Services/CData/CDataFaceplateService.php](../app/Services/CData/CDataFaceplateService.php) | faceplate panel-depan (IF-MIB + tabel device `17409.2.3.1.*`) → cache `last_test_result.panel` |
 | [app/Support/SmartOltSupport.php](../app/Support/SmartOltSupport.php) | `driverKey()` + capability matrix + helper interface + `isCDataGponV3()` + `hasCDataV3Cli()` |
 | [app/Http/Controllers/CDataOltController.php](../app/Http/Controllers/CDataOltController.php) | halaman + aksi OLT C-Data (index/detail/portOnus/test/refresh/save-config + onu info/reboot/state/remote-access/delete) |
-| `resources/js/Pages/CDataOlt/*.vue` + `resources/js/Components/CDataOlt/OltFaceplate.vue` | UI Inertia (Create/Edit/Detail/PortOnus + faceplate) |
+| `resources/js/Pages/CDataOlt/*.vue` + `resources/js/Components/CDataOlt/{OltFaceplate,PortSwitcher,PortOnuStats}.vue` | UI Inertia (Create/Edit/Detail/PortOnus/PortDetail/Vlans + faceplate; PortOnus: pemilih port ◀▶, kartu status, filter Online/Offline — 4 Okt 2026) |
 
 Kontrak `SmartOltSnmpDriver` (read): `ping`, `getSystemInfo`, `getPorts`, `getRegisteredOnus`, `getRegisteredOnusByPort`, `getPortRxMap`, `countRegisteredOnus`, `getUnconfiguredOnus`. Dipakai C-Data **dan** HiOSO. ZTE **tidak** memakai kontrak ini (punya `OltSnmpClient` sendiri).
 
-Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,port-onus,port-onus.refresh}` + aksi ONU `cdata-olt.onu.{reboot,state,info,remote-access,delete}` + label port bersama `olt.port-label.store` + VLAN/port firmware V3 `cdata-olt.{vlans,vlans.store,port.detail,port.vlan}` (§14). Pemilihan rute lintas halaman (search/monitoring/peta) lewat [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php) → `cdata-olt`.
+Rute C-Data (`routes/web.php`, prefix `cdata-olt`): `cdata-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,pon-ports,port-onus,port-onus.refresh}` + aksi ONU `cdata-olt.onu.{reboot,state,info,remote-access,delete}` + label port bersama `olt.port-label.store` + VLAN/port firmware V3 `cdata-olt.{vlans,vlans.store,port.detail,port.vlan}` (§14). Pemilihan rute lintas halaman (search/monitoring/peta) lewat [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php) → `cdata-olt`.
 
 ---
 

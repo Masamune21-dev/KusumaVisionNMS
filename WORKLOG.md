@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-10-05 — Halaman ONU per Port C-Data & HiOSO Disamakan dengan ZTE
+
+### Changed
+
+- `Pages/{CDataOlt,Hioso}/PortOnus.vue` kini berpola sama dengan halaman ONU per port ZTE:
+  - **Pindah antar port** di header (◀ dropdown ▶), komponen baru `Components/CDataOlt/PortSwitcher.vue`.
+    Daftar port dibaca dari cache `olt.last_test_result.ports` (tanpa SNMP, tanpa perubahan controller). Opsi
+    memuat label port sisi-NMS (`port_labels`) supaya port mudah dicari. Tersembunyi bila OLT hanya punya satu
+    port (HiOSO HA7302 agregat).
+  - **Kartu status** Status data / Total ONU / Online x/total / Refresh terakhir, komponen baru
+    `Components/CDataOlt/PortOnuStats.vue` (2×2 di HP).
+  - **Cari & filter** pindah ke baris toolbar sendiri (cari melebar + tombol ×), plus filter **Online/Offline**
+    (dari `onu.online`, memakai kunci i18n ZTE `portonus.filter_*`), filter ODP, Reset, empty state "Tidak ada
+    ONU yang cocok", dan hitungan `(terfilter/total)` di judul. Tanpa filter admin-state karena EPON/HiOSO
+    melaporkan `unknown`.
+- Panduan dalam aplikasi: butir baru "Pindah port & filter" di bagian ONU per port (`panduan.port-onu_i4*`).
+- Dokumen: handbook `07-modul-fitur` (§1 tren polling, §6c), `12-frontend`, guide C-Data & HiOSO (peta berkas,
+  rute `cdata-olt.pon-ports` yang terlewat), `CLAUDE.md` (modul C-Data/HiOSO kini aktif dipakai, bukan "tidak
+  dipakai"). PDF panduan publik (id/en) dibangun ulang: bab Dashboard & C-Data/HiOSO, catatan usang batas ubah
+  nama HiOSO dihapus (modalnya sudah 32 karakter).
+
+### Notes
+
+- Test `tests/js/PortSwitcher.spec.js` (8): urutan port, label, ◀▶ di ujung, rute per family, sembunyi bila
+  1 port, hitungan kartu.
+- Verifikasi: PHPUnit 676 lulus, Vitest 50 lulus, `kv-ui-check` 0 pelanggaran keras (`<button>` mentah +4:
+  segmen ◀▶ meniru ZTE + tombol × cari); semua `route()` ada di `route:list` dan kunci `$t()` ada di kedua bahasa.
+- Playwright di server lokal (SQLite + `DemoSeeder` + OLT C-Data EPON & HiOSO fiktif): kedua halaman tampil di
+  1440 px & 390 px, tema gelap & terang, tanpa scroll horizontal dan tanpa error console; filter Offline,
+  Reset, dan tombol ▶ diuji.
+
 ## 2026-10-05 — Dashboard: Grafik Tren Polling Selebar Kartu & Tak Lagi Anjlok di Ujung Kanan
 
 ### Fixed

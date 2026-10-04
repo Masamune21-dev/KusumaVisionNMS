@@ -1348,6 +1348,8 @@
         "port-onu_i2": "tombol refresh melakukan pembacaan SNMP langsung untuk port/OLT tersebut (dibatasi rate agar tak membebani OLT).",
         "port-onu_i3s": "Label port (C-Data/HiOSO)",
         "port-onu_i3": "ikon pensil Beri label port di header menyimpan label di NMS (tidak ditulis ke OLT) dan ikut tampil di aplikasi Android; port ZTE memakai deskripsi port di OLT.",
+        "port-onu_i4s": "Pindah port & filter",
+        "port-onu_i4": "tombol ◀ ▶ dan dropdown di header membuka port lain di OLT yang sama; kotak cari, filter Online/Offline, dan ODP ada di atas tabel, kartu ringkasan menampilkan total dan jumlah ONU online.",
         "port-pon_title": "Detail Port & Matikan/Nyalakan Port PON (ZTE)",
         "port-pon_intro": "Klik port pada gambar chassis di Detail OLT ZTE untuk membuka Detail Port: status, optik/SFP, dan trafik — tombol Refresh dari OLT membacanya langsung lewat CLI.",
         "port-pon_i0s": "Deskripsi port & VLAN uplink",

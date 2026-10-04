@@ -63,8 +63,8 @@ Map/Index   Odp/Index   Reports/Index   Settings/Index   Users/Index   AuditLogs
 Panduan/Index   Profile/Edit (+ Partials/*)   Partner/TelegramBot   Auth/* (Breeze)
 ```
 
-Halaman C-Data/HiOSO **berbagi** `PonPorts.vue` dan komponen presentasi
-`Components/CDataOlt/OltFaceplate.vue`; jangan menyalin halaman untuk family baru — tambahkan
+Halaman C-Data/HiOSO **berbagi** `PonPorts.vue` dan komponen presentasi `Components/CDataOlt/*`
+(`OltFaceplate`, `PortSwitcher`, `PortOnuStats`); jangan menyalin halaman untuk family baru — tambahkan
 `route_prefix`/capability.
 
 ## Komponen (`resources/js/Components/`)
@@ -89,7 +89,10 @@ register Lanjutan), `BindOnuModal` (Bind ONU), `Tr069BulkModal` (TR069 massal). 
 **Peta (`Components/Map/`):** `OnuMap` (Leaflet, lazy-loaded, diff marker), `AddPinModal`,
 `PinDetailCard`, `OdpDetailCard`, `OdpColorModal`, `OdpPhotoField`. Lihat [16](16-peta-onu.md).
 
-**Non-ZTE (`Components/CDataOlt/`):** `OltFaceplate` (panel depan C-Data & HiOSO).
+**Non-ZTE (`Components/CDataOlt/`):** `OltFaceplate` (panel depan C-Data & HiOSO), `PortSwitcher`
+(◀ dropdown ▶ pindah port di header ONU per port, daftar dari `last_test_result.ports`, dijaga
+`tests/js/PortSwitcher.spec.js`), `PortOnuStats` (kartu status/total/online/refresh terakhir). Dua yang
+terakhir dipakai bersama `Pages/{CDataOlt,Hioso}/PortOnus.vue`; faceplate dipakai halaman Detail.
 
 **Shell (`Components/Shell/`):** `GlobalSearch` (⌘K → `dashboard.search`), `NotificationBell`
 (pakai props `notifications` global; klik → `notifications.alarms.open`, target diputuskan server),
