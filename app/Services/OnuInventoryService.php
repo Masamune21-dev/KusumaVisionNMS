@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\OnuOdpLink;
 use App\Models\SnmpOlt;
+use App\Services\Genieacs\GenieacsMapService;
 use App\Support\SmartOltSupport;
 use Illuminate\Support\Collection;
 
@@ -22,6 +23,8 @@ class OnuInventoryService
      * @var array<int, array<string, mixed>>
      */
     private array $snapshots = [];
+
+    public function __construct(private readonly GenieacsMapService $genieacsMap) {}
 
     /**
      * Prefix rute inventori per OLT, di-memo (driverKey membaca snapshot 2x tiap panggilan).
@@ -44,6 +47,8 @@ class OnuInventoryService
         $refreshedAt = [];
         // Satu query untuk SEMUA kaitan ODP sekaligus — hindari N+1 di loop ribuan ONU.
         $odpMap = $this->odpLookupMap($olts->pluck('id')->all());
+        // Idem untuk penanda ter-ACS: satu query, dibaca dari tabel lokal saja.
+        $acsMap = $this->genieacsMap->forOlts($olts->pluck('id')->all());
 
         foreach ($olts as $olt) {
             $portOnus = data_get($this->snapshot($olt), 'port_onus', []);
@@ -60,7 +65,7 @@ class OnuInventoryService
                 }
 
                 foreach (data_get($entry, 'onus', []) as $onu) {
-                    $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap);
+                    $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap, $acsMap);
                 }
             }
         }
@@ -84,10 +89,11 @@ class OnuInventoryService
         $routePrefix = $this->routePrefix($olt);
         $entry = data_get($this->snapshot($olt), "port_onus.{$slot}_{$port}", []);
         $odpMap = $this->odpLookupMap([$olt->id], $slot, $port);
+        $acsMap = $this->genieacsMap->forOlts([$olt->id], $slot, $port);
 
         $onus = [];
         foreach (data_get($entry, 'onus', []) as $onu) {
-            $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap);
+            $onus[] = $this->normalize($olt, $routePrefix, $onu, $odpMap, $acsMap);
         }
 
         usort($onus, fn (array $a, array $b) => $a['onu_id'] <=> $b['onu_id']);
@@ -107,9 +113,12 @@ class OnuInventoryService
      * satuan yang memang butuh kolom ODP (mis. detail 1 ONU di REST API) mengaktifkannya lewat
      * $withOdp — jangan set true di dalam loop.
      *
+     * $withAcs bekerja dengan pertimbangan yang sama: mati secara bawaan, dan
+     * hanya dinyalakan pemanggil satuan (mis. detail 1 ONU di REST API mobile).
+     *
      * @return array<string, mixed>|null
      */
-    public function findOne(SnmpOlt $olt, int $slot, int $port, int $onuId, bool $withOdp = false): ?array
+    public function findOne(SnmpOlt $olt, int $slot, int $port, int $onuId, bool $withOdp = false, bool $withAcs = false): ?array
     {
         $routePrefix = $this->routePrefix($olt);
 
@@ -122,6 +131,7 @@ class OnuInventoryService
                     $routePrefix,
                     $onu,
                     $withOdp ? $this->odpLookupMap([$olt->id], $slot, $port) : [],
+                    $withAcs ? $this->genieacsMap->forOlts([$olt->id], $slot, $port) : [],
                 );
             }
         }
@@ -196,12 +206,18 @@ class OnuInventoryService
      * @param  array<string, array{odp_id:int, odp_name:?string}>  $odpMap  key "oltId.slot.port.onuId"
      * @return array<string, mixed>
      */
-    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu, array $odpMap = []): array
+    /**
+     * @param  array<string, array<string, mixed>>  $acsMap  Penanda ter-ACS, ber-key
+     *   "oltId.slot.port.onuId". Sengaja diberikan pemanggil (bukan di-query di
+     *   sini) karena metode ini dipanggil di dalam loop ribuan ONU.
+     */
+    private function normalize(SnmpOlt $olt, string $routePrefix, array $onu, array $odpMap = [], array $acsMap = []): array
     {
         $slot = (int) ($onu['slot'] ?? 0);
         $port = (int) ($onu['port'] ?? 0);
         $onuId = (int) ($onu['onu_id'] ?? 0);
         $odp = $odpMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
+        $acs = $acsMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
 
         return [
             'olt_id' => $olt->id,
@@ -228,6 +244,8 @@ class OnuInventoryService
             'rx_power_label' => $onu['rx_power_label'] ?? null,
             'odp_id' => $odp['odp_id'] ?? null,
             'odp_name' => $odp['odp_name'] ?? null,
+            // null = ONU belum berpasangan dengan device mana pun di GenieACS.
+            'acs' => $acs,
         ];
     }
 }

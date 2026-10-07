@@ -39,6 +39,7 @@ Lisensi open-source MIT (lihat `LICENSE`). Autentikasi memakai login lokal **Lar
 | Notifikasi | Bot **Telegram** (push alarm + inbound command, bot global + bot per partner) + **FCM** (`kreait/laravel-firebase`) |
 | Mobile | Aplikasi **Android Flutter** di `mobile/` |
 | Konversi foto | Biner `cwebp` (PHP server ini tanpa GD/Imagick) |
+| Integrasi ACS (opsional) | **GenieACS** lewat NBI (HTTP, port 7557) — dipanggil server, tak pernah di-proxy ke browser |
 
 ## Modul utama (yang benar-benar ada)
 
@@ -71,6 +72,9 @@ Lisensi open-source MIT (lihat `LICENSE`). Autentikasi memakai login lokal **Lar
 - **Users & RBAC** — admin/operator/partner/demo, audit logs, pengaturan umum, alarm, Telegram,
   notifikasi mobile, token API.
 - **Browser Telnet** — terminal xterm.js ke OLT via WebSocket proxy.
+- **GenieACS / TR-069 (opsional)** — tautkan ONU ke device TR-069 di server GenieACS yang sudah ada
+  (serial / MAC ±1 / semat manual), lencana ter-ACS di tabel ONU, panel perangkat terhubung, ubah SSID
+  & kata sandi WiFi. Diatur admin di Pengaturan → tab ACS / TR069. Lihat [20](20-genieacs-tr069.md).
 - **REST API v1 + aplikasi Android** — lihat `docs/API.md` & `mobile/`.
 
 ## Scope nyata vs PRD (PENTING)

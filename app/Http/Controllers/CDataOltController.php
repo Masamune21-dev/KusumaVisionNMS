@@ -8,6 +8,7 @@ use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
+use App\Services\Genieacs\GenieacsMapService;
 use App\Services\OltPortLabelService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
@@ -179,7 +180,7 @@ class CDataOltController extends Controller
             'scanned_at' => data_get($olt->last_test_result, 'onu_scanned_at'),
         ]);
     }
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService, OltPortLabelService $labels): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, CDataOltScanner $scanner, OnuOdpService $odpService, OltPortLabelService $labels, GenieacsMapService $genieacsMap): Response
     {
         $this->ensureFreshScan($olt, $scanner);
 
@@ -199,6 +200,9 @@ class CDataOltController extends Controller
             'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
             'port_labels' => $labels->forOlt($olt),
+            // Penanda ter-ACS per ONU — dibaca dari tabel lokal genieacs_device_map,
+            // TIDAK memanggil GenieACS saat merender.
+            'genieacs_map' => $genieacsMap->forPort($olt->id, $slot, $port),
         ]);
     }
 

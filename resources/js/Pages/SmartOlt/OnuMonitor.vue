@@ -1,4 +1,6 @@
 <script setup>
+import ConnectedDevicesModal from '@/Components/Genieacs/ConnectedDevicesModal.vue';
+import OnuAcsBadge from '@/Components/OnuAcsBadge.vue';
 import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ClientPagination from '@/Components/Shell/ClientPagination.vue';
@@ -10,7 +12,7 @@ import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel
 import { usePagination } from '@/Composables/usePagination';
 import { rxBadgeClass, rxLevel } from '@/Composables/useRxLevel';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ExternalLink, Radar, RefreshCw, Search, Wifi, X } from '@lucide/vue';
+import { ExternalLink, Laptop, Radar, RefreshCw, Search, Wifi, X } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
@@ -42,6 +44,16 @@ const statusFilter = ref('all');
 const adminFilter = ref('all');
 const rxFilter = ref('all');
 const odpFilter = ref('all'); // 'all' | 'none' | <odp id>
+// Penanda ter-ACS. Tidak ikut direset saat ganti OLT — beda dengan port/ODP
+// yang memang khusus per-OLT.
+const acsFilter = ref('all'); // 'all' | 'linked' | 'unlinked'
+
+// Panel "perangkat terhubung". Halaman ini lintas-OLT, jadi OLT-nya diambil
+// dari baris ONU-nya sendiri (onu.olt_id), bukan dari prop halaman.
+const clientsOnu = ref(null);
+const openClients = (onu) => { clientsOnu.value = onu; };
+// Isi panelnya data pelanggan dari ACS — hanya staf Pusat (server: User::canUseAcsCatalogOn).
+const canUseAcs = computed(() => Boolean(page.props.auth?.can?.manage_acs));
 const scanning = ref(false);
 
 const hasOlt = computed(() => oltFilter.value !== '');
@@ -115,6 +127,8 @@ const filteredOnus = computed(() => {
         if (adminFilter.value === 'active' && onu.admin_state !== 'active') return false;
         if (adminFilter.value === 'disabled' && onu.admin_state === 'active') return false;
         if (rxFilter.value !== 'all' && rxLevel(onu.rx_power_dbm) !== rxFilter.value) return false;
+        if (acsFilter.value === 'linked' && !onu.acs) return false;
+        if (acsFilter.value === 'unlinked' && onu.acs) return false;
         if (odpFilter.value === 'none' && onu.odp_id !== null) return false;
         if (odpFilter.value !== 'all' && odpFilter.value !== 'none' && onu.odp_id !== Number(odpFilter.value)) return false;
         if (!term) return true;
@@ -148,7 +162,8 @@ const hasFilter = computed(
         statusFilter.value !== 'all' ||
         adminFilter.value !== 'all' ||
         rxFilter.value !== 'all' ||
-        odpFilter.value !== 'all',
+        odpFilter.value !== 'all' ||
+        acsFilter.value !== 'all',
 );
 
 const clearFilters = () => {
@@ -158,6 +173,7 @@ const clearFilters = () => {
     adminFilter.value = 'all';
     rxFilter.value = 'all';
     odpFilter.value = 'all';
+    acsFilter.value = 'all';
 };
 
 const scanOlt = () => {
@@ -283,6 +299,11 @@ const phaseDotClass = (onu) => {
                             <option value="none">{{ $t('onumonitor.odp_none') }}</option>
                             <option v-for="odp in odpOptions" :key="odp.id" :value="odp.id">{{ odp.name }}</option>
                         </select>
+                        <select v-model="acsFilter" :title="$t('onumonitor.acs_filter_title')" class="kv-filter-control w-full sm:w-auto">
+                            <option value="all">{{ $t('onumonitor.acs_all') }}</option>
+                            <option value="linked">{{ $t('onumonitor.acs_linked') }}</option>
+                            <option value="unlinked">{{ $t('onumonitor.acs_unlinked') }}</option>
+                        </select>
                     </div>
                 </FilterCard>
 
@@ -387,6 +408,10 @@ const phaseDotClass = (onu) => {
                                             <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || onu.mac || '—' }}</span>
                                         </div>
                                         <div class="kv-mobile-field">
+                                            <span class="kv-mobile-label">{{ $t('portonus.col_acs') }}</span>
+                                            <OnuAcsBadge :acs="onu.acs" />
+                                        </div>
+                                        <div class="kv-mobile-field">
                                             <span class="kv-mobile-label">{{ $t('portonus.col_type') }}</span>
                                             <span class="kv-mobile-value">{{ onu.type_name || '—' }}</span>
                                         </div>
@@ -416,6 +441,9 @@ const phaseDotClass = (onu) => {
                                     </div>
 
                                     <div class="mt-4 flex flex-wrap gap-2">
+                                        <IconButton v-if="onu.acs && canUseAcs" :title="$t('acsclients.action')" @click="openClients(onu)">
+                                            <Laptop class="h-4 w-4" />
+                                        </IconButton>
                                         <IconButton :href="portOnuHref(onu)" variant="primary" :title="$t('onumonitor.open_in_port')">
                                             <ExternalLink class="h-4 w-4" />
                                         </IconButton>
@@ -431,6 +459,7 @@ const phaseDotClass = (onu) => {
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('smartolt.th_olt') }}</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_acs') }}</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
@@ -453,6 +482,9 @@ const phaseDotClass = (onu) => {
                                             </td>
                                             <td class="px-4 py-3">
                                                 <span class="font-mono text-xs text-slate-200">{{ onu.serial_number || onu.mac || '—' }}</span>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <OnuAcsBadge :acs="onu.acs" />
                                             </td>
                                             <td class="px-4 py-3 text-xs text-slate-200">{{ onu.type_name || '—' }}</td>
                                             <td class="px-4 py-3">
@@ -480,6 +512,9 @@ const phaseDotClass = (onu) => {
                                             <td class="px-4 py-3 text-xs text-slate-300">{{ onu.odp_name || '—' }}</td>
                                             <td class="px-4 py-3">
                                                 <div class="flex items-center justify-center gap-1.5">
+                                                    <IconButton v-if="onu.acs && canUseAcs" :title="$t('acsclients.action')" @click="openClients(onu)">
+                                                        <Laptop class="h-4 w-4" />
+                                                    </IconButton>
                                                     <IconButton :href="portOnuHref(onu)" variant="primary" :title="$t('onumonitor.open_in_port')">
                                                         <ExternalLink class="h-4 w-4" />
                                                     </IconButton>
@@ -506,5 +541,15 @@ const phaseDotClass = (onu) => {
                 </template>
             </div>
         </div>
+        <ConnectedDevicesModal
+            :show="clientsOnu !== null"
+            :olt-id="clientsOnu?.olt_id ?? 0"
+            :slot="clientsOnu?.slot ?? 0"
+            :port="clientsOnu?.port ?? 0"
+            :onu-id="clientsOnu?.onu_id ?? 0"
+            :onu-label="clientsOnu ? `${clientsOnu.olt_name || ''} · ${clientsOnu.interface || ''}` : ''"
+            @close="clientsOnu = null"
+        />
+
     </AuthenticatedLayout>
 </template>

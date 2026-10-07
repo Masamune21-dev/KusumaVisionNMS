@@ -15,6 +15,7 @@ dalam format JSON.
 > tersimpan di server — cepat dan tidak menyentuh OLT. Aksi *tulis* (register,
 > reboot, rename, **hapus ONU**, refresh live) mengeksekusi Telnet/SNMP sinkron
 > ke OLT dan di-gate role `admin`/`operator`/`partner` (lihat §3 "Aksi tulis").
+> Pengecualian opsional: dua endpoint GenieACS (§3.16) memanggil server ACS saat dipanggil.
 
 - Base URL (server Anda): `https://nms.example.com/api/v1` — ganti `nms.example.com` dengan domain
   instalasi NMS Anda di semua contoh di bawah
@@ -218,8 +219,9 @@ dibuang harian (`sanctum:prune-expired`), token push-nya ikut terhapus.
 
 ## 2. Konvensi Umum
 
-- **Sukses** dibungkus `{"data": ...}`; daftar menambah `{"meta": ...}`. Satu-satunya
-  pengecualian: `GET /odps/{odp}/photo` yang mengirim berkas gambar (§3.6).
+- **Sukses** dibungkus `{"data": ...}`; daftar menambah `{"meta": ...}`. Pengecualian:
+  `GET /odps/{odp}/photo` yang mengirim berkas gambar (§3.6), dan dua endpoint GenieACS (§3.16)
+  yang mengembalikan objek datar `{"ok": …}` tanpa `data`.
 - **Error** memakai format Laravel standar: `{"message": "...", "errors": {...}}` (errors hanya
   untuk validasi). Semua `/api/*` selalu dijawab JSON, walau klien lupa
   `Accept: application/json` (`bootstrap/app.php`).
@@ -249,7 +251,7 @@ dibuang harian (`sanctum:prune-expired`), token push-nya ikut terhapus.
 | `401` | Token tidak ada / tidak valid / kedaluwarsa (`{"message":"Unauthenticated."}`) |
 | `403` | Role tidak berhak / akun demo menulis                               |
 | `404` | Resource tidak ditemukan (termasuk OLT/ODP di luar scope partner)    |
-| `422` | Validasi gagal (cek `errors`), aksi tak didukung driver, atau aksi ke OLT gagal |
+| `422` | Validasi gagal (cek `errors`), aksi tak didukung driver, atau aksi ke OLT/ACS gagal |
 | `429` | Terlalu banyak request (rate limit)                                  |
 | `500` | Kesalahan server                                                     |
 
@@ -291,6 +293,7 @@ Semua path relatif terhadap `/api/v1`. Nama rute (`api.*`) dipakai test & `route
 | POST   | `/devices` | `api.devices.store` | Daftarkan token FCM (§3.15) — demo ditolak 403 |
 | DELETE | `/devices` | `api.devices.destroy` | Cabut token FCM (§3.15) — demo ditolak 403 |
 | POST   | `/devices/test` | `api.devices.test` | Kirim push tes ke perangkat sendiri (§3.15) — demo ditolak 403 |
+| GET    | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-clients` | `api.onus.acs-clients` | Perangkat terhubung di balik ONU, dari GenieACS (§3.16) — hanya admin/operator, role lain 403 |
 
 **Aksi tulis** — grup `role:admin,operator,partner` + `BlockDemoWrites`. Akun `demo` ditolak
 `403`; partner otomatis terbatas ke OLT/ODP miliknya atau yang di-assign (`404` di luar itu):
@@ -307,6 +310,7 @@ Semua path relatif terhadap `/api/v1`. Nama rute (`api.*`) dipakai test & `route
 | POST   | `/odps/{odp}/color` | `api.odps.color` | Warna pin ODP di peta (§3.9) |
 | POST   | `/odps/{odp}/photo` | `api.odps.photo.store` | Unggah/ganti foto ODP (§3.9) |
 | DELETE | `/odps/{odp}/photo` | `api.odps.photo.destroy` | Hapus foto ODP (§3.9) |
+| POST   | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi` | `api.onus.acs-wifi` | Ubah SSID & kata sandi WiFi ONU lewat GenieACS (§3.16) — partner tetap 403 |
 
 > **Catatan mobile:** `GET /olts/{olt}` menyertakan `capabilities` (mis. `supports_provisioning`,
 > `supports_reboot`, `supports_onu_info_write`, `supports_onu_delete`) agar klien
@@ -473,7 +477,8 @@ curl "https://nms.example.com/api/v1/onus?status=offline&per_page=20" \
       "rx_power_dbm": -21.5,
       "rx_power_label": "-21.5 dBm",
       "odp_id": 26,
-      "odp_name": "ODP-A01"
+      "odp_name": "ODP-A01",
+      "acs": null
     }
   ],
   "meta": { "total": 8, "per_page": 20, "current_page": 1, "last_page": 1, "count": 8 }
@@ -487,6 +492,8 @@ Bentuk satu ONU ini (`OnuInventoryService::normalize()`) dipakai juga oleh
   `hioso-olt.port-onus`); `olt_cdata` = `true` untuk **semua** family non-ZTE (C-Data
   **dan** HiOSO) — nama field-nya warisan.
 - `odp_id` / `odp_name` = ODP tempat ONU dikaitkan (`null` bila belum).
+- `acs` = pasangan ONU ini dengan device GenieACS (bentuk di §3.5), `null` bila belum
+  berpasangan atau GenieACS tidak dipakai. Dibaca dari tabel lokal, tidak memanggil ACS.
 - `admin_state` bawaan `"unknown"`, `phase_state` bawaan `"Unknown"` bila family-nya tak
   melaporkan.
 
@@ -500,6 +507,26 @@ curl "https://nms.example.com/api/v1/olts/1/onus/1/1/5" \
 Mengembalikan satu objek ONU (bentuk sama seperti elemen `data` pada `/onus`)
 di dalam `{"data": {...}}`, **termasuk `odp_id` + `odp_name`** bila ONU itu sudah
 dikaitkan ke sebuah ODP. ONU tak ada di snapshot terakhir → `404`.
+
+Juga menyertakan blok **`acs`** — pasangan ONU ini dengan device GenieACS (TR-069), atau `null`
+bila belum berpasangan. Dibaca dari tabel lokal `genieacs_device_map`, **tidak** memanggil ACS:
+
+```json
+"acs": {
+  "device_id": "D05FAF-FD512XW-R460-CDTCAF0012E6",
+  "match_method": "serial",
+  "product_class": "FD512XW-R460",
+  "pppoe_username": "warga01",
+  "ip": "198.51.100.12",
+  "last_inform_at": "2026-10-07T10:15:00+07:00",
+  "online": true
+}
+```
+
+`match_method` bernilai `serial` · `mac` · `manual`; `pppoe_username` & `ip` (IP manajemen
+TR-069) berasal dari virtual parameter GenieACS dan bisa `null`. `online` memakai ambang **2 jam**
+karena `last_inform_at` hanya disegarkan penjadwal tiap 15 menit — bukan status realtime
+perangkat. Kesegaran sesungguhnya ada di `/acs-clients` (§3.16).
 
 ### 3.6. `GET /odps` — daftar ODP
 
@@ -838,6 +865,102 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" \
   `sent`) bila FCM belum dikonfigurasi atau perangkat belum terdaftar.
 
 Akun `demo` ditolak `403` di ketiganya (semua non-GET, §2).
+
+### 3.16. GenieACS / TR-069 — perangkat terhubung & ubah WiFi
+
+Hanya berguna bila server NMS dihubungkan ke GenieACS (admin: **Pengaturan → ACS / TR069 →
+GenieACS (NBI)**; lihat [`handbook/20-genieacs-tr069.md`](handbook/20-genieacs-tr069.md)). Dua
+endpoint ini **memanggil NBI GenieACS** (berbeda dari endpoint lain yang membaca cache), jadi
+panggil hanya saat layar dibuka atau tombol ditekan — jangan di dalam daftar. Respons **tidak**
+dibungkus `data`.
+
+**Akses:** hanya **admin & operator**, dan hanya pada OLT yang memakai ACS — OLT global non-demo
+(`User::canUseAcsCatalogOn`). Partner (juga pada OLT yang di-assign kepadanya), demo, OLT privat
+partner, dan OLT demo → `403`. Isinya data pelanggan (host LAN, sandi WiFi).
+
+#### `GET /olts/{olt}/onus/{slot}/{port}/{onuId}/acs-clients`
+
+Hasil di-cache server **30 detik** per device; kirim `?fresh=1` untuk membuang cache itu (tombol
+"muat ulang").
+
+```bash
+curl "https://nms.example.com/api/v1/olts/1/onus/1/1/5/acs-clients" \
+  -H "Authorization: Bearer $TOKEN" -H "Accept: application/json"
+```
+
+```json
+{
+  "ok": true,
+  "error": null,
+  "device_id": "D05FAF-FD512XW-R460-CDTCAF0012E6",
+  "product_class": "FD512XW-R460",
+  "last_inform_at": "2026-10-07T10:15:00+07:00",
+  "active_count": 3,
+  "unknown_count": 2,
+  "total_count": 41,
+  "wifi_networks": [
+    { "index": "1", "label": "SSID 1", "ssid": "WIFI-RUMAH", "enabled": true, "security": "11i", "connected": 3 }
+  ],
+  "hosts": [
+    {
+      "hostname": "HP-Teknisi",
+      "ip_address": "192.168.1.20",
+      "mac_address": "AA:BB:CC:DD:EE:10",
+      "interface_type": "802.11",
+      "active": true,
+      "active_source": "wifi"
+    }
+  ],
+  "fetched_at": "2026-10-07T10:16:02+07:00"
+}
+```
+
+- Contoh di atas diringkas: tiap `wifi_networks[]` juga memuat `password` (bila ONU
+  melaporkannya), `clients`, `channel`, `frequency`, dll.
+- `wifi_networks[].index` berupa **string** (dipakai apa adanya sebagai `wlan_index` saat menulis);
+  `enabled` diteruskan **apa adanya dari perangkat** — bisa boolean, string `"1"`, atau `"N/A"`
+  bila ONU tak melaporkannya, jadi jangan bandingkan dengan `=== true`.
+- `active_source` menerangkan dari mana status itu diketahui: `wifi` (terlihat di tabel asosiasi
+  WiFi), `device` (dari field `Active` perangkat), atau `null` (tidak diketahui).
+
+> ⚠️ `hosts` berasal dari `InternetGatewayDevice…Hosts.Host`, yang sebenarnya **tabel sewa DHCP**,
+> bukan daftar perangkat yang sedang tersambung — satu ONU bisa memuat 253 entri padahal hanya 11
+> yang aktif. Server sudah menandai `active`; klien sebaiknya menampilkan `active === true` saja dan
+> memakai `active_count`. Nilai **`null`** berarti perangkat itu tidak melaporkan statusnya —
+> **jangan** diperlakukan sebagai `false`.
+
+Gagal → HTTP `422` dengan `{"ok": false, "error": "..."}`: `not_linked` (ONU belum berpasangan —
+keadaan normal, bukan kerusakan), `not_configured` (alamat NBI belum diisi di Pengaturan), atau
+galat NBI (mis. `unreachable`). Bentuk respons gagal tetap lengkap (semua field ada, `hosts`
+kosong), jadi klien tak perlu membedakan skema.
+
+#### `POST /olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi` (tulis)
+
+Satu-satunya endpoint API yang **menulis ke perangkat pelanggan**. Berada di grup tulis
+(`role:admin,operator,partner` + `BlockDemoWrites`), tetapi controller tetap menolak partner
+dengan `403` (aturan akses di atas). Dicatat ke audit (`genieacs.wifi.updated`/`.failed`,
+`channel: mobile`; kata sandinya tidak ikut dicatat). Validasi gagal → `422` Laravel biasa
+(`errors`).
+
+```bash
+curl -X POST "https://nms.example.com/api/v1/olts/1/onus/1/1/5/acs-wifi" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"ssid":"WIFI-RUMAH","password":"rahasia12345","wlan_index":1}'
+# → { "ok": true, "error": null, "device_id": "…", "wlan_index": 1, "ssid": "WIFI-RUMAH" }
+```
+
+| Field | Wajib | Aturan |
+|---|---|---|
+| `ssid` | ya | 1–32 karakter |
+| `password` | ya | **8–63 karakter** (WPA-PSK; lebih pendek ditolak ONU dengan CWMP fault) |
+| `wlan_index` | ya | 1–8 — indeks SSID, ambil dari `wifi_networks` pada `/acs-clients` |
+| `security_mode` | tidak | default `WPA2PSK` |
+
+Perubahan dikirim lewat TR-069 dan **baru berlaku setelah ONU menerimanya**; perangkat yang
+sedang tersambung akan terputus sesaat. Kode gagal (`422`): `not_linked`, `not_configured`, galat
+NBI (mis. `unreachable`), `write_failed` (ONU menolak perintahnya).
+
+> **Penyematan manual pasangan ONU↔device ACS belum ada di API** — hanya di web.
 
 ---
 

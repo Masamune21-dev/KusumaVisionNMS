@@ -40,7 +40,9 @@ app/
 │   ├── AggregateOnuRxCommand.php   optical:aggregate-rx (RX per jam)
 │   ├── PruneOnuRxSamplesCommand.php optical:prune-rx (retensi RX)
 │   ├── TelegramWebhookCommand.php  telegram:webhook {set|info|delete}
-│   └── TelnetProxyCommand.php      telnet:proxy (daemon WS↔telnet)
+│   ├── TelnetProxyCommand.php      telnet:proxy (daemon WS↔telnet)
+│   ├── GenieacsMatchOnuCommand.php genieacs:match-onu (tiap 15 menit; --dry-run)
+│   └── GenieacsUnlinkedReportCommand.php genieacs:unlinked-report (ONU belum ter-ACS per merk)
 │
 ├── Contracts/
 │   ├── SmartOltSnmpDriver.php      Kontrak driver SNMP non-ZTE (ping, ports, ONU, RX, uncfg)
@@ -64,10 +66,11 @@ app/
 │   │   ├── LocaleController.php / PanduanController.php (/panduan)
 │   │   ├── TelegramWebhookController.php / TelnetSessionController.php
 │   │   ├── Partner/TelegramBotController.php (bot Telegram milik partner)
+│   │   ├── GenieacsController.php       GenieACS: perangkat terhubung, ubah WiFi, cari/semat/lepas, tarik ulang
 │   │   ├── Concerns/ManagesOltOwnership.php
 │   │   ├── Api/V1/…                     REST API v1 (Auth, Summary, Olt, Onu, OnuAction,
 │   │   │                                OnuRegistration, UnconfiguredOnu, Alarm, Search, Odp, Map,
-│   │   │                                Device, PublicStatus)
+│   │   │                                Device, PublicStatus, Genieacs)
 │   │   └── Auth/…                       Breeze (login, lupa/reset password, verifikasi email,
 │   │                                    konfirmasi & ganti password; RegisteredUserController ada
 │   │                                    tapi tidak dirutekan)
@@ -93,6 +96,7 @@ app/
 │   ├── OnuRxSample  OnuRxHourly  OnuMapPin  Odp  OnuOdpLink
 │   ├── TelegramSetting  PartnerTelegramBot  FcmSetting  FcmDeviceToken  AcsSetting
 │   ├── GeneralSetting  User
+│   ├── GenieacsCredential  GenieacsDeviceMap   NBI GenieACS (singleton) + hasil pencocokan
 │   ├── Concerns/Auditable.php          Trait audit otomatis
 │   ├── Concerns/TelegramBotConfigTrait.php
 │   ├── Scopes/DemoScope.php            Global scope is_demo
@@ -141,7 +145,16 @@ app/
 │   ├── Map/OnuMapPayloadService.php    Payload pin peta (dipakai web & API)
 │   ├── Odp/OdpPhotoService.php         Foto ODP → WebP via cwebp
 │   ├── Dashboard/DashboardStatsService.php  Agregasi data dashboard
-│   └── Report/ReportService.php        Bangun data laporan + filter
+│   ├── Report/ReportService.php        Bangun data laporan + filter
+│   └── Genieacs/                       Jembatan TR-069, opsional (lihat 20)
+│       ├── GenieACSService.php         Klien NBI 7557 (Basic auth & https opsional)
+│       ├── GenieACSParserService.php   Parse pohon parameter TR-069 → bentuk tampil
+│       ├── GenieacsOnuMatcher.php      Aturan pencocokan MURNI (tanpa HTTP/DB)
+│       ├── GenieacsDeviceSyncService.php Tarik katalog + simpan hasil (PROJECTION wajib)
+│       ├── GenieacsManualPinService.php  Semat/lepas manual berbasis identitas + cari device
+│       ├── GenieacsMapService.php      Lookup lencana ter-ACS (1 query/request)
+│       ├── GenieacsDeviceDetailService.php Perangkat terhubung (cache 30 dtk)
+│       └── GenieacsWifiService.php     Ubah SSID & kata sandi (satu-satunya jalur tulis)
 │
 └── Support/                 Util tanpa state
     ├── SmartOltSupport.php   Driver key, capabilities, pola interface, bersih nama
@@ -191,14 +204,15 @@ web.php       Route aplikasi (auth-protected) + landing + /locale + telegram web
 api.php       REST API v1 (/api/v1, Sanctum)
 auth.php      Breeze: login, lupa/reset password, verifikasi email, konfirmasi & ganti password,
               logout (tanpa rute registrasi)
-console.php   Jadwal: olts:poll, optical:*, sanctum:prune-expired, olts:backup-config
+console.php   Jadwal: olts:poll, optical:*, sanctum:prune-expired, olts:backup-config,
+              genieacs:match-onu
 channels.php  Broadcast channel privat user
 ```
 
 ## `lang/` — string backend (`__()`)
 
 `lang/{id,en}/*.php`: `flash`, `reports`, `system`, grup error per domain `olt, zte, cdata, hioso,
-odp, common`; `lang/id` juga memuat `auth, validation, pagination, passwords`. Dijaga
+odp, acs, common`; `lang/id` juga memuat `auth, validation, pagination, passwords`. Dijaga
 `tests/Unit/LangParityTest`.
 
 ## `resources/` — frontend
@@ -224,7 +238,7 @@ resources/
     │   ├── Map/  Odp/  Reports/  Settings/  Users/  AuditLogs/  Profile/  Panduan/
     │   └── Partner/TelegramBot · Auth/* (Login, ForgotPassword, ResetPassword, …)
     ├── Components/            Komponen reusable (dasar, Dashboard/*, Shell/*, SmartOlt/*, Map/*,
-    │                          CDataOlt/*)
+    │                          CDataOlt/*, Genieacs/* + OnuAcsBadge)
     ├── Composables/           useConfirm, useLocale, usePagination, useRxLevel
     └── lib/                   theme, datetime, alarm, onu, odpColors, oltImage, linediff, …
 ```

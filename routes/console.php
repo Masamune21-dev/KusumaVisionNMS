@@ -18,3 +18,8 @@ Schedule::command('optical:prune-rx')->dailyAt('03:15')->withoutOverlapping();
 // yang terkait ikut terhapus lewat FK cascade, jadi ponselnya berhenti dikirimi alarm.
 Schedule::command('sanctum:prune-expired --hours=24')->dailyAt('03:40');
 Schedule::command('olts:backup-config')->dailyAt('02:30')->withoutOverlapping();
+// Pencocokan device GenieACS ke posisi ONU. Sengaja 15 menit, BUKAN tiap menit:
+// peta ONU tidak berubah secepat itu dan server ini sudah sibuk oleh poller SNMP.
+// Satu jalannya menarik ±688 KB dari NBI (projection ringan) dan selesai <1 detik.
+// Tanpa NBI di Pengaturan perintah ini selesai diam-diam (bukan kegagalan).
+Schedule::command('genieacs:match-onu')->everyFifteenMinutes()->withoutOverlapping(10)->runInBackground();

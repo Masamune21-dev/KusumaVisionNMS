@@ -27,6 +27,9 @@
              ▼
  OLT: ZTE C300/C320/C600 · C-Data EPON/GPON (FD1xxx/FD16xx) · HiOSO EPON (HA7304/HA7302)
 
+ (opsional) Laravel ──HTTP NBI :7557 (jaringan privat)──► GenieACS ◄──CWMP :7547── ONU
+            genieacs:match-onu (15 mnt) · perangkat terhubung · ubah WiFi
+
 Penyimpanan: PostgreSQL `kusumavision_nms` (inventory, registrasi, alarm, audit, ODP/peta, setelan)
              Redis (cache, sesi, queue, tiket telnet) · snmp_olts.last_test_result = cache live-state
 ```
@@ -57,6 +60,8 @@ Aksi yang dipicu user dijalankan langsung di controller/service, **tidak lewat q
   RX per-port, reboot/hapus ONU, deskripsi & matikan/nyalakan port PON, Save Config, backup
   config manual → CLI telnet (`ZteCliProvisioningExecutor`, `CDataCliWriteService`,
   `HiosoCliWriteService`, `CDataGponPortService`) atau SNMP SET (rename/enable-disable ZTE).
+- **(opsional) GenieACS**: panel perangkat terhubung, ubah WiFi, dan tarik ulang katalog →
+  HTTP ke NBI GenieACS (`GenieacsCredential::client()`). Daftar ONU **tidak** pernah memanggil ACS.
 
 Request bisa lama (beberapa detik; `write` C300 bisa ~30 detik) — **disengaja**, hasilnya
 ditulis ke cache dan langsung dipakai render. Aksi on-demand yang mahal diberi
@@ -78,6 +83,7 @@ Frontend mem-poll endpoint status task sampai selesai.
 | harian 03:15 | `optical:prune-rx` | Retensi RX (mentah 3 hari, per jam 45 hari) |
 | harian 03:40 | `sanctum:prune-expired --hours=24` | Buang token API kedaluwarsa (token FCM terkait ikut terhapus lewat FK cascade) |
 | harian 02:30 | `olts:backup-config` | `BackupOltConfigJob` untuk OLT ZTE ber-`config_backup_enabled` |
+| tiap 15 menit, `withoutOverlapping(10)`, `runInBackground` | `genieacs:match-onu` | Cocokkan device GenieACS ↔ posisi ONU ke `genieacs_device_map`; tanpa NBI di Pengaturan selesai diam-diam |
 
 Unconfigured discovery **tidak** ikut polling terjadwal — hanya diperbarui saat Refresh Discovery.
 
@@ -145,7 +151,8 @@ Tidak ada tabel ONU. State terkini OLT disimpan sebagai **satu blob JSON** per O
 ### Side-store di luar cache
 Data yang harus selamat dari scan/poll disimpan di tabel sendiri yang menunjuk ONU/port lewat
 **referensi posisi** `(snmp_olt_id, slot, port[, onu_id])`: `onu_map_pins`, `odps` +
-`onu_odp_links`, dan `olt_port_labels`. Riwayat RX ada di
+`onu_odp_links`, `olt_port_labels`, dan `genieacs_device_map` (pasangan ONU↔device GenieACS).
+Riwayat RX ada di
 `onu_rx_samples`/`onu_rx_hourly`; kartu & interface ZTE hasil CLI di
 `smartolt_card_statuses`/`smartolt_interface_statuses`. Lihat [05](05-database-model.md).
 
@@ -201,7 +208,8 @@ tetap tercatat walau saklar alarm OLT off). Ringkasan perilaku — detail di
   port-onus, search, unconfigured, alarm (+ blok `target` dari resolver yang sama dengan bel web),
   ODP, peta; token perangkat FCM (`devices`) didaftarkan di grup bertoken ini juga. Tulis (grup
   `role:admin,operator,partner` + `BlockDemoWrites`): register & refresh ONU (ZTE),
-  reboot/rename/hapus ONU per family, warna & foto ODP.
+  reboot/rename/hapus ONU per family, warna & foto ODP. Opsional GenieACS: `acs-clients` (baca) &
+  `acs-wifi` (tulis), keduanya hanya admin/operator di controller; ONU di API membawa field `acs`.
 - Aplikasi `mobile/` (Flutter) memakai API ini + push FCM. Dokumentasi endpoint: `docs/API.md`.
 - `POST auth/login` (throttle 10/menit) memeriksa password lokal (`Hash::check`) lalu menerbitkan
   token Sanctum; grup bertoken memakai `['auth:sanctum', 'throttle:api']`. Token berakses penuh
@@ -242,6 +250,19 @@ via `AuditLogger`. Aksi perangkat (bind ONU, matikan port, telnet dibuka, dll.) 
 `AuditLogger::log()` eksplisit. Event login/logout/failed dicatat di `AppServiceProvider::boot()`.
 Atribut sensitif (`$hidden`, password, dan `$auditExclude` per-model) tidak ikut tersimpan.
 Catatan: hapus ODP **tidak** tercatat di `audit_logs`.
+
+## Integrasi GenieACS / TR-069 (opsional)
+
+- NMS **tidak** menjalankan GenieACS; ia memakai server GenieACS yang sudah ada dan membaca **NBI**
+  (port 7557) yang alamatnya diisi admin di Pengaturan → tab ACS / TR069 (`genieacs_credentials`).
+  ONU tetap berbicara CWMP (7547) langsung ke ACS.
+- **NBI GenieACS tanpa autentikasi** dan bisa mengedit *provision script* — jangan pernah dibuka ke
+  internet atau di-proxy ke browser; jangkau lewat jaringan privat/VPN/reverse proxy berautentikasi.
+- Hasil pencocokan (serial persis, MAC ±1, atau semat manual) disimpan di `genieacs_device_map`;
+  halaman ONU hanya membaca tabel itu. Yang memanggil NBI hanyalah `genieacs:match-onu`, tombol tarik
+  ulang katalog, panel perangkat terhubung, ubah WiFi, dan Uji koneksi di Pengaturan.
+- Hanya OLT global non-demo yang dipasangkan; katalog ACS hanya untuk staf Pusat (admin/operator,
+  `User::canManageAcs()`). Detail di [20 — GenieACS / TR-069](20-genieacs-tr069.md).
 
 ## Selanjutnya
 

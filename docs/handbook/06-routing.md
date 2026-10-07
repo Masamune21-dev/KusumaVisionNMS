@@ -105,6 +105,8 @@ menu Users atau `php artisan user:create`. Login sukses/gagal tercatat di audit 
 | POST | `/settings/general` | `updateGeneral` | `settings.general.update` |
 | PUT | `/settings/alarm` | `updateAlarm` — kebijakan alarm terpusat (`alarm_settings`) untuk Telegram & push | `settings.alarm.update` |
 | PUT | `/settings/acs` | `updateAcs` — URL **CWMP** yang ditanam ke ONU saat registrasi TR069 | `settings.acs.update` |
+| PUT | `/settings/genieacs` | `updateGenieacs` — alamat **NBI** GenieACS yang dibaca dasbor (kata sandi kosong = pertahankan) | `settings.genieacs.update` |
+| POST | `/settings/genieacs/test` | `testGenieacs` — uji koneksi NBI memakai pengaturan tersimpan | `settings.genieacs.test` |
 | PUT | `/settings/telegram` | `updateTelegram` (koneksi bot saja; filter alarm di tab Alarm) | `settings.telegram.update` |
 | POST | `/settings/telegram/test` | `testTelegram` | `settings.telegram.test` |
 | POST | `/settings/telegram/webhook/register` | `registerWebhook` | `settings.telegram.webhook.register` |
@@ -136,6 +138,27 @@ Satu rute untuk C-Data dan HiOSO; menyimpan label port di DB NMS (`olt_port_labe
 perangkat. Gated `canManageOlt()` + capability `supports_port_label` → **ZTE ditolak 403** (ZTE
 menulis deskripsi portnya ke OLT lewat `smartolt.port.description`). Lihat
 [07 Modul & Fitur §4c](07-modul-fitur.md#4c-label-port-pon-sisi-nms-family-non-zte).
+
+### GenieACS / TR-069 (opsional)
+Satu set rute untuk **semua family** — posisi ONU sudah cukup mengenali perangkatnya, pola yang
+sama dengan `onu-odp.assign` dan `olt.port-label.store`. Kepemilikan OLT ditegakkan otomatis oleh
+route-model binding + `PartnerOltScope`. Controller: `GenieacsController`.
+
+| Method | URI | Aksi | Nama | Akses |
+|--------|-----|------|------|-------|
+| GET | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-clients` | `connectedDevices` (memanggil NBI, cache 30 dtk) | `genieacs.onu.clients` | auth |
+| POST | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi` | `updateWifi` (menulis ke ONU + audit) | `genieacs.onu.wifi` | `role:admin,operator,partner` |
+| GET | `/genieacs/devices` | `searchDevices` (tabel lokal, tanpa NBI) | `genieacs.devices.search` | `role:admin,operator,partner` |
+| POST | `/genieacs/devices/refresh` | `refreshDevices` (tarik ulang katalog ACS sekarang, memanggil NBI) | `genieacs.devices.refresh` | `role:admin,operator,partner` + `throttle:olt-refresh` |
+| POST | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-pin` | `pin` (semat manual + audit) | `genieacs.onu.pin` | `role:admin,operator,partner` |
+| DELETE | `/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-pin` | `unpin` (+ audit) | `genieacs.onu.unpin` | `role:admin,operator,partner` |
+
+Gerbang `role:` di atas **tidak cukup** — partner ikut lolos. Semua aksi lebih dulu dijaga
+`authorizeAcsCatalog()` di controller: `User::canManageAcs()` (admin/operator) untuk cari & tarik
+ulang, dan `User::canUseAcsCatalogOn($olt)` (= `canManageAcs()` + OLT global non-demo) untuk aksi pada satu ONU;
+selain itu 403. Pencarian device tetap dibatasi peran walau hanya membaca tabel lokal — isinya
+memuat **nama secret PPPoE pelanggan**. Padanan API: `api.onus.acs-clients` & `api.onus.acs-wifi`.
+Detail di [20 — GenieACS / TR-069](20-genieacs-tr069.md#9-izin--rute).
 
 ### SmartOLT (inti, ZTE) — semua `auth`
 > Aksi tulis tambahan dijaga `assertCapability()` (driver) & `BlockDemoWrites` (demo read-only).
@@ -287,12 +310,14 @@ transport CLI telnet, dan tercatat di audit log. Lihat
 | harian 02:30 | `olts:backup-config` (`withoutOverlapping`) | backup running-config OLT ZTE yang saklarnya aktif |
 | harian 03:15 | `optical:prune-rx` (`withoutOverlapping`) | buang sampel RX lama; **menolak jalan** bila ringkasan belum mencapai batas |
 | harian 03:40 | `sanctum:prune-expired --hours=24` | buang sesi aplikasi kedaluwarsa (token push FCM ikut terhapus) |
+| tiap 15 menit | `genieacs:match-onu` (`withoutOverlapping(10)`, `runInBackground`) | cocokkan device GenieACS ↔ posisi ONU; tanpa NBI di Pengaturan selesai diam-diam |
 
 Scheduler harus jalan (`schedule:work` di supervisor / cron `schedule:run`), kalau tidak ringkasan RX
 berhenti dan pemangkasan ikut tertahan. Di file yang sama ada command bawaan `inspire`.
 
 Command artisan kustom: `user:create`, `api:token`, `olts:poll`, `olts:backup-config`,
-`optical:aggregate-rx`, `optical:prune-rx`, `telegram:webhook {set|info|delete}`, `telnet:proxy`.
+`optical:aggregate-rx`, `optical:prune-rx`, `telegram:webhook {set|info|delete}`, `telnet:proxy`,
+`genieacs:match-onu`, `genieacs:unlinked-report`.
 Lihat [03 Struktur Folder](03-struktur-folder.md) & [08](08-snmp-polling.md)/[09](09-cli-telnet.md)/[10](10-alarm-telegram.md).
 
 ## Broadcast channel (`routes/channels.php`)

@@ -6,6 +6,7 @@ use App\Http\Controllers\CDataGponPortController;
 use App\Http\Controllers\CDataOltController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
+use App\Http\Controllers\GenieacsController;
 use App\Http\Controllers\HiosoOltController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
@@ -108,6 +109,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
         Route::put('/settings/alarm', [SettingsController::class, 'updateAlarm'])->name('settings.alarm.update');
         Route::put('/settings/acs', [SettingsController::class, 'updateAcs'])->name('settings.acs.update');
+        // NBI GenieACS (7557) — terpisah dari ACS di atas yang menyimpan URL CWMP.
+        Route::put('/settings/genieacs', [SettingsController::class, 'updateGenieacs'])->name('settings.genieacs.update');
+        Route::post('/settings/genieacs/test', [SettingsController::class, 'testGenieacs'])->name('settings.genieacs.test');
         Route::put('/settings/telegram', [SettingsController::class, 'updateTelegram'])->name('settings.telegram.update');
         Route::post('/settings/telegram/test', [SettingsController::class, 'testTelegram'])->name('settings.telegram.test');
         Route::post('/settings/telegram/webhook/register', [SettingsController::class, 'registerWebhook'])->name('settings.telegram.webhook.register');
@@ -206,6 +210,43 @@ Route::middleware('auth')->group(function () {
     Route::delete('/map/odps/{odp}/photo', [OdpController::class, 'destroyPhoto'])->name('map.odps.photo.destroy');
     Route::get('/odp/{odp}/photo', [OdpController::class, 'photo'])->name('odp.photo');
     Route::post('/onu-odp', [OdpController::class, 'assignOnu'])->name('onu-odp.assign');
+
+    // Perangkat terhubung pada satu ONU, dibaca dari GenieACS. Satu rute untuk
+    // SEMUA family — posisi ONU sudah cukup mengenali perangkatnya. Memanggil
+    // NBI, jadi hanya dipanggil saat tombol ditekan, tidak saat merender daftar.
+    Route::get('/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-clients', [GenieacsController::class, 'connectedDevices'])
+        ->whereNumber(['slot', 'port', 'onuId'])
+        ->name('genieacs.onu.clients');
+
+    // Ubah SSID & kata sandi WiFi — SATU-SATUNYA aksi GenieACS yang menulis ke
+    // perangkat pelanggan, jadi dibatasi peran tulis (lebih ketat dari aksi ONU
+    // lain yang hanya ber-`auth`) dan dicatat ke audit di controller.
+    Route::post('/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi', [GenieacsController::class, 'updateWifi'])
+        ->middleware('role:admin,operator,partner')
+        ->whereNumber(['slot', 'port', 'onuId'])
+        ->name('genieacs.onu.wifi');
+    // Penyematan manual pasangan ONU↔device ACS. Pencariannya hanya membaca
+    // tabel lokal (tak memanggil NBI), tapi isinya memuat nama secret PPPoE
+    // pelanggan — jadi tetap dibatasi peran tulis, sama seperti aksi menyemat.
+    Route::get('/genieacs/devices', [GenieacsController::class, 'searchDevices'])
+        ->middleware('role:admin,operator,partner')
+        ->name('genieacs.devices.search');
+
+    // Tarik ulang katalog ACS sekarang (ONU yang baru di-set TR069 belum ada di
+    // tabel lokal sampai jadwal 15 menit berikutnya). Memanggil NBI → throttle.
+    Route::post('/genieacs/devices/refresh', [GenieacsController::class, 'refreshDevices'])
+        ->middleware(['role:admin,operator,partner', 'throttle:olt-refresh'])
+        ->name('genieacs.devices.refresh');
+
+    Route::post('/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-pin', [GenieacsController::class, 'pin'])
+        ->middleware('role:admin,operator,partner')
+        ->whereNumber(['slot', 'port', 'onuId'])
+        ->name('genieacs.onu.pin');
+
+    Route::delete('/olts/{olt}/onus/{slot}/{port}/{onuId}/acs-pin', [GenieacsController::class, 'unpin'])
+        ->middleware('role:admin,operator,partner')
+        ->whereNumber(['slot', 'port', 'onuId'])
+        ->name('genieacs.onu.unpin');
     // Halaman pengelolaan ODP — prefix rute sengaja `odp.*` (bukan `map.odps.index`) supaya
     // penanda menu aktif `map.*` milik Peta ONU tidak ikut menyala.
     Route::get('/odp', [OdpController::class, 'index'])->name('odp.index');

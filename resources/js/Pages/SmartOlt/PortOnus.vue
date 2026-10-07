@@ -8,6 +8,10 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import ConnectedDevicesModal from '@/Components/Genieacs/ConnectedDevicesModal.vue';
+import WifiSettingsModal from '@/Components/Genieacs/WifiSettingsModal.vue';
+import AcsPinCell from '@/Components/Genieacs/AcsPinCell.vue';
+import PinDeviceModal from '@/Components/Genieacs/PinDeviceModal.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
 import ClientPagination from '@/Components/Shell/ClientPagination.vue';
@@ -19,7 +23,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -65,11 +69,37 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    // Penanda ter-ACS per ONU, ber-key onu_id. Dinamai `genieacs_map` dan BUKAN
+    // `acs` karena prop `acs` di atas sudah dipakai endpoint ACS untuk modal
+    // TR069 Massal — dua hal berbeda.
+    genieacs_map: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
+const acsFor = (onu) => props.genieacs_map?.[onu.onu_id] ?? null;
+
+// Panel "perangkat terhubung" — hanya untuk ONU yang sudah berpasangan dengan
+// device GenieACS; datanya diambil saat panel dibuka, bukan saat tabel dirender.
+const clientsOnu = ref(null);
+const openClients = (onu) => { clientsOnu.value = onu; };
+
+const wifiOnu = ref(null);
+const openWifi = (onu) => { wifiOnu.value = onu; };
+
+// Penyematan manual pasangan ONU↔device ACS. Dibuka dari kolom ACS pada baris
+// mana pun — termasuk yang sudah berpasangan, karena pasangan yang meleset
+// justru yang perlu dibetulkan.
+const pinOnu = ref(null);
+const openPin = (onu) => { pinOnu.value = onu; };
 
 const page = usePage();
+
+// Katalog ACS (WiFi, perangkat terhubung, pin) milik staf Pusat — partner yang
+// di-assign OLT ini tetap melihat penanda ter-ACS, tapi tanpa tombolnya.
+const canUseAcs = computed(() => Boolean(page.props.auth?.can?.manage_acs));
 const flash = computed(() => page.props.flash ?? {});
 const caps = computed(() => props.olt.capabilities ?? {});
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
@@ -773,6 +803,10 @@ const rxBadgeClass = (value) => {
                                         <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || '—' }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">{{ $t('portonus.col_acs') }}</span>
+                                        <AcsPinCell :acs="acsFor(onu)" :can-manage="canUseAcs" @pin="openPin(onu)" />
+                                    </div>
+                                    <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('portonus.col_odp') }}</span>
                                         <OnuOdpCell
                                             :onu="onu"
@@ -811,6 +845,16 @@ const rxBadgeClass = (value) => {
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
+                                    <IconButton v-if="acsFor(onu) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(onu)">
+                                        <Wifi class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="acsFor(onu) && canUseAcs"
+                                        class="order-last" :title="$t('acsclients.action')"
+                                        @click="openClients(onu)"
+                                    >
+                                        <Laptop class="h-4 w-4" />
+                                    </IconButton>
                                     <IconButton
                                         v-if="caps.supports_onu_info_write"
                                         :title="$t('portonus.act_edit_info')"
@@ -887,13 +931,14 @@ const rxBadgeClass = (value) => {
                                     </th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_acs') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu_rx') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_phase') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_admin') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_last_down') }}</th>
-                                    <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_actions') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_actions') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-white/5">
@@ -918,6 +963,9 @@ const rxBadgeClass = (value) => {
                                     </td>
                                     <td class="px-4 py-3">
                                         <span class="font-mono text-xs text-slate-200">{{ onu.serial_number || '—' }}</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <AcsPinCell :acs="acsFor(onu)" :can-manage="canUseAcs" @pin="openPin(onu)" />
                                     </td>
                                     <td class="px-4 py-3">
                                         <OnuOdpCell
@@ -969,7 +1017,17 @@ const rxBadgeClass = (value) => {
                                         <span :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </td>
                                     <td class="px-4 py-3">
-                                        <div class="flex items-center justify-center gap-1.5">
+                                        <div class="grid w-max grid-flow-col grid-rows-2 gap-1.5">
+                                            <IconButton v-if="acsFor(onu) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(onu)">
+                                                <Wifi class="h-4 w-4" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="acsFor(onu) && canUseAcs"
+                                                class="order-last" :title="$t('acsclients.action')"
+                                                @click="openClients(onu)"
+                                            >
+                                                <Laptop class="h-4 w-4" />
+                                            </IconButton>
                                             <IconButton
                                                 v-if="caps.supports_onu_info_write"
                                                 :title="$t('portonus.act_edit_info')"
@@ -1247,6 +1305,38 @@ const rxBadgeClass = (value) => {
         </Modal>
 
         <Tr069BulkModal v-if="canTr069" :show="tr069ModalOpen" :olt="olt" :slot="slot" :port="port" :acs="acs" @close="tr069ModalOpen = false" />
+
+        <WifiSettingsModal
+            :show="wifiOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="wifiOnu?.onu_id ?? 0"
+            :onu-label="wifiOnu ? `${wifiOnu.interface || ''}` : ''"
+            @close="wifiOnu = null"
+        />
+
+        <ConnectedDevicesModal
+            :show="clientsOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="clientsOnu?.onu_id ?? 0"
+            :onu-label="clientsOnu ? `${clientsOnu.interface || ''} · ${clientsOnu.serial_number || ''}` : ''"
+            @close="clientsOnu = null"
+        />
+
+        <PinDeviceModal
+            :show="pinOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="pinOnu?.onu_id ?? 0"
+            :onu-label="pinOnu ? `${pinOnu.interface || ''} · ${pinOnu.serial_number || ''}` : ''"
+            :acs="pinOnu ? acsFor(pinOnu) : null"
+            @close="pinOnu = null"
+            @saved="router.reload({ only: ['genieacs_map', 'flash'] })"
+        />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
     </AuthenticatedLayout>

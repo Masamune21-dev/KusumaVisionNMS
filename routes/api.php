@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AlarmController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DeviceController;
+use App\Http\Controllers\Api\V1\GenieacsController as ApiGenieacsController;
 use App\Http\Controllers\Api\V1\MapController;
 use App\Http\Controllers\Api\V1\OdpController;
 use App\Http\Controllers\Api\V1\OltController;
@@ -71,6 +72,12 @@ Route::prefix('v1')->group(function () {
             ->whereNumber(['slot', 'port', 'onuId'])
             ->name('api.olts.onu.show');
 
+        // Perangkat yang terhubung ke satu ONU, dibaca dari GenieACS. Memanggil
+        // NBI, jadi hanya dipanggil saat layar detail dibuka.
+        Route::get('olts/{olt}/onus/{slot}/{port}/{onuId}/acs-clients', [ApiGenieacsController::class, 'connectedDevices'])
+            ->whereNumber(['slot', 'port', 'onuId'])
+            ->name('api.onus.acs-clients');
+
         Route::get('olts/{olt}/unconfigured', [UnconfiguredOnuController::class, 'index'])
             ->name('api.olts.unconfigured');
         Route::get('olts/{olt}/register/options', [OnuRegistrationController::class, 'options'])
@@ -112,6 +119,11 @@ Route::prefix('v1')->group(function () {
             Route::post('olts/{olt}/onus/{slot}/{port}/{onuId}/name', [OnuActionController::class, 'rename'])
                 ->whereNumber(['slot', 'port', 'onuId'])
                 ->name('api.olts.onu.name');
+
+            // Ubah SSID & kata sandi WiFi lewat GenieACS (bukan CLI OLT).
+            Route::post('olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi', [ApiGenieacsController::class, 'updateWifi'])
+                ->whereNumber(['slot', 'port', 'onuId'])
+                ->name('api.onus.acs-wifi');
             Route::delete('olts/{olt}/onus/{slot}/{port}/{onuId}', [OnuActionController::class, 'delete'])
                 ->whereNumber(['slot', 'port', 'onuId'])
                 ->name('api.olts.onu.delete');

@@ -37,6 +37,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 | 16 | [Peta ONU & ODP](16-peta-onu.md) | Peta Leaflet pin ONU/ODP lintas-OLT, tile Google keyless, warna/foto ODP, tambah pin & aksi |
 | 17 | [C-Data GPON: SNMP walk & inventory](17-cdata-gpon-snmp-walk.md) | Peta OID NSCRTV (FD1608S & FD1601S/FD1602S), inventory ONU via SNMP, CLI enrich, faceplate |
 | 18 | [Docker Appliance](18-docker-appliance.md) | Kemas seluruh stack jadi container, install lengkap di 1 PC (seperti NetNumen), bagikan ke banyak lokasi |
+| 20 | [GenieACS / TR-069](20-genieacs-tr069.md) | Jembatan opsional ke ACS TR-069: pencocokan ONU↔device, penyematan manual, perangkat terhubung, ubah WiFi, izin & keamanan NBI |
 
 ---
 
@@ -50,6 +51,7 @@ Handbook ini ditujukan untuk developer/maintainer agar mudah **menambah fitur**,
 - **Mau paham alur data SNMP/polling?** Baca [02 Arsitektur](02-arsitektur.md) lalu [08 SNMP & Polling](08-snmp-polling.md).
 - **Mau menambah dukungan vendor/fitur OLT?** [02 §Driver & capability](02-arsitektur.md#driver--capability-gating),
   [08](08-snmp-polling.md), [09](09-cli-telnet.md), lalu guide vendor di `docs/`.
+- **Urusan TR-069 / GenieACS?** [20 — GenieACS / TR-069](20-genieacs-tr069.md).
 - **Butuh panduan untuk pengguna/operator (bukan developer)?** PDF di [`docs/panduan/`](../panduan/).
 - **Setup mesin baru?** [04 — Instalasi & Deploy](04-instalasi-deploy.md).
 

@@ -38,7 +38,7 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
 
 ### Pesan error tampil bahasa lain / kunci mentah (`olt.telnet_forbidden`)
 - **Latar**: sejak 30 Sep 2026 teks error/status backend lewat `__('grup.kunci')` di
-  `lang/{id,en}/{olt,zte,cdata,hioso,odp,common,reports,system}.php` (+ `flash.php`), frontend
+  `lang/{id,en}/{olt,zte,cdata,hioso,odp,acs,common,reports,system}.php` (+ `flash.php`), frontend
   lewat `resources/js/lang/{id,en}.json`.
 - **Kunci tampil mentah** → kuncinya belum ada di grup itu (atau salah nama grup). **Tampil Inggris
   padahal locale `id`** → kunci lupa ditaruh di `lang/id`: `APP_FALLBACK_LOCALE=en` diam-diam jatuh ke
@@ -206,6 +206,67 @@ di-commit ikut hilang, dan gejalanya baru terlihat setelah build berikutnya.
 
 ---
 
+## GenieACS / TR-069
+
+### Rute ACS baru 404/405
+`bootstrap/cache/routes-v7.php` mencakup **web dan API**. Jalankan `php artisan route:cache`
+setelah menambah rute; tanpa itu tombolnya mati diam walau test hijau.
+
+### Uji koneksi GenieACS gagal / semua ONU "Belum" ter-ACS
+1. **Pengaturan → tab ACS / TR069 → GenieACS (NBI)**: host & port (bawaan 7557) sudah **disimpan**?
+   Uji koneksi memakai nilai tersimpan, bukan isi form. Pesan galat terakhir ada di kartu itu.
+2. Dari server NMS: `curl -s "http://<host-nbi>:7557/devices?limit=1"` (tambah `-u pengguna:sandi`
+   bila lewat reverse proxy berautentikasi) harus menjawab JSON. Gagal → masalah jalur
+   (firewall/VPN/reverse proxy), bukan NMS. Ingat: NBI **jangan** dibuka ke internet hanya supaya
+   tes ini lolos.
+3. `php artisan genieacs:match-onu --dry-run` — hitung pasangan tanpa menulis. "Belum dikonfigurasi"
+   = host kosong; "Pencocokan gagal" = NBI tak terjangkau.
+4. Device ada tapi tak satu pun cocok lewat MAC → virtual parameter `PonMac` tidak didefinisikan di
+   GenieACS (hanya serial yang bisa cocok). PPPoE/IP kosong → `pppoeUsername`/`IPTR069` tidak ada.
+   Lihat [20 §1](20-genieacs-tr069.md#1-topologi--peringatan-keamanan).
+5. ONU di OLT privat partner atau OLT demo **memang** tak pernah dipasangkan (disengaja).
+
+### Partner melihat lencana ACS tapi tanpa tombol / mendapat 403
+Disengaja: katalog ACS hanya untuk admin/operator (`User::canManageAcs()`) pada OLT global non-demo.
+Partner yang di-assign OLT global tetap melihat lencana + PPPoE/IP. Lihat
+[20 §9](20-genieacs-tr069.md#9-izin--rute).
+
+### Kunci i18n mentah tampil di layar (mis. `acsclients.title`)
+Sama dengan kasus umum di [Frontend / Vite](#kunci-i18n-mentah-tampil-di-layar-mis-portdetailtitle):
+kunci belum ada di kedua `resources/js/lang/{id,en}.json`, atau bundelnya belum di-build ulang.
+
+### Semua lencana ACS kuning ("lama diam") padahal ONU normal
+Dua sebab: (1) `_lastInform` dari NBI berformat **UTC** dan tidak dikonversi ke zona waktu aplikasi —
+seluruh armada jadi tertinggal 7 jam; (2) ambang `GenieacsMapService::ONLINE_THRESHOLD_SECONDS`
+diturunkan dari **7200**. Ambang itu bukan soal perangkat melainkan `last_inform_at` yang hanya
+disegarkan penjadwal tiap 15 menit — pastikan scheduler juga berjalan. Lihat
+[20 §6](20-genieacs-tr069.md#6-lencana-ter-acs-di-tabel-onu).
+
+### Tombol modal ACS ditekan, tak ada yang muncul
+Modal dibungkus `v-if` pada keadaan terbuka. `Modal.vue` membuka dialog di dalam watcher `show` —
+komponen yang baru di-mount saat `show` sudah `true` tidak pernah memicu watcher itu.
+Lihat [12 Frontend](12-frontend.md#komponen-resourcesjscomponents).
+
+### Tombol "TR069 Massal" mati di halaman ONU per port ZTE
+Prop lencana ACS dinamai `acs` sehingga menimpa prop `acs` milik TR069 Massal. Nama yang benar:
+**`genieacs_map`**.
+
+### `genieacs:match-onu` lambat / memakan bandwidth besar
+`GenieacsDeviceSyncService::PROJECTION` dilepas atau ditambahi jalur. Dengan projection: ±761 KB /
+0,25 dtk untuk ±2.200 device; tanpa: ±124 MB / ±19 dtk. Tiap jalur tambahan ±290 KB.
+
+### Laporan `genieacs:unlinked-report` ikut menghitung ONU partner/demo
+`PartnerOltScope` **tidak berlaku di konteks konsol**. Penyaringannya eksplisit di `scopedOlts()`;
+pakai `--include-partner`/`--include-demo` hanya bila memang diinginkan.
+
+### Pasangan ACS menunjuk pelanggan yang salah setelah ONU dipindah/diganti
+Pin manual menyimpan **identitas** (serial/MAC), bukan posisi, dan posisinya diturunkan ulang tiap
+sinkronisasi. Kalau ONU diganti unit, pinnya ditandai `manual_stale` dan pasangannya dilepas —
+periksa barisnya, lalu semat ulang ke device baru. ONU yang **tak punya serial maupun MAC** hanya
+bisa disematkan lewat posisi (`manual_ref_type = position`) dan memang tidak tahan pindah port.
+
+---
+
 ## Alarm & port PON
 
 ### Port PON dimatikan dari NMS & Save Config
@@ -307,6 +368,8 @@ php artisan route:cache                 # WAJIB setelah menambah rute (lihat di 
 ./vendor/bin/pint                      # code style
 bash scripts/test.sh                   # PHPUnit — SELALU lewat skrip ini (lihat bagian troubleshooting)
 php artisan horizon                    # dashboard queue (dev)
+php artisan genieacs:match-onu --dry-run   # cek pencocokan GenieACS tanpa menulis (opsional)
+php artisan genieacs:unlinked-report       # ONU belum ter-ACS per merk (tabel lokal saja)
 ```
 
 ## Selanjutnya

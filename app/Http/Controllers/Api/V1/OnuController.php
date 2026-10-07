@@ -106,7 +106,7 @@ class OnuController extends Controller
      */
     public function show(SnmpOlt $olt, int $slot, int $port, int $onuId): JsonResponse
     {
-        $onu = $this->inventory->findOne($olt, $slot, $port, $onuId, withOdp: true);
+        $onu = $this->inventory->findOne($olt, $slot, $port, $onuId, withOdp: true, withAcs: true);
 
         if ($onu === null) {
             return response()->json([

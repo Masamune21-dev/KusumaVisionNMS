@@ -36,6 +36,8 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 | `fcm_settings` | `FcmSetting` | Singleton saklar kanal push mobile (filter alarm ikut `alarm_settings`) |
 | `personal_access_tokens` | — (Sanctum) | Token API: sesi aplikasi Android & token integrasi |
 | `acs_settings` | `AcsSetting` | Singleton default ACS/TR069 (`url`, `username`, `password`) — URL **CWMP** yang ditanam ke ONU saat registrasi TR069 |
+| `genieacs_credentials` | `GenieacsCredential` | Singleton alamat **NBI** GenieACS yang dibaca dasbor (`host`, `port`, `username`, `password`, status uji) — beda peran dari `acs_settings` |
+| `genieacs_device_map` | `GenieacsDeviceMap` | Hasil pencocokan device GenieACS ↔ posisi ONU (+ pin manual berbasis identitas), unik per `device_id` |
 | `telegram_settings` | `TelegramSetting` | Singleton koneksi bot Telegram global (filter alarm ikut `alarm_settings`) |
 | `general_settings` | `GeneralSetting` | Singleton branding (nama app, versi, logo) |
 | `audit_logs` | `AuditLog` | Jejak audit immutable |
@@ -44,7 +46,8 @@ DB produksi: **PostgreSQL** (`kusumavision_nms`). Test: **SQLite in-memory**. Mi
 Tabel lama `zones`/`onu_zone_links` sudah di-drop (`2026_07_25_000001_drop_zones_tables`).
 
 > Detail tabel Peta/ODP di [16 — Peta ONU & ODP](16-peta-onu.md); backup config di
-> [09 — CLI & Telnet](09-cli-telnet.md); FCM/alarm di [10 — Alarm & Telegram](10-alarm-telegram.md).
+> [09 — CLI & Telnet](09-cli-telnet.md); FCM/alarm di [10 — Alarm & Telegram](10-alarm-telegram.md);
+> tabel GenieACS di [20 — GenieACS / TR-069](20-genieacs-tr069.md#2-pengaturan-dua-tabel-dua-peran-yang-sering-tertukar).
 
 ## Konsep lintas-model penting
 
@@ -52,20 +55,23 @@ Tabel lama `zones`/`onu_zone_links` sudah di-drop (`2026_07_25_000001_drop_zones
 `SnmpOlt` (`snmp_read_community`, `snmp_write_community`, `cli_password`),
 `SmartOltOnuRegistration` (`pppoe_password`, `acs_password`),
 `TelegramSetting` & `PartnerTelegramBot` (`bot_token`, `webhook_secret`),
-`AcsSetting` (`password`), dan `OltConfigBackup` (`content`) memakai cast `encrypted` (+ `$hidden`
-untuk secret yang bisa ikut terserialisasi).
+`AcsSetting` (`password`), `GenieacsCredential` (`password`), dan `OltConfigBackup` (`content`)
+memakai cast `encrypted` (+ `$hidden` untuk secret yang bisa ikut terserialisasi).
 Enkripsi pakai `APP_KEY` → **jangan ganti APP_KEY** tanpa migrasi, atau secret jadi tak terbaca.
 
 Saat edit OLT, field secret kosong **tidak menimpa** nilai lama —
 `SmartOltController::withoutEmptySecrets()`.
 
 ### 1b. Tabel yang hanya menyimpan **referensi** ONU
-`onu_map_pins` dan `onu_odp_links` sama-sama menunjuk ONU lewat
+`onu_map_pins`, `onu_odp_links`, dan `genieacs_device_map` sama-sama menunjuk ONU lewat
 `(snmp_olt_id, slot, port, onu_id)` — bukan lewat foreign key, karena **tidak ada tabel ONU**.
 Konsekuensinya: baris bisa menggantung saat ONU dipindah/dicabut, dan tiap tabel menangani itu
 sendiri (mis. Bind ONU memperbarui `serial_number` di `onu_odp_links`/`onu_map_pins` pada posisi
-yang sama — `SmartOltController`). `olt_port_labels` memakai pola yang sama untuk port
-(`snmp_olt_id, slot, port`).
+yang sama — `SmartOltController`). `genieacs_device_map` menanganinya dengan menyimpan
+**identitas** ONU pada pin manual (`manual_ref_type`/`manual_ref`) lalu menurunkan posisinya ulang
+tiap sinkronisasi; pin yang identitasnya hilang ditandai `manual_stale`. Lihat
+[20](20-genieacs-tr069.md#5-penyematan-manual--yang-disimpan-identitas-bukan-posisi).
+`olt_port_labels` memakai pola yang sama untuk port (`snmp_olt_id, slot, port`).
 
 ### 2. Cache live-state JSON: `snmp_olts.last_test_result`
 Kolom `json` (cast `array`) menyimpan snapshot terkini OLT + ONU per port (`port_onus`), daftar
@@ -229,6 +235,22 @@ dan tidak tercatat di `audit_logs`.** Detail di [16](16-peta-onu.md).
 sisi-NMS untuk C-Data/HiOSO (capability `supports_port_label`); tidak pernah ditulis ke OLT dan
 sengaja di luar `last_test_result` supaya selamat dari scan.
 
+### `genieacs_credentials` (singleton)
+`host`, `port` (=7557), `username` (null = NBI tanpa autentikasi), `password` (enc, `$hidden`),
+`role` (dari `/users` NBI saat uji), `is_connected`, `last_test_at`, `last_test_error`. Helper:
+`instance()`, `isConfigured()`, `client()` (klien NBI, null bila host kosong). `Auditable`.
+Diisi admin di Pengaturan → tab ACS / TR069; **berbeda** dari `acs_settings` (URL CWMP yang ditanam
+ke ONU). Detail di [20](20-genieacs-tr069.md).
+
+### `genieacs_device_map`
+`device_id` (unik), `serial_number`, `pon_mac` (12 hex huruf kecil), `manufacturer`,
+`product_class`, `pppoe_username`, `tr069_ip`, posisi `snmp_olt_id`/`slot`/`port`/`onu_id` (null =
+belum tercocok), `match_method` (`serial`|`mac`|`manual`), `matched_at`, pin manual
+`manual_ref_type`/`manual_ref`/`manual_stale`/`manual_by`/`manual_at`, `last_inform_at` (dikonversi
+ke zona waktu aplikasi). Ditulis `genieacs:match-onu` (upsert per `device_id`; device yang hilang
+dari ACS dihapus) dan penyematan manual. **Tanpa** `PartnerOltScope` — akses dijaga
+`User::canManageAcs()`/`canUseAcsCatalogOn()` di controller.
+
 ### `general_settings` (singleton)
 `app_name`, `app_version`, `logo_path`. `brandingPayload()` di-cache 1 jam (key
 `general_settings.branding`), dishare ke frontend lewat `HandleInertiaRequests`. Cache di-flush
@@ -249,7 +271,8 @@ last_notifications_read_at`. `role` cast ke `UserRole`. `theme` null = belum mem
 Method izin: `isAdmin/isOperator/isPartner/isDemo`, `isOltScoped`, `canManageOlt`,
 `canManageOltInventory`, `canAddOlt`, `ownsOlt`, `isCentralStaff` (admin/operator),
 `canEditOltConnection`, `canAccessOltSecrets` (telnet & isi backup config),
-`canSetPonPortAdminState`, `canManageUsers` (admin saja). Detail di [11](11-keamanan-rbac-audit.md).
+`canSetPonPortAdminState`, `canManageUsers` (admin saja), `canManageAcs` (= `isCentralStaff`) &
+`canUseAcsCatalogOn` (katalog GenieACS). Detail di [11](11-keamanan-rbac-audit.md).
 
 ## Membuat migrasi/model baru
 

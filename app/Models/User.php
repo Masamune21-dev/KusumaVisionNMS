@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Enums\UserRole;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\PartnerOltScope;
+use App\Services\Genieacs\GenieacsDeviceSyncService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -218,6 +219,26 @@ class User extends Authenticatable
     public function isCentralStaff(): bool
     {
         return in_array($this->role, [UserRole::Admin, UserRole::Operator], true);
+    }
+
+    /**
+     * Boleh memakai katalog GenieACS: mencari device, menyematkan, dan menarik
+     * ulang katalog. ACS di Pengaturan milik staf Pusat, jadi partner dan demo
+     * tidak punya — katalognya memuat device seluruh pelanggan.
+     */
+    public function canManageAcs(): bool
+    {
+        return $this->isCentralStaff();
+    }
+
+    /**
+     * Boleh membaca/menulis lewat ACS pada ONU di OLT ini (pin, perangkat
+     * terhubung, WiFi): staf Pusat, dan hanya pada OLT yang memakai ACS — OLT
+     * global non-demo ({@see GenieacsDeviceSyncService::isEligibleOlt()}).
+     */
+    public function canUseAcsCatalogOn(SnmpOlt $olt): bool
+    {
+        return $this->canManageAcs() && GenieacsDeviceSyncService::isEligibleOlt($olt);
     }
 
     /**

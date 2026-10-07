@@ -19,6 +19,7 @@ use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Services\AlarmEvaluator;
 use App\Services\Fcm\FcmAlarmNotifier;
+use App\Services\Genieacs\GenieacsMapService;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
@@ -405,7 +406,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService): Response
+    public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService, GenieacsMapService $genieacsMap): Response
     {
         return Inertia::render('SmartOlt/PortOnus', [
             'olt' => $this->serializeOlt($olt),
@@ -425,6 +426,9 @@ class SmartOltController extends Controller
             // Kolom ODP di tabel ONU.
             'odps' => $odpService->odpsForOlt($olt, $slot, $port),
             'odp_links' => $odpService->linksForPort($olt, $slot, $port),
+            // Penanda ter-ACS per ONU — dibaca dari tabel lokal genieacs_device_map,
+            // TIDAK memanggil GenieACS saat merender.
+            'genieacs_map' => $genieacsMap->forPort($olt->id, $slot, $port),
         ]);
     }
 

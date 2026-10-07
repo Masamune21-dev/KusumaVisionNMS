@@ -5,6 +5,10 @@ import IconButton from '@/Components/IconButton.vue';
 import OltPortLabel from '@/Components/OltPortLabel.vue';
 import PortOnuStats from '@/Components/CDataOlt/PortOnuStats.vue';
 import PortSwitcher from '@/Components/CDataOlt/PortSwitcher.vue';
+import ConnectedDevicesModal from '@/Components/Genieacs/ConnectedDevicesModal.vue';
+import WifiSettingsModal from '@/Components/Genieacs/WifiSettingsModal.vue';
+import AcsPinCell from '@/Components/Genieacs/AcsPinCell.vue';
+import PinDeviceModal from '@/Components/Genieacs/PinDeviceModal.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -14,7 +18,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
-import { ArrowLeft, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
+import { ArrowLeft, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -30,10 +34,26 @@ const props = defineProps({
     pinned_onu_ids: { type: Array, default: () => [] },
     odps: { type: Array, default: () => [] },
     odp_links: { type: Object, default: () => ({}) },
+    // Penanda ter-ACS per ONU (ber-key onu_id), dari tabel lokal genieacs_device_map.
+    genieacs_map: { type: Object, default: () => ({}) },
     port_labels: { type: Object, default: () => ({}) },
 });
 
 const odpIdFor = (onu) => props.odp_links?.[onu.onu_id]?.odp_id ?? null;
+const acsFor = (onu) => props.genieacs_map?.[onu.onu_id] ?? null;
+
+// Panel "perangkat terhubung" — hanya untuk ONU yang sudah berpasangan di ACS.
+const clientsOnu = ref(null);
+const openClients = (onu) => { clientsOnu.value = onu; };
+
+const wifiOnu = ref(null);
+const openWifi = (onu) => { wifiOnu.value = onu; };
+
+// Penyematan manual pasangan ONU↔device ACS. Dibuka dari kolom ACS pada baris
+// mana pun — termasuk yang sudah berpasangan, karena pasangan yang meleset
+// justru yang perlu dibetulkan.
+const pinOnu = ref(null);
+const openPin = (onu) => { pinOnu.value = onu; };
 
 const page = usePage();
 
@@ -75,6 +95,9 @@ const refresh = () => router.post(route('hioso-olt.port-onus.refresh', [props.ol
 
 const caps = computed(() => props.olt.capabilities ?? {});
 const canManage = computed(() => Boolean(page.props.auth?.can?.manage_olt));
+// Katalog ACS (WiFi, perangkat terhubung, pin) milik staf Pusat — partner yang
+// di-assign OLT ini tetap melihat penanda ter-ACS, tapi tanpa tombolnya.
+const canUseAcs = computed(() => Boolean(page.props.auth?.can?.manage_acs));
 const canReboot = computed(() => canManage.value && caps.value.supports_reboot);
 const canRename = computed(() => canManage.value && caps.value.supports_onu_info_write);
 const canToggle = computed(() => canManage.value && caps.value.supports_onu_toggle);
@@ -326,11 +349,12 @@ const viewOnMap = (onu) => {
                                     <tr class="border-b border-white/10 bg-canvas-3/40">
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">ONU</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_serial_mac') }}</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_acs') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_name') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('portonus.col_odp') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.status') }}</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('cdataportonus.col_rx') }}</th>
-                                        <th v-if="hasActions" class="px-4 py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
+                                        <th v-if="hasActions" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $t('common.actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-white/5">
@@ -342,6 +366,9 @@ const viewOnMap = (onu) => {
                                         <td class="px-4 py-3">
                                             <div class="font-mono text-xs text-slate-200">{{ o.serial_number || o.mac || '—' }}</div>
                                             <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
                                         </td>
                                         <td class="px-4 py-3 text-xs text-slate-200">{{ o.name || '—' }}</td>
                                         <td class="px-4 py-3">
@@ -365,7 +392,13 @@ const viewOnMap = (onu) => {
                                             {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
                                         </td>
                                         <td v-if="hasActions" class="px-4 py-3">
-                                            <div class="flex justify-center gap-1.5">
+                                            <div class="grid w-max grid-flow-col grid-rows-2 gap-1.5">
+                                                <IconButton v-if="acsFor(o) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
+                                                    <Wifi class="h-4 w-4" />
+                                                </IconButton>
+                                                <IconButton v-if="acsFor(o) && canUseAcs" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
+                                                    <Laptop class="h-4 w-4" />
+                                                </IconButton>
                                                 <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>
@@ -402,6 +435,7 @@ const viewOnMap = (onu) => {
                                 <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
                                 <div class="mt-2 flex items-center justify-between text-xs">
                                     <span class="font-mono text-slate-400">{{ o.serial_number || o.mac || '—' }}</span>
+                                    <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
                                 </div>
                                 <div class="mt-2 flex items-center gap-2 text-xs">
@@ -416,6 +450,12 @@ const viewOnMap = (onu) => {
                                     />
                                 </div>
                                 <div v-if="hasActions" class="mt-3 flex gap-2">
+                                    <IconButton v-if="acsFor(o) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
+                                        <Wifi class="h-4 w-4" />
+                                    </IconButton>
+                                    <IconButton v-if="acsFor(o) && canUseAcs" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
+                                        <Laptop class="h-4 w-4" />
+                                    </IconButton>
                                     <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
@@ -440,6 +480,38 @@ const viewOnMap = (onu) => {
                 </div>
             </div>
         </div>
+
+        <WifiSettingsModal
+            :show="wifiOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="wifiOnu?.onu_id ?? 0"
+            :onu-label="wifiOnu ? `${wifiOnu.interface || ''}` : ''"
+            @close="wifiOnu = null"
+        />
+
+        <ConnectedDevicesModal
+            :show="clientsOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="clientsOnu?.onu_id ?? 0"
+            :onu-label="clientsOnu ? `${clientsOnu.interface || ''} · ${clientsOnu.serial_number || clientsOnu.mac || ''}` : ''"
+            @close="clientsOnu = null"
+        />
+
+        <PinDeviceModal
+            :show="pinOnu !== null"
+            :olt-id="olt.id"
+            :slot="slot"
+            :port="port"
+            :onu-id="pinOnu?.onu_id ?? 0"
+            :onu-label="pinOnu ? `${pinOnu.interface || ''} · ${pinOnu.serial_number || pinOnu.mac || ''}` : ''"
+            :acs="pinOnu ? acsFor(pinOnu) : null"
+            @close="pinOnu = null"
+            @saved="router.reload({ only: ['genieacs_map', 'flash'] })"
+        />
 
         <ConfirmModal :state="confirmState" @confirm="handleConfirm" @cancel="handleCancel" />
 

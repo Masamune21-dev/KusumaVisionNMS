@@ -34,7 +34,7 @@ terkait di handbook ini, lalu ikuti pola yang sudah ada di kode (jangan mencipta
 - **Backend**: pesan error/status (exception yang diteruskan ke UI, `abort`, `'message'`/`'error'`
   JSON, `->with()` flash, pesan validasi kustom) **jangan ditulis literal** — pakai
   `__('grup.kunci', [...])`. Grup: `lang/{id,en}/flash.php` (flash controller), `reports.php`
-  (CSV/PDF), `system.php`, dan grup per domain `olt, zte, cdata, hioso, odp, common`. Teks `id` baru
+  (CSV/PDF), `system.php`, dan grup per domain `olt, zte, cdata, hioso, odp, acs, common`. Teks `id` baru
   harus konsisten dengan gaya lama (test berjalan di locale `id`).
 - `tests/Unit/LangParityTest` menjaga: kunci & placeholder `id` = `en` di tiap grup, dan setiap
   `__('grup.kunci')` literal di `app/` ada di kedua bahasa (`APP_FALLBACK_LOCALE=en`).
@@ -196,6 +196,10 @@ Lihat [10 — Alarm & Telegram](10-alarm-telegram.md).
    `WithoutOverlapping` seperti `PollOltJob`.
 3. Jadwalkan di `routes/console.php` (`Schedule::command(...)->...`).
 4. Di prod, pastikan worker/scheduler supervisor jalan; setelah ubah kode → `queue:restart`.
+5. Perintah terjadwal untuk modul **opsional** (mis. `genieacs:match-onu`) keluar `SUCCESS` tanpa
+   berbuat apa-apa selama modulnya belum dikonfigurasi — jangan bikin log penjadwal berisik di
+   instalasi yang tak memakainya. Data lintas-OLT di konsol disaring eksplisit (`PartnerOltScope`
+   tidak berlaku di sana), lihat [11](11-keamanan-rbac-audit.md).
 
 ---
 

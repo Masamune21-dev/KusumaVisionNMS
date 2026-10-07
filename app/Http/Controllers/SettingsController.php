@@ -8,6 +8,7 @@ use App\Models\AlarmSetting;
 use App\Models\FcmDeviceToken;
 use App\Models\FcmSetting;
 use App\Models\GeneralSetting;
+use App\Models\GenieacsCredential;
 use App\Models\TelegramSetting;
 use App\Models\User;
 use App\Services\Fcm\FcmAlarmNotifier;
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -56,6 +58,10 @@ class SettingsController extends Controller
                 'default_url' => (string) config('services.acs.url', ''),
                 'default_username' => (string) config('services.acs.username', ''),
             ],
+            // NBI GenieACS (7557) — peran berbeda dari `acs` di atas, yang menyimpan
+            // URL CWMP (7547) untuk ditanam ke ONU. Password tidak pernah dikirim
+            // ke browser; form hanya tahu `password_set`.
+            'genieacs' => $this->genieacsPayload(),
             'appInfo' => $this->appInfoPayload(),
             'mobileApk' => $this->mobileApkPayload(),
             // Kebijakan alarm TERPUSAT (tab Alarm) — dipakai bersama kanal Telegram & push mobile.
@@ -328,6 +334,113 @@ class SettingsController extends Controller
         $setting->save();
 
         return back()->with('success', __('flash.acs_saved'));
+    }
+
+    /**
+     * Ringkasan pengaturan NBI GenieACS untuk halaman Pengaturan.
+     *
+     * Password TIDAK pernah ikut; form hanya tahu `password_set`.
+     * Defensif terhadap tabel yang belum dimigrasi (fresh checkout).
+     *
+     * @return array<string, mixed>
+     */
+    private function genieacsPayload(): array
+    {
+        try {
+            $setting = GenieacsCredential::instance();
+        } catch (\Throwable) {
+            $setting = new GenieacsCredential;
+        }
+
+        return [
+            'host' => (string) ($setting->host ?? ''),
+            'port' => (int) ($setting->port ?: 7557),
+            'username' => (string) ($setting->username ?? ''),
+            'password_set' => filled($setting->password),
+            'role' => (string) ($setting->role ?? ''),
+            'is_connected' => (bool) $setting->is_connected,
+            'last_test_at' => $setting->last_test_at?->toIso8601String(),
+            'last_test_error' => (string) ($setting->last_test_error ?? ''),
+        ];
+    }
+
+    public function updateGenieacs(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'host' => ['required', 'string', 'max:255'],
+            'port' => ['required', 'integer', 'between:1,65535'],
+            'username' => ['nullable', 'string', 'max:100'],
+            'password' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $setting = GenieacsCredential::instance();
+        $setting->host = trim($validated['host']);
+        $setting->port = (int) $validated['port'];
+        $setting->username = filled($validated['username'] ?? null) ? $validated['username'] : null;
+
+        // Field password kosong berarti "pertahankan password lama".
+        if (filled($validated['password'] ?? null)) {
+            $setting->password = $validated['password'];
+        }
+
+        // Target berpindah → status koneksi lama tidak lagi menggambarkan apa pun.
+        if ($setting->exists && $setting->isDirty(['host', 'port', 'username'])) {
+            $setting->is_connected = false;
+            $setting->last_test_at = null;
+            $setting->last_test_error = null;
+        }
+
+        $setting->save();
+
+        return back()->with('success', __('flash.genieacs_saved'));
+    }
+
+    /**
+     * Uji koneksi ke NBI memakai pengaturan TERSIMPAN (sama seperti uji AI &
+     * Telegram): simpan dulu, baru uji. Hasilnya dicatat di baris pengaturan
+     * supaya UI bisa menampilkan status terakhir tanpa memanggil ACS lagi.
+     */
+    public function testGenieacs(): RedirectResponse
+    {
+        $setting = GenieacsCredential::instance();
+
+        if (blank($setting->host)) {
+            return back()->with('error', __('flash.genieacs_not_configured'));
+        }
+
+        $ok = false;
+        $role = null;
+        $error = null;
+
+        try {
+            $client = GenieacsCredential::client();
+            $ok = $client?->testConnection() ?? false;
+
+            if ($ok) {
+                $role = $client?->getUserRole();
+            }
+        } catch (\Throwable $e) {
+            $ok = false;
+            $error = $e->getMessage();
+        }
+
+        $setting->is_connected = $ok;
+        $setting->last_test_at = now();
+        $setting->last_test_error = $ok
+            ? null
+            : Str::limit((string) ($error ?: __('flash.genieacs_unreachable')), 500);
+
+        if ($ok && filled($role)) {
+            $setting->role = $role;
+        }
+
+        $setting->save();
+
+        if ($ok) {
+            return back()->with('success', __('flash.genieacs_test_ok'));
+        }
+
+        return back()->with('error', __('flash.genieacs_test_failed').($setting->last_test_error ?? ''));
     }
 
     /**

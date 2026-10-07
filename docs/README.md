@@ -36,6 +36,9 @@ alarm, laporan, pengguna & hak akses, pengaturan, aplikasi Android, praktik aman
   *Building the Android APK from scratch.*
 - [LOCAL_PRODUCTION_HARDENING.md](LOCAL_PRODUCTION_HARDENING.md) — contoh hardening nginx, PHP-FPM, SSH, UFW.
   *Server hardening baseline (May 2026, with an update note).*
+- [handbook/20-genieacs-tr069.md §1](handbook/20-genieacs-tr069.md#1-topologi--peringatan-keamanan) — menghubungkan
+  NMS ke server GenieACS yang sudah ada (opsional); NBI port 7557 **jangan** dibuka ke internet.
+  *Connecting an existing GenieACS (optional); never expose its NBI.*
 - [DEMO_DEPLOYMENT.md](DEMO_DEPLOYMENT.md) — mode demo (data contoh, akun read-only).
   *Demo mode with sample data and read-only accounts.*
 - [INSTALLATION_STATUS.md](INSTALLATION_STATUS.md) — catatan historis instalasi pertama (Mei 2026).
@@ -45,7 +48,8 @@ alarm, laporan, pengguna & hak akses, pengaturan, aplikasi Android, praktik aman
 
 ## 3. Integrator — aplikasi lain yang membaca/menulis data NMS
 
-- [API.md](API.md) — REST API v1: token, endpoint baca & tulis, format error, contoh kode.
+- [API.md](API.md) — REST API v1: token, endpoint baca & tulis, format error, contoh kode
+  (termasuk perangkat terhubung & ubah WiFi lewat GenieACS, §3.16).
   *REST API v1: tokens, endpoints, errors, code samples.*
 
 ## 4. Referensi teknis per vendor OLT
@@ -82,6 +86,8 @@ FD1601S, FD1602S) & EPON (FD1304E), HiOSO HA7304/HA7302. V-Sol tidak didukung; H
   *UI design system and theme rules.*
 - [handbook/15-ui-tema-dashboard.md](handbook/15-ui-tema-dashboard.md) — aturan membuat halaman/komponen baru.
   *Rules for new pages and components.*
+- [handbook/20-genieacs-tr069.md](handbook/20-genieacs-tr069.md) — jembatan GenieACS / TR-069: pencocokan
+  ONU↔device, penyematan manual, perangkat terhubung, ubah WiFi, izin. *GenieACS / TR-069 bridge.*
 - [mobile/DESIGN_REVAMP_PLAN.md](../mobile/DESIGN_REVAMP_PLAN.md) — rencana & prinsip desain aplikasi Android.
   *Android app design plan.*
 - [WORKLOG.md](../WORKLOG.md) — riwayat pekerjaan, entri terbaru di atas. *Change history, newest first.*

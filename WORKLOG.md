@@ -1,5 +1,63 @@
 # Worklog
 
+## 2026-10-07 — Integrasi GenieACS / TR-069 (NBI): Kolom ACS, Pin Manual, Perangkat Terhubung, Ubah WiFi
+
+### Created
+
+- **Pengaturan → tab ACS / TR069 → kartu "GenieACS (NBI)"**: host, port (bawaan 7557), pengguna & kata sandi NBI,
+  tombol Uji koneksi (hasil & role terakhir disimpan). Tabel baru `genieacs_credentials` (satu baris, password
+  `encrypted` + `$hidden`, form hanya tahu `password_set`). Berbeda peran dari `acs_settings` (URL CWMP yang
+  ditanam ke ONU untuk registrasi TR069 & TR069 Massal). Rute `settings.genieacs.update` / `settings.genieacs.test`.
+- **Katalog device** `genieacs_device_map` + perintah `genieacs:match-onu` (terjadwal tiap 15 menit; tanpa NBI di
+  Pengaturan selesai tanpa galat). Pencocokan serial persis atau MAC PON selisih ±1, projection ringan (±700 KB
+  untuk ±2.200 device). Hasil disimpan, jadi halaman ONU tak pernah memanggil ACS saat dirender.
+  `genieacs:unlinked-report` untuk ONU yang belum berpasangan.
+- **Kolom ACS** di halaman ONU per port ZTE, C-Data, dan HiOSO (prop `genieacs_map`): lencana Terhubung (inform
+  ≤ 2 jam) / Lama diam / Belum, plus PPPoE & IP TR-069 (IP jadi tautan tab baru). Monitoring ONU: kolom + filter
+  ACS. REST API: field `acs` di daftar ONU per port dan detail ONU.
+- **Pin manual** (`Components/Genieacs/PinDeviceModal.vue`): cari device (PPPoE, serial, MAC, IP), sematkan/lepas,
+  tombol ambil ulang katalog (kunci + jeda 20 dtk). Pin menyimpan IDENTITAS ONU (serial → MAC → posisi), jadi ikut
+  saat ONU pindah port dan dilepas + ditandai basi bila ONU diganti unit. Dicatat di Log Audit.
+- **Perangkat terhubung** (`ConnectedDevicesModal.vue`, dibaca langsung dari NBI saat dibuka; tabel `Hosts.Host`
+  disaring ke yang benar-benar aktif lewat tabel asosiasi WiFi + `Active`) dan **ubah SSID/kata sandi WiFi**
+  (`WifiSettingsModal.vue`, 8–63 karakter, termasuk jalur `X_CMS_KeyPassphrase` C-Data; kata sandi tak ikut dicatat
+  di audit).
+- Endpoint web `genieacs.*` dan API `api.onus.acs-clients` / `api.onus.acs-wifi` (grup tulis + `BlockDemoWrites`).
+  Layar ACS di aplikasi Android BELUM disertakan — menyusul di paket terpisah.
+- Panduan dalam aplikasi: bagian baru "GenieACS / TR-069", `monitoring_i3` (filter ACS), `pengaturan_i6`
+  (kartu NBI).
+
+### Security
+
+- Katalog ACS memuat device seluruh pelanggan, jadi **hanya staf Pusat (admin/operator)**: `User::canManageAcs()`.
+  Aksi per ONU juga mensyaratkan OLT global non-demo (`User::canUseAcsCatalogOn()`,
+  `GenieacsDeviceSyncService::isEligibleOlt()`). Partner yang di-assign OLT global hanya melihat lencana; tombol
+  disembunyikan lewat prop bersama `auth.can.manage_acs` dan server menjawab 403.
+- Indeks pencocokan dibangun dari `GenieacsDeviceSyncService::eligibleOlts()` (OLT global non-demo, tanpa global
+  scope): tarik-ulang dari akun ter-scope tak lagi bisa melepas pasangan OLT lain, dan ONU di OLT privat partner
+  tak pernah dipasangkan ke katalog ini. Pencarian pemilih pin menyembunyikan device yang dipegang OLT tak
+  terlihat, dan device seperti itu tak bisa "diambil" lewat pin.
+- NBI GenieACS 7557 **tanpa autentikasi** bisa mengedit provision script — jangan pernah dibuka ke internet;
+  jangkau lewat jaringan privat/VPN (lihat `docs/handbook/20-genieacs-tr069.md`).
+
+- Dokumen: bab handbook baru `20-genieacs-tr069.md` (topologi & peringatan NBI, prasyarat virtual parameter
+  `PonMac`/`pppoeUsername`/`IPTR069`, pencocokan, pin, izin, rute, troubleshooting); `API.md` §3.16 + field `acs`
+  di §3.4/§3.5; handbook 01–03, 05–07, 11–14, `docs/README.md`, `README.md`/`README.id.md`, `CLAUDE.md`. PDF
+  panduan publik (id/en) dibangun ulang: bab baru "GenieACS dan TR-069" + kolom ACS di bab ZTE, C-Data/HiOSO,
+  Monitoring ONU, hak akses, Log Audit, kartu NBI di Pengaturan, dan REST API (39 → 42 halaman).
+
+### Notes
+
+- Migrasi aditif: `create_genieacs_credentials_table`, `create_genieacs_device_map_table`,
+  `add_manual_pin_to_genieacs_device_map_table`.
+- Verifikasi: PHPUnit 747 lulus (test baru GenieACS: pencocokan, pin manual + gerbang partner/demo/OLT privat,
+  perangkat terhubung, WiFi, Pengaturan, API mobile), Vitest 55 lulus, `kv-ui-check` 0 pelanggaran keras
+  (metrik naik: text-[Npx] +3, `<button>` mentah +3, backdrop-blur +1 — dari komponen GenieACS & kartu NBI yang
+  mengikuti pola kartu ACS). Semua `route()` ada di `route:list`; kunci `$t()` ada di kedua bahasa.
+- Playwright di server lokal (SQLite + `DemoSeeder` + OLT global fiktif + NBI palsu di localhost): uji koneksi,
+  kolom ACS, modal WiFi, perangkat terhubung, pin manual (tercatat di audit) sebagai admin; sebagai partner
+  lencana terlihat tanpa tombol dan API katalog 403; tanpa error console.
+
 ## 2026-10-05 — Halaman ONU per Port C-Data & HiOSO Disamakan dengan ZTE
 
 ### Changed

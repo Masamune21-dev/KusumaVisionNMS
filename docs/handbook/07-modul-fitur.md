@@ -164,6 +164,8 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - **Kolom ODP** — dropdown pilih ODP (splitter) per-ONU via komponen bersama
   `Components/OnuOdpCell.vue` (submit `onu-odp.assign`); ada di ketiga family
   (ZTE/C-Data/HiOSO). Detail di [16 — Peta ONU & ODP](16-peta-onu.md).
+- **Kolom ACS** (opsional, ketiga family) — lencana ter-GenieACS + PPPoE/IP dari prop `genieacs_map`,
+  tombol semat manual, perangkat terhubung, dan ubah WiFi. Lihat §14b.
 - **Hapus ONU massal** — centang beberapa ONU → `POST smartolt.port-onus.delete` (`deleteOnus`,
   maks 128, gate `supports_onu_delete`).
 - Semua aksi dijaga `assertCapability()` sesuai vendor (lihat `SmartOltSupport`).
@@ -210,6 +212,8 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - **Controller**: `onuMonitor`, `refreshOnuMonitor` · **Page**: `SmartOlt/OnuMonitor.vue`.
 - Agregasi cache `port_onus` dari **semua** OLT (status online/offline, RX power, serial, nama).
 - `refreshOnuMonitor` melakukan satu walk SNMP penuh OLT terkait lalu menulis cache per port.
+- Kolom & filter **ACS** (semua / sudah / belum ter-ACS) dari field `acs` tiap ONU, plus tombol
+  perangkat terhubung untuk admin/operator — tanpa penyematan manual (§14b).
 - Dipakai juga oleh global search (⌘K) lewat `DashboardSearchController`.
 
 ## 8. Unconfigured ONU
@@ -326,6 +330,27 @@ Rinciannya di [16 — Peta ONU & ODP](16-peta-onu.md); yang perlu diketahui saat
   (telnet, port PON, Bind ONU, dll. — daftar di [11 §D](11-keamanan-rbac-audit.md#d-audit-trail)).
   Hapus ODP **tidak** tercatat.
 
+## 14b. GenieACS / TR-069 (lintas halaman, opsional)
+
+Bukan halaman tersendiri — modul ini menempel di kolom **ACS** pada halaman ONU per port (ketiga
+family) dan Monitoring ONU. Dorman sampai admin mengisi alamat NBI di Pengaturan.
+
+- **Lencana ter-ACS** — dibaca dari tabel lokal `genieacs_device_map`, **tidak pernah** memanggil
+  ACS saat merender. Ambang "masih hidup" 2 jam (alasannya di
+  [20 §6](20-genieacs-tr069.md#6-lencana-ter-acs-di-tabel-onu)).
+- **Perangkat terhubung** — satu-satunya panel yang memanggil NBI saat dibuka; menampilkan
+  perangkat **aktif** saja, karena `Hosts.Host` sebenarnya tabel sewa DHCP.
+- **Ubah SSID & kata sandi WiFi** — satu-satunya aksi modul ini yang menulis ke perangkat
+  pelanggan (audit, tanpa kata sandi).
+- **Penyematan manual** — untuk ONU yang tak bisa dicocokkan otomatis (±33% pada armada yang
+  diukur) dan untuk membetulkan pasangan yang meleset. Yang disimpan **identitas ONU**, bukan
+  posisinya. Tersedia di halaman ONU per port saja; Monitoring ONU tetap baca-saja.
+- **Izin** — semua aksi di atas hanya untuk admin/operator (`User::canManageAcs()`) pada OLT global
+  non-demo. Partner yang di-assign OLT global tetap melihat lencana + PPPoE/IP, tapi tanpa tombol.
+
+Pengaturan koneksinya ada di **Pengaturan → tab ACS / TR069** (kartu GenieACS (NBI)). Selengkapnya:
+[20 — GenieACS / TR-069](20-genieacs-tr069.md).
+
 ## 15. Pengaturan (Settings)
 - **Controller**: `SettingsController` (`role:admin`) · **Page**: `Pages/Settings/Index.vue`. Tab:
   Umum · ACS · Alarm · Bot Telegram · Notifikasi Mobile · API.
@@ -342,7 +367,10 @@ Rinciannya di [16 — Peta ONU & ODP](16-peta-onu.md); yang perlu diketahui saat
   kosong = tak kedaluwarsa); daftar token sendiri + cabut. Token juga bisa diterbitkan lewat
   `php artisan api:token {email} --name=`. Lihat [`docs/API.md`](../API.md).
 - **ACS**: **URL CWMP** + username/password yang ditanam ke ONU saat provisioning TR069 / TR069
-  Massal (`acs_settings`, singleton; kosong = jatuh balik ke `ACS_*` di `.env`).
+  Massal (`acs_settings`, singleton; kosong = jatuh balik ke `ACS_*` di `.env`). Tab yang sama memuat
+  kartu **GenieACS (NBI)** — host/port/pengguna/kata sandi NBI yang dibaca dasbor
+  (`genieacs_credentials`) + tombol **Uji koneksi**. Dua tabel, dua peran; detail
+  [20](20-genieacs-tr069.md#2-pengaturan-dua-tabel-dua-peran-yang-sering-tertukar).
 
 ## 16. Browser Telnet
 - **Controller**: `TelnetSessionController@token` · **Page/Component**: `Components/Shell/TelnetWindow.vue`

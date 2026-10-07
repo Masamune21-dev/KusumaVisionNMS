@@ -10,7 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, Download, ImageUp, Info, KeyRound, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
+import { AlertTriangle, Bell, Building2, Check, CheckCircle2, Cloud, Copy, Cpu, Download, ImageUp, Info, KeyRound, Plug, Plus, Send, SlidersHorizontal, Smartphone, Trash2, Upload } from '@lucide/vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { alarmTypeLabel } from '@/lib/alarm';
@@ -20,6 +20,7 @@ const props = defineProps({
     appInfo: { type: Object, default: () => ({ description: '', owner: '', stack: [] }) },
     mobileApk: { type: Object, default: () => ({ available: false, url: null, version: null, size: null, updated_at: null }) },
     acs: { type: Object, default: () => ({ url: '', username: '', password_set: false, default_url: '', default_username: '' }) },
+    genieacs: { type: Object, default: () => ({ host: '', port: 7557, username: '', password_set: false, role: '', is_connected: false, last_test_at: null, last_test_error: '' }) },
     alarm: { type: Object, default: () => ({ confirm_before_notify: true }) },
     telegram: { type: Object, required: true },
     fcm: { type: Object, required: true },
@@ -115,6 +116,41 @@ const submitAcs = () => {
         onSuccess: () => acsForm.reset('password'),
     });
 };
+
+/* ------------------------------------------------------------------ */
+/* Tab: ACS — bagian GenieACS NBI (7557)                               */
+/* Peran berbeda dari ACS URL di atas: yang itu CWMP (7547) yang       */
+/* ditanam ke ONU, yang ini alamat NBI yang dibaca dashboard.          */
+/* ------------------------------------------------------------------ */
+const genieacsForm = useForm({
+    host: props.genieacs.host ?? '',
+    port: props.genieacs.port ?? 7557,
+    username: props.genieacs.username ?? '',
+    password: '',
+});
+
+const genieacsTesting = ref(false);
+
+const submitGenieacs = () => {
+    genieacsForm.put(route('settings.genieacs.update'), {
+        preserveScroll: true,
+        onSuccess: () => genieacsForm.reset('password'),
+    });
+};
+
+// Uji memakai pengaturan TERSIMPAN (sama seperti uji AI & Telegram), jadi
+// simpan dulu bila baru diubah.
+const testGenieacs = () => {
+    genieacsTesting.value = true;
+    router.post(route('settings.genieacs.test'), {}, {
+        preserveScroll: true,
+        onFinish: () => { genieacsTesting.value = false; },
+    });
+};
+
+const genieacsLastTest = computed(() =>
+    props.genieacs.last_test_at ? formatDateTime(props.genieacs.last_test_at) : '',
+);
 
 /* ------------------------------------------------------------------ */
 /* Tab: Alarm — PUSAT kebijakan alarm (dipakai Telegram + push mobile) */
@@ -543,6 +579,115 @@ const copyText = async (text, key) => {
 
                         <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
                             <PrimaryButton :disabled="acsForm.processing">{{ $t('common.save') }}</PrimaryButton>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- ------------------ TAB: ACS — GenieACS NBI (7557) ------------------ -->
+                <form v-show="activeTab === 'acs'" class="mt-6 overflow-hidden rounded-lg border border-white/10 bg-slate-900/40 backdrop-blur-xl shadow-lg shadow-black/30" @submit.prevent="submitGenieacs">
+                    <div class="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 ring-1 ring-cyan-500/30">
+                            <Plug class="h-5 w-5 text-cyan-300" />
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-base font-semibold text-white">{{ $t('settings.genieacs_title') }}</h3>
+                            <p class="text-sm text-slate-400">{{ $t('settings.genieacs_sub') }}</p>
+                        </div>
+                        <span
+                            v-if="genieacs.host"
+                            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1"
+                            :class="genieacs.is_connected
+                                ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
+                                : 'bg-slate-500/15 text-slate-300 ring-slate-500/30'"
+                        >
+                            <CheckCircle2 v-if="genieacs.is_connected" class="h-3.5 w-3.5" />
+                            <AlertTriangle v-else class="h-3.5 w-3.5" />
+                            {{ genieacs.is_connected ? $t('settings.genieacs_connected', { time: genieacsLastTest }) : $t('settings.genieacs_untested') }}
+                        </span>
+                    </div>
+
+                    <div class="grid gap-x-6 gap-y-6 p-5 sm:p-6 lg:grid-cols-2">
+                        <div>
+                            <InputLabel for="genieacs_host" :value="$t('settings.genieacs_host')" />
+                            <TextInput
+                                id="genieacs_host"
+                                v-model="genieacsForm.host"
+                                type="text"
+                                class="mt-1 block w-full font-mono"
+                                autocomplete="off"
+                                placeholder="192.0.2.10"
+                            />
+                            <InputError :message="genieacsForm.errors.host" class="mt-2" />
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('settings.genieacs_host_hint') }}</p>
+                        </div>
+
+                        <div>
+                            <InputLabel for="genieacs_port" :value="$t('settings.genieacs_port')" />
+                            <TextInput
+                                id="genieacs_port"
+                                v-model="genieacsForm.port"
+                                type="number"
+                                min="1"
+                                max="65535"
+                                class="mt-1 block w-full font-mono"
+                                autocomplete="off"
+                            />
+                            <InputError :message="genieacsForm.errors.port" class="mt-2" />
+                        </div>
+
+                        <div>
+                            <InputLabel for="genieacs_username" :value="$t('settings.genieacs_username')" />
+                            <TextInput
+                                id="genieacs_username"
+                                v-model="genieacsForm.username"
+                                type="text"
+                                class="mt-1 block w-full"
+                                autocomplete="off"
+                            />
+                            <InputError :message="genieacsForm.errors.username" class="mt-2" />
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('settings.genieacs_username_hint') }}</p>
+                        </div>
+
+                        <div>
+                            <InputLabel for="genieacs_password" :value="$t('settings.genieacs_password')" />
+                            <TextInput
+                                id="genieacs_password"
+                                v-model="genieacsForm.password"
+                                type="password"
+                                class="mt-1 block w-full"
+                                autocomplete="new-password"
+                                :placeholder="genieacs.password_set ? $t('settings.acs_pw_saved') : $t('settings.acs_pw_placeholder')"
+                            />
+                            <InputError :message="genieacsForm.errors.password" class="mt-2" />
+                            <p class="mt-1 text-xs text-slate-400">{{ $t('settings.acs_pw_hint') }}</p>
+                        </div>
+
+                        <div v-if="genieacs.last_test_at" class="lg:col-span-2">
+                            <div
+                                class="flex items-start gap-3 rounded-lg border px-4 py-3 text-xs"
+                                :class="genieacs.is_connected
+                                    ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-200'
+                                    : 'border-rose-500/20 bg-rose-500/5 text-rose-200'"
+                            >
+                                <Info class="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                <span>
+                                    {{ $t('settings.genieacs_last_test', { time: genieacsLastTest }) }}
+                                    <template v-if="genieacs.is_connected && genieacs.role"> · role: {{ genieacs.role }}</template>
+                                    <template v-if="!genieacs.is_connected && genieacs.last_test_error"> — {{ genieacs.last_test_error }}</template>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start gap-3 rounded-lg border border-white/10 bg-canvas-3/40 px-4 py-3 text-xs text-slate-400 lg:col-span-2">
+                            <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
+                            <span>{{ $t('settings.genieacs_note') }}</span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
+                            <PrimaryButton :disabled="genieacsForm.processing">{{ $t('common.save') }}</PrimaryButton>
+                            <SecondaryButton type="button" :disabled="genieacsTesting || !genieacs.host" @click="testGenieacs">
+                                {{ genieacsTesting ? $t('settings.genieacs_testing') : $t('settings.genieacs_test') }}
+                            </SecondaryButton>
                         </div>
                     </div>
                 </form>

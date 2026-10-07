@@ -101,10 +101,18 @@ terakhir dipakai bersama `Pages/{CDataOlt,Hioso}/PortOnus.vue`; faceplate dipaka
 `ListSkeleton`, `AuroraBackground`, `ParticleNetwork`, `SidebarConstellation` (efek visual),
 **`TelnetWindow`** (terminal xterm.js, draggable/min/max — lihat [09](09-cli-telnet.md)).
 
+**GenieACS (`Components/Genieacs/` + `Components/OnuAcsBadge.vue`):** `OnuAcsBadge` (lencana tiga
+keadaan di kolom ACS), `AcsPinCell` (lencana + PPPoE/IP + tombol semat manual, dipakai ketiga halaman
+PortOnus), `PinDeviceModal` (pemilih device: cari nama PPPoE/serial/MAC/IP, semat & lepas, tarik
+ulang katalog), `ConnectedDevicesModal` (perangkat aktif di balik satu ONU; dipakai juga Monitoring
+ONU), `WifiSettingsModal` (ubah SSID & kata sandi). Tombolnya hanya tampil bila
+`auth.can.manage_acs`. Lihat [20](20-genieacs-tr069.md#10-frontend).
+
 > ⚠️ **Modal dirender terus, jangan dibungkus `v-if` pada keadaan terbuka.** `Modal.vue` memanggil
 > `dialog.showModal()` di dalam watcher `show`; kalau komponennya baru di-mount saat `show` sudah
 > bernilai `true`, watcher itu tak pernah berjalan dan modal tak muncul sama sekali — tombolnya
 > terlihat "mati". Pola yang benar: `<TheModal :show="target !== null" … @close="target = null" />`.
+> Dijaga oleh `tests/js/ConnectedDevicesModal.spec.js`.
 
 **Composables:** `useConfirm` (modal konfirmasi reusable, varian `danger`/`warning`/`info` — **jangan
 pernah `window.confirm()`**), `useLocale` (ganti bahasa seketika + persist ke server),
@@ -122,7 +130,7 @@ dwibahasa by-key), `onu` (sebab down terakhir), `onuConfigSections`, `odpColors`
 
 Setiap Page bisa akses lewat `usePage().props`:
 - `auth.user` + `auth.can` (`manage_users`, `manage_olt`, `manage_olt_inventory`, `add_olt`,
-  `is_partner`, `is_demo`).
+  `manage_acs` — katalog GenieACS, admin/operator — `is_partner`, `is_demo`).
 - `flash.success` / `flash.error` (dari `session()->flash`). Partial reload `only: [...]` ikut
   menyaring shared prop — sertakan `'flash'` bila aksi menampilkan toast.
 - `notifications` (`items[]`, `unread_count`) — untuk bell.
