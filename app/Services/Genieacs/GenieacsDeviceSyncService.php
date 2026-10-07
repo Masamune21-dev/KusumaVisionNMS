@@ -2,6 +2,7 @@
 
 namespace App\Services\Genieacs;
 
+use App\Models\AcsSetting;
 use App\Models\GenieacsCredential;
 use App\Models\GenieacsDeviceMap;
 use App\Models\SnmpOlt;
@@ -116,11 +117,12 @@ class GenieacsDeviceSyncService
     }
 
     /**
-     * OLT ini memakai katalog ACS? Lihat {@see self::eligibleOlts()}.
+     * OLT ini memakai katalog ACS? Lihat {@see self::eligibleOlts()}. Aturannya
+     * satu dengan target CWMP ({@see AcsSetting::servesOlt()}).
      */
     public static function isEligibleOlt(SnmpOlt $olt): bool
     {
-        return ! $olt->is_demo && $olt->owner_user_id === null;
+        return AcsSetting::servesOlt($olt);
     }
 
     /**

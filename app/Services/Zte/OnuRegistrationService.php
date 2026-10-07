@@ -165,7 +165,7 @@ class OnuRegistrationService
             return [
                 'status' => 'generated',
                 'registration_id' => $registration->id,
-                'script' => $script,
+                'script' => AcsSetting::maskScript($script),
                 'output' => null,
                 'error' => null,
             ];
@@ -201,9 +201,9 @@ class OnuRegistrationService
             return [
                 'status' => 'failed',
                 'registration_id' => $registration->id,
-                'script' => $script,
+                'script' => AcsSetting::maskScript($script),
                 'output' => null,
-                'error' => $error,
+                'error' => AcsSetting::maskScript($error),
             ];
         }
 
@@ -227,9 +227,9 @@ class OnuRegistrationService
         return [
             'status' => $result['ok'] ? 'executed' : 'failed',
             'registration_id' => $registration->id,
-            'script' => $script,
-            'output' => $output,
-            'error' => $error,
+            'script' => AcsSetting::maskScript($script),
+            'output' => AcsSetting::maskScript($output),
+            'error' => AcsSetting::maskScript($error),
             'odp_error' => $odpError,
         ];
     }
@@ -241,8 +241,9 @@ class OnuRegistrationService
     private function prepare(SnmpOlt $olt, array $data): array
     {
         $data['is_c600'] = SmartOltSupport::isC600($olt);
-        // Password ACS disisipkan di server: klien hanya tahu `acs_password_set`.
-        $data = AcsSetting::fillPassword($data);
+        // Password ACS disisipkan di server: klien hanya tahu `acs_password_set`. OLT privat
+        // partner & OLT demo tidak menerima password ACS Pengaturan (AcsSetting::resolved).
+        $data = AcsSetting::fillPassword($data, olt: $olt);
 
         if ($data['is_c600']) {
             // Petakan ke kolom audit bersama (builder C600 membaca key spesifiknya sendiri).

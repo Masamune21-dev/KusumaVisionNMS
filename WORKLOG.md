@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-10-07 — Sandi ACS (CWMP) Pengaturan Tak Lagi Sampai ke Partner
+
+### Security
+
+- **Target ACS per OLT** (`AcsSetting::resolved($olt)`, `servesOlt()`): ACS di Pengaturan hanya melayani OLT
+  global non-demo — aturan yang sama dengan katalog GenieACS (`GenieacsDeviceSyncService::isEligibleOlt()`
+  kini mendelegasikan ke `AcsSetting::servesOlt()`). Dulu password CWMP Pengaturan ikut diisikan server ke
+  registrasi TR069 di **OLT privat partner**, sehingga berakhir di script pratinjau, riwayat registrasi, dan
+  running-config OLT milik partner. Kini OLT privat partner & OLT demo tak menerima URL/username/password
+  itu: form registrasi kosong (partner mengetik ACS-nya sendiri), `fillPassword()`/`fillRequestPassword()`
+  menerima `$olt` di semua jalur (registrasi web & API, Lanjutan, preview), dan tanpa OLT target kosong untuk
+  pengguna yang bukan staf Pusat.
+- **TR069 Massal** butuh target: endpoint menolak 422 (`flash.acs_target_missing`) dan tombolnya
+  disembunyikan (`canTr069` butuh `acs.url`) bila OLT tak dilayani ACS Pengaturan atau ACS belum diatur.
+- **Penyamaran di titik keluar** (`AcsSetting::maskScript()` → `password ********`): pratinjau registrasi
+  (web, Lanjutan, C600, API), riwayat registrasi (`cli_script`, `execution_output`), pesan galat
+  registrasi/eksekusi, dan galat TR069 Massal. Script yang dieksekusi & tersimpan tetap utuh. Penting karena
+  partner bisa di-assign OLT global: server tetap mengisi password ACS untuk OLT itu, tapi partner hanya
+  melihat versi tersamar.
+
+### Notes
+
+- Test baru `AcsPasswordPartnerTest` (8): pratinjau OLT global tersamar tapi script eksekusi utuh, OLT privat
+  partner tanpa password Pengaturan (API 422 bila kosong, web tanpa sandi), partner di OLT global hanya melihat
+  `********`, target kosong untuk OLT partner/demo & partner tanpa OLT, TR069 Massal 422 tanpa target, partner
+  dengan ACS sendiri, `maskScript` tak menelan token sesudah sandi kosong. `SmartOltTr069BulkTest` kini
+  menyiapkan target ACS sendiri (sebelumnya bergantung pada `ACS_URL` di `.env`).
+- Verifikasi: PHPUnit 755 lulus, Vitest 55 lulus; Playwright: tombol TR069 Massal tampil di OLT global (admin &
+  partner ter-assign), tersembunyi di OLT privat partner; form registrasi partner tak memuat URL/sandi ACS.
+- Dokumen: handbook 07 §4b (target ACS), 11 (password ACS), `API.md` (registrasi).
+
 ## 2026-10-07 — Integrasi GenieACS / TR-069 (NBI): Kolom ACS, Pin Manual, Perangkat Terhubung, Ubah WiFi
 
 ### Created

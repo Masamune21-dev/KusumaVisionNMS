@@ -113,10 +113,13 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   1. **Dry-run** (`execute=false`): pindai running-config tiap ONU per port (1 sesi telnet/port via `ZteOnuRunningConfigService::fetchMany`), laporkan mana yang **akan diaktifkan** vs **sudah aktif (skip)** vs **gagal baca** — tanpa menulis apa pun ke OLT.
   2. **Eksekusi** (`execute=true`): pindai ulang lalu tulis `tr069-mgmt 1 state unlock` + `tr069-mgmt 1 acs … validate basic username … password …` ke ONU yang belum aktif (1 sesi tulis/port; satu blok `pon-onu-mng` per ONU).
 - **Skip rule**: ONU dilewati bila TR069 sudah `unlock` **dan** ACS url + username sudah mengarah ke target. Password tidak dipakai sebagai syarat skip (sebagian firmware memasking-nya di `show running-config`), tapi acs line yang ditulis selalu menyertakan password.
-- **Target ACS**: `AcsSetting::resolved()` — baris `acs_settings` (Pengaturan → tab ACS), jatuh
+- **Target ACS**: `AcsSetting::resolved($olt)` — baris `acs_settings` (Pengaturan → tab ACS), jatuh
   balik per kolom ke `config('services.acs')` (`ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` di `.env`).
   Tidak ada nilai bawaan yang di-hardcode di repo — kredensial asli jangan ditulis di kode/dokumen.
-  Server tidak menolak target kosong, jadi isi tab ACS (atau `.env`) sebelum eksekusi.
+  ACS ini hanya melayani **OLT global non-demo** (`AcsSetting::servesOlt()`, aturan yang sama dengan
+  katalog GenieACS): untuk OLT privat partner & OLT demo targetnya kosong, tombol TR069 Massal
+  disembunyikan (`canTr069` butuh `acs.url`), dan endpoint menjawab 422 `flash.acs_target_missing`.
+  Target kosong di OLT global (tab ACS & `.env` belum diisi) juga ditolak 422.
 - Progress di-poll seperti Salin ONU (§6b); total = jumlah ONU port itu di cache `port_onus`
   (`cachedOnuCount`, jadi Refresh SNMP dulu agar lengkap).
 

@@ -157,7 +157,12 @@ ber-scope: `SnmpOlt`, `SmartOltOnuRegistration`, `AlarmEvent`, `PollingEvent`.
   dipakai) dengan TTL 30 detik; proxy tidak menyimpan kredensial — diambil dari OLT saat handshake,
   dan hak aksesnya dicek ulang (`canAccessOltSecrets`) saat itu.
 - **Password ACS tidak pernah dikirim ke browser**: form registrasi hanya tahu `acs_password_set`;
-  server mengisinya lewat `AcsSetting::fillPassword()` bila form kosong. Sama untuk kata sandi NBI
+  server mengisinya lewat `AcsSetting::fillPassword($data, olt: $olt)` bila form kosong — **hanya untuk
+  OLT global non-demo** (`AcsSetting::servesOlt()`); OLT privat partner & OLT demo tak pernah menerima
+  URL/password ACS Pengaturan (partner mengetik ACS-nya sendiri di form). Script yang dikirim ke browser
+  (pratinjau web & API, riwayat registrasi, pesan galat registrasi/eksekusi, galat TR069 Massal)
+  disamarkan `AcsSetting::maskScript()` → `password ********`; script yang dieksekusi & tersimpan tetap
+  utuh. Sama untuk kata sandi NBI
   GenieACS (`GenieacsCredential`, `encrypted` + `$hidden`; form Pengaturan hanya tahu `password_set`).
 - **Token bot Telegram disensor** dari pesan galat & log (`TelegramNotifier::redactToken()`) — URL API
   Telegram memuat token, dan galat cURL menyertakan URL lengkap. Berkas log dibuat `0640`.

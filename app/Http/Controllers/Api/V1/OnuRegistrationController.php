@@ -66,10 +66,10 @@ class OnuRegistrationController extends Controller
     public function preview(Request $request, SnmpOlt $olt): JsonResponse
     {
         $this->assertZte($olt);
-        AcsSetting::fillRequestPassword($request);
+        AcsSetting::fillRequestPassword($request, olt: $olt);
         $data = $request->validate($this->registration->rules($olt));
 
-        return response()->json(['data' => ['script' => $this->registration->buildScript($olt, $data)]]);
+        return response()->json(['data' => ['script' => AcsSetting::maskScript($this->registration->buildScript($olt, $data))]]);
     }
 
     /**
@@ -78,7 +78,7 @@ class OnuRegistrationController extends Controller
     public function store(Request $request, SnmpOlt $olt): JsonResponse
     {
         $this->assertZte($olt);
-        AcsSetting::fillRequestPassword($request);
+        AcsSetting::fillRequestPassword($request, olt: $olt);
         $data = $request->validate($this->registration->rules($olt));
         $execute = $request->boolean('execute');
 

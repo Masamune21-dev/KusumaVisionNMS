@@ -20,6 +20,8 @@ class SmartOltTr069BulkTest extends TestCase
     public function test_endpoint_queues_a_task_scoped_to_one_port_with_cached_total(): void
     {
         Queue::fake();
+        // Tanpa target ACS endpoint menolak (422) — siapkan sendiri, jangan bergantung pada ACS_URL di .env.
+        AcsSetting::create(['url' => 'http://acs.contoh.test:7547', 'username' => 'acs', 'password' => 'rahasia0800']);
         $user = User::factory()->create();
         $olt = $this->makeOlt();
 

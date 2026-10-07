@@ -44,7 +44,7 @@ class ZteTr069BulkService
      */
     public function run(SnmpOlt $olt, bool $execute, ?int $userId = null, ?callable $onProgress = null, ?int $onlySlot = null, ?int $onlyPort = null): array
     {
-        $acs = $this->acs();
+        $acs = $this->acs($olt);
         $isC600 = SmartOltSupport::isC600($olt);
 
         $applied = 0;
@@ -141,13 +141,14 @@ class ZteTr069BulkService
                         $record($this->item($slot, $port, $id, $applyOnus[$id], 'applied', 'TR069 diaktifkan + ACS di-set.'));
                     }
                 } else {
-                    $error = CliOutputSanitizer::clean((string) ($result['error'] ?? 'unknown'));
+                    // Galat CLI bisa menggemakan baris `validate basic … password …` — status tugas dikirim ke browser.
+                    $error = AcsSetting::maskScript(CliOutputSanitizer::clean((string) ($result['error'] ?? 'unknown')));
                     foreach ($applyIds as $id) {
                         $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} error: {$error}"));
                     }
                 }
             } catch (\Throwable $exception) {
-                $error = CliOutputSanitizer::clean($exception->getMessage());
+                $error = AcsSetting::maskScript(CliOutputSanitizer::clean($exception->getMessage()));
                 foreach ($applyIds as $id) {
                     $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} gagal: {$error}"));
                 }
@@ -317,10 +318,11 @@ class ZteTr069BulkService
     /**
      * @return array{url:string, username:string, password:string}
      */
-    private function acs(): array
+    private function acs(SnmpOlt $olt): array
     {
-        // Endpoint tersimpan di Pengaturan (AcsSetting), fallback ke config/env.
-        return AcsSetting::resolved();
+        // Endpoint tersimpan di Pengaturan (AcsSetting), fallback ke config/env — kosong untuk
+        // OLT privat partner & OLT demo (AcsSetting::servesOlt).
+        return AcsSetting::resolved($olt);
     }
 
     /**

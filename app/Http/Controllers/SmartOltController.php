@@ -416,7 +416,7 @@ class SmartOltController extends Controller
             'initial_search' => (string) $request->query('q', ''),
             'focus_onu_id' => $request->query('focus') !== null ? (int) $request->query('focus') : null,
             // Target ACS untuk modal TR069 massal (tanpa password).
-            'acs' => collect(AcsSetting::resolved())->only(['url', 'username'])->all(),
+            'acs' => collect(AcsSetting::resolved($olt))->only(['url', 'username'])->all(),
             'pinned_onu_ids' => OnuMapPin::query()
                 ->where('snmp_olt_id', $olt->id)
                 ->where('slot', $slot)
@@ -587,7 +587,7 @@ class SmartOltController extends Controller
         $port = (int) $request->query('port');
         $isC600 = SmartOltSupport::isC600($olt);
         // ACS efektif = baris Settings bila terisi, fallback config/env (AcsSetting::resolved).
-        $acs = AcsSetting::resolved();
+        $acs = AcsSetting::resolved($olt);
 
         // Identitas ONU — bagian bersama semua bentuk form.
         $identity = [
@@ -1424,6 +1424,9 @@ class SmartOltController extends Controller
     {
         // Menulis baris tr069-mgmt gaya C300 (dua-baris state+acs) — gate capability tulis config.
         $this->assertCapability($olt, 'supports_onu_config_write');
+        // Target = ACS di Pengaturan, hanya untuk OLT global non-demo (AcsSetting::servesOlt).
+        // OLT privat partner & OLT demo tak punya target — jangan jalankan.
+        abort_if(AcsSetting::resolved($olt)['url'] === '', 422, __('flash.acs_target_missing'));
 
         $data = $request->validate([
             'execute' => ['boolean'],
@@ -1742,13 +1745,13 @@ class SmartOltController extends Controller
      */
     public function registerOnuPreview(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, OnuRegistrationService $registration): JsonResponse
     {
-        AcsSetting::fillRequestPassword($request);
+        AcsSetting::fillRequestPassword($request, olt: $olt);
 
         // C600 = builder Model B lewat OnuRegistrationService. Preview toleran form parsial:
         // builder C600 melempar bila field wajib kosong → tampilkan pesan alih-alih 500.
         if (SmartOltSupport::isC600($olt)) {
             try {
-                return response()->json(['script' => $registration->buildScript($olt, $request->all())]);
+                return response()->json(['script' => AcsSetting::maskScript($registration->buildScript($olt, $request->all()))]);
             } catch (\Throwable) {
                 return response()->json(['script' => __('zte.preview_fill_required')]);
             }
@@ -1756,13 +1759,14 @@ class SmartOltController extends Controller
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->previewProvisioningInput($request));
 
-        return response()->json(['script' => $builder->build($data)]);
+        // Sandi ACS diisi server untuk skrip, tapi tak ikut ke browser.
+        return response()->json(['script' => AcsSetting::maskScript($builder->build($data))]);
     }
 
     public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, OnuOdpService $odps): RedirectResponse
     {
         // Password ACS diisi server bila form mengirim kosong.
-        AcsSetting::fillRequestPassword($request);
+        AcsSetting::fillRequestPassword($request, olt: $olt);
 
         // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
         if (SmartOltSupport::isC600($olt)) {
@@ -1844,7 +1848,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', __('flash.register_exec_failed').$error);
+                ->with('error', __('flash.register_exec_failed').AcsSetting::maskScript($error));
         }
 
         // ODP dikaitkan hanya saat CLI sukses; gagalnya TIDAK membatalkan registrasi.
@@ -1867,7 +1871,7 @@ class SmartOltController extends Controller
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
                     ? __('flash.registered_ok').$odpNote
-                    : __('flash.register_rejected').$error,
+                    : __('flash.register_rejected').AcsSetting::maskScript($error),
             );
     }
 
@@ -1894,7 +1898,7 @@ class SmartOltController extends Controller
 
         $script = $builder->buildForRegistration($config, $this->advancedRegistrationContext($olt, $header));
 
-        return response()->json(['script' => $script]);
+        return response()->json(['script' => AcsSetting::maskScript($script)]);
     }
 
     /**
@@ -1976,7 +1980,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', __('flash.register_exec_failed').$error);
+                ->with('error', __('flash.register_exec_failed').AcsSetting::maskScript($error));
         }
 
         $odpNote = $result['ok'] && $header['odp_id'] !== null
@@ -1997,7 +2001,7 @@ class SmartOltController extends Controller
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
                     ? __('flash.registered_ok').$odpNote
-                    : __('flash.register_rejected').$error,
+                    : __('flash.register_rejected').AcsSetting::maskScript($error),
             );
     }
 
@@ -2056,8 +2060,9 @@ class SmartOltController extends Controller
                 'vlan' => $registration->vlan,
                 'wan_mode' => $registration->wan_mode,
                 'status' => $registration->status,
-                'cli_script' => $registration->cli_script,
-                'execution_output' => $registration->execution_output,
+                // Skrip & gema CLI memuat sandi ACS; baris DB tetap utuh untuk eksekusi ulang.
+                'cli_script' => AcsSetting::maskScript($registration->cli_script),
+                'execution_output' => AcsSetting::maskScript($registration->execution_output),
                 'execution_error' => $registration->execution_error,
                 'created_at' => $registration->created_at?->toIso8601String(),
                 'executed_at' => $registration->executed_at?->toIso8601String(),
@@ -2102,7 +2107,7 @@ class SmartOltController extends Controller
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
                         ? __('flash.prov_executed')
-                        : __('flash.prov_rejected').$error,
+                        : __('flash.prov_rejected').AcsSetting::maskScript($error),
                 );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -2116,7 +2121,7 @@ class SmartOltController extends Controller
 
             return redirect()
                 ->route('smartolt.registrations', $olt)
-                ->with('error', __('flash.prov_exec_failed').$error);
+                ->with('error', __('flash.prov_exec_failed').AcsSetting::maskScript($error));
         }
     }
 
@@ -2301,7 +2306,7 @@ class SmartOltController extends Controller
      */
     private function validatedAdvancedProvisioning(Request $request, SnmpOlt $olt): array
     {
-        AcsSetting::fillRequestPassword($request, 'config.acs_password');
+        AcsSetting::fillRequestPassword($request, 'config.acs_password', $olt);
 
         $validated = $request->validate([
             'serial_number' => ['required', 'string', 'max:64'],

@@ -29,6 +29,7 @@ return [
     'olt_added' => 'OLT berhasil ditambahkan.',
     'olt_added_scan_failed' => 'OLT ditambahkan. Scan awal gagal (',
     'acs_saved' => 'Pengaturan ACS / TR069 tersimpan.',
+    'acs_target_missing' => 'OLT ini tidak memakai ACS di Pengaturan (hanya OLT global yang bukan demo), atau ACS belum diatur.',
     'genieacs_saved' => 'Pengaturan GenieACS (NBI) tersimpan.',
     'genieacs_not_configured' => 'Alamat GenieACS belum diisi. Simpan dulu sebelum menguji.',
     'genieacs_unreachable' => 'NBI GenieACS tidak menjawab.',

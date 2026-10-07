@@ -818,7 +818,9 @@ terpisah). Hasilnya data navigasi terstruktur, bukan URL web:
   `pppoe_username`/`pppoe_password` atau `ip_profile`/`static_ip`/`static_netmask`,
   `tr069_enabled` + `acs_url`/`acs_username`/`acs_password` (`acs_password` kosong = diisi server
   dari pengaturan ACS tersimpan — **Pengaturan → ACS / TR069**, fallback env `ACS_PASSWORD` di
-  `config/services.php`; klien hanya menerima `defaults.acs_password_set`), `remote_ont_*`, `odp_id` (opsional), dan `execute` (bool).
+  `config/services.php`, **hanya untuk OLT global non-demo**; OLT privat partner wajib membawa
+  `acs_password` sendiri; klien hanya menerima `defaults.acs_password_set`; `script` pratinjau
+  menyamarkannya jadi `password ********`), `remote_ont_*`, `odp_id` (opsional), dan `execute` (bool).
   Aturan lengkapnya `OnuRegistrationService::rules($olt)`.
 
   Gerbang: capability `supports_provisioning` (non-ZTE → `422`); `execute=true` juga butuh

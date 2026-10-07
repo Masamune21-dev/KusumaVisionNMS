@@ -106,7 +106,8 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 // --- TR069 massal (semua ONU port ini) ---
 // Gate = supports_onu_config_write: penulis config gaya C300 (mati di C600 yang bermodel vport).
-const canTr069 = computed(() => !!caps.value.supports_onu_config_write);
+// Target TR069 Massal = ACS di Pengaturan (prop `acs`), kosong untuk OLT privat partner & OLT demo.
+const canTr069 = computed(() => !!caps.value.supports_onu_config_write && !!props.acs?.url);
 const tr069ModalOpen = ref(false);
 
 // --- navigasi cepat antar port (OLT sama) ---
