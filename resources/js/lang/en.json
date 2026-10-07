@@ -602,7 +602,8 @@
         "log_title": "Commands sent this session",
         "log_failed": "Failed",
         "mode_tree": "Per section",
-        "mode_full": "Full editor"
+        "mode_full": "Full editor",
+        "pw_keep": "Stored on the ONU — leave empty to keep it"
     },
     "configonu": {
         "profile_title": "This ONU uses onu-profile {profile}",

@@ -30,6 +30,7 @@ return [
     'olt_added_scan_failed' => 'OLT added. Initial scan failed (',
     'acs_saved' => 'ACS / TR069 settings saved.',
     'acs_target_missing' => 'This OLT does not use the ACS in Settings (only non-demo global OLTs do), or no ACS is set up yet.',
+    'acs_password_required' => 'Enter the ACS password: the server can only fill it in for the ACS URL in Settings or the URL already set on the ONU.',
     'genieacs_saved' => 'GenieACS (NBI) settings saved.',
     'genieacs_not_configured' => 'GenieACS address is empty. Save it before testing.',
     'genieacs_unreachable' => 'GenieACS NBI did not respond.',

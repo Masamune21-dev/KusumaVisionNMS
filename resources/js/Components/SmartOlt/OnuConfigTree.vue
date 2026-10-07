@@ -564,7 +564,7 @@ onUnmounted(() => { clearTimeout(previewTimer); clearTimeout(flashTimer); });
                             <dt class="text-xs text-slate-500">{{ tr(field.label) }}</dt>
                             <dd class="mt-1 break-all font-mono text-sm text-slate-100">
                                 <span v-if="field.type === 'bool'" class="kv-pill" :class="baseline?.[field.key] ? 'kv-pill-success' : 'kv-pill-muted'">{{ baseline?.[field.key] ? 'on' : 'off' }}</span>
-                                <template v-else-if="field.type === 'password'">{{ baseline?.[field.key] ? '••••••••' : '—' }}</template>
+                                <template v-else-if="field.type === 'password'">{{ baseline?.[field.key] || baseline?.[`${field.key}_set`] ? '••••••••' : '—' }}</template>
                                 <template v-else>{{ baseline?.[field.key] ?? '—' }}</template>
                             </dd>
                         </div>
@@ -694,6 +694,7 @@ onUnmounted(() => { clearTimeout(previewTimer); clearTimeout(flashTimer); });
                                 :type="field.type === 'number' ? 'number' : field.type === 'password' ? 'password' : 'text'"
                                 class="mt-1 block w-full font-mono"
                                 :disabled="(field.immutable && dialog.mode === 'edit') || busy"
+                                :placeholder="field.type === 'password' && baseline?.[`${field.key}_set`] ? t('onucfg.pw_keep') : undefined"
                                 :min="field.min"
                                 :max="field.max"
                                 autocomplete="off"

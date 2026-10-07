@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-10-07 — Configure ONU (CLI): Sandi ACS Tak Lagi Dikirim ke Browser
+
+### Security
+
+- Halaman **Configure ONU (CLI)** dulu mengirim running-config ONU apa adanya: `config.acs_password` hasil parse
+  dan baris mentah `tr069-mgmt 1 acs … validate basic username … password …`. Siapa pun yang boleh membuka
+  halaman itu — termasuk partner yang di-assign OLT global, yang ONU-nya memakai ACS di Pengaturan — bisa
+  membaca sandi ACS. Kini `SmartOltController::maskLiveConfig()` mengosongkan `acs_password` (klien hanya tahu
+  `acs_password_set`) dan menyamarkan teks mentah & `profile_lines` dengan `AcsSetting::maskScript()`, di form
+  awal dan di running-config yang dibaca ulang (per-item, lepas profile). Skrip, keluaran CLI (yang menggemakan
+  perintah), dan pesan galat di pratinjau/apply/per-item/lepas profile ikut disamarkan.
+- Karena klien tak lagi memegang sandinya, `fillReconfigureAcsPassword()` mengisinya di server **hanya bila**
+  baris ACS memang ditulis ulang (TR069 dinyalakan atau URL ACS berubah — aturan `ZteOnuReconfigureScriptBuilder`)
+  dan isiannya kosong: sandi ACS Pengaturan bila URL-nya sama (`AcsSetting::resolved($olt)`, jadi hanya OLT global
+  non-demo), atau sandi yang kini terpasang di ONU bila URL-nya sama dengan running-config (dibaca ulang server).
+  Selain itu apply/per-item menolak dengan `flash.acs_password_required` tanpa menyentuh OLT. Sandi yang diketik
+  tetap dipakai apa adanya.
+
+### Changed
+
+- `OnuConfigTree.vue`: sandi tampil `••••••••` bila `acs_password_set`, isian edit kosong dengan petunjuk
+  `onucfg.pw_keep` ("Tersimpan di ONU — kosongkan untuk mempertahankan"). `OnuConfigEditor.vue` idem.
+
+### Notes
+
+- Test baru `SmartOltConfigureOnuAcsPasswordTest` (8): form tanpa sandi (prop & HTML), pindah ke ACS Pengaturan
+  mengisi sandinya di server, menyalakan ulang TR069 memakai sandi di ONU, URL asing tanpa sandi ditolak 422 tanpa
+  eksekusi, sandi yang diketik dipakai tapi tak digemakan, apply form penuh (tolak & isi), pratinjau tersamar,
+  tanpa perubahan ACS tak ada baris `tr069-mgmt`. Vitest `OnuConfigTreeAcsPassword.spec.js` (2).
+- Verifikasi: PHPUnit 763 lulus, Vitest 57 lulus, `kv-ui-check` 0 pelanggaran keras. Uji browser halaman ini butuh
+  OLT sungguhan (running-config dibaca lewat telnet), jadi tampilan diuji lewat Vitest.
+- Dokumen: handbook 07 (§Reconfigure), 11 (password ACS).
+
 ## 2026-10-07 — Sandi ACS (CWMP) Pengaturan Tak Lagi Sampai ke Partner
 
 ### Security

@@ -163,7 +163,9 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   - Detail → `ZteOnuDetailService::fetch()` (parse CLI).
   - **Reconfigure** → baca running-config (`ZteOnuRunningConfigService`) sebagai baseline →
     `configureOnuPreview` menghasilkan diff script (`ZteOnuReconfigureScriptBuilder`) →
-    `configureOnuApply` mengeksekusi via `ZteCliProvisioningExecutor`.
+    `configureOnuApply` mengeksekusi via `ZteCliProvisioningExecutor`. Sandi ACS di running-config tak
+    pernah dikirim ke browser (`maskLiveConfig()`); isian sandi kosong = "pertahankan", diisi server
+    oleh `fillReconfigureAcsPassword()` bila baris ACS perlu ditulis ulang (lihat 11 §keamanan).
 - **Kolom ODP** — dropdown pilih ODP (splitter) per-ONU via komponen bersama
   `Components/OnuOdpCell.vue` (submit `onu-odp.assign`); ada di ketiga family
   (ZTE/C-Data/HiOSO). Detail di [16 — Peta ONU & ODP](16-peta-onu.md).

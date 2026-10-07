@@ -1050,7 +1050,8 @@ class SmartOltController extends Controller
     {
         $this->assertCapability($olt, 'supports_cli_onu_configure');
 
-        $live = $service->fetch($olt, $slot, $port, $onuId);
+        // Sandi ACS di running-config tak ikut ke browser (lihat maskLiveConfig()).
+        $live = $this->maskLiveConfig($service->fetch($olt, $slot, $port, $onuId));
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
 
         return Inertia::render('SmartOlt/ConfigureOnu', [
@@ -1076,32 +1077,42 @@ class SmartOltController extends Controller
         $this->assertCapability($olt, 'supports_onu_config_write');
 
         $baseline = $request->input('baseline', []);
+        $baseline = is_array($baseline) ? $baseline : [];
         $target = $request->input('config', []);
+        $target = is_array($target) ? $target : [];
+        // Pratinjau disamarkan, jadi sandi ACS yang belum diketahui cukup ditandai.
+        $target = $this->fillReconfigureAcsPassword($baseline, $target, $olt) ?? [...$target, 'acs_password' => '********'];
 
         $delta = $builder->build(
-            is_array($baseline) ? $baseline : [],
-            is_array($target) ? $target : [],
+            $baseline,
+            $target,
             ['onu_iface' => SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt))],
         );
 
         return response()->json([
-            'script' => $delta['script'],
+            'script' => AcsSetting::maskScript($delta['script']),
             'changes' => $delta['changes'],
             'profile_conflicts' => $delta['profile_conflicts'] ?? [],
         ]);
     }
 
-    public function configureOnuApply(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor): RedirectResponse
+    public function configureOnuApply(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): RedirectResponse
     {
         $this->assertCapability($olt, 'supports_onu_config_write');
 
         $target = $this->validatedReconfigure($request);
         $baseline = $request->input('baseline', []);
+        $baseline = is_array($baseline) ? $baseline : [];
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
-
-        $delta = $builder->build(is_array($baseline) ? $baseline : [], $target, ['onu_iface' => $iface]);
-
         $back = redirect()->route('smartolt.onu.configure', [$olt, $slot, $port, $onuId]);
+
+        $target = $this->fillReconfigureAcsPassword($baseline, $target, $olt, fn () => $service->fetch($olt, $slot, $port, $onuId)['config'] ?? null);
+
+        if ($target === null) {
+            return $back->with('error', __('flash.acs_password_required'));
+        }
+
+        $delta = $builder->build($baseline, $target, ['onu_iface' => $iface]);
 
         if ($delta['script'] === '') {
             return $back->with('error', __('flash.no_config_changes'));
@@ -1123,13 +1134,13 @@ class SmartOltController extends Controller
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
                     ? __('flash.config_applied')
-                    : __('flash.config_apply_rejected').$error,
+                    : __('flash.config_apply_rejected').AcsSetting::maskScript($error),
             );
         } catch (\Throwable $exception) {
             $error = CliOutputSanitizer::clean($exception->getMessage());
             $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], false, null, $error);
 
-            return $back->with('error', __('flash.apply_config_failed').$error);
+            return $back->with('error', __('flash.apply_config_failed').AcsSetting::maskScript($error));
         }
     }
 
@@ -1145,9 +1156,16 @@ class SmartOltController extends Controller
 
         $target = $this->validatedReconfigure($request);
         $baseline = $request->input('baseline', []);
+        $baseline = is_array($baseline) ? $baseline : [];
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
 
-        $delta = $builder->build(is_array($baseline) ? $baseline : [], $target, ['onu_iface' => $iface]);
+        $target = $this->fillReconfigureAcsPassword($baseline, $target, $olt, fn () => $service->fetch($olt, $slot, $port, $onuId)['config'] ?? null);
+
+        if ($target === null) {
+            return response()->json(['ok' => false, 'error' => 'acs_password_required', 'message' => __('flash.acs_password_required')], 422);
+        }
+
+        $delta = $builder->build($baseline, $target, ['onu_iface' => $iface]);
 
         if ($delta['script'] === '') {
             return response()->json(['ok' => false, 'error' => 'no_change'], 422);
@@ -1168,7 +1186,7 @@ class SmartOltController extends Controller
             $error = CliOutputSanitizer::clean($exception->getMessage());
             $this->recordReconfigure($request, $olt, $slot, $port, $onuId, $target, $delta['script'], false, null, $error);
 
-            return response()->json(['ok' => false, 'error' => 'cli_failed', 'message' => $error, 'script' => $delta['script']], 502);
+            return response()->json(['ok' => false, 'error' => 'cli_failed', 'message' => AcsSetting::maskScript($error), 'script' => AcsSetting::maskScript($delta['script'])], 502);
         }
 
         $output = CliOutputSanitizer::clean($result['output']);
@@ -1178,10 +1196,10 @@ class SmartOltController extends Controller
         return response()->json([
             'ok' => $result['ok'],
             'error' => $result['ok'] ? null : 'rejected',
-            'message' => $error,
-            'script' => $delta['script'],
-            'output' => $output,
-            ...$this->liveConfigPayload($service, $olt, $slot, $port, $onuId),
+            'message' => AcsSetting::maskScript($error),
+            'script' => AcsSetting::maskScript($delta['script']),
+            'output' => AcsSetting::maskScript($output),
+            ...$this->maskLiveConfig($this->liveConfigPayload($service, $olt, $slot, $port, $onuId)),
         ]);
     }
 
@@ -1250,9 +1268,9 @@ class SmartOltController extends Controller
             return response()->json([
                 'ok' => false,
                 'error' => 'cli_failed',
-                'message' => CliOutputSanitizer::clean($exception->getMessage()),
-                'script' => $script,
-                ...$this->liveConfigPayload($service, $olt, $slot, $port, $onuId),
+                'message' => AcsSetting::maskScript(CliOutputSanitizer::clean($exception->getMessage())),
+                'script' => AcsSetting::maskScript($script),
+                ...$this->maskLiveConfig($this->liveConfigPayload($service, $olt, $slot, $port, $onuId)),
             ], 502);
         }
 
@@ -1262,14 +1280,15 @@ class SmartOltController extends Controller
         $remaining = $builder->build($finalConfig, [...$original, 'onu_profile' => null, 'profile_lines' => []], ['onu_iface' => $iface]);
         $ok = blank($finalConfig['onu_profile'] ?? null) && $remaining['script'] === '';
 
+        // Skrip pemulihan dibangun dari config ASLI (server), jadi memuat sandi ACS — disamarkan.
         return response()->json([
             'ok' => $ok,
             'error' => $ok ? null : 'unbind_incomplete',
             'profile' => $profile,
-            'script' => $script,
-            'output' => implode("\n\n", $outputs),
-            'remaining' => $remaining['script'],
-            ...$final,
+            'script' => AcsSetting::maskScript($script),
+            'output' => AcsSetting::maskScript(implode("\n\n", $outputs)),
+            'remaining' => AcsSetting::maskScript($remaining['script']),
+            ...$this->maskLiveConfig($final),
         ], $ok ? 200 : 422);
     }
 
@@ -1309,6 +1328,76 @@ class SmartOltController extends Controller
         }
 
         return ['config' => $live['config'], 'raw' => $live['raw'], 'fetch_ok' => $live['ok'], 'fetch_error' => $live['error']];
+    }
+
+    /**
+     * Running-config ONU versi BROWSER: sandi ACS tak pernah ikut — sama dengan form registrasi,
+     * klien hanya tahu `acs_password_set` — dan baris `tr069-mgmt … password …` di teks mentah &
+     * baris profile disamarkan. Halaman ini juga terbuka untuk partner yang di-assign OLT global,
+     * yang ONU-nya memakai ACS di Pengaturan. Bila baris ACS ditulis ulang tanpa sandi,
+     * {@see fillReconfigureAcsPassword()} mengisinya di server.
+     *
+     * @param  array<string, mixed>  $payload  bentuk {@see liveConfigPayload()} / hasil fetch()
+     * @return array<string, mixed>
+     */
+    private function maskLiveConfig(array $payload): array
+    {
+        if (is_array($payload['config'] ?? null)) {
+            $config = $payload['config'];
+            $config['acs_password_set'] = filled($config['acs_password'] ?? null);
+            $config['acs_password'] = null;
+            $config['profile_lines'] = array_map(
+                fn ($line) => (string) AcsSetting::maskScript((string) $line),
+                (array) ($config['profile_lines'] ?? []),
+            );
+            $payload['config'] = $config;
+        }
+
+        if (array_key_exists('raw', $payload)) {
+            $payload['raw'] = (string) AcsSetting::maskScript((string) $payload['raw']);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Sandi ACS untuk delta Configure ONU. Klien tak pernah menerima sandi yang terpasang
+     * ({@see maskLiveConfig()}), jadi kosong berarti "pakai yang sudah ada". Baris ACS hanya
+     * ditulis bila TR069 dinyalakan atau URL ACS berubah ({@see ZteOnuReconfigureScriptBuilder}); saat itu
+     * sandi kosong diisi server: sandi ACS Pengaturan bila URL-nya sama (hanya OLT yang dilayani
+     * ACS itu — {@see AcsSetting::resolved()}), atau sandi yang kini terpasang di ONU bila URL-nya
+     * sama dengan running-config. Selain itu null: pengguna harus mengetik sandinya.
+     *
+     * @param  array<string, mixed>  $baseline
+     * @param  array<string, mixed>  $target
+     * @param  (callable(): (array<string, mixed>|null))|null  $current  running-config ONU saat ini
+     * @return array<string, mixed>|null
+     */
+    private function fillReconfigureAcsPassword(array $baseline, array $target, SnmpOlt $olt, ?callable $current = null): ?array
+    {
+        $url = trim((string) ($target['acs_url'] ?? ''));
+        $writesAcs = (bool) ($target['tr069'] ?? false) && (
+            ! (bool) ($baseline['tr069'] ?? false)
+            || trim((string) ($baseline['acs_url'] ?? '')) !== $url
+        );
+
+        if (! $writesAcs || filled($target['acs_password'] ?? null)) {
+            return $target;
+        }
+
+        $settings = AcsSetting::resolved($olt);
+
+        if ($url !== '' && $url === $settings['url'] && $settings['password'] !== '') {
+            return [...$target, 'acs_password' => $settings['password']];
+        }
+
+        $live = $current !== null ? $current() : null;
+
+        if (is_array($live) && $url !== '' && $url === trim((string) ($live['acs_url'] ?? '')) && filled($live['acs_password'] ?? null)) {
+            return [...$target, 'acs_password' => (string) $live['acs_password']];
+        }
+
+        return null;
     }
 
     /**

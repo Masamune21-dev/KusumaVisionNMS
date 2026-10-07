@@ -515,7 +515,7 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 
                     </div>
                     <div>
                         <InputLabel for="acs_password" value="Password" />
-                        <TextInput id="acs_password" v-model="cfg.acs_password" type="password" class="mt-1 block w-full" />
+                        <TextInput id="acs_password" v-model="cfg.acs_password" type="password" class="mt-1 block w-full" autocomplete="new-password" :placeholder="cfg.acs_password_set ? $t('onucfg.pw_keep') : ''" />
                     </div>
                 </div>
             </div>
