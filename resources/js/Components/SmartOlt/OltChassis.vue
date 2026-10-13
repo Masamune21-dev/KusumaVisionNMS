@@ -13,7 +13,7 @@ const props = defineProps({
     cards: { type: Array, default: () => [] },
     // Port GPON dari snapshot SNMP (slot, port, oper_status)
     ports: { type: Array, default: () => [] },
-    // Status interface tersimpan (uplink): { interface, link_status, admin_status }
+    // Status interface tersimpan (uplink): { interface, interface_type, slot, port, link_status, admin_status }
     interfaces: { type: Array, default: () => [] },
     model: { type: String, default: '' },
     lastRefresh: { type: String, default: null },
@@ -23,7 +23,8 @@ const props = defineProps({
 
 // Tipe kartu layanan GPON (C300/C320/C600) — port-nya diwarnai live dari oper_status.
 const GPON_PREFIX = /^G[TF]/i;
-// Kartu uplink (selaras dgn ZteCardUplinkService): XGEI = 10GE, GEI = 1GE.
+// Kartu uplink (selaras dgn ZteCardUplinkService): XGEI = 10GE, GEI = 1GE — hanya tebakan awal;
+// nama asli per port datang dari interface tersimpan (uplinkNameBySlotPort).
 const XGEI_CARDS = ['HUVQ', 'HUVG', 'HUVX'];
 const GEI_CARDS = ['SMXA', 'SMXB'];
 // Kartu uplink C600 (selaras C600_XGEI_CARDS/C600_GEI_CARDS di ZteCardUplinkService).
@@ -45,6 +46,18 @@ const portsBySlot = computed(() => {
     for (const p of props.ports) {
         const slot = Number(p.slot);
         (map[slot] ??= {})[Number(p.port)] = String(p.oper_status ?? '').toLowerCase();
+    }
+    return map;
+});
+
+// Nama uplink tersimpan per "slot/port" (dibaca dari ifName OLT saat Refresh Hardware). Tipe kartu
+// tak cukup: SMXA bisa gei_1/4/2 atau xgei_1/4/2 (port 10GE), HUVQ = 2× xgei + 2× gei.
+const uplinkNameBySlotPort = computed(() => {
+    const map = {};
+    for (const i of props.interfaces) {
+        if (i.interface && i.interface_type === 'uplink' && i.slot != null && i.port != null) {
+            map[`${i.slot}/${i.port}`] = i.interface;
+        }
     }
     return map;
 });
@@ -138,16 +151,17 @@ const portCount = (card) => {
 // Nama interface CLI untuk port tertentu, atau null bila kartu tak punya interface (kontrol/power).
 const interfaceName = (card, port) => {
     const cfg = String(card.cfg_type ?? '').toUpperCase();
+    const known = uplinkNameBySlotPort.value[`${card.slot}/${port}`];
     if (props.isC600) {
         // C600 3-tier: gpon_olt-1/{slot}/{port}, xgei-1/{slot}/{port} (rack 1).
         if (isGponCard(card)) return `gpon_olt-1/${card.slot}/${port}`;
-        if (C600_XGEI_CARDS.includes(cfg)) return `xgei-1/${card.slot}/${port}`;
-        if (C600_GEI_CARDS.includes(cfg)) return `gei-1/${card.slot}/${port}`;
+        if (C600_XGEI_CARDS.includes(cfg)) return known ?? `xgei-1/${card.slot}/${port}`;
+        if (C600_GEI_CARDS.includes(cfg)) return known ?? `gei-1/${card.slot}/${port}`;
         return null;
     }
     if (isGponCard(card)) return `gpon-olt_1/${card.slot}/${port}`;
-    if (XGEI_CARDS.includes(cfg)) return `xgei_1/${card.slot}/${port}`;
-    if (GEI_CARDS.includes(cfg)) return `gei_1/${card.slot}/${port}`;
+    if (XGEI_CARDS.includes(cfg)) return known ?? `xgei_1/${card.slot}/${port}`;
+    if (GEI_CARDS.includes(cfg)) return known ?? `gei_1/${card.slot}/${port}`;
     return null;
 };
 

@@ -107,6 +107,10 @@ class SmartOltController extends Controller
         $interfaces = collect($service->getStoredInterfaceDetails($olt))
             ->map(fn (array $row) => [
                 'interface' => $row['interface'],
+                // slot/port: chassis memakai nama uplink tersimpan per posisi (ejaan gei/xgei asli OLT).
+                'interface_type' => $row['interface_type'] ?? null,
+                'slot' => $row['slot'] ?? null,
+                'port' => $row['port'] ?? null,
                 'link_status' => $row['link_status'] ?? null,
                 'admin_status' => $row['admin_status'] ?? null,
             ])
@@ -225,18 +229,19 @@ class SmartOltController extends Controller
         ]);
 
         $interface = $data['interface'];
-        $back = redirect()->route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => $interface]);
+        $back = fn (string $iface) => redirect()->route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => $iface]);
 
         try {
-            if (str_starts_with($interface, 'gpon')) {
-                $service->refreshGponInterface($olt, $interface);
-            } else {
-                $service->refreshUplinkInterface($olt, $interface);
-            }
+            $row = str_starts_with($interface, 'gpon')
+                ? $service->refreshGponInterface($olt, $interface)
+                : $service->refreshUplinkInterface($olt, $interface);
 
-            return $back->with('success', __('flash.port_detail_refreshed', ['interface' => $interface]));
+            // Uplink bisa dibetulkan ke nama asli OLT (gei_1/4/2 → xgei_1/4/2): buka halaman nama itu.
+            $interface = $row['interface'] ?? $interface;
+
+            return $back($interface)->with('success', __('flash.port_detail_refreshed', ['interface' => $interface]));
         } catch (\Throwable $e) {
-            return $back->with('error', __('flash.port_refresh_failed', ['interface' => $interface]).$e->getMessage());
+            return $back($interface)->with('error', __('flash.port_refresh_failed', ['interface' => $interface]).$e->getMessage());
         }
     }
 

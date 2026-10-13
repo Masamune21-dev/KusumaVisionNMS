@@ -337,6 +337,36 @@ class OltSnmpClient
     }
 
     /**
+     * Nama CLI port uplink apa adanya dari IF-MIB, di-key "slot/port" (mis. "4/2" => "xgei_1/4/2").
+     * Tipe kartu di `show card` tak cukup untuk menebak awalan gei/xgei: SMXA C320 bisa
+     * `gei_1/4/2` atau `xgei_1/4/2` (port 10GE) dengan baris `show card` identik, dan HUVQ C300 =
+     * `xgei_1/s/1-2` + `gei_1/s/3-4` (terbaca live 13 Okt 2026). ifName dulu; ifDescr hanya bila
+     * ifName tak memuat uplink (sebagian firmware C320 mengosongkan ifDescr, sebagian sebaliknya).
+     *
+     * @return array<string, string>
+     */
+    public function uplinkInterfaceNames(SnmpOlt $olt): array
+    {
+        foreach ([self::IF_NAME, self::IF_DESCR] as $oid) {
+            $names = [];
+
+            foreach ($this->walk($olt, $oid) as $label) {
+                $label = trim($label);
+
+                if (preg_match('#^x?gei[_-]\d+/(\d+)/(\d+)$#i', $label, $m)) {
+                    $names["{$m[1]}/{$m[2]}"] = $label;
+                }
+            }
+
+            if ($names !== []) {
+                return $names;
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function portOnusSnapshot(SnmpOlt $olt, int $slot, int $port): array

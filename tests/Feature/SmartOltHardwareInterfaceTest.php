@@ -101,6 +101,11 @@ OUT,
                     '1.1.20' => ['cpu' => 17, 'mem' => 7, 'phy_mem' => 128],
                 ];
             }
+
+            public function uplinkInterfaceNames(SnmpOlt $olt): array
+            {
+                return [];
+            }
         });
 
         $response = $this->actingAs($user)->post(route('smartolt.hardware.refresh', $olt));
@@ -158,6 +163,8 @@ OUT,
             }
         });
 
+        $this->fakeUplinkNames(['20/1' => 'xgei_1/20/1']);
+
         $response = $this->actingAs($user)->post(route('smartolt.port.refresh', $olt), [
             'interface' => 'xgei_1/20/1',
         ]);
@@ -184,6 +191,148 @@ OUT,
             ->where('interface', 'xgei_1/20/1')
             ->where('detail.interface', 'xgei_1/20/1')
         );
+    }
+
+    /**
+     * @param  array<string, string>  $names  "slot/port" => nama interface asli (ifName OLT)
+     */
+    private function fakeUplinkNames(array $names): void
+    {
+        $this->app->instance(OltSnmpClient::class, new class($names) extends OltSnmpClient
+        {
+            public function __construct(private array $names) {}
+
+            public function cardProcessors(SnmpOlt $olt): array
+            {
+                return [];
+            }
+
+            public function uplinkInterfaceNames(SnmpOlt $olt): array
+            {
+                return $this->names;
+            }
+        });
+    }
+
+    /**
+     * Kasus nyata (13 Okt 2026): port 10GE kartu SMXA C320 bernama `xgei_1/4/2`, tapi NMS menebak
+     * `gei_1/4/2` dari tipe kartu → ketiga perintah CLI ditolak `%Error 20202`. Tautan lama ke nama
+     * tebakan kini dibetulkan lewat ifName dan halaman dialihkan ke nama aslinya.
+     */
+    public function test_port_detail_refresh_corrects_guessed_uplink_name(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt(['name' => 'BMKV-C320', 'vendor' => 'ZTE C320']);
+
+        $this->fakeUplinkNames(['4/1' => 'gei_1/4/1', '4/2' => 'xgei_1/4/2', '4/3' => 'gei_1/4/3']);
+
+        $this->app->instance(ZteCliProvisioningExecutor::class, new class extends ZteCliProvisioningExecutor
+        {
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                $expected = "show interface port-status xgei_1/4/2\nshow vlan port xgei_1/4/2\nshow interface optical-module-info xgei_1/4/2";
+                if ($script !== $expected) {
+                    throw new RuntimeException('Unexpected CLI command: '.$script);
+                }
+
+                return [
+                    'ok' => true,
+                    'error' => null,
+                    'output' => <<<'OUT'
+> show interface port-status xgei_1/4/2
+--------------------------------------------------------------------------------
+     Port      hybrid  Native Negotiation  Speed  Duplex Flow-   Admin      Link
+               Status  VLAN     auto       (Mbps)        Ctrl    Status
+--------------------------------------------------------------------------------
+xgei_1/4/2     optical  1       disable    10000   full  disable activate   up
+BMKV-C320#
+> show vlan port xgei_1/4/2
+TaggedVlan:
+100
+BMKV-C320#
+> show interface optical-module-info xgei_1/4/2
+ No optical module present.
+BMKV-C320#
+OUT,
+                ];
+            }
+        });
+
+        $response = $this->actingAs($user)->post(route('smartolt.port.refresh', $olt), [
+            'interface' => 'gei_1/4/2',
+        ]);
+
+        $response->assertRedirect(route('smartolt.port.detail', ['olt' => $olt->id, 'interface' => 'xgei_1/4/2']));
+        $response->assertSessionHas('success');
+
+        $row = SmartOltInterfaceStatus::query()
+            ->where('snmp_olt_id', $olt->id)
+            ->where('interface', 'xgei_1/4/2')
+            ->firstOrFail();
+
+        $this->assertSame(4, $row->slot);
+        $this->assertSame(2, $row->port);
+        $this->assertSame(10000, $row->speed_mbps);
+        $this->assertSame('up', $row->link_status);
+        $this->assertFalse(SmartOltInterfaceStatus::query()->where('interface', 'gei_1/4/2')->exists());
+    }
+
+    /** Refresh Hardware: inventaris uplink memakai nama ifName, termasuk HUVQ campuran xgei/gei. */
+    public function test_hardware_refresh_uses_snmp_uplink_names(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+
+        $this->fakeUplinkNames([
+            '20/1' => 'xgei_1/20/1', '20/2' => 'xgei_1/20/2', '20/3' => 'gei_1/20/3', '20/4' => 'gei_1/20/4',
+        ]);
+
+        $executor = new class extends ZteCliProvisioningExecutor
+        {
+            public array $scripts = [];
+
+            public function execute(SnmpOlt $olt, string $script, bool $largeOutput = false): array
+            {
+                $this->scripts[] = $script;
+
+                if ($script === 'show card') {
+                    return ['ok' => true, 'error' => null, 'output' => <<<'OUT'
+Rack Shelf Slot CfgType RealType Port  HardVer SoftVer         Status
+-------------------------------------------------------------------------------
+1    1     20   HUVQ    HUVQ     4     V1.0.0  V2.1.0          INSERVICE
+OUT];
+                }
+
+                $output = '';
+                foreach (['xgei_1/20/1' => 10000, 'xgei_1/20/2' => 10000, 'gei_1/20/3' => 1000, 'gei_1/20/4' => 1000] as $iface => $speed) {
+                    $output .= "> show interface port-status {$iface}\n"
+                        .str_pad($iface, 15)."optical  1       disable    {$speed}   full  disable activate   up\n"
+                        ."BMKV-C300#\n";
+                }
+
+                return ['ok' => true, 'error' => null, 'output' => $output];
+            }
+        };
+        $this->app->instance(ZteCliProvisioningExecutor::class, $executor);
+
+        $this->actingAs($user)->post(route('smartolt.hardware.refresh', $olt))
+            ->assertRedirect(route('smartolt.detail', $olt));
+
+        $this->assertStringContainsString('show interface port-status gei_1/20/3', $executor->scripts[1]);
+        $this->assertStringNotContainsString('xgei_1/20/3', $executor->scripts[1]);
+
+        $this->assertSame(
+            ['gei_1/20/3', 'gei_1/20/4', 'xgei_1/20/1', 'xgei_1/20/2'],
+            SmartOltInterfaceStatus::query()->where('snmp_olt_id', $olt->id)->orderBy('interface')->pluck('interface')->all(),
+        );
+
+        $this->actingAs($user)->get(route('smartolt.detail', $olt))
+            ->assertInertia(fn ($page) => $page
+                ->where('interfaces.2.interface', 'gei_1/20/3')
+                ->where('interfaces.2.interface_type', 'uplink')
+                ->where('interfaces.2.slot', 20)
+                ->where('interfaces.2.port', 3)
+            );
     }
 
     public function test_port_detail_reads_gpon_from_snapshot_without_cli(): void

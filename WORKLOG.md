@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-10-13 — Nama Port Uplink ZTE dari ifName OLT (gei vs xgei)
+
+### Fixed
+
+- Refresh uplink 10GE di ZTE C320 gagal `Output gei_1/4/2 tidak bisa diparse … %Error 20202 Invalid parameter`
+  untuk ketiga perintah (`port-status`, `vlan port`, `optical-module-info`), dilaporkan pengguna. Penyebabnya,
+  `discoverUplinkInterfaces()` dan `OltChassis.vue` menamai semua port kartu `SMXA` sebagai `gei_1/{slot}/{port}`,
+  padahal port 10GE-nya bernama `xgei_1/4/2`. Baris `show card`-nya identik dengan SMXA versi GE, jadi tipe kartu
+  tidak bisa membedakan keduanya. Kartu HUVQ C300 juga campuran (`xgei_1/s/1-2` + `gei_1/s/3-4`), padahal NMS
+  menebak keempatnya `xgei`. Saat Refresh Hardware, port bernama salah dilewati tanpa pesan sehingga tak pernah
+  tampil; refresh satu port memunculkan galat di atas. Diverifikasi lewat walk ifName di beberapa C320 & C300.
+
+### Changed
+
+- **`OltSnmpClient::uplinkInterfaceNames()`** (baru): walk ifName `1.3.6.1.2.1.31.1.1.1.1`, cadangan ifDescr bila
+  ifName tak memuat uplink. Hasilnya `"slot/port" => nama` untuk label `x?gei[_-]N/slot/port` (ejaan C300/C320 dan
+  C600). Ukuran walk-nya kecil, puluhan baris dan di bawah 0,2 detik.
+- **`ZteCardUplinkService`**: `discoverUplinkInterfaces($cards, $knownNames = [])` memakai nama asli per port. Tipe
+  kartu tetap menentukan port mana yang uplink, dan tetap jadi tebakan cadangan bila SNMP gagal.
+  `refreshUplinkInterface()` / `refreshC600UplinkInterface()` membetulkan nama tebakan lewat `resolveUplinkName()`
+  sebelum CLI dijalankan.
+- **`SmartOltController::refreshPortDetail()`** mengalihkan ke nama yang dikembalikan service, jadi tautan lama
+  `?interface=gei_1/4/2` berakhir di halaman `xgei_1/4/2`. `detail()` mengirim `interface_type`/`slot`/`port` di prop
+  `interfaces`.
+- **`OltChassis.vue`**: nama port uplink diambil dari interface tersimpan per slot/port. Tebakan per tipe kartu
+  hanya dipakai bila belum ada data.
+- Handbook 07 §3 diperbarui.
+
+### Notes
+
+- Test: `ZteUplinkInterfaceNamesTest` (5) + 2 di `SmartOltHardwareInterfaceTest` (refresh `gei_1/4/2` → CLI & redirect
+  `xgei_1/4/2`; Refresh Hardware HUVQ campuran). Fake SNMP di test lama dibuat hermetik. `scripts/test.sh` 770 passed,
+  `npm test` 57 passed.
+- **Setelah update**, klik **Refresh Hardware** sekali di halaman Detail OLT supaya chassis & port uplink memakai
+  nama yang benar.
+
 ## 2026-10-07 — Configure ONU (CLI): Sandi ACS Tak Lagi Dikirim ke Browser
 
 ### Security

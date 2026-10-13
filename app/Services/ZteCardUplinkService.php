@@ -201,10 +201,15 @@ class ZteCardUplinkService
     /**
      * Derive candidate uplink interface names from card list.
      *
+     * Tipe kartu hanya menentukan port mana yang uplink; ejaan gei/xgei per port diambil dari
+     * $knownNames (IF-MIB, lihat OltSnmpClient::uplinkInterfaceNames) bila ada, karena satu tipe
+     * kartu bisa mencampur keduanya. Tanpa $knownNames jatuh ke tebakan per tipe kartu.
+     *
      * @param  array<int, array<string, mixed>>  $cards
+     * @param  array<string, string>  $knownNames  "slot/port" => nama interface asli
      * @return array<int, array<string, mixed>>
      */
-    public function discoverUplinkInterfaces(array $cards): array
+    public function discoverUplinkInterfaces(array $cards, array $knownNames = []): array
     {
         $interfaces = [];
 
@@ -232,7 +237,7 @@ class ZteCardUplinkService
 
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [
-                        'interface' => "{$ifacePrefix}/{$port}",
+                        'interface' => $knownNames["{$slot}/{$port}"] ?? "{$ifacePrefix}/{$port}",
                         'interface_type' => 'uplink',
                         'card_type' => $cfgType,
                         'slot' => $slot,
@@ -246,7 +251,7 @@ class ZteCardUplinkService
 
                 for ($port = 1; $port <= $portCount; $port++) {
                     $interfaces[] = [
-                        'interface' => "{$ifacePrefix}/{$port}",
+                        'interface' => $knownNames["{$slot}/{$port}"] ?? "{$ifacePrefix}/{$port}",
                         'interface_type' => 'uplink',
                         'card_type' => $cfgType,
                         'slot' => $slot,
@@ -257,6 +262,33 @@ class ZteCardUplinkService
         }
 
         return $this->uniqueInterfaces($interfaces);
+    }
+
+    /**
+     * Nama uplink asli dari IF-MIB ("slot/port" => nama). Gagal/tanpa SNMP = [] supaya refresh
+     * tetap jalan dengan tebakan tipe kartu seperti sebelumnya.
+     *
+     * @return array<string, string>
+     */
+    private function uplinkNamesFromSnmp(SnmpOlt $olt): array
+    {
+        try {
+            return $this->snmp->uplinkInterfaceNames($olt);
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Ganti nama uplink yang ejaannya salah (mis. `gei_1/4/2` padahal OLT menamainya `xgei_1/4/2`)
+     * dengan nama asli di slot/port yang sama. Tautan lama ke nama tebakan ikut pulih lewat sini.
+     */
+    private function resolveUplinkName(SnmpOlt $olt, string $interface, string $pattern): string
+    {
+        $metadata = $this->interfaceMetadata($interface);
+        $known = $this->uplinkNamesFromSnmp($olt)["{$metadata['slot']}/{$metadata['port']}"] ?? null;
+
+        return $known !== null && preg_match($pattern, $known) ? $known : $interface;
     }
 
     /**
@@ -317,7 +349,7 @@ class ZteCardUplinkService
     public function refreshInterfaceDetails(SnmpOlt $olt, ?array $cards = null): array
     {
         $cards ??= $this->getCardStatus($olt);
-        $inventory = $this->discoverUplinkInterfaces($cards);
+        $inventory = $this->discoverUplinkInterfaces($cards, $this->uplinkNamesFromSnmp($olt));
 
         if ($inventory === []) {
             throw new RuntimeException(__('zte.no_active_uplink_card'));
@@ -563,6 +595,8 @@ class ZteCardUplinkService
             throw new RuntimeException(__('zte.invalid_uplink_interface'));
         }
 
+        $interface = $this->resolveUplinkName($olt, $interface, '/^(?:xgei|gei)_\d+\/\d+\/\d+$/');
+
         $statusCommand = "show interface port-status {$interface}";
         $vlanCommand = "show vlan port {$interface}";
         $opticalCommand = "show interface optical-module-info {$interface}";
@@ -644,6 +678,8 @@ class ZteCardUplinkService
         if (! preg_match('#^(?:xgei|gei)-\d+/\d+/\d+$#', $interface)) {
             throw new RuntimeException(__('zte.invalid_uplink_interface'));
         }
+
+        $interface = $this->resolveUplinkName($olt, $interface, '#^(?:xgei|gei)-\d+/\d+/\d+$#');
 
         $statusCommand = "show interface {$interface}";
         $opticalCommand = "show optical-module-info {$interface}";

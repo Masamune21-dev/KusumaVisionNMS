@@ -64,6 +64,12 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - **Page**: `SmartOlt/Detail.vue`.
 - Menampilkan kartu/slot (`smartolt_card_statuses`) + interface uplink (`smartolt_interface_statuses`)
   termasuk metrik optik (RX/TX dBm, suhu) hasil parse CLI `show card` / `show interface`.
+- **Nama port uplink diambil dari ifName OLT** (`OltSnmpClient::uplinkInterfaceNames()`, cadangan ifDescr), bukan
+  ditebak dari tipe kartu. Tipe kartu hanya menentukan port mana yang uplink. Ejaan gei/xgei bisa bercampur
+  dalam satu kartu: SMXA C320 bisa `gei_1/4/2` atau `xgei_1/4/2` (port 10GE) dengan baris `show card` yang sama,
+  dan HUVQ C300 = `xgei_1/s/1-2` + `gei_1/s/3-4`. Kalau SNMP gagal, nama ditebak dari tipe kartu seperti dulu.
+  Refresh satu port juga membetulkan nama tebakan lama (`gei_1/4/2` → `xgei_1/4/2`) lalu mengalihkan halaman ke
+  nama asli. Chassis (`OltChassis.vue`) memakai nama tersimpan per slot/port dari prop `interfaces`.
 
 ## 4. Halaman Port PON (ketiga family)
 - **Page bersama**: `SmartOlt/PonPorts.vue` (prop `route_prefix` = `smartolt`/`cdata-olt`/`hioso-olt`)
