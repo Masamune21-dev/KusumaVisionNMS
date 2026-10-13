@@ -257,6 +257,10 @@ class SmartOltSupport
             // interface gpon-onu) supaya ONU pengganti mewarisi seluruh config. Sintaks itu baru
             // terdokumentasi untuk C300/C320; C600 ditutup sampai dicek `?` di perangkat asli.
             'supports_onu_replace' => ! $isC600,
+            // Pre-Register ONU: SN yang belum tersambung didaftarkan sebagai ONU offline — OLT menyimpan
+            // seluruh config (termasuk pon-onu-mng) dan mendorongnya via OMCI saat ONU ber-SN itu
+            // tersambung. Terverifikasi live di C320 V2.1 (13 Okt 2026); C600 ditutup sampai diuji.
+            'supports_onu_preregister' => ! $isC600,
             'supports_separate_description' => ! $isC600,
             'supports_onu_info_write' => ! $isC600,
             'description_mode' => 'snmp',

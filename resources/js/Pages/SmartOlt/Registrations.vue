@@ -78,6 +78,14 @@ const statuses = computed(() => ({
     },
 }));
 
+// Pre-register: status ONU di posisinya, dari cache polling port (lihat OnuPreregisterService).
+const preregStatuses = computed(() => ({
+    waiting: { label: t('registrations.prereg_waiting'), pillClass: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
+    online: { label: t('registrations.prereg_online'), pillClass: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+    offline: { label: t('registrations.prereg_offline'), pillClass: 'bg-slate-500/15 text-slate-300 ring-1 ring-white/10' },
+    missing: { label: t('registrations.prereg_missing'), pillClass: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30' },
+}));
+
 const formatDate = (value) => formatDateTime(value);
 
 const statusMeta = (status) => statuses.value[status] ?? statuses.value.generated;
@@ -216,6 +224,17 @@ const deleteRegistration = async (registration) => {
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
+                                    <span v-if="registration.preregistered" class="inline-flex w-fit items-center rounded-full bg-cyan-500/15 px-2.5 py-1 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/30">
+                                        Pre-register
+                                    </span>
+                                    <span
+                                        v-if="registration.prereg_status && preregStatuses[registration.prereg_status]"
+                                        class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                                        :class="preregStatuses[registration.prereg_status].pillClass"
+                                        :title="$t('registrations.prereg_status_hint')"
+                                    >
+                                        {{ preregStatuses[registration.prereg_status].label }}
+                                    </span>
                                     <span class="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" :class="statusMeta(registration.status).pillClass">
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}
@@ -257,6 +276,17 @@ const deleteRegistration = async (registration) => {
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
+                                    <span v-if="registration.preregistered" class="inline-flex w-fit items-center rounded-full bg-cyan-500/15 px-2.5 py-1 text-xs font-medium text-cyan-300 ring-1 ring-cyan-500/30">
+                                        Pre-register
+                                    </span>
+                                    <span
+                                        v-if="registration.prereg_status && preregStatuses[registration.prereg_status]"
+                                        class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                                        :class="preregStatuses[registration.prereg_status].pillClass"
+                                        :title="$t('registrations.prereg_status_hint')"
+                                    >
+                                        {{ preregStatuses[registration.prereg_status].label }}
+                                    </span>
                                     <span class="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" :class="statusMeta(registration.status).pillClass">
                                         <component :is="statusMeta(registration.status).icon" class="h-3.5 w-3.5" />
                                         {{ statusMeta(registration.status).label }}

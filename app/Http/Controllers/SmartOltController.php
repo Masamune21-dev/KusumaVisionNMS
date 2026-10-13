@@ -26,6 +26,7 @@ use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\Zte\C600MgmtPoolService;
+use App\Services\Zte\OnuPreregisterService;
 use App\Services\Zte\OnuRegistrationService;
 use App\Services\Zte\UnconfiguredOnuDiscovery;
 use App\Services\ZteCardUplinkService;
@@ -586,11 +587,13 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt, OnuOdpService $odpService): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt, OnuOdpService $odpService, OnuPreregisterService $prereg): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
         $isC600 = SmartOltSupport::isC600($olt);
+        // `?pre=1` = Pre-Register ONU: SN diketik manual, ONU belum tersambung (lihat OnuPreregisterService).
+        $preregister = $request->boolean('pre') && $this->hasCapability($olt, 'supports_onu_preregister');
         // ACS efektif = baris Settings bila terisi, fallback config/env (AcsSetting::resolved).
         $acs = AcsSetting::resolved($olt);
 
@@ -609,6 +612,9 @@ class SmartOltController extends Controller
         // lain tak dirender frontend, jadi query profil & payload-nya dilewati.
         return Inertia::render('SmartOlt/RegisterOnu', [
             'olt' => $this->serializeOlt($olt),
+            'preregister' => $preregister,
+            // Pre-register: ONU ID kosong dihitung ulang di frontend saat slot/port diganti.
+            'port_used_onu_ids' => $preregister ? $prereg->usedOnuIdsByPort($olt) : [],
             'profiles' => SmartOltProfileController::profileOptions($olt),
             // Semua ODP OLT ini (lengkap slot/port) — dropdown disaring per port di frontend,
             // karena slot/port masih bisa diubah di form.
@@ -1857,10 +1863,11 @@ class SmartOltController extends Controller
         return response()->json(['script' => AcsSetting::maskScript($builder->build($data))]);
     }
 
-    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, OnuOdpService $odps): RedirectResponse
+    public function storeOnu(Request $request, SnmpOlt $olt, ZteProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuRegistrationService $registration, OnuOdpService $odps, OnuPreregisterService $prereg): RedirectResponse
     {
         // Password ACS diisi server bila form mengirim kosong.
         AcsSetting::fillRequestPassword($request, olt: $olt);
+        $preregister = $this->preparePreregister($request, $olt);
 
         // C600 = jalur Model B (validasi c600Rules + builder C600) lewat OnuRegistrationService.
         if (SmartOltSupport::isC600($olt)) {
@@ -1884,6 +1891,9 @@ class SmartOltController extends Controller
         }
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
+        if ($preregister) {
+            $prereg->assertCanPreregister($olt, (string) $data['serial_number'], (int) $data['slot'], (int) $data['port'], (int) $data['onu_id']);
+        }
         $script = $builder->build($data);
         $execute = $request->boolean('execute');
 
@@ -1898,6 +1908,7 @@ class SmartOltController extends Controller
                 false,
             ),
             'cli_script' => $script,
+            'preregistered' => $preregister,
             'created_by' => $request->user()?->id,
         ];
 
@@ -1964,9 +1975,42 @@ class SmartOltController extends Controller
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? __('flash.registered_ok').$odpNote
+                    ? $this->registeredNote($olt, $prereg, $preregister, (string) $data['serial_number'], (int) $data['slot'], (int) $data['port'], (string) $base['pon_port']).$odpNote
                     : __('flash.register_rejected').AcsSetting::maskScript($error),
             );
+    }
+
+    /**
+     * Mode Pre-Register dari form (`preregister=1`): gate capability (C300/C320) lalu normalisasi SN
+     * manual SEBELUM validasi supaya builder, baris audit & pengecekan bentrok memakai bentuk yang sama.
+     */
+    private function preparePreregister(Request $request, SnmpOlt $olt): bool
+    {
+        if (! $request->boolean('preregister')) {
+            return false;
+        }
+
+        $this->assertCapability($olt, 'supports_onu_preregister');
+        $request->merge([
+            'serial_number' => OnuPreregisterService::normalizeSerial((string) $request->input('serial_number', '')),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Pesan sukses registrasi. Pre-register: segarkan cache port supaya ONU offline-nya langsung
+     * tampil di daftar port, dan jelaskan bahwa config aktif sendiri saat ONU tersambung.
+     */
+    private function registeredNote(SnmpOlt $olt, OnuPreregisterService $prereg, bool $preregister, string $serial, int $slot, int $port, string $interface): string
+    {
+        if (! $preregister) {
+            return __('flash.registered_ok');
+        }
+
+        $prereg->refreshPortCache($olt, $slot, $port);
+
+        return __('flash.preregistered_ok', ['sn' => $serial, 'interface' => $interface]);
     }
 
     /**
@@ -2000,9 +2044,13 @@ class SmartOltController extends Controller
      * {@see storeOnu} but the CLI script comes from the granular editor instead
      * of the fixed single-service template.
      */
-    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuOdpService $odps): RedirectResponse
+    public function storeOnuAdvanced(Request $request, SnmpOlt $olt, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuOdpService $odps, OnuPreregisterService $prereg): RedirectResponse
     {
+        $preregister = $this->preparePreregister($request, $olt);
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
+        if ($preregister) {
+            $prereg->assertCanPreregister($olt, (string) $header['serial_number'], (int) $header['slot'], (int) $header['port'], (int) $header['onu_id']);
+        }
         $context = $this->advancedRegistrationContext($olt, $header);
         $script = $builder->buildForRegistration($config, $context);
         $execute = $request->boolean('execute');
@@ -2032,6 +2080,7 @@ class SmartOltController extends Controller
             'remote_ont_mode' => $config['remote_ont_mode'] ?? null,
             'remote_ont_protocol' => $config['remote_ont_protocol'] ?? null,
             'cli_script' => $script,
+            'preregistered' => $preregister,
             'created_by' => $request->user()?->id,
         ];
 
@@ -2094,7 +2143,7 @@ class SmartOltController extends Controller
             ->with(
                 $result['ok'] ? 'success' : 'error',
                 $result['ok']
-                    ? __('flash.registered_ok').$odpNote
+                    ? $this->registeredNote($olt, $prereg, $preregister, (string) $header['serial_number'], (int) $header['slot'], (int) $header['port'], (string) $context['onu_iface']).$odpNote
                     : __('flash.register_rejected').AcsSetting::maskScript($error),
             );
     }
@@ -2137,8 +2186,10 @@ class SmartOltController extends Controller
         ];
     }
 
-    public function registrations(SnmpOlt $olt): Response
+    public function registrations(SnmpOlt $olt, OnuPreregisterService $prereg): Response
     {
+        $preregStatus = $prereg->statusResolver($olt);
+
         $registrations = SmartOltOnuRegistration::query()
             ->where('snmp_olt_id', $olt->id)
             ->latest()
@@ -2148,6 +2199,12 @@ class SmartOltController extends Controller
                 'id' => $registration->id,
                 'serial_number' => $registration->serial_number,
                 'pon_port' => $registration->pon_port,
+                'slot' => $registration->slot,
+                'port' => $registration->port,
+                'onu_id' => $registration->onu_id,
+                'preregistered' => (bool) $registration->preregistered,
+                // waiting/online/offline/missing dari cache port; null = bukan pre-register / belum dieksekusi.
+                'prereg_status' => $preregStatus($registration),
                 'customer_name' => $registration->customer_name,
                 'onu_type' => $registration->onu_type,
                 'tcont_profile' => $registration->tcont_profile,
@@ -2687,19 +2744,20 @@ class SmartOltController extends Controller
 
     private function assertCapability(SnmpOlt $olt, string $capability): void
     {
+        abort_unless($this->hasCapability($olt, $capability), 403, __('olt.driver_action_unsupported'));
+    }
+
+    private function hasCapability(SnmpOlt $olt, string $capability): bool
+    {
         $driver = SmartOltSupport::driverKey(
             $olt,
             data_get($olt->last_test_result, 'system.sys_descr'),
             data_get($olt->last_test_result, 'system.sys_object_id'),
         );
 
-        abort_unless(
-            // Teruskan $olt agar kapabilitas yang bergantung C600 (mis. supports_onu_config_write,
-            // supports_provisioning) dinilai benar — tanpa ini isC600 selalu false di jalur ini.
-            (bool) (SmartOltSupport::capabilities($driver, $olt)[$capability] ?? false),
-            403,
-            __('olt.driver_action_unsupported'),
-        );
+        // Teruskan $olt agar kapabilitas yang bergantung C600 (mis. supports_onu_config_write,
+        // supports_provisioning) dinilai benar — tanpa ini isC600 selalu false di jalur ini.
+        return (bool) (SmartOltSupport::capabilities($driver, $olt)[$capability] ?? false);
     }
 
     private function resolveOnuIfIndex(SnmpOlt $olt, int $slot, int $port, int $onuId, ?int $provided): int

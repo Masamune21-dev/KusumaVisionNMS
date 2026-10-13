@@ -23,7 +23,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, ChevronLeft, ChevronRight, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -109,6 +109,9 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 // Target TR069 Massal = ACS di Pengaturan (prop `acs`), kosong untuk OLT privat partner & OLT demo.
 const canTr069 = computed(() => !!caps.value.supports_onu_config_write && !!props.acs?.url);
 const tr069ModalOpen = ref(false);
+
+// Pre-Register ONU: daftarkan SN yang belum tersambung ke port ini sebagai ONU offline (C300/C320).
+const canPreregister = computed(() => !!caps.value.supports_onu_preregister && canManageOlt.value);
 
 // --- navigasi cepat antar port (OLT sama) ---
 const navPorts = computed(() => {
@@ -597,6 +600,12 @@ const rxBadgeClass = (value) => {
                         <Cloud class="mr-2 h-4 w-4" />
                         {{ $t('portonus.tr069_bulk') }}
                     </SecondaryButton>
+                    <Link v-if="canPreregister" :href="route('smartolt.register', { olt: olt.id, slot, port, pre: 1 })" :title="$t('portonus.preregister_hint')">
+                        <SecondaryButton type="button">
+                            <ClipboardPlus class="mr-2 h-4 w-4" />
+                            Pre-Register ONU
+                        </SecondaryButton>
+                    </Link>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         {{ $t('portonus.refresh_onu') }}

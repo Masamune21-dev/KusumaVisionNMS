@@ -146,6 +146,7 @@ return [
     'config_applied' => 'Konfigurasi ONU berhasil di-apply ke OLT.',
     'config_apply_rejected' => 'Konfigurasi belum berhasil — bagian ini ditolak OLT: ',
     'registered_ok' => 'ONU berhasil diregister & dieksekusi ke OLT.',
+    'preregistered_ok' => 'Pre-register :sn tersimpan di OLT sebagai ONU offline di :interface. Config aktif otomatis begitu ONU ber-SN itu dicolok ke port tersebut.',
     'register_rejected' => 'Registrasi belum berhasil — bagian ini ditolak OLT: ',
     'prov_executed' => 'Provisioning script berhasil dieksekusi ke OLT.',
     'prov_rejected' => 'Provisioning belum berhasil — bagian ini ditolak OLT: ',

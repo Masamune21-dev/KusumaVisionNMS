@@ -291,6 +291,25 @@ API/mobile C300/C320 belum punya field-nya (tetap `{id}$$nama$$`). Nama pelangga
 
 ACS default dari `AcsSetting::resolved()` (Pengaturan → ACS; cadangan `config('services.acs')` = `ACS_URL`/`ACS_USERNAME`/`ACS_PASSWORD` di `.env`, tak ada kredensial di repo; password tak pernah dikirim ke props). Form register lanjutan (`Pages/SmartOlt/RegisterOnu.vue`) punya jalur preview+store (`smartolt.register.*`, `…register.advanced.*`) dengan default dari [`Zte\OnuRegistrationFormDefaults`](../app/Services/Zte/OnuRegistrationFormDefaults.php).
 
+### 5.3a Pre-Register ONU (ONU belum tersambung) — C300/C320
+
+Skrip registrasi §5.3 **diterima OLT walau ONU ber-SN itu belum pernah tersambung**. OLT menyimpan seluruh config
+dan mendorongnya via OMCI begitu ONU dengan SN tersebut tersambung ke port itu. Dasar fitur **Pre-Register ONU**
+(`OnuPreregisterService`, `smartolt.register?pre=1`).
+
+**Terverifikasi live 13 Okt 2026** di OLT C320 firmware V2.1 (OLT uji, port kosong, SN fiktif `TEST08000001`,
+dihapus lagi dengan `no onu 1` tanpa `write`):
+
+- `onu 1 type ALL-ONT sn TEST08000001` → `[Successful]`.
+- Seluruh baris `interface gpon-onu_…` (name, description, tcont, gemport, encrypt, service-port) dan
+  `pon-onu-mng` (service, `wan-ip 1 mode pppoe … vlan-profile … host 1`, ping-response) diterima tanpa galat.
+- `show gpon onu state` → `enable  disable  OffLine`. `show gpon onu detail-info` → `Phase state: OffLine`,
+  `Config state: success`, `SN Bind: enable with SN check`, dan tabel `Authpass Time` kosong (belum pernah online).
+- `show running-config interface gpon-onu_…` dan `show onu running config gpon-onu_…` memuat config utuh.
+
+Yang belum diuji: ONU fisik dengan SN tersebut dicolok lalu PPPoE naik tanpa sentuhan (uji akhir dengan ONU
+cadangan), dan C600 (capability `supports_onu_preregister` ditutup).
+
 ### 5.4 Reconfigure ONU Existing (delta)
 
 [`ZteOnuReconfigureScriptBuilder::build()`](../app/Services/ZteOnuReconfigureScriptBuilder.php): baca running-config live (`ZteOnuRunningConfigService`), bandingkan dengan payload form, emit hanya baris yang berubah (name/tcont/gemport/service-port, tr069 lock/unlock, security-mgmt enable/disable, wan-ip per-index). `buildForCopy()` dipakai fitur **copy ONU ke port lain**; `buildForRegistration()` dipakai register mode Lanjutan. Semua jalur tulis builder ini digerbang `supports_onu_config_write`, yang **mati di C600** (builder masih gaya C300 tcont/gemport/service-port, sedangkan C600 memakai model vport) — Configure C600 = baca-saja, dan Copy ONU, TR069 Massal, serta register Lanjutan ikut tersembunyi di C600. Bila tak ada perubahan → script kosong → "Tidak ada perubahan config untuk di-apply".
@@ -442,7 +461,7 @@ Model [`SnmpOlt`](../app/Models/SnmpOlt.php). Kolom sensitif (`snmp_read_communi
 
 ### 8.3 `smartolt_onu_registrations`
 
-Audit trail provisioning + reconfigure: `snmp_olt_id`, `serial_number`, `slot`, `port`, `onu_id`, `pon_port`, `oid_index`, `customer_name`, `onu_type`, `tcont_profile`, `vlan`, `vlan_profile`, `service_name`, `wan_mode` (enum pppoe/dhcp/static/bridge/tr069 — `tr069` = registrasi C600), `pppoe_username`, `pppoe_password` (⚠ text/plaintext — batasi akses), `ip_profile`, `static_ip`, `static_netmask`, `cli_script` (longtext), `status` (`generated|executed|failed|reconfigured|…`), `created_by`; + eksekusi (`execution_output`, `execution_error`, `executed_at`, `executed_by`); + TR069/Remote ONT (`tr069_enabled`, `acs_url/username/password`, `remote_ont_enabled/id/mode/protocol`).
+Audit trail provisioning + reconfigure: `snmp_olt_id`, `serial_number`, `slot`, `port`, `onu_id`, `pon_port`, `oid_index`, `customer_name`, `onu_type`, `tcont_profile`, `vlan`, `vlan_profile`, `service_name`, `wan_mode` (enum pppoe/dhcp/static/bridge/tr069 — `tr069` = registrasi C600), `pppoe_username`, `pppoe_password` (⚠ text/plaintext — batasi akses), `ip_profile`, `static_ip`, `static_netmask`, `cli_script` (longtext), `status` (`generated|executed|failed|reconfigured|…`), `preregistered` (boolean, Pre-Register ONU §5.3a), `created_by`; + eksekusi (`execution_output`, `execution_error`, `executed_at`, `executed_by`); + TR069/Remote ONT (`tr069_enabled`, `acs_url/username/password`, `remote_ont_enabled/id/mode/protocol`).
 
 ### 8.4 Tabel pendukung
 

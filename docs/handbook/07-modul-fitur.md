@@ -273,6 +273,22 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   **alokasi mgmt-IP otomatis** (scan IP terpakai di OLT), dropdown ONU Type & T-CONT dari katalog
   profil, preset ACS dari OLT. WAN PPPoE/DHCP/Static **tetap ditolak** di C600; reconfigure/edit ONU
   C600 juga masih OFF (`supports_onu_config_write=false`).
+- **Pre-Register ONU (13 Okt 2026, C300/C320)** — daftarkan ONU yang **belum tersambung**. Operator
+  mengetik SN-nya, dan config ditulis ke OLT sebagai ONU offline. Saat ONU ber-SN itu dicolok ke port tersebut,
+  OLT sendiri yang mencocokkan SN dan mendorong config via OMCI (setara pre-config NetNumen; perilaku OLT
+  terverifikasi live, lihat guide ZTE §5.3a). Pintu masuk: tombol **Pre-Register ONU** di halaman ONU per port
+  (slot/port terisi), Unconfigured, dan Unconfigured global → `smartolt.register?pre=1`. Form-nya sama (Sederhana &
+  Lanjutan) dengan banner penjelasan; ONU ID kosong dihitung ulang di frontend saat slot/port diganti (prop
+  `port_used_onu_ids`). Server (`storeOnu`/`storeOnuAdvanced`, `preregister=1`): gate capability
+  `supports_onu_preregister` (C600 403), SN dinormalisasi (`OnuPreregisterService::normalizeSerial`: huruf besar,
+  tanpa spasi/`:`/`-`/`.`) **sebelum** validasi, lalu `assertCanPreregister()` menolak sebelum OLT disentuh: format
+  SN (4 karakter vendor + 8 heksa), SN sudah terdaftar di OLT itu (menyebut posisinya), ONU ID terpakai di port
+  (sumber: cache `port_onus`). Baris audit ditandai `smartolt_onu_registrations.preregistered`. Sukses →
+  `refreshPortCache()` (SNMP satu port) supaya ONU offline langsung tampil di daftar port. Halaman Riwayat
+  Registrasi menampilkan lencana **Pre-register** + status dari cache port (`statusResolver()`): **Menunggu ONU**
+  (phase `Offline`), **Sudah online**, **Offline** (pernah tersambung lalu mati: LOS/DyingGasp), **Tidak ada di
+  OLT** (posisi kosong/SN lain). Registrasi biasa (`preregister` tak dikirim) tak berubah. REST API/aplikasi
+  mobile & C600 belum.
 - Detail builder & sintaks di [09 — CLI & Telnet](09-cli-telnet.md).
 
 ## 10. Profil layanan

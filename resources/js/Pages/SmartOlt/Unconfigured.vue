@@ -5,7 +5,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import BindOnuModal from '@/Components/SmartOlt/BindOnuModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Plus, RefreshCw, Replace, Wifi } from '@lucide/vue';
+import { ArrowLeft, ClipboardPlus, Plus, RefreshCw, Replace, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { formatDateTime } from '@/lib/datetime';
 
@@ -22,6 +22,8 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+// Pre-Register: SN yang BELUM muncul di daftar ini (ONU belum tersambung) — C300/C320.
+const canPreregister = computed(() => Boolean(props.olt.capabilities?.supports_onu_preregister && page.props.auth?.can?.manage_olt));
 
 const refresh = () => {
     router.post(route('smartolt.unconfigured.refresh', props.olt.id), {}, {
@@ -56,6 +58,12 @@ const bindTarget = ref(null);
                         <SecondaryButton type="button">
                             <ArrowLeft class="mr-2 h-4 w-4" />
                             {{ $t('common.detail_olt') }}
+                        </SecondaryButton>
+                    </Link>
+                    <Link v-if="canPreregister" :href="route('smartolt.register', { olt: olt.id, pre: 1 })" :title="$t('portonus.preregister_hint')">
+                        <SecondaryButton type="button">
+                            <ClipboardPlus class="mr-2 h-4 w-4" />
+                            Pre-Register ONU
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">

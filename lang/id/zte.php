@@ -28,4 +28,9 @@ return [
     'backup_unchanged' => 'Config tidak berubah sejak backup terakhir — tak ada versi baru dibuat.',
     'backup_daily_enabled' => 'Backup config harian diaktifkan untuk OLT :name.',
     'backup_daily_disabled' => 'Backup config harian dimatikan untuk OLT :name.',
+
+    // Pre-Register ONU (OnuPreregisterService)
+    'prereg_serial_format' => 'Format SN tidak valid — SN GPON = 4 karakter vendor + 8 heksa (mis. ZTEGC1234567). Periksa lagi label di dus/ONU.',
+    'prereg_serial_registered' => 'SN ini sudah terdaftar di OLT ini (:interface).',
+    'prereg_onu_id_used' => 'ONU ID :onu_id sudah dipakai di port ini — pilih ID lain.',
 ];

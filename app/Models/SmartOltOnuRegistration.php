@@ -72,6 +72,7 @@ class SmartOltOnuRegistration extends Model
         'executed_at',
         'executed_by',
         'status',
+        'preregistered',
         'created_by',
         'is_demo',
     ];
@@ -87,6 +88,7 @@ class SmartOltOnuRegistration extends Model
         return [
             'slot' => 'integer',
             'is_demo' => 'boolean',
+            'preregistered' => 'boolean',
             'port' => 'integer',
             'onu_id' => 'integer',
             'vlan' => 'integer',

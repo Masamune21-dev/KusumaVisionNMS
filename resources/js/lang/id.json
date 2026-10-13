@@ -429,7 +429,8 @@
         "col_acs": "ACS",
         "acs_yes": "Terhubung",
         "acs_stale": "Lama diam",
-        "acs_no": "Belum"
+        "acs_no": "Belum",
+        "preregister_hint": "Daftarkan ONU yang belum tersambung lewat SN-nya — config aktif sendiri saat ONU dicolok"
     },
     "tr069": {
         "enable_title": "Aktifkan TR069 Massal",
@@ -674,7 +675,12 @@
         "execute_title": "Eksekusi ke OLT",
         "delete_script_title": "Hapus script",
         "hide": "Sembunyikan",
-        "show_script": "Lihat script"
+        "show_script": "Lihat script",
+        "prereg_waiting": "Menunggu ONU",
+        "prereg_online": "Sudah online",
+        "prereg_offline": "Offline",
+        "prereg_missing": "Tidak ada di OLT",
+        "prereg_status_hint": "Status ONU di posisinya menurut polling terakhir"
     },
     "configbackups": {
         "title": "Backup Konfigurasi",
@@ -938,7 +944,16 @@
         "c600_egress_hint": "Ketik manual — traffic-policy downstream tak tersinkron di katalog profil.",
         "odp": "ODP (opsional)",
         "odp_none": "— Tanpa ODP —",
-        "odp_hint": "Hanya ODP di port yang dipilih. Dikaitkan setelah registrasi berhasil dieksekusi ke OLT."
+        "odp_hint": "Hanya ODP di port yang dipilih. Dikaitkan setelah registrasi berhasil dieksekusi ke OLT.",
+        "prereg_subtitle": "{olt} · daftarkan ONU yang belum tersambung, config aktif sendiri saat ONU dicolok",
+        "prereg_banner_title": "ONU tidak perlu menyala",
+        "prereg_banner_body": "Config ditulis ke OLT sebagai ONU offline di port yang dipilih. Begitu ONU dengan SN ini dicolok ke port tersebut, OLT langsung mendorong config-nya tanpa langkah tambahan. Pastikan SN sama persis dengan label di dus/ONU dan ONU nanti dicolok ke port yang sama.",
+        "prereg_sn_hint": "4 karakter vendor + 8 heksa. Spasi, titik dua, dan strip dibuang otomatis.",
+        "prereg_onu_id_hint": "ONU ID kosong pertama di port ini, dihitung ulang saat slot/port diganti.",
+        "prereg_confirm_title": "Pre-register ke OLT",
+        "prereg_confirm_msg": "Daftarkan SN {sn} di {olt} slot {slot} port {port} ONU ID {onu_id} sebagai ONU offline? Config aktif otomatis saat ONU itu dicolok ke port tersebut.",
+        "prereg_confirm_label": "Pre-register",
+        "prereg_execute": "Pre-register ke OLT"
     },
     "cdataform": {
         "create_cdata": "Tambah OLT C-Data",

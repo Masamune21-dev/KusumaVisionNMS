@@ -429,7 +429,8 @@
         "col_acs": "ACS",
         "acs_yes": "Linked",
         "acs_stale": "Gone quiet",
-        "acs_no": "Not linked"
+        "acs_no": "Not linked",
+        "preregister_hint": "Register an ONU that is not connected yet by its SN — its config activates once it is plugged in"
     },
     "tr069": {
         "enable_title": "Enable Bulk TR069",
@@ -674,7 +675,12 @@
         "execute_title": "Execute to OLT",
         "delete_script_title": "Delete script",
         "hide": "Hide",
-        "show_script": "View script"
+        "show_script": "View script",
+        "prereg_waiting": "Waiting for ONU",
+        "prereg_online": "Online",
+        "prereg_offline": "Offline",
+        "prereg_missing": "Not on the OLT",
+        "prereg_status_hint": "ONU status at its position as of the last poll"
     },
     "configbackups": {
         "title": "Config Backup",
@@ -938,7 +944,16 @@
         "c600_egress_hint": "Type manually — downstream traffic-policies aren't synced in the profile catalog.",
         "odp": "ODP (optional)",
         "odp_none": "— No ODP —",
-        "odp_hint": "Only ODPs on the selected port. Linked after the registration is successfully executed on the OLT."
+        "odp_hint": "Only ODPs on the selected port. Linked after the registration is successfully executed on the OLT.",
+        "prereg_subtitle": "{olt} · register an ONU that is not connected yet; its config activates once it is plugged in",
+        "prereg_banner_title": "The ONU does not need to be powered on",
+        "prereg_banner_body": "The config is written to the OLT as an offline ONU on the selected port. As soon as an ONU with this SN is plugged into that port, the OLT pushes its config with no extra steps. Make sure the SN matches the label on the box/ONU exactly and that the ONU is later plugged into the same port.",
+        "prereg_sn_hint": "4 vendor characters + 8 hex digits. Spaces, colons and dashes are removed automatically.",
+        "prereg_onu_id_hint": "First free ONU ID on this port, recalculated when the slot/port changes.",
+        "prereg_confirm_title": "Pre-register on the OLT",
+        "prereg_confirm_msg": "Register SN {sn} on {olt} slot {slot} port {port} ONU ID {onu_id} as an offline ONU? The config activates automatically when that ONU is plugged into that port.",
+        "prereg_confirm_label": "Pre-register",
+        "prereg_execute": "Pre-register on OLT"
     },
     "cdataform": {
         "create_cdata": "Add C-Data OLT",

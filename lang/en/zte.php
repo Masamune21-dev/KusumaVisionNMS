@@ -28,4 +28,9 @@ return [
     'backup_unchanged' => 'The config has not changed since the last backup — no new version was created.',
     'backup_daily_enabled' => 'Daily config backup enabled for OLT :name.',
     'backup_daily_disabled' => 'Daily config backup disabled for OLT :name.',
+
+    // Pre-Register ONU (OnuPreregisterService)
+    'prereg_serial_format' => 'Invalid SN format — a GPON SN is 4 vendor characters + 8 hex digits (e.g. ZTEGC1234567). Check the label on the box/ONU.',
+    'prereg_serial_registered' => 'This SN is already registered on this OLT (:interface).',
+    'prereg_onu_id_used' => 'ONU ID :onu_id is already used on this port — pick another ID.',
 ];

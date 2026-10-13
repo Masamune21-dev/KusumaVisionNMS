@@ -10,7 +10,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Check, Copy, Cpu, Globe, LayoutList, RefreshCw, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
+import { Check, Copy, Cpu, Globe, Info, LayoutList, RefreshCw, Settings, SlidersHorizontal, Terminal, User, Zap } from '@lucide/vue';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -42,6 +42,17 @@ const props = defineProps({
     odps: {
         type: Array,
         default: () => [],
+    },
+    // Pre-Register ONU (`?pre=1`, C300/C320): SN diketik manual, ONU belum tersambung — config
+    // ditulis ke OLT sebagai ONU offline dan aktif sendiri saat ONU ber-SN itu dicolok.
+    preregister: {
+        type: Boolean,
+        default: false,
+    },
+    // ONU ID terpakai per port dari cache ("slot_port" => [id]) — hanya dikirim di mode pre-register.
+    port_used_onu_ids: {
+        type: Object,
+        default: () => ({}),
     },
 });
 
@@ -113,6 +124,42 @@ const advOdpOptions = computed(() => odpOptionsFor(advForm.slot, advForm.port));
 
 // Deskripsi yang dipakai builder bila kolom Deskripsi dikosongkan (ZteProvisioningScriptBuilder).
 const simpleAutoDescription = computed(() => `${form.onu_id ?? ''}$$${(form.customer_name ?? '').trim()}$$`);
+
+// Pre-register: ONU ID kosong pertama di port terpilih, dihitung ulang saat slot/port diganti
+// (di registrasi biasa slot/port/ID datang dari daftar unconfigured, jadi tak disentuh).
+const nextFreeOnuId = (slot, port) => {
+    const used = new Set((props.port_used_onu_ids?.[`${slot}_${port}`] ?? []).map(Number));
+    let id = 1;
+    while (used.has(id) && id < 4096) id++;
+    return id;
+};
+if (props.preregister) {
+    watch(() => [form.slot, form.port], ([slot, port]) => {
+        if (slot && port) form.onu_id = nextFreeOnuId(slot, port);
+    });
+    watch(() => [advForm.slot, advForm.port], ([slot, port]) => {
+        if (slot && port) advForm.onu_id = nextFreeOnuId(slot, port);
+    });
+}
+
+// Batal: pre-register kembali ke daftar ONU port-nya; registrasi biasa ke daftar unconfigured.
+const cancelHref = computed(() => (
+    props.preregister && props.defaults.slot && props.defaults.port
+        ? route('smartolt.port-onus', [props.olt.id, props.defaults.slot, props.defaults.port])
+        : route('smartolt.unconfigured-all', { olt_id: props.olt.id })
+));
+
+const preregConfirm = (f) => ({
+    title: t('registeronu.prereg_confirm_title'),
+    message: t('registeronu.prereg_confirm_msg', {
+        sn: f.serial_number || '',
+        olt: props.olt.name,
+        slot: f.slot ?? '',
+        port: f.port ?? '',
+        onu_id: f.onu_id ?? '',
+    }),
+    confirmLabel: t('registeronu.prereg_confirm_label'),
+});
 
 const advErrorList = computed(() => Object.values(advForm.errors ?? {}));
 const onuTypeProfiles = computed(() => props.profiles.onu_type ?? []);
@@ -211,11 +258,13 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 const submit = async (execute) => {
     if (execute) {
-        const ok = await confirm({
-            title: t('registeronu.confirm_exec_title'),
-            message: t('registeronu.confirm_exec_msg', { sn: form.serial_number || '', olt: props.olt.name }),
-            confirmLabel: t('registeronu.confirm_exec_label'),
-        });
+        const ok = await confirm(props.preregister
+            ? preregConfirm(form)
+            : {
+                title: t('registeronu.confirm_exec_title'),
+                message: t('registeronu.confirm_exec_msg', { sn: form.serial_number || '', olt: props.olt.name }),
+                confirmLabel: t('registeronu.confirm_exec_label'),
+            });
 
         if (!ok) {
             return;
@@ -223,7 +272,7 @@ const submit = async (execute) => {
     }
 
     form
-        .transform((data) => ({ ...data, execute }))
+        .transform((data) => ({ ...data, execute, preregister: props.preregister }))
         .post(route('smartolt.register.store', props.olt.id), {
             preserveScroll: true,
         });
@@ -231,11 +280,13 @@ const submit = async (execute) => {
 
 const submitAdvanced = async (execute) => {
     if (execute) {
-        const ok = await confirm({
-            title: t('registeronu.confirm_exec_title'),
-            message: t('registeronu.confirm_exec_msg_adv', { sn: advForm.serial_number || '', olt: props.olt.name }),
-            confirmLabel: t('registeronu.confirm_exec_label'),
-        });
+        const ok = await confirm(props.preregister
+            ? preregConfirm(advForm)
+            : {
+                title: t('registeronu.confirm_exec_title'),
+                message: t('registeronu.confirm_exec_msg_adv', { sn: advForm.serial_number || '', olt: props.olt.name }),
+                confirmLabel: t('registeronu.confirm_exec_label'),
+            });
 
         if (!ok) {
             return;
@@ -243,7 +294,7 @@ const submitAdvanced = async (execute) => {
     }
 
     advForm
-        .transform((data) => ({ ...data, execute }))
+        .transform((data) => ({ ...data, execute, preregister: props.preregister }))
         .post(route('smartolt.register.advanced.store', props.olt.id), {
             preserveScroll: true,
         });
@@ -271,13 +322,13 @@ const submitC600 = async (execute) => {
 </script>
 
 <template>
-    <Head title="Register ONU" />
+    <Head :title="preregister ? 'Pre-Register ONU' : 'Register ONU'" />
 
     <AuthenticatedLayout>
         <template #header>
             <div>
-                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">Register ONU</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ $t('registeronu.subtitle', { olt: olt.name }) }}</p>
+                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ preregister ? 'Pre-Register ONU' : 'Register ONU' }}</h2>
+                <p class="mt-1 text-sm text-slate-500">{{ $t(preregister ? 'registeronu.prereg_subtitle' : 'registeronu.subtitle', { olt: olt.name }) }}</p>
             </div>
         </template>
 
@@ -524,6 +575,15 @@ const submitC600 = async (execute) => {
                     <!-- ============ Form C300/C320 (mode Sederhana / Lanjutan) ============ -->
                     <template v-else>
 
+                    <!-- Pre-register: ONU belum tersambung, config disimpan OLT sebagai ONU offline -->
+                    <div v-if="preregister" class="flex gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 sm:px-6">
+                        <Info class="mt-0.5 h-4 w-4 flex-shrink-0 text-cyan-300" />
+                        <div class="text-sm">
+                            <p class="font-semibold text-cyan-200">{{ $t('registeronu.prereg_banner_title') }}</p>
+                            <p class="mt-1 text-slate-300">{{ $t('registeronu.prereg_banner_body') }}</p>
+                        </div>
+                    </div>
+
                     <!-- Mode toggle: Sederhana vs Lanjutan -->
                     <div class="kv-surface flex flex-col gap-3 rounded-lg border border-white/10 bg-slate-900/40 px-4 py-3 shadow-lg shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div>
@@ -566,7 +626,8 @@ const submitC600 = async (execute) => {
                         <div class="grid gap-5 p-6 md:grid-cols-3">
                             <div class="md:col-span-3">
                                 <InputLabel for="serial_number" value="Serial Number" />
-                                <TextInput id="serial_number" v-model="form.serial_number" class="mt-1 block w-full font-mono" required />
+                                <TextInput id="serial_number" v-model="form.serial_number" class="mt-1 block w-full font-mono" required :placeholder="preregister ? 'ZTEGC1234567' : undefined" :autofocus="preregister" />
+                                <p v-if="preregister" class="mt-1 text-xs text-slate-500">{{ $t('registeronu.prereg_sn_hint') }}</p>
                                 <InputError class="mt-1.5" :message="form.errors.serial_number" />
                             </div>
                             <div>
@@ -582,6 +643,7 @@ const submitC600 = async (execute) => {
                             <div>
                                 <InputLabel for="onu_id" value="ONU ID" />
                                 <TextInput id="onu_id" v-model="form.onu_id" type="number" class="mt-1 block w-full" required />
+                                <p v-if="preregister" class="mt-1 text-xs text-slate-500">{{ $t('registeronu.prereg_onu_id_hint') }}</p>
                                 <InputError class="mt-1.5" :message="form.errors.onu_id" />
                             </div>
                             <div>
@@ -866,7 +928,7 @@ const submitC600 = async (execute) => {
                             {{ $t('registeronu.no_cli_note') }}
                         </p>
                         <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-                            <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
+                            <Link :href="cancelHref" class="sm:mr-auto">
                                 <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                             </Link>
                             <SecondaryButton type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(false)">
@@ -875,7 +937,7 @@ const submitC600 = async (execute) => {
                             </SecondaryButton>
                             <PrimaryButton v-if="canExecute" type="button" :disabled="form.processing" class="w-full sm:w-auto" @click="submit(true)">
                                 <Zap class="mr-2 h-4 w-4" />
-                                {{ form.processing ? $t('registeronu.executing') : $t('registeronu.execute_to_olt') }}
+                                {{ form.processing ? $t('registeronu.executing') : $t(preregister ? 'registeronu.prereg_execute' : 'registeronu.execute_to_olt') }}
                             </PrimaryButton>
                         </div>
                     </div>
@@ -904,7 +966,8 @@ const submitC600 = async (execute) => {
                             <div class="grid gap-5 p-6 md:grid-cols-4">
                                 <div class="md:col-span-4">
                                     <InputLabel for="adv_sn" value="Serial Number" />
-                                    <TextInput id="adv_sn" v-model="advForm.serial_number" class="mt-1 block w-full font-mono" required />
+                                    <TextInput id="adv_sn" v-model="advForm.serial_number" class="mt-1 block w-full font-mono" required :placeholder="preregister ? 'ZTEGC1234567' : undefined" />
+                                    <p v-if="preregister" class="mt-1 text-xs text-slate-500">{{ $t('registeronu.prereg_sn_hint') }}</p>
                                     <InputError class="mt-1.5" :message="advForm.errors.serial_number" />
                                 </div>
                                 <div>
@@ -920,6 +983,7 @@ const submitC600 = async (execute) => {
                                 <div>
                                     <InputLabel for="adv_onu_id" value="ONU ID" />
                                     <TextInput id="adv_onu_id" v-model="advForm.onu_id" type="number" class="mt-1 block w-full" required />
+                                    <p v-if="preregister" class="mt-1 text-xs text-slate-500">{{ $t('registeronu.prereg_onu_id_hint') }}</p>
                                     <InputError class="mt-1.5" :message="advForm.errors.onu_id" />
                                 </div>
                                 <div>
@@ -952,7 +1016,7 @@ const submitC600 = async (execute) => {
                                 {{ $t('registeronu.no_cli_note') }}
                             </p>
                             <div class="grid gap-2 sm:flex sm:items-center sm:justify-end sm:gap-3">
-                                <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })" class="sm:mr-auto">
+                                <Link :href="cancelHref" class="sm:mr-auto">
                                     <SecondaryButton type="button" class="w-full sm:w-auto">{{ $t('common.cancel') }}</SecondaryButton>
                                 </Link>
                                 <SecondaryButton type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(false)">
@@ -961,7 +1025,7 @@ const submitC600 = async (execute) => {
                                 </SecondaryButton>
                                 <PrimaryButton v-if="canExecute" type="button" :disabled="advForm.processing" class="w-full sm:w-auto" @click="submitAdvanced(true)">
                                     <Zap class="mr-2 h-4 w-4" />
-                                    {{ advForm.processing ? $t('registeronu.executing') : $t('registeronu.execute_to_olt') }}
+                                    {{ advForm.processing ? $t('registeronu.executing') : $t(preregister ? 'registeronu.prereg_execute' : 'registeronu.execute_to_olt') }}
                                 </PrimaryButton>
                             </div>
                         </div>

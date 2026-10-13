@@ -146,6 +146,7 @@ return [
     'config_applied' => 'ONU configuration applied to the OLT.',
     'config_apply_rejected' => 'Configuration incomplete — this part was rejected by the OLT: ',
     'registered_ok' => 'ONU registered & executed on the OLT.',
+    'preregistered_ok' => 'Pre-registration of :sn saved on the OLT as an offline ONU at :interface. The config activates automatically once the ONU with that SN is plugged into that port.',
     'register_rejected' => 'Registration incomplete — this part was rejected by the OLT: ',
     'prov_executed' => 'Provisioning script executed on the OLT.',
     'prov_rejected' => 'Provisioning incomplete — this part was rejected by the OLT: ',

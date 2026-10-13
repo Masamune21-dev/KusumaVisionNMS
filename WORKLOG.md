@@ -1,5 +1,49 @@
 # Worklog
 
+## 2026-10-13 — Pre-Register ONU: Daftarkan ONU yang Belum Tersambung (C300/C320)
+
+### Created
+
+- **Pre-Register ONU** (setara pre-config NetNumen). Operator mengetik SN ONU yang **belum tersambung**, dan config-nya
+  (form registrasi yang sama, mode Sederhana & Lanjutan) ditulis ke OLT sebagai **ONU offline**. Begitu ONU ber-SN itu
+  dinyalakan dan dicolok ke port tersebut, OLT sendiri yang mencocokkan SN dan mendorong config via OMCI, tanpa
+  langkah tambahan dari NMS.
+- Tombol **Pre-Register ONU** di halaman ONU per port (slot/port terisi), Unconfigured, dan Unconfigured global →
+  `smartolt.register?pre=1`. Form menampilkan banner "ONU tidak perlu menyala", placeholder/petunjuk SN, dan ONU ID
+  kosong yang dihitung ulang saat slot/port diganti (prop `port_used_onu_ids`).
+- **`App\Services\Zte\OnuPreregisterService`**:
+  - `normalizeSerial()`: huruf besar, buang spasi/`:`/`-`/`.`.
+  - `assertCanPreregister()`: tolak **sebelum OLT disentuh** untuk format SN (4 karakter vendor + 8 heksa), SN
+    sudah terdaftar di OLT itu (menyebut `gpon-onu_…`), dan ONU ID terpakai di port. Sumbernya cache `port_onus`.
+  - `refreshPortCache()`: SNMP satu port, supaya ONU offline langsung tampil di daftar port.
+  - `statusResolver()`: status di riwayat registrasi.
+- Migrasi `2026_10_14_000001_add_preregistered_to_smartolt_onu_registrations` (boolean default false).
+- Capability **`supports_onu_preregister`** (C300/C320; **C600 ditutup** sampai diuji di perangkat asli).
+- Test `SmartOltPreregisterOnuTest` (11).
+
+### Changed
+
+- `SmartOltController`: `registerOnuForm()` menerima `?pre=1`; `storeOnu()`/`storeOnuAdvanced()` memakai
+  `preparePreregister()` (gate + normalisasi SN sebelum validasi), `assertCanPreregister()`, penanda `preregistered`,
+  dan flash khusus; `registrations()` mengirim `preregistered` + `prereg_status`. `assertCapability()` dipecah menjadi
+  `hasCapability()` + `assertCapability()` (perilaku sama). Registrasi biasa tidak berubah.
+- `Registrations.vue`: lencana **Pre-register** + status **Menunggu ONU** (phase `Offline`) / **Sudah online** /
+  **Offline** (pernah tersambung lalu mati) / **Tidak ada di OLT**.
+- i18n id/en (frontend `registeronu.prereg_*`, `portonus.preregister_hint`, `registrations.prereg_*`; backend
+  `zte.prereg_*`, `flash.preregistered_ok`). Dokumen: handbook 07 §9, guide ZTE §5.3a + §8.3, CLAUDE.md.
+
+### Notes
+
+- **Perilaku OLT diverifikasi live** sebelum kode ditulis, di C320 firmware V2.1 (port kosong, SN fiktif, lalu dihapus
+  `no onu` tanpa `write`). `onu N type … sn …` dan seluruh baris `interface gpon-onu`/`pon-onu-mng` (termasuk PPPoE)
+  diterima. ONU tercatat `OffLine` dengan `Config state: success`, dan config tersimpan utuh.
+- Lewat SNMP, ONU yang belum pernah online melaporkan `phase_state = Offline`, tetapi **`last_down_cause = LOS`**. Karena
+  itu status "Menunggu ONU" diambil dari phase state. Tabel ONU SNMP C320 baru melepas ONU yang dihapus setelah
+  ±1–2 menit, jadi pre-register ulang SN yang baru dihapus bisa ditolak "sudah terdaftar" sampai cache segar.
+- **Setelah update jalankan `php artisan migrate`** (kolom `preregistered`).
+- `scripts/test.sh` 781 passed, `npm test` 57 passed, build OK, `kv-ui-check` 0 pelanggaran keras.
+- Belum: REST API/aplikasi mobile, C600, dan uji akhir dengan ONU fisik.
+
 ## 2026-10-13 — Nama Port Uplink ZTE dari ifName OLT (gei vs xgei)
 
 ### Fixed
