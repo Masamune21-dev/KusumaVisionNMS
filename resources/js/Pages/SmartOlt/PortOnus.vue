@@ -111,7 +111,7 @@ const canTr069 = computed(() => !!caps.value.supports_onu_config_write && !!prop
 const tr069ModalOpen = ref(false);
 
 // Pre-Register ONU: daftarkan SN yang belum tersambung ke port ini sebagai ONU offline (C300/C320).
-const canPreregister = computed(() => !!caps.value.supports_onu_preregister && canManageOlt.value);
+const canPreregister = computed(() => !!caps.value.supports_onu_preregister && Boolean(page.props.auth?.can?.manage_olt));
 
 // --- navigasi cepat antar port (OLT sama) ---
 const navPorts = computed(() => {

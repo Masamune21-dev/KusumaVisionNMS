@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-10-14 — Fix: Tombol Pre-Register ONU Tidak Muncul di Halaman ONU per Port
+
+### Fixed
+
+- Tombol **Pre-Register ONU** di halaman ONU per port tidak pernah tampil (dilaporkan dari server uji). `PortOnus.vue`
+  merujuk `canManageOlt`, yang tidak dideklarasikan di halaman itu, sehingga konsol mencatat `ReferenceError:
+  canManageOlt is not defined`. Vue menelan error itu dan `v-if` dianggap salah. Kini syaratnya dibaca langsung dari
+  `page.props.auth.can.manage_olt`, sama seperti halaman Unconfigured. Build & test tidak menangkapnya karena tak
+  merender halaman.
+
+### Changed
+
+- `RegisterOnu.vue` (mode pre-register): SN dirapikan saat diketik (huruf besar, tanpa spasi/titik dua/strip/titik),
+  jadi pratinjau CLI sama persis dengan yang dikirim. Dulu pratinjau menampilkan `ZTEG-C080 0ABC` sementara server
+  menyimpan `ZTEGC0800ABC`. Server tetap menormalkan ulang.
+
+### Notes
+
+- Diuji Playwright di server lokal terisolasi (SQLite, akun admin, OLT C320 non-demo). Versi lama memunculkan
+  ReferenceError dan tombol hilang. Versi ini menampilkan tombol, form `?pre=1` dengan banner, ONU ID 5 di port 1/2
+  (7 setelah port diganti ke 1/3), dan SN `zteg-c080 0abc` → `ZTEGC0800ABC` di field & pratinjau. "Generate script
+  saja" berakhir di Riwayat dengan lencana Pre-register, tanpa error konsol.
+- `scripts/test.sh` 781 passed, `npm test` 57 passed, `kv-ui-check` 0 pelanggaran keras.
+- Setelah `git pull`, jalankan `npm run build` (perubahan frontend).
+
 ## 2026-10-13 — Pre-Register ONU: Daftarkan ONU yang Belum Tersambung (C300/C320)
 
 ### Created

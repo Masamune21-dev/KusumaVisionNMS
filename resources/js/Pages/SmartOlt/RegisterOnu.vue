@@ -133,7 +133,18 @@ const nextFreeOnuId = (slot, port) => {
     while (used.has(id) && id < 4096) id++;
     return id;
 };
+// SN pre-register dirapikan saat diketik (huruf besar, tanpa spasi/titik dua/strip/titik) supaya pratinjau
+// CLI sama persis dengan yang dikirim — server tetap menormalkan ulang (OnuPreregisterService::normalizeSerial).
+const normalizeSerial = (value) => String(value ?? '').toUpperCase().replace(/[\s:.-]+/g, '');
 if (props.preregister) {
+    watch(() => form.serial_number, (value) => {
+        const normalized = normalizeSerial(value);
+        if (normalized !== value) form.serial_number = normalized;
+    });
+    watch(() => advForm.serial_number, (value) => {
+        const normalized = normalizeSerial(value);
+        if (normalized !== value) advForm.serial_number = normalized;
+    });
     watch(() => [form.slot, form.port], ([slot, port]) => {
         if (slot && port) form.onu_id = nextFreeOnuId(slot, port);
     });
