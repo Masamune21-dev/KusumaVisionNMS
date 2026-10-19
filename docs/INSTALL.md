@@ -165,6 +165,9 @@ composer dev            # serve + queue + logs + vite
     (Docker: `docker compose exec db psql -U kusumavision -d kusumavision_nms -c "…"`).
 - **Cek sehat.** `bash scripts/check-requirements.sh` (Jalur B/C) atau `docker compose ps` (Jalur A).
 - **Tambah OLT pertama.** Login → menu **SmartOLT** → tambah OLT → **Test SNMP**.
+- **HTTPS (disarankan).** `install.sh` hanya memasang HTTP port 80. Pasang HTTPS dengan salah satu
+  skenario di **[HTTPS.md](HTTPS.md)** (certbot, Cloudflare, Cloudflare Tunnel, atau Docker). APK
+  Android dan perintah bot Telegram butuh HTTPS.
 - **Opsional:** notifikasi Telegram, ACS/TR069, token API, push FCM mobile — semua dari menu
   **Pengaturan** (admin). Lihat [README.md](../README.md).
 
@@ -190,7 +193,7 @@ menampilkan peringatan bila saklar itu dimatikan. Dua pilihan:
 | Site 500 setelah ubah `.env`/config | [handbook 04 — Gotcha config cache](handbook/04-instalasi-deploy.md) |
 | Polling tak jalan / data tak ter-refresh | Pastikan daemon `queue`/`scheduler` aktif ([handbook 13](handbook/13-troubleshooting-maintenance.md)) |
 | Build APK gagal (RAM/Gradle/lisensi) | [BUILD_APK.md §Troubleshooting](BUILD_APK.md) |
-| Login gagal **419** di belakang Cloudflare "Flexible" / load balancer | Isi `TRUSTED_PROXIES` ([§9](#9-update-ke-versi-baru)) |
+| Login gagal **419** / setelah login dilempar ke `http://` (Cloudflare, Cloudflare Tunnel, reverse proxy) | Isi `TRUSTED_PROXIES` ([HTTPS.md §2](HTTPS.md#2-cara-nms-mengenali-https-penyebab-redirect-ke-http), [HTTPS.md §9](HTTPS.md#9-troubleshooting)) |
 | Cek requirement kurang apa | `bash scripts/check-requirements.sh` |
 
 ---
@@ -244,6 +247,7 @@ Lalu muat ulang browser dengan Ctrl+Shift+R (nama berkas aset berubah).
 - **[Panduan pengguna PDF](panduan/)** — `Panduan-NMS-public-id.pdf` / `NMS-Guide-public-en.pdf`.
 - **[README.md](../README.md)** — ikhtisar fitur & stack.
 - **[docs/DOCKER.md](DOCKER.md)** — Docker appliance lengkap.
+- **[docs/HTTPS.md](HTTPS.md)** — memasang HTTPS langkah demi langkah (certbot, Cloudflare, Tunnel, Docker).
 - **[handbook 04](handbook/04-instalasi-deploy.md)** — instalasi & deploy teknis.
 - **[docs/BUILD_APK.md](BUILD_APK.md)** — build & install aplikasi Android.
 - **[LOCAL_PRODUCTION_HARDENING.md](LOCAL_PRODUCTION_HARDENING.md)** — hardening produksi.

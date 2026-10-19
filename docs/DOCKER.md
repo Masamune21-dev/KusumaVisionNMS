@@ -135,7 +135,8 @@ Di Windows bisa pakai **`update.bat`**. Data tetap aman di volume.
 Catatan pembaruan (TRUSTED_PROXIES di belakang reverse proxy, ringkasan RX per jam, dua tema, APK baru,
 penghapusan HsAirPo): lihat [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Aplikasi dibuka lewat
 HTTPS dari reverse proxy di luar container? Isi `TRUSTED_PROXIES` (mis. `172.16.0.0/12`) dan
-`SESSION_SECURE_COOKIE=true` di `.env`, lalu `docker compose up -d`.
+`SESSION_SECURE_COOKIE=true` di `.env`, lalu `docker compose up -d`. Langkah lengkap (Caddy, nginx di
+host, Cloudflare Tunnel): [HTTPS.md §6](HTTPS.md#6-skenario-d--docker-appliance).
 
 ---
 

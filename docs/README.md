@@ -28,6 +28,9 @@ alarm, laporan, pengguna & hak akses, pengaturan, aplikasi Android, praktik aman
   langkah setelah instalasi, update ke versi baru. *Start here: install paths, requirements, upgrades.*
 - [DOCKER.md](DOCKER.md) — appliance Docker satu PC (Windows/Linux/macOS): backup, update, distribusi image.
   *Docker appliance: backup, updates, image distribution.*
+- [HTTPS.md](HTTPS.md) — memasang HTTPS langkah demi langkah: certbot (IP publik), Cloudflare proxied,
+  Cloudflare Tunnel tanpa IP publik, Docker; plus verifikasi & troubleshooting "redirect ke http"/419.
+  *Step-by-step HTTPS: certbot, Cloudflare, Cloudflare Tunnel, Docker, troubleshooting.*
 - [handbook/04-instalasi-deploy.md](handbook/04-instalasi-deploy.md) — detail teknis instalasi manual,
   variabel `.env`, daemon, gotcha config cache. *Manual install, .env variables, daemons, config-cache pitfalls.*
 - [handbook/18-docker-appliance.md](handbook/18-docker-appliance.md) — arsitektur kemasan Docker.

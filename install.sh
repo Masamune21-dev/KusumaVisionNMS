@@ -688,6 +688,7 @@ cat <<DONE
   $(t "HTTPS (opsional, disarankan):" "HTTPS (optional, recommended):")
     sudo apt install -y certbot python3-certbot-nginx
     sudo certbot --nginx -d <domain>
+    $(t "Panduan lengkap (Cloudflare, Tunnel, .env):" "Full guide (Cloudflare, Tunnel, .env):") docs/HTTPS.md
 
   $(t "PENTING: simpan DB password & password admin di atas. Setelah ubah .env/config jalankan:" \
       "IMPORTANT: keep the DB password and admin password above. After changing .env/config, run:")

@@ -80,7 +80,9 @@ Format: **Gejala → Penyebab umum → Solusi**. Untuk hardening host & perintah
   php-fpm. Sejak Sep 2026 bawaannya hanya localhost (`config/trustedproxy.php`) — dulu `at: '*'`, yang
   membuat `X-Forwarded-For` bisa dipalsukan siapa pun (throttle login & IP audit log bisa diakali).
   Alternatif yang lebih baik: pasang certbot di origin dan naikkan Cloudflare ke **Full (strict)**
-  (origin melihat TLS sendiri, tak bergantung header proxy).
+  (origin melihat TLS sendiri, tak bergantung header proxy). Kasus yang sama terjadi dengan Cloudflare
+  Tunnel yang `cloudflared`-nya tidak menyambung dari `localhost` (container Docker, mesin lain).
+  Langkah per skenario: [docs/HTTPS.md](../HTTPS.md).
 - **Catatan diagnosa**: bedakan dengan 419 biasa (tab lama/cookie basi — cukup hard refresh).
   Simulasi handshake dari server lain lolos (422) karena curl memasang header manual — hanya
   browser yang kena, itu ciri khas kasus ini. Origin `521/522` selang-seling = masalah

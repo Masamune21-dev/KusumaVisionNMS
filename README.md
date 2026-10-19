@@ -106,6 +106,7 @@ The script is idempotent and safe to re-run. Verify with `bash scripts/check-req
 3. Optionally, from the **Settings** menu: Telegram notifications, ACS/TR-069 (plus the GenieACS NBI address if you run GenieACS), API tokens, and mobile push.
 
 > 📖 Minimum specs, step-by-step manual installation, and troubleshooting: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+> 🔒 Serving it over **HTTPS** (certbot, Cloudflare, Cloudflare Tunnel, Docker): **[`docs/HTTPS.md`](docs/HTTPS.md)** (Indonesian).
 > **Android app (APK)**: the APK is built for your own server — set `API_BASE_URL` when building it ([`docs/BUILD_APK.md`](docs/BUILD_APK.md)). Once an admin places the build on the server, users can download it from `https://<host>/downloads/kusumavision-nms.apk` (also linked from **Settings → General**).
 
 ### Upgrading
@@ -122,6 +123,7 @@ optimize, restart workers). **Behind Cloudflare "Flexible" or a load balancer on
 - **[`docs/README.md`](docs/README.md) — documentation map**: every guide grouped by audience (users, installers, integrators, vendor references, developers).
 - **User guides (PDF)**: [Indonesian](docs/panduan/Panduan-NMS-public-id.pdf) · [English](docs/panduan/NMS-Guide-public-en.pdf) — every menu and feature, step by step, for operators and administrators.
 - [`docs/INSTALL.md`](docs/INSTALL.md) — master installation guide (all paths + minimum specs).
+- [`docs/HTTPS.md`](docs/HTTPS.md) — step-by-step HTTPS setup (certbot, Cloudflare, Cloudflare Tunnel, Docker; Indonesian).
 - [`docs/handbook/`](docs/handbook/README.md) — **Developer Handbook**: architecture, database schema, routing, SNMP/CLI, alarms, security, troubleshooting, and how to add new features.
 - [`docs/DOCKER.md`](docs/DOCKER.md) — Docker appliance (backup, updates, image distribution).
 - [`docs/API.md`](docs/API.md) — REST API v1 (endpoints, tokens, code samples).

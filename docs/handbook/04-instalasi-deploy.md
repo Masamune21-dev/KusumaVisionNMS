@@ -34,6 +34,10 @@ Verifikasi kapan saja dengan [`scripts/check-requirements.sh`](../../scripts/che
 
 ### HTTPS (opsional, disarankan)
 
+> Panduan langkah demi langkah untuk semua skenario (certbot, Cloudflare proxied, Cloudflare Tunnel,
+> Docker) beserta verifikasi & troubleshooting: **[docs/HTTPS.md](../HTTPS.md)**. Bagian ini hanya
+> ringkasan teknisnya.
+
 `install.sh` hanya menyiapkan nginx **port 80**. Untuk TLS, jalankan setelah instalasi:
 
 ```bash

@@ -1,5 +1,34 @@
 # Worklog
 
+## 2026-10-19 — Docs: Panduan HTTPS Langkah demi Langkah
+
+### Created
+
+- `docs/HTTPS.md`: panduan memasang HTTPS untuk instalasi `install.sh`, manual, dan Docker. Empat skenario:
+  **A** IP publik + Let's Encrypt (`certbot --nginx`, termasuk port-forward MikroTik, hairpin NAT, varian DNS-01
+  untuk port 80 tertutup atau NMS khusus LAN), **B** Cloudflare awan oranye (Full (strict) + Origin Certificate,
+  atau Flexible + `TRUSTED_PROXIES` rentang IP Cloudflare), **C** Cloudflare Tunnel tanpa IP publik, **D** Docker
+  (Caddy / nginx di host / tunnel). Ditambah langkah wajib setelah HTTPS aktif (`APP_URL`, `SESSION_SECURE_COOKIE`,
+  `config:cache`, daftar ulang webhook Telegram, APK dengan `API_BASE_URL` https), verifikasi lewat `curl`,
+  tabel troubleshooting (redirect ke http, 419, `ERR_TOO_MANY_REDIRECTS`, Cloudflare 521/522/525/526/1033,
+  galat certbot), dan catatan keamanan.
+- Bagian §2 menjelaskan penyebab laporan "pakai cloudflared tapi masih redirect ke http" dari grup: Laravel hanya
+  mempercayai `X-Forwarded-Proto` dari IP di `TRUSTED_PROXIES` (bawaan localhost), sedangkan `cloudflared` di
+  container Docker atau mesin lain menyambung dari IP lain.
+
+### Changed
+
+- Tautan ke `docs/HTTPS.md` dari `README.md`, `README.id.md`, `docs/README.md`, `docs/INSTALL.md` (§6, §8,
+  Referensi), `docs/DOCKER.md`, handbook 04 (HTTPS) dan 13 (419 di belakang Cloudflare), serta pesan penutup
+  `install.sh`.
+
+### Notes
+
+- Hanya dokumentasi + satu baris teks di `install.sh` (`bash -n` lolos). Perilaku proxy diuji dengan
+  `TrustProxies` Laravel: IP Cloudflare (IPv4/IPv6) dalam daftar → `https`; `172.17.0.2` dengan bawaan → `http`,
+  dengan `172.16.0.0/12` → `https`; `127.0.0.1` bawaan → `https`. Potongan nginx lolos `nginx -t`, perintah
+  pengambil rentang IP Cloudflare diuji, dan semua tautan/anchor antar-dokumen dicek.
+
 ## 2026-10-14 — Fix: Tombol Pre-Register ONU Tidak Muncul di Halaman ONU per Port
 
 ### Fixed
