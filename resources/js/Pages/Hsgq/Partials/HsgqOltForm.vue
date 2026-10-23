@@ -174,15 +174,13 @@ const submit = () => {
                     <p>{{ $t('hsgq.web_http_warning') }}</p>
                 </div>
 
-                <div class="grid gap-5 md:grid-cols-2">
+                <div class="grid gap-5 md:grid-cols-3">
                     <div>
                         <InputLabel for="web_port" :value="$t('hsgq.web_port')" />
                         <TextInput id="web_port" v-model="form.web_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" placeholder="80" />
                         <p class="mt-1 text-xs text-slate-500">{{ $t('hsgq.web_port_hint') }}</p>
                         <InputError class="mt-2" :message="form.errors.web_port" />
                     </div>
-
-                    <div class="hidden md:block" aria-hidden="true"></div>
 
                     <div>
                         <InputLabel for="cli_username" :value="$t('hsgq.username')" />
@@ -196,26 +194,32 @@ const submit = () => {
                         <p v-if="olt" class="mt-1 text-xs text-slate-500">{{ $t('oltform.keep_password') }}</p>
                         <InputError class="mt-2" :message="form.errors.cli_password" />
                     </div>
+                </div>
 
-                    <div>
-                        <InputLabel for="cli_transport" :value="$t('oltform.cli_transport')" />
-                        <select
-                            id="cli_transport"
-                            v-model="form.cli_transport"
-                            :disabled="connectionLocked"
-                            class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
-                        >
-                            <option value="">{{ $t('oltform.cli_transport_none') }}</option>
-                            <option value="telnet">Telnet</option>
-                        </select>
-                        <p class="mt-1 text-xs text-slate-500">{{ $t('hsgq.cli_transport_hint') }}</p>
-                        <InputError class="mt-2" :message="form.errors.cli_transport" />
-                    </div>
+                <!-- Terminal telnet: opsional, driver HSGQ tak memakai CLI -->
+                <div class="border-t border-white/10 pt-5">
+                    <h4 class="text-sm font-semibold text-slate-200">{{ $t('hsgq.terminal_title') }}</h4>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ $t('hsgq.cli_transport_hint') }}</p>
+                    <div class="mt-4 grid gap-5 md:grid-cols-2">
+                        <div>
+                            <InputLabel for="cli_transport" :value="$t('oltform.cli_transport')" />
+                            <select
+                                id="cli_transport"
+                                v-model="form.cli_transport"
+                                :disabled="connectionLocked"
+                                class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
+                            >
+                                <option value="">{{ $t('oltform.cli_transport_none') }}</option>
+                                <option value="telnet">Telnet</option>
+                            </select>
+                            <InputError class="mt-2" :message="form.errors.cli_transport" />
+                        </div>
 
-                    <div>
-                        <InputLabel for="cli_port" :value="$t('oltform.cli_port')" />
-                        <TextInput id="cli_port" v-model="form.cli_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" placeholder="23" />
-                        <InputError class="mt-2" :message="form.errors.cli_port" />
+                        <div>
+                            <InputLabel for="cli_port" :value="$t('oltform.cli_port')" />
+                            <TextInput id="cli_port" v-model="form.cli_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" placeholder="23" />
+                            <InputError class="mt-2" :message="form.errors.cli_port" />
+                        </div>
                     </div>
                 </div>
             </div>
