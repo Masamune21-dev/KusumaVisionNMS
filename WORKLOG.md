@@ -1,5 +1,39 @@
 # Worklog
 
+## 2026-10-24 — Changed: EPON ZTE C300/C320 dibaca lewat SNMP + CLI diverifikasi di OLT ETGO asli
+
+Seorang penguji meminjamkan C300 V2.1.0 berkartu ETGO (2 kartu, ±130 ONU). Jalur EPON yang sebelumnya dibangun tanpa
+perangkat kini diverifikasi di sana: baca lewat SNMP, CLI baca, ganti nama, reboot, dan hapus. Registrasi belum diuji.
+
+### Created
+
+- `app/Services/Zte/Epon/ZteEponSnmpReader.php` — kartu (zxAnCardTable `1015.2.1.1.3.1.4/.5`), port EPON dari IF-MIB
+  (`ifName` = **`epon_1/{slot}/{port}`**, bukan `epon-olt_…`) + `ifOperStatus`, ONU dari tabel `1015.1010.1.1.1.1.1`
+  (`.3` model, `.4` MAC 6 byte) dan status `1015.1010.1.2.1.1.1` (1 = online, 2 = offline — dibuktikan lewat dua sampel
+  penghitung trafik `1015.1010.1.9.1.3.1.2`: 117/117 naik, 15/15 diam). Indeks ONU
+  `0x3<<28 | slot<<19 | (port-1)<<16 | onuId<<8` (dicek silang dengan tabel `1015.1010.11.2.1.2`: 132/132 posisi cocok).
+  Menyerah (→ jalur CLI) bila tabel tak terbaca, nama port tak dikenali, atau kartu > 8 port (indeks hanya 3 bit port).
+- Test `tests/Unit/ZteEponSnmpReaderTest.php` + 7 skenario SNMP di `tests/Feature/ZteEponTest.php`.
+
+### Changed
+
+- `ZteEponInventoryService`: poll & refresh port lewat SNMP dulu; CLI hanya RX + running-config port (onu-type) saat RX
+  jatuh tempo, dan — saat Refresh port — nama/deskripsi/SLA/VLAN. OLT tanpa CLI tetap tampil; OLT ZTE tanpa kartu ETG
+  dikenali lewat SNMP (tanpa telnet). Status port EPON dari `ifOperStatus`. Baris ONU punya `model` (kolom «Type») dan
+  `onu_type` (saran form registrasi).
+- Halaman ONU per port EPON: banner «fitur eksperimental» dihapus (jalur baca terverifikasi); peringatan sintaks tulis
+  tetap di form «Daftarkan ONU EPON». Lencana EPON tetap.
+- `Pages/SmartOlt/Detail.vue`: uptime «NaNd» pada OLT yang belum di-poll (teks net-snmp `"(140874804) 16 days, …"`).
+- Guide ZTE §18a: tabel OID SNMP & CLI terverifikasi, status per aksi, ajakan uji untuk ETGH/ETTO/C320/registrasi/hapus.
+
+### Fixed (dari keluaran CLI asli)
+
+- `show epon onu state`: status dua kata `Power Off` terbuang parser (121 dari 132 terbaca) → 132/132.
+- Running-config ONU `service-port 1 vport 1 user-vlan V transparent` kini menghasilkan VLAN V.
+- Saran onu-type registrasi: onu-type yang dipakai OLT lebih dulu (OLT uji memakai `EPON`); `ALL-EPON` hanya cadangan.
+- `show onu unauthentication` tanpa ONU baru menjawab `%Code 70529: No related information to show.` — kini kosong, bukan
+  galat di halaman Unconfigured.
+
 ## 2026-10-23 — Created: OLT HSGQ asli (HS Fiber 50224) EPON & GPON — eksperimental, belum diuji di perangkat
 
 Driver HSGQ disediakan langsung di aplikasi walau belum ada OLT uji, supaya pemilik OLT HSGQ bisa mencoba dan melapor

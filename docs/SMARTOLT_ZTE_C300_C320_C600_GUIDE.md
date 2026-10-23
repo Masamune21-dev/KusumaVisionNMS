@@ -695,16 +695,25 @@ vlan 2101`). NMS: parser `ZteOnuRunningConfigService` mengisi `onu_profile` + `p
 
 ---
 
-## 18a. Kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO) — EKSPERIMENTAL, BELUM TERVERIFIKASI
+## 18a. Kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO) — SNMP, CLI BACA, GANTI NAMA, REBOOT & HAPUS TERVERIFIKASI
 
-> ⚠️ **Dibangun Okt 2026 TANPA OLT ETG untuk diuji** — OLT ZTE yang dimiliki pengembang hanya berkartu GTGO/GTGH.
+> ✅ **Okt 2026 — jalur SNMP terverifikasi** di C300 V2.1.0 berkartu ETGO milik seorang penguji (2 kartu ETGO, ±130 ONU).
+> Kartu, port, daftar ONU, MAC, model, dan status kini dibaca lewat SNMP (`App\Services\Zte\Epon\ZteEponSnmpReader`,
+> tabel OID di bawah).
+>
+> ✅ **Perintah CLI BACA terverifikasi** di OLT yang sama (tabel «CLI terverifikasi» di bawah), dan **ganti nama, reboot, &
+> hapus ONU sudah diuji — berhasil.** **Registrasi belum pernah dijalankan.**
+>
+> ⚠️ Awalnya **dibangun Okt 2026 TANPA OLT ETG untuk diuji** — OLT ZTE yang dimiliki pengembang hanya berkartu GTGO/GTGH.
 > Seluruh sintaks di bawah berasal dari sumber pihak lain dan **belum pernah dijalankan ke OLT ETG asli** —
 > pengecualian sadar atas aturan "OID/CLI hanya dari perangkat asli".
 > Fitur di belakang saklar **`ZTE_EPON_ENABLED`** (`config('services.zte_epon.enabled')`, bawaan **false**).
 >
-> **Dicari penguji.** Punya C300/C320 dengan kartu ETGO/ETGH/ETTO? Nyalakan saklarnya, ikuti langkah verifikasi di
-> akhir bagian ini, lalu laporkan hasilnya lewat GitHub Issues — sertakan keluaran CLI yang diminta (samarkan MAC/nama
-> pelanggan), versi firmware (`show version`), dan bagian mana yang jalan atau gagal.
+> **Dicari penguji** untuk yang belum terbukti: kartu **ETGH 16-port** dan **ETTO** (indeks ONU SNMP baru terbukti untuk
+> kartu 8-port — kartu > 8 port otomatis memakai jalur CLI), **C320**, firmware selain V2.1, serta **registrasi
+> ONU**. Nyalakan saklarnya, ikuti langkah verifikasi di akhir bagian ini, lalu laporkan hasilnya lewat GitHub Issues —
+> sertakan keluaran CLI yang diminta (samarkan MAC/nama pelanggan), sysDescr dari halaman Detail OLT, dan bagian mana yang
+> jalan atau gagal.
 
 **Sumber** (fixture-nya di `tests/Unit/ZteEponCliParserTest.php`):
 
@@ -714,26 +723,53 @@ vlan 2101`). NMS: parser `ZteOnuRunningConfigService` mengisi `onu_profile` + `p
 | Manual awal C300 EPON (V1.2.3P3, renrendoc 87264815) | `show card` (ETGO/ETGOD 8 port), blok `show onu unauthentication`, `onu N type T mac M`, `sla-profile`, `switchport vlan V tag`, `vlan port eth_0/1 mode tag vlan V priority 0`, `show onu-type epon` |
 | Repo MIT s4lfanet/nms-ztec320 (catatan lapangan C320 V2.1) | MAC wajib bertitik (`%Error 20202` bila tidak), `ALL-EPON`, `property description $$nama$$desk`, `sla-profile X vport 1`, `service-port 1 vport 1 user-vlan V vlan V` |
 
-**Tidak ada OID SNMP EPON di kode.** OID `3902.1015.1010.*` tak punya sumber yang bisa dipegang; seluruh data EPON
-lewat CLI telnet (`App\Services\Zte\Epon\ZteEponInventoryService`).
+**OID SNMP EPON (dibaca dari C300 V2.1.0 berkartu ETGO, Okt 2026)** — `ZteEponSnmpReader`:
+
+| Data | OID | Catatan |
+|---|---|---|
+| Kartu | `1015.2.1.1.3.1.4` (nama) / `.5` (kode status) | indeks `rack.shelf.slot`; ETGO slot 8 = 1, slot 17 (tanpa ONU) = 4 — arti kode belum dipetakan |
+| Port EPON | IF-MIB `ifName` `1.3.6.1.2.1.31.1.1.1.1` + `ifOperStatus` `…2.2.1.8` | nama **`epon_1/{slot}/{port}`** (bukan `epon-olt_…`), ifIndex `0x1101SSPP`; port ber-ONU up, sisanya down |
+| ONU: model / MAC | `1015.1010.1.1.1.1.1.3` / `.4` | `.3` mis. `F663`, `.4` 6 byte mentah; `.2` vendor, `.6` sw, `.7` equipment-id (tak dipakai) |
+| ONU: status | `1015.1010.1.2.1.1.1` | **1 = online, 2 = offline** — dibuktikan trafik: dua sampel `1015.1010.1.9.1.3.1.2` → 117/117 berstatus 1 naik, 15/15 berstatus 2 diam |
+| Indeks ONU | `0x3<<28 \| slot<<19 \| (port-1)<<16 \| onuId<<8` | dicek silang dgn indeks gaya GPON `{ifIndex port}.{onu}` di `1015.1010.11.2.1.2`: 132/132 posisi cocok. Hanya 3 bit port → **kartu > 8 port (ETGH) belum terbukti**: pembaca menyerah, jalur CLI dipakai |
+
+Yang **tidak** ada di SNMP: RX ONU (tabel RX GPON `.1012.3.50.12.1.1.10` tak memuat ONU EPON; `1015.1010.11.2.1.2` =
+RX **sisi OLT**/upstream — median −3,5 dB dari RX ONU di ONU GPON yang sama — dan untuk EPON hanya terisi di 1 dari 4
+port; kolom kandidat optik `1015.1010.1.1.1.23.1.1` menjawab genError) dan nama/deskripsi ONU → keduanya tetap lewat
+CLI. Walk penuh `1015.1010` berhenti genError setelah kolom `.1.1.1.18` — baca per kolom.
+
+**CLI terverifikasi (C300 V2.1.0, ETGO/ETGOB, Okt 2026 — baca saja):**
+
+| Perintah | Hasil |
+|---|---|
+| `show card` | `1 1 8 ETGO ETGOB 8 V1.0.0 V2.1.0 INSERVICE`; kartu kosong `1 1 17 ETGO  8  OFFLINE` (RealType kosong) — cocok dgn SNMP (kode status 4 = OFFLINE) |
+| `show epon onu state` | kolom `OnuIndex OnlineStatus OamStatus RegMac`; status **`Online` / `Offline` / `Power Off` (dua kata!)** — dulu parser membuang `Power Off` (121 dari 132 terbaca), diperbaiki. 132/132 posisi & status cocok dgn SNMP |
+| `show running-config interface epon-olt_1/8/4` | `onu N type EPON mac xxxx.xxxx.xxxx ip-cfg static` — onu-type di OLT ini **`EPON`** (bukan `ALL-EPON`); port juga memuat `description …`, `p2p mode group`, `linktrap disable`. MAC 21/21 cocok dgn SNMP |
+| `show pon power onu-rx epon-olt_1/8/4` | `epon-onu_1/8/4:1    -18.153(dbm)` / `N/A` — 20 nilai, semuanya di ONU online (dulu «paling meragukan») |
+| `show running-config interface epon-onu_1/8/4:1` | `property description $$nama$$`, `sla-profile default vport 1`, `encrypt direction downstream enable vport 1`, **`service-port 1 vport 1 user-vlan 1120 transparent`** (tanpa `vlan V`, kini terbaca) |
+| `show onu unauthentication epon-olt_1/8/p` | diterima; tanpa ONU baru menjawab **`%Code 70529: No related information to show.`** → hasil kosong, bukan galat |
+
+Catatan: bila OLT punya konfigurasi yang belum disimpan, saat logout ia bertanya «The configuration is changed, confirm
+to logout without saving?» — executor menjawab `no` dan NMS tidak pernah menjalankan `write`.
 
 ### Alur & berkas
 
 | Bagian | Perilaku |
 |---|---|
 | Penanda port | `App\Support\ZteEpon` — `isEponPort()` = saklar menyala + ZTE non-C600 + port ber-`pon_type=epon` di `ports[]`. Bercabang **per port** (satu chassis bisa GTG + ETG). |
-| Poll (`PollOltJob`) | setelah hasil GPON digabung: satu sesi telnet `show card` → kartu `ET[GT]*`, `show epon onu state`, `show running-config interface epon-olt_…` per port yang sudah dikenal (MAC & tipe tetap ONU offline — kunci alarm memakai serial/MAC), dan `show pon power onu-rx epon-olt_…` bila RX jatuh tempo. Port EPON ditulis ke `ports[]` (`pon_type=epon`, `oper_status` `up` bila ada ONU online, selain itu `unknown` — **bukan** `down`, supaya tak ada alarm port palsu) dan ONU ke `port_onus` berbentuk GPON (`serial_number` = MAC `AA:BB:…`). Gagal baca → data EPON lama dibawa (`ZteEpon::carryPorts`), `epon.ok=false`. OLT tanpa kartu ETG dicek ulang paling sering 6 jam. Saklar mati → `ZteEpon::strip()` membuang semua jejak EPON. |
-| Refresh port | `ZteEponInventoryService::refreshPort()` — sesi 1 status/MAC/tipe/RX, sesi 2 `show running-config interface epon-onu_…` per ONU (nama, deskripsi, SLA, VLAN). Nama hanya diperbarui di sini; poll membawanya selama MAC sama. |
+| Poll (`PollOltJob`) | **Jalur SNMP (utama):** kartu dari `1015.2.1.1.3.1.4` (tanpa ETG → selesai, tanpa telnet; dicek ulang paling sering 6 jam), port + status port dari IF-MIB, ONU + MAC + model + status dari tabel `1015.1010`; CLI hanya `show pon power onu-rx` untuk port ber-ONU bila RX jatuh tempo **dan** CLI terisi (OLT tanpa CLI: RX tak dicoba, bukan galat). Tabel status kosong padahal poll lalu ada ONU → data lama dibawa. `type_name` = model asli (kolom «Type»), `onu_type` = onu-type running-config (saran form registrasi). **Jalur CLI (cadangan** bila SNMP tak bisa memetakan EPON, mis. kartu > 8 port): satu sesi telnet `show card` → kartu `ET[GT]*`, `show epon onu state`, `show running-config interface epon-olt_…` per port yang sudah dikenal (MAC & tipe tetap ONU offline — kunci alarm memakai serial/MAC), dan `show pon power onu-rx epon-olt_…` bila RX jatuh tempo. Port EPON ditulis ke `ports[]` (`pon_type=epon`, `oper_status` `up` bila ada ONU online, selain itu `unknown` — **bukan** `down`, supaya tak ada alarm port palsu) dan ONU ke `port_onus` berbentuk GPON (`serial_number` = MAC `AA:BB:…`). Gagal baca → data EPON lama dibawa (`ZteEpon::carryPorts`), `epon.ok=false`. OLT tanpa kartu ETG dicek ulang paling sering 6 jam. Saklar mati → `ZteEpon::strip()` membuang semua jejak EPON. |
+| Refresh port | `ZteEponInventoryService::refreshPort()` — jalur SNMP: status/MAC/model dari SNMP, lalu (bila CLI ada) sesi 1 running-config port + RX, sesi 2 per ONU; gagal CLI tak membatalkan hasil SNMP (nama dibawa selama MAC sama). Jalur CLI: sesi 1 status/MAC/tipe/RX, sesi 2 `show running-config interface epon-onu_…` per ONU (nama, deskripsi, SLA, VLAN). Nama hanya diperbarui di sini; poll membawanya selama MAC sama. |
 | Unconfigured | `show onu unauthentication epon-olt_1/s/p` per port EPON, ditempel ke daftar GPON (`UnconfiguredOnuDiscovery`). |
 | Registrasi | form sendiri `SmartOlt/RegisterEponOnu` (dibuka lewat `smartolt.register?slot&port` yang sama), rute `smartolt.register-epon.{preview,store}`, builder `ZteEponProvisioningScriptBuilder`. Model bridge: otorisasi MAC + SLA + VLAN; gaya VLAN `service-port` (V2.x) atau `switchport … tag` (V1.x, default bila sys_descr memuat `V1.`); opsional `pon-onu-mng … vlan port eth_0/N`. Audit di `smartolt_onu_registrations` (`wan_mode=bridge`, MAC di `serial_number`). |
-| Aksi ONU | reboot `pon-onu-mng epon-onu_… / reboot`, hapus `interface epon-olt_… / no onu N`, ganti nama `interface epon-onu_… / property description $$nama$$desk` (nilai yang tak diubah diisi dari cache) — web, API v1, dan peta. |
-| Ditutup di port EPON | enable/disable (sumber bertentangan: `shutdown` vs `admin enable`), detail ONU, configure/salin ONU, TR069 massal, Bind, Pre-Register, shutdown & deskripsi port, registrasi lewat API — `ZteEpon::portCapabilities()` + `assertPortCapability()` di controller, plus pengaman di `OnuRegistrationService::prepare()` dan `SmartOltController::storePortAdminState()`. |
+| Aksi ONU | reboot `pon-onu-mng epon-onu_… / reboot` (✅ diuji Okt 2026), ganti nama `interface epon-onu_… / property description $$nama$$desk` (nilai yang tak diubah diisi dari cache; ✅ diuji Okt 2026), hapus `interface epon-olt_… / no onu N` (✅ diuji Okt 2026) — web, API v1, dan peta. |
+| Ditutup di port EPON | enable/disable (sumber bertentangan: `shutdown` vs `admin enable`), detail ONU, configure/salin ONU, TR069 massal, Bind, Pre-Register, shutdown & deskripsi port, registrasi lewat API — `ZteEpon::portCapabilities()` + `assertPortCapability()` di controller, plus pengaman di `OnuRegistrationService::prepare()` dan `PonPortAdminStateService::set()`. |
 
 ### Menyalakan & memverifikasi di OLT ETG
 
 1. `.env`: `ZTE_EPON_ENABLED=true` → `php artisan config:cache` → `php artisan queue:restart`
    (Docker: ubah `.env` lalu `docker compose up -d` agar kontainer membaca ulang env).
-2. Tunggu satu poll; cek `last_test_result.epon` (`ok`, `cards`) dan halaman GPON Port & ONU (port `epon-olt_1/s/p`).
+2. Tunggu satu poll; cek `last_test_result.epon` (`ok`, `cards`, `source` = `snmp`, atau tanpa `source` = jalur CLI) dan
+   halaman GPON Port & ONU (port `epon-olt_1/s/p`).
 3. Bandingkan dengan CLI manual: `show card`, `show epon onu state`, `show running-config interface epon-olt_1/s/p`,
    `show pon power onu-rx epon-olt_1/s/p` (perintah RX ini **paling meragukan** — bila ditolak, RX EPON tampil "-").
 4. Uji registrasi dengan **Simpan skrip saja** dulu, jalankan manual di terminal, lalu baru tombol eksekusi.

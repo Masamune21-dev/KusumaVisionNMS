@@ -23,7 +23,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, TriangleAlert, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -633,15 +633,6 @@ const rxBadgeClass = (value) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
-
-                <!-- Port EPON: fitur eksperimental, sintaks CLI belum diuji di OLT ETG asli -->
-                <div v-if="isEpon" class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    <TriangleAlert class="mt-0.5 h-5 w-5 flex-shrink-0" />
-                    <div>
-                        <p class="font-semibold">{{ $t('portonus.epon_title') }}</p>
-                        <p class="mt-1 text-amber-200/90">{{ $t('portonus.epon_body') }}</p>
-                    </div>
-                </div>
 
                 <!-- Stat cards -->
                 <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">

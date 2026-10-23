@@ -432,8 +432,6 @@
         "acs_no": "Belum",
         "preregister_hint": "Daftarkan ONU yang belum tersambung lewat SN-nya — config aktif sendiri saat ONU dicolok",
         "register_epon": "Daftarkan ONU EPON",
-        "epon_title": "Port EPON (kartu ETG) — fitur eksperimental",
-        "epon_body": "Daftar ONU dibaca lewat CLI telnet, bukan SNMP; nama, SLA, dan VLAN ONU diperbarui saat Refresh ONU. Sintaks EPON belum diuji di OLT ETG asli — periksa keluaran CLI setiap aksi. Fitur bersintaks GPON (TR069, salin ONU, Pre-Register, Bind, detail, enable/disable) tidak tersedia di port ini.",
         "col_mac": "MAC"
     },
     "tr069": {

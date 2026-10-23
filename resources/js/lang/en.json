@@ -432,8 +432,6 @@
         "acs_no": "Not linked",
         "preregister_hint": "Register an ONU that is not connected yet by its SN — its config activates once it is plugged in",
         "register_epon": "Register EPON ONU",
-        "epon_title": "EPON port (ETG card) — experimental feature",
-        "epon_body": "The ONU list is read over telnet CLI, not SNMP; ONU names, SLA and VLAN are updated on Refresh ONU. The EPON syntax has not been tested on a real ETG OLT yet — check the CLI output of every action. GPON-only features (TR069, copy ONU, Pre-Register, Bind, detail, enable/disable) are not available on this port.",
         "col_mac": "MAC"
     },
     "tr069": {

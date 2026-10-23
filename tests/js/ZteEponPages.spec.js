@@ -91,12 +91,14 @@ describe("PortOnus — port GPON & EPON", () => {
         await flushPromises();
 
         expect(errors).toEqual([]);
-        expect(wrapper.text()).not.toContain("portonus.epon_title");
+        expect(wrapper.text()).not.toContain("EPON");
         expect(wrapper.text()).toContain("portonus.col_serial");
         wrapper.unmount();
     });
 
-    it("port EPON menampilkan lencana, banner, tombol daftar, dan kolom MAC", async () => {
+    // Banner «eksperimental» dibuang 24 Okt 2026 setelah jalur baca (SNMP + CLI) terverifikasi di OLT ETGO
+    // asli; peringatan sintaks tulis tetap di form RegisterEponOnu.
+    it("port EPON menampilkan lencana, tombol daftar, dan kolom MAC tanpa banner eksperimental", async () => {
         const wrapper = mount(PortOnus, {
             props: { olt: olt(eponCaps), pon_type: "epon", slot: 3, port: 1, snapshot: snapshot("epon-onu_1/3/1:1", "1C:87:79:12:0C:39") },
             global: globalConfig,
@@ -104,7 +106,8 @@ describe("PortOnus — port GPON & EPON", () => {
         await flushPromises();
 
         expect(errors).toEqual([]);
-        expect(wrapper.text()).toContain("portonus.epon_title");
+        expect(wrapper.text()).toContain("EPON");
+        expect(wrapper.text()).not.toContain("portonus.epon_title");
         expect(wrapper.text()).toContain("portonus.register_epon");
         expect(wrapper.text()).toContain("portonus.col_mac");
         expect(wrapper.text()).not.toContain("Pre-Register ONU");

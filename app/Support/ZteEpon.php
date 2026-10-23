@@ -17,6 +17,10 @@ use App\Models\SnmpOlt;
  * `property description`, `service-port … vport 1`). Karena itu seluruh jalur ini di belakang
  * saklar `services.zte_epon.enabled` (env `ZTE_EPON_ENABLED`, bawaan MATI): saat mati, port EPON
  * tetap dibuang seperti sebelumnya dan tak ada perintah EPON yang pernah dikirim ke OLT.
+ *
+ * 24 Okt 2026: kartu, port, daftar ONU, MAC, model, dan status EPON kini dibaca lewat SNMP dengan
+ * OID yang DIBACA dari C300 V2.1 berkartu ETGO milik penguji ({@see \App\Services\Zte\Epon\ZteEponSnmpReader});
+ * sintaks CLI di atas (RX, nama, registrasi, aksi) tetap belum terverifikasi.
  */
 class ZteEpon
 {

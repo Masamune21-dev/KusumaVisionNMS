@@ -54,7 +54,11 @@ const formatDate = (value) => formatDateTime(value);
 
 const formatUptime = (timeticks) => {
     if (!timeticks) return '-';
-    const totalSeconds = Math.floor(Number(timeticks) / 100);
+    // Poller Go menyimpan timeticks mentah; Test/Refresh SNMP (PHP) menyimpan teks net-snmp
+    // "(140874804) 16 days, 7:19:08.04" — ambil angka di dalam kurung.
+    const raw = String(timeticks).match(/^\s*\((\d+)\)/)?.[1] ?? timeticks;
+    const totalSeconds = Math.floor(Number(raw) / 100);
+    if (!Number.isFinite(totalSeconds)) return String(timeticks);
     const days    = Math.floor(totalSeconds / 86400);
     const hours   = Math.floor((totalSeconds % 86400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);

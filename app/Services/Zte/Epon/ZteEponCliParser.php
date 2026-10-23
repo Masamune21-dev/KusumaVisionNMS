@@ -68,28 +68,35 @@ class ZteEponCliParser
      *   epon-onu_1/4/8:2       Offline      idle         0000.0000.0000
      *
      * MAC `0000.0000.0000` (ONU offline) → null; MAC tetapnya diambil dari running-config.
+     * Status bisa dua kata — C300 V2.1 (OLT penguji, 24 Okt 2026) menulis `Power Off   idle  0000.…`
+     * — jadi kolom dibaca dari ujung: MAC, lalu OamStatus, sisanya status.
      *
      * @return list<array{slot:int, port:int, onu_id:int, status:string, oam_status:string|null, mac:string|null}>
      */
     public function onuStates(string $output): array
     {
-        preg_match_all(
-            '/^\s*epon-onu_\d+\/(\d+)\/(\d+):(\d+)\s+(\S+)(?:\s+(\S+))?(?:\s+(\S+))?\s*$/mi',
-            $output,
-            $matches,
-            PREG_SET_ORDER,
-        );
+        preg_match_all('/^\s*epon-onu_\d+\/(\d+)\/(\d+):(\d+)\s+(\S.*?)\s*$/mi', $output, $matches, PREG_SET_ORDER);
 
         $rows = [];
         foreach ($matches as $m) {
+            $tokens = preg_split('/\s+/', $m[4]) ?: [];
+            $mac = null;
+            $oam = null;
+            if (count($tokens) > 1 && preg_match('/^[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}$/i', (string) end($tokens)) === 1) {
+                $mac = array_pop($tokens);
+            }
+            if (count($tokens) > 1 && ($mac !== null || preg_match('/^(complete|idle|discovery|incomplete)$/i', (string) end($tokens)) === 1)) {
+                $oam = array_pop($tokens);
+            }
+
             $key = "{$m[1]}_{$m[2]}_{$m[3]}";
             $rows[$key] = [
                 'slot' => (int) $m[1],
                 'port' => (int) $m[2],
                 'onu_id' => (int) $m[3],
-                'status' => $m[4],
-                'oam_status' => ($m[5] ?? '') !== '' ? $m[5] : null,
-                'mac' => ZteEpon::displayMac($m[6] ?? null),
+                'status' => implode(' ', $tokens),
+                'oam_status' => $oam,
+                'mac' => ZteEpon::displayMac($mac),
             ];
         }
 
@@ -199,6 +206,8 @@ class ZteEponCliParser
             } elseif (preg_match('/^sla-profile\s+(\S+)/i', $trimmed, $m)) {
                 $result[$current]['sla_profile'] = $m[1];
             } elseif (preg_match('/^service-port\s+\d+\s+.*?(?<!user-)vlan\s+(\d+)/i', $trimmed, $m)
+                // `service-port 1 vport 1 user-vlan 1120 transparent` (C300 V2.1): VLAN diteruskan apa adanya.
+                || preg_match('/^service-port\s+\d+\s+.*?user-vlan\s+(\d+)\s+transparent\b/i', $trimmed, $m)
                 || preg_match('/^switchport\s+vlan\s+(\d+)/i', $trimmed, $m)) {
                 $result[$current]['vlans'][] = (int) $m[1];
             }
@@ -383,6 +392,28 @@ class ZteEponCliParser
     /**
      * Gabungan keluaran semua perintah yang diawali $prefix.
      */
+    /**
+     * Galat executor yang isinya HANYA `%Code 70529: No related information to show.` — jawaban C300
+     * V2.1 (OLT penguji, 24 Okt 2026) untuk `show onu unauthentication …` saat tak ada ONU baru. Itu
+     * hasil kosong, bukan galat. Format galat executor: "`perintah` → pesan; `perintah` → pesan".
+     */
+    public function onlyNoInformation(?string $error): bool
+    {
+        if ($error === null || trim($error) === '') {
+            return false;
+        }
+
+        $parts = preg_split('/;\s*(?=`)/', $error) ?: [];
+
+        foreach ($parts as $part) {
+            if (preg_match('/No related information|Code 70529/i', $part) !== 1) {
+                return false;
+            }
+        }
+
+        return $parts !== [];
+    }
+
     public function outputOf(string $output, string $prefix): string
     {
         $buf = [];

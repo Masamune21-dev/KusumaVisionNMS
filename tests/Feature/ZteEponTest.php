@@ -9,6 +9,7 @@ use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Services\AlarmEvaluator;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\Epon\ZteEponSnmpReader;
 use App\Services\ZteCliProvisioningExecutor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -16,8 +17,10 @@ use RuntimeException;
 use Tests\TestCase;
 
 /**
- * Kartu EPON ZTE C300/C320 (App\Support\ZteEpon) — poll lewat CLI, aksi per port, registrasi.
- * Keluaran CLI tiruan mengikuti fixture asli di tests/Unit/ZteEponCliParserTest.php.
+ * Kartu EPON ZTE C300/C320 (App\Support\ZteEpon) — poll lewat SNMP atau CLI, aksi per port, registrasi.
+ * Keluaran CLI tiruan mengikuti fixture asli di tests/Unit/ZteEponCliParserTest.php; walk SNMP tiruan
+ * mengikuti bentuk keluaran C300 V2.1 berkartu ETGO ({@see eponSnmpWalks()}). Bawaan setiap test: SNMP
+ * EPON tak terbaca, jadi test lama tetap menguji jalur CLI.
  */
 class ZteEponTest extends TestCase
 {
@@ -52,6 +55,161 @@ class ZteEponTest extends TestCase
             'show running-config interface epon-onu_1/3/1:2' => "interface epon-onu_1/3/1:2\n  property description \$\$Pelanggan Dua\$\$\n!",
             'show onu unauthentication epon-olt_1/3/1' => "Onu Interface    : epon-onu_1/3/1:1\nOnu Model        : RL-4W\nMAC Address      : 1c18.4a0d.d30f\nOnline State     : authentication deny",
         ];
+
+        $this->snmpWalks([]);
+    }
+
+    public function test_poll_reads_epon_over_snmp_without_cli(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $executor = $this->fakeExecutor();
+        $this->snmpWalks($this->eponSnmpWalks());
+        $olt = $this->makeOlt(['polling_enabled' => true, 'cli_username' => '']);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        $snapshot = $olt->fresh()->last_test_result;
+        $this->assertSame([], $executor->scripts);
+        $epon = array_values(array_filter($snapshot['ports'], fn ($p) => ($p['pon_type'] ?? null) === 'epon'));
+        $this->assertSame(['epon-olt_1/3/1', 'epon-olt_1/3/2'], array_column($epon, 'name'));
+        $this->assertSame(['up', 'down'], array_column($epon, 'oper_status'));
+        $this->assertSame('epon_1/3/1', $epon[0]['if_name']);
+        $this->assertSame([['slot' => 3, 'cfg_type' => 'ETGO', 'real_type' => null, 'ports' => 2, 'status' => null, 'status_code' => 1]], $snapshot['epon']['cards']);
+        $this->assertSame('snmp', $snapshot['epon']['source']);
+
+        $onus = $snapshot['port_onus']['3_1']['onus'];
+        $this->assertSame([1, 2], array_column($onus, 'onu_id'));
+        $this->assertSame('1C:87:79:12:0C:39', $onus[0]['serial_number']);
+        $this->assertSame('F663', $onus[0]['type_name']);
+        $this->assertSame('F663', $onus[0]['model']);
+        $this->assertNull($onus[0]['onu_type']);
+        $this->assertTrue($onus[0]['online']);
+        $this->assertFalse($onus[1]['online']);
+        $this->assertSame('C0:7E:40:5B:1D:DE', $onus[1]['serial_number']);
+        // Tanpa CLI, RX tak dicoba — bukan galat.
+        $this->assertNull($snapshot['port_onus']['3_1']['rx_power']['error']);
+        $this->assertSame([], $snapshot['port_onus']['3_2']['onus']);
+        $this->assertSame('ZTEG08000001', $snapshot['port_onus']['1_1']['onus'][0]['serial_number']);
+    }
+
+    public function test_poll_over_snmp_reads_rx_and_onu_type_from_cli_when_due(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $executor = $this->fakeExecutor();
+        $this->snmpWalks($this->eponSnmpWalks());
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        // Satu sesi untuk port yang ber-ONU saja — tanpa `show card`/`show epon onu state`.
+        $this->assertSame(
+            ["terminal length 0\nshow running-config interface epon-olt_1/3/1\nshow pon power onu-rx epon-olt_1/3/1"],
+            $executor->scripts,
+        );
+        $onus = $olt->fresh()->last_test_result['port_onus']['3_1']['onus'];
+        $this->assertSame(-21.25, $onus[0]['rx_power_dbm']);
+        $this->assertSame('cli', $onus[0]['rx_power_source']);
+        $this->assertSame('ALL-EPON', $onus[0]['onu_type']);
+        $this->assertSame('F663', $onus[0]['type_name']);
+    }
+
+    public function test_snmp_without_epon_cards_sends_no_cli(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $executor = $this->fakeExecutor();
+        $walks = $this->eponSnmpWalks();
+        $walks['1.3.6.1.4.1.3902.1015.2.1.1.3.1.4'] = ['1.3.6.1.4.1.3902.1015.2.1.1.3.1.4.1.1.1' => 'GTGO'];
+        $this->snmpWalks($walks);
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        $snapshot = $olt->fresh()->last_test_result;
+        $this->assertSame([], $executor->scripts);
+        $this->assertSame([], $snapshot['epon']['cards']);
+        $this->assertSame('snmp', $snapshot['epon']['source']);
+        $this->assertSame(['gpon-olt_1/1/1'], array_column($snapshot['ports'], 'name'));
+    }
+
+    public function test_snmp_empty_state_table_keeps_previous_onus(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $this->fakeExecutor();
+        $walks = $this->eponSnmpWalks();
+        $walks['1.3.6.1.4.1.3902.1015.1010.1.2.1.1.1'] = [];
+        $this->snmpWalks($walks);
+        $olt = $this->makeOlt(['polling_enabled' => true], $this->eponSnapshot());
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        $snapshot = $olt->fresh()->last_test_result;
+        $this->assertFalse($snapshot['epon']['ok']);
+        $onus = $snapshot['port_onus']['3_1']['onus'];
+        $this->assertCount(2, $onus);
+        $this->assertTrue($onus[0]['online']);
+    }
+
+    public function test_card_with_more_than_eight_ports_falls_back_to_cli(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $executor = $this->fakeExecutor();
+        $walks = $this->eponSnmpWalks();
+        for ($p = 3; $p <= 16; $p++) {
+            $walks['1.3.6.1.2.1.31.1.1.1.1']['1.3.6.1.2.1.31.1.1.1.1.'.(0x11010300 + $p)] = "epon_1/3/{$p}";
+        }
+        $this->snmpWalks($walks);
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator);
+
+        $this->assertStringContainsString('show card', $executor->scripts[0]);
+        $this->assertArrayNotHasKey('source', $olt->fresh()->last_test_result['epon']);
+    }
+
+    public function test_port_refresh_over_snmp_adds_names_and_onu_type_from_cli(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $executor = $this->fakeExecutor();
+        $this->snmpWalks($this->eponSnmpWalks());
+        $olt = $this->makeOlt([], $this->eponSnapshot());
+
+        $this->actingAs($this->admin())
+            ->post(route('smartolt.port-onus.refresh', [$olt, 3, 1]))
+            ->assertRedirect();
+
+        $this->assertCount(2, $executor->scripts);
+        $this->assertStringNotContainsString('show epon onu state', $executor->scripts[0]);
+        $this->assertStringContainsString('show running-config interface epon-onu_1/3/1:2', $executor->scripts[1]);
+        $onus = $olt->fresh()->last_test_result['port_onus']['3_1']['onus'];
+        $this->assertSame('Pelanggan Uji', $onus[0]['name']);
+        $this->assertSame('F663', $onus[0]['type_name']);
+        $this->assertSame('ALL-EPON', $onus[0]['onu_type']);
+        $this->assertSame(-21.25, $onus[0]['rx_power_dbm']);
+        $this->assertFalse($onus[1]['online']);
+
+        // Saran onu-type form registrasi memakai onu-type running-config, bukan model SNMP.
+        $this->actingAs($this->admin())
+            ->get(route('smartolt.register', ['olt' => $olt, 'slot' => 3, 'port' => 1]))
+            ->assertInertia(fn ($page) => $page->where('suggestions.onu_types', ['ALL-EPON']));
+    }
+
+    public function test_port_refresh_over_snmp_survives_cli_failure(): void
+    {
+        config(['services.zte_epon.enabled' => true]);
+        $this->fakeExecutor(fail: true);
+        $this->snmpWalks($this->eponSnmpWalks());
+        $olt = $this->makeOlt([], $this->eponSnapshot());
+
+        $this->actingAs($this->admin())
+            ->post(route('smartolt.port-onus.refresh', [$olt, 3, 1]))
+            ->assertRedirect();
+
+        $entry = $olt->fresh()->last_test_result['port_onus']['3_1'];
+        $this->assertTrue($entry['ok']);
+        $this->assertSame('F663', $entry['onus'][0]['type_name']);
+        // Nama lama dibawa (MAC sama).
+        $this->assertSame('Pelanggan Lama', $entry['onus'][0]['name']);
+        $this->assertNotNull($entry['rx_power']['error']);
     }
 
     public function test_poll_with_switch_off_sends_no_cli_and_keeps_gpon_snapshot(): void
@@ -390,6 +548,67 @@ class ZteEponTest extends TestCase
                 ]],
             ],
             'epon' => ['ok' => true, 'error' => null, 'checked_at' => $now, 'cards' => [['slot' => 3, 'cfg_type' => 'ETGO', 'real_type' => 'ETGOD', 'ports' => 8, 'status' => 'INSERVICE']]],
+        ];
+    }
+
+    /**
+     * Pasang klien SNMP tiruan untuk {@see ZteEponSnmpReader}. OID yang tak ada di `$walks`
+     * melempar seperti walk gagal.
+     *
+     * @param  array<string, array<string, string>>  $walks  OID dasar → hasil walk (OID penuh → nilai)
+     */
+    private function snmpWalks(array $walks): void
+    {
+        $client = new class($walks) extends OltSnmpClient
+        {
+            /** @param array<string, array<string, string>> $walks */
+            public function __construct(private array $walks) {}
+
+            public function walk(SnmpOlt $olt, string $oid, bool $plain = false): array
+            {
+                if (! array_key_exists($oid, $this->walks)) {
+                    throw new RuntimeException("SNMP walk failed for {$oid}");
+                }
+
+                return $this->walks[$oid];
+            }
+        };
+
+        $this->app->instance(ZteEponSnmpReader::class, new ZteEponSnmpReader($client));
+    }
+
+    /**
+     * Walk SNMP berbentuk keluaran C300 V2.1 berkartu ETGO (OLT penguji, 24 Okt 2026): kartu ETGO di
+     * slot 3 (2 port), ifName `epon_1/3/p` (ifIndex 0x1101SSPP), dua ONU di port 1 (online & offline),
+     * MAC 6 byte mentah. MAC = fixture forum di setUp.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private function eponSnmpWalks(): array
+    {
+        $board = '1.3.6.1.4.1.3902.1015.2.1.1.3.1';
+        $onu = '1.3.6.1.4.1.3902.1015.1010';
+        $i1 = ZteEponSnmpReader::encodeOnuIndex(3, 1, 1);
+        $i2 = ZteEponSnmpReader::encodeOnuIndex(3, 1, 2);
+        $if = fn (int $slot, int $port): int => 0x11010000 | ($slot << 8) | $port;
+
+        return [
+            "{$board}.4" => ["{$board}.4.1.1.1" => 'GTGO', "{$board}.4.1.1.3" => 'ETGO', "{$board}.4.1.1.10" => 'SCXN'],
+            "{$board}.5" => ["{$board}.5.1.1.1" => '1', "{$board}.5.1.1.3" => '1', "{$board}.5.1.1.10" => '1'],
+            '1.3.6.1.2.1.31.1.1.1.1' => [
+                '1.3.6.1.2.1.31.1.1.1.1.'.$if(1, 1) => 'gpon_1/1/1',
+                '1.3.6.1.2.1.31.1.1.1.1.'.$if(3, 1) => 'epon_1/3/1',
+                '1.3.6.1.2.1.31.1.1.1.1.'.$if(3, 2) => 'epon_1/3/2',
+                '1.3.6.1.2.1.31.1.1.1.1.'.$if(10, 1) => 'gei_1/10/1',
+            ],
+            '1.3.6.1.2.1.2.2.1.8' => [
+                '1.3.6.1.2.1.2.2.1.8.'.$if(1, 1) => '1',
+                '1.3.6.1.2.1.2.2.1.8.'.$if(3, 1) => '1',
+                '1.3.6.1.2.1.2.2.1.8.'.$if(3, 2) => '2',
+            ],
+            "{$onu}.1.2.1.1.1" => ["{$onu}.1.2.1.1.1.{$i1}" => '1', "{$onu}.1.2.1.1.1.{$i2}" => '2'],
+            "{$onu}.1.1.1.1.1.4" => ["{$onu}.1.1.1.1.1.4.{$i1}" => hex2bin('1c8779120c39'), "{$onu}.1.1.1.1.1.4.{$i2}" => hex2bin('c07e405b1dde')],
+            "{$onu}.1.1.1.1.1.3" => ["{$onu}.1.1.1.1.1.3.{$i1}" => 'F663', "{$onu}.1.1.1.1.1.3.{$i2}" => 'F663'],
         ];
     }
 

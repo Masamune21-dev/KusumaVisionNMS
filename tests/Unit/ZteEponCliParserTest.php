@@ -10,7 +10,9 @@ use PHPUnit\Framework\TestCase;
  * fixture diambil dari keluaran ASLI pihak lain, disebut sumbernya per test:
  *  - [forum] operator C300 V1.2.5P3 (kartu ETGO), local.com.ua topik 88003, Jun 2016;
  *  - [manual] panduan awal C300 EPON berbahasa Tionghoa (V1.2.3P3, kartu ETGO/ETGOD), renrendoc 87264815;
- *  - [s4lfanet] contoh running-config di komentar kode repo MIT s4lfanet/nms-ztec320 (C320 V2.1).
+ *  - [s4lfanet] contoh running-config di komentar kode repo MIT s4lfanet/nms-ztec320 (C320 V2.1);
+ *  - [penguji] keluaran asli C300 V2.1.0 berkartu ETGO/ETGOB milik seorang penguji (Okt 2026), MAC &
+ *    nama pelanggan diganti fiktif.
  * Baris `show card` GPON adalah keluaran asli OLT C300 berkartu GTGH (Okt 2026) sebagai pembanding.
  */
 class ZteEponCliParserTest extends TestCase
@@ -229,5 +231,75 @@ TXT;
         $this->assertSame(['show card', 'show epon onu state'], array_column($chunks, 'command'));
         $this->assertStringContainsString('ETGO', $this->parser->outputOf($output, 'show card'));
         $this->assertStringNotContainsString('ETGO', $this->parser->outputOf($output, 'show epon onu state'));
+    }
+
+    public function test_onu_states_with_two_word_status_from_tester_olt(): void
+    {
+        // [penguji] status `Power Off` dua kata — dulu baris ini terbuang (121 dari 132 ONU terbaca).
+        $output = <<<'TXT'
+OnuIndex               OnlineStatus  OamStatus   RegMac
+--------------------------------------------------------------------
+epon-onu_1/8/1:4       Online       complete     0000.5e00.5301
+epon-onu_1/8/1:5       Power Off    idle         0000.0000.0000
+epon-onu_1/8/2:7       Offline      idle         0000.0000.0000
+TXT;
+
+        $rows = $this->parser->onuStates($output);
+
+        $this->assertSame(['Online', 'Power Off', 'Offline'], array_column($rows, 'status'));
+        $this->assertSame(['complete', 'idle', 'idle'], array_column($rows, 'oam_status'));
+        $this->assertSame(['00:00:5E:00:53:01', null, null], array_column($rows, 'mac'));
+        $this->assertSame(['online' => false, 'phase_state' => 'PowerOff', 'last_down_cause' => 'DyingGasp'], $this->parser->statusFields('Power Off'));
+    }
+
+    public function test_tester_olt_running_config_rx_and_transparent_vlan(): void
+    {
+        // [penguji] onu-type bernama `EPON`, port ber-`description`/`p2p mode group`, RX `N/A`,
+        // dan service-port `transparent` tanpa `vlan V`.
+        $portConfig = <<<'TXT'
+Building configuration...
+interface epon-olt_1/8/4
+  no shutdown
+  linktrap disable
+  description KE-ODC-UJI
+  p2p mode group
+  onu 1 type EPON mac 0000.5e00.5301 ip-cfg static
+  onu 2 type EPON mac 0000.5e00.5302 ip-cfg static
+!
+TXT;
+        $onuConfig = <<<'TXT'
+Building configuration...
+interface epon-onu_1/8/4:1
+  property description $$Pelanggan Uji$$
+  ems-autocfg-request disable
+  sla-profile default vport 1
+  encrypt direction downstream  enable  vport 1
+  service-port 1 vport 1 user-vlan 1120 transparent
+!
+end
+TXT;
+        $rx = "Onu                 Rx power\n------------------------------------\nepon-onu_1/8/4:1    -18.153(dbm)\nepon-onu_1/8/4:2    N/A\n";
+
+        $registered = $this->parser->registeredOnus($portConfig)['8_4'];
+        $this->assertSame(['onu_id' => 1, 'type_name' => 'EPON', 'mac' => '00:00:5E:00:53:01'], array_intersect_key($registered[1], array_flip(['onu_id', 'type_name', 'mac'])));
+        $this->assertCount(2, $registered);
+
+        $config = $this->parser->onuConfigs($onuConfig)['8_4_1'];
+        $this->assertSame('Pelanggan Uji', $config['name']);
+        $this->assertSame('default', $config['sla_profile']);
+        $this->assertSame([1120], $config['vlans']);
+
+        $this->assertSame(['8_4_1' => -18.153], $this->parser->onuRxPowers($rx));
+    }
+
+    public function test_no_related_information_is_an_empty_result(): void
+    {
+        // [penguji] `show onu unauthentication epon-olt_1/8/1` tanpa ONU baru.
+        $error = '`show onu unauthentication epon-olt_1/8/1` → %Code 70529: No related information to show.; '
+            .'`show onu unauthentication epon-olt_1/8/2` → %Code 70529: No related information to show.';
+
+        $this->assertTrue($this->parser->onlyNoInformation($error));
+        $this->assertFalse($this->parser->onlyNoInformation($error.'; `show onu unauthentication epon-olt_1/8/3` → %Error 20202: Invalid input'));
+        $this->assertFalse($this->parser->onlyNoInformation(null));
     }
 }
