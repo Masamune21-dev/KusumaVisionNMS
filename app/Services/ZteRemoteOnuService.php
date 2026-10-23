@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\Epon\ZteEponProvisioningScriptBuilder;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use RuntimeException;
 
 class ZteRemoteOnuService
@@ -35,7 +37,11 @@ class ZteRemoteOnuService
      */
     public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId): array
     {
-        $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+        // ONU EPON: `pon-onu-mng epon-onu_…` + `reboot` (konfirmasi dijawab otomatis) — belum
+        // diverifikasi di perangkat asli, lihat ZteEpon.
+        $iface = ZteEpon::isEponPort($olt, $slot, $port)
+            ? ZteEpon::onuInterface($slot, $port, $onuId)
+            : SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
         $script = implode("\n", [
             'conf t',
             "pon-onu-mng {$iface}",
@@ -53,7 +59,7 @@ class ZteRemoteOnuService
      */
     public function delete(SnmpOlt $olt, int $slot, int $port, int $onuId): array
     {
-        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $iface = $this->oltInterface($olt, $slot, $port);
         $script = implode("\n", [
             'conf t',
             "interface {$iface}",
@@ -73,6 +79,11 @@ class ZteRemoteOnuService
      */
     public function replaceSerial(SnmpOlt $olt, int $slot, int $port, int $onuId, string $serial): array
     {
+        // `registration-method sn` hanya ada di GPON; ONU EPON dikenali dari MAC.
+        if (ZteEpon::isEponPort($olt, $slot, $port)) {
+            throw new RuntimeException(__('zte.epon_action_unsupported'));
+        }
+
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
         $script = implode("\n", [
             'conf t',
@@ -94,7 +105,7 @@ class ZteRemoteOnuService
      */
     public function deleteMany(SnmpOlt $olt, int $slot, int $port, array $onuIds): array
     {
-        $iface = SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
+        $iface = $this->oltInterface($olt, $slot, $port);
         $script = implode("\n", [
             'conf t',
             "interface {$iface}",
@@ -126,6 +137,36 @@ class ZteRemoteOnuService
             'failed' => $failed,
             'error' => $error,
         ];
+    }
+
+    /**
+     * Ganti nama/deskripsi ONU EPON lewat CLI: ONU EPON ZTE menyimpan keduanya dalam SATU baris
+     * `property description $$nama$$deskripsi` di `interface epon-onu_…` (tak ada OID SNMP tulis
+     * yang terpetakan, dan tak ada perintah `name` terpisah). Nilai yang tak diubah wajib diisi
+     * pemanggil dengan nilai lamanya — baris ini menimpa keduanya sekaligus.
+     *
+     * @return array{ok:bool, output:string, error:string|null}
+     */
+    public function setEponInfo(SnmpOlt $olt, int $slot, int $port, int $onuId, string $name, string $description): array
+    {
+        $script = implode("\n", [
+            'conf t',
+            'interface '.ZteEpon::onuInterface($slot, $port, $onuId),
+            ZteEponProvisioningScriptBuilder::propertyDescription($name, $description),
+            'exit',
+        ]);
+
+        return $this->executor->execute($olt, $script);
+    }
+
+    /**
+     * Interface OLT tempat `no onu {id}`: `epon-olt_…` untuk port EPON, selain itu GPON per family.
+     */
+    private function oltInterface(SnmpOlt $olt, int $slot, int $port): string
+    {
+        return ZteEpon::isEponPort($olt, $slot, $port)
+            ? ZteEpon::oltInterface($slot, $port)
+            : SmartOltSupport::gponOltInterface($slot, $port, SmartOltSupport::isC600($olt));
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Services\Map\OnuMapPayloadService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\OdpColors;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -212,6 +213,14 @@ class OnuMapController extends Controller
                 }
             } elseif ($this->isCdata($olt)) {
                 $result = $cdata->setDescription($olt, $this->ifaceKeyword($olt), $pin->slot, $pin->port, $pin->onu_id, $name);
+                if (! ($result['ok'] ?? false)) {
+                    return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
+                }
+            } elseif (ZteEpon::isEponPort($olt, (int) $pin->slot, (int) $pin->port)) {
+                // ONU EPON ZTE: nama ditulis lewat `property description`, deskripsi lama dipertahankan.
+                $cached = collect(data_get($olt->last_test_result ?? [], "port_onus.{$pin->slot}_{$pin->port}.onus", []))
+                    ->first(fn ($onu): bool => is_array($onu) && (int) ($onu['onu_id'] ?? 0) === (int) $pin->onu_id) ?? [];
+                $result = $zte->setEponInfo($olt, (int) $pin->slot, (int) $pin->port, (int) $pin->onu_id, $name, (string) ($cached['description'] ?? ''));
                 if (! ($result['ok'] ?? false)) {
                     return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
                 }

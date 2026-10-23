@@ -43,7 +43,7 @@ const isNew = (onu) => Boolean(onu.first_seen_at && !onu.first_seen_baseline
 // "Bind ONU": hanya OLT yang mendukung (C300/C320) dan ONU yang port-nya terbaca.
 // Pre-Register: SN yang BELUM muncul di daftar ini (ONU belum tersambung) — C300/C320.
 const canPreregister = computed(() => Boolean(props.selected_olt?.capabilities?.supports_onu_preregister && page.props.auth?.can?.manage_olt));
-const canBind = (onu) => Boolean(props.selected_olt?.capabilities?.supports_onu_replace && onu.slot && onu.port);
+const canBind = (onu) => Boolean(props.selected_olt?.capabilities?.supports_onu_replace && onu.slot && onu.port && onu.pon_type !== 'epon');
 const bindTarget = ref(null);
 </script>
 

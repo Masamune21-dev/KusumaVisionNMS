@@ -33,4 +33,14 @@ return [
     'prereg_serial_format' => 'Invalid SN format — a GPON SN is 4 vendor characters + 8 hex digits (e.g. ZTEGC1234567). Check the label on the box/ONU.',
     'prereg_serial_registered' => 'This SN is already registered on this OLT (:interface).',
     'prereg_onu_id_used' => 'ONU ID :onu_id is already used on this port — pick another ID.',
+
+    // ZTE C300/C320 EPON cards (ZteEpon, ZTE_EPON_ENABLED switch) — experimental
+    'epon_cli_unreadable' => 'The card list (show card) could not be read over CLI — the last EPON data was kept.',
+    'epon_state_unreadable' => 'EPON ONU status (show epon onu state) could not be read — the last EPON data was kept.',
+    'epon_rx_unreadable' => 'EPON ONU Rx could not be read (show pon power onu-rx was rejected or empty for the EPON port).',
+    'epon_mac_invalid' => 'Invalid EPON ONU MAC — enter 12 hex digits, e.g. 1c18.4a0d.d30f or 1C:18:4A:0D:D3:0F.',
+    'epon_action_unsupported' => 'This action is not available for EPON ports (ETG cards) yet.',
+    'epon_use_epon_form' => 'This is an EPON port (ETG card) — register its ONUs with the EPON registration form.',
+    'epon_port_unknown' => 'This slot/port is not an EPON port known to the NMS. Poll/refresh the OLT first.',
+    'epon_registered_ok' => 'EPON ONU :interface registered (EPON syntax is unverified — check the CLI output in the registration history).',
 ];

@@ -23,7 +23,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, TriangleAlert, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -40,6 +40,12 @@ const props = defineProps({
     port: {
         type: Number,
         required: true,
+    },
+    // 'epon' = port kartu ETG ZTE (eksperimental, saklar ZTE_EPON_ENABLED); kapabilitas di
+    // olt.capabilities sudah diturunkan per port oleh server.
+    pon_type: {
+        type: String,
+        default: 'gpon',
     },
     snapshot: {
         type: Object,
@@ -112,6 +118,10 @@ const tr069ModalOpen = ref(false);
 
 // Pre-Register ONU: daftarkan SN yang belum tersambung ke port ini sebagai ONU offline (C300/C320).
 const canPreregister = computed(() => !!caps.value.supports_onu_preregister && Boolean(page.props.auth?.can?.manage_olt));
+
+// Port EPON ZTE (kartu ETG): ONU dikenali dari MAC, didaftarkan lewat form EPON sendiri.
+const isEpon = computed(() => props.pon_type === 'epon');
+const canRegisterEpon = computed(() => isEpon.value && !!caps.value.supports_provisioning && Boolean(page.props.auth?.can?.manage_olt));
 
 // --- navigasi cepat antar port (OLT sama) ---
 const navPorts = computed(() => {
@@ -552,8 +562,9 @@ const rxBadgeClass = (value) => {
         <template #header>
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
+                    <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight sm:text-xl text-white">
                         ONU Slot {{ slot }} Port {{ port }}
+                        <span v-if="isEpon" class="kv-pill kv-pill-info">EPON</span>
                     </h2>
                     <p class="mt-1 text-sm text-slate-500">
                         {{ olt.name }} · {{ olt.ip }}
@@ -600,6 +611,12 @@ const rxBadgeClass = (value) => {
                         <Cloud class="mr-2 h-4 w-4" />
                         {{ $t('portonus.tr069_bulk') }}
                     </SecondaryButton>
+                    <Link v-if="canRegisterEpon" :href="route('smartolt.register', { olt: olt.id, slot, port })">
+                        <SecondaryButton type="button">
+                            <ClipboardPlus class="mr-2 h-4 w-4" />
+                            {{ $t('portonus.register_epon') }}
+                        </SecondaryButton>
+                    </Link>
                     <Link v-if="canPreregister" :href="route('smartolt.register', { olt: olt.id, slot, port, pre: 1 })" :title="$t('portonus.preregister_hint')">
                         <SecondaryButton type="button">
                             <ClipboardPlus class="mr-2 h-4 w-4" />
@@ -616,6 +633,15 @@ const rxBadgeClass = (value) => {
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-5 px-4 sm:px-6 lg:px-8">
+
+                <!-- Port EPON: fitur eksperimental, sintaks CLI belum diuji di OLT ETG asli -->
+                <div v-if="isEpon" class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                    <TriangleAlert class="mt-0.5 h-5 w-5 flex-shrink-0" />
+                    <div>
+                        <p class="font-semibold">{{ $t('portonus.epon_title') }}</p>
+                        <p class="mt-1 text-amber-200/90">{{ $t('portonus.epon_body') }}</p>
+                    </div>
+                </div>
 
                 <!-- Stat cards -->
                 <div class="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
@@ -809,7 +835,7 @@ const rxBadgeClass = (value) => {
 
                                 <div class="kv-mobile-fields">
                                     <div class="kv-mobile-field">
-                                        <span class="kv-mobile-label">{{ $t('portonus.col_serial') }}</span>
+                                        <span class="kv-mobile-label">{{ isEpon ? $t('portonus.col_mac') : $t('portonus.col_serial') }}</span>
                                         <span class="kv-mobile-value font-mono text-xs">{{ onu.serial_number || '—' }}</span>
                                     </div>
                                     <div class="kv-mobile-field">
@@ -940,7 +966,7 @@ const rxBadgeClass = (value) => {
                                         />
                                     </th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_onu') }}</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_serial') }}</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ isEpon ? $t('portonus.col_mac') : $t('portonus.col_serial') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_acs') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_odp') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $t('portonus.col_type') }}</th>

@@ -34,7 +34,7 @@ const refresh = () => {
 const formatDate = (value) => formatDateTime(value);
 
 // "Bind ONU": hanya OLT yang mendukung (C300/C320) dan ONU yang port-nya terbaca.
-const canBind = (onu) => Boolean(props.olt.capabilities?.supports_onu_replace && onu.slot && onu.port);
+const canBind = (onu) => Boolean(props.olt.capabilities?.supports_onu_replace && onu.slot && onu.port && onu.pon_type !== 'epon');
 const bindTarget = ref(null);
 </script>
 

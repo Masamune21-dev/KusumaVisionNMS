@@ -473,6 +473,7 @@ class SmartOltSupport
             || ($serial !== '' && strcasecmp($name, $serial) === 0)
             || str_starts_with($lower, 'gpon-onu_')  // C300/C320
             || str_starts_with($lower, 'gpon_onu-')  // C600
+            || str_starts_with($lower, 'epon-onu_')  // kartu EPON C300/C320
         ) {
             return null;
         }

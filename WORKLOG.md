@@ -1,5 +1,57 @@
 # Worklog
 
+## 2026-10-23 — Created: dukungan kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO) — eksperimental, saklar mati
+
+Selama ini NMS memperlakukan ZTE C300/C320 sebagai GPON saja: port kartu EPON (ETGO 8-port, ETGH 16-port, ETTO 10G-EPON)
+dibuang diam-diam, jadi ONU EPON tak pernah muncul. Jalur EPON kini dibangun **tanpa OLT berkartu ETG untuk diuji** —
+seluruh sintaks CLI-nya berasal dari manual ZTE, contoh keluaran operator lain, dan catatan lapangan pihak ketiga, dan
+ditandai belum terverifikasi. Karena itu semuanya di belakang saklar `ZTE_EPON_ENABLED` yang **bawaan mati**.
+**Dicari penguji** dengan OLT ETG asli — langkahnya di `docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md` §18a.
+
+### Created
+
+- Saklar `ZTE_EPON_ENABLED` (`config/services.php` → `services.zte_epon.enabled`, bawaan `false`, ada di `.env.example`).
+- `app/Support/ZteEpon.php` — penanda port EPON per port (`pon_type=epon` di `ports[]`, hanya ZTE non-C600 + saklar menyala),
+  nama interface `epon-olt_1/s/p`/`epon-onu_1/s/p:n`, MAC (`xxxx.xxxx.xxxx` untuk CLI, `AA:BB:…` untuk snapshot),
+  `portCapabilities()`, `carryPorts()` (port EPON tak hilang saat `ports[]` ditulis ulang IF-MIB), `strip()` (saklar mati).
+- `app/Services/Zte/Epon/ZteEponCliParser.php` — `show card` (kartu `ET[GT]*`), `show epon onu state`, running-config
+  `epon-olt`/`epon-onu` (`property description $$nama$$desk`, SLA, VLAN), `show onu unauthentication` (blok & tabel), RX, onu-type.
+- `app/Services/Zte/Epon/ZteEponInventoryService.php` — poll satu sesi telnet, refresh port (dua sesi: status/MAC/RX lalu nama per
+  ONU), unconfigured, saran form. Baca gagal / `show epon onu state` kosong → data EPON lama dipertahankan (tak ada badai alarm);
+  port tanpa ONU online = `unknown`, bukan `down`; OLT tanpa kartu ETG dicek ulang paling sering 6 jam.
+- `app/Services/Zte/Epon/ZteEponProvisioningScriptBuilder.php` + form `Pages/SmartOlt/RegisterEponOnu.vue` + rute
+  `smartolt.register-epon.{preview,store}` — model bridge (MAC + SLA + VLAN gaya `service-port` V2.x / `switchport` V1.x,
+  opsional `pon-onu-mng … vlan port eth_0/N`), riwayat di `smartolt_onu_registrations` (`wan_mode=bridge`, tanpa migrasi).
+- Test: `tests/Unit/ZteEponCliParserTest.php` (fixture keluaran asli: forum operator C300 V1.2.5P3, manual C300 V1.2.3, catatan
+  repo MIT s4lfanet/nms-ztec320; pembanding `show card` OLT berkartu GTGH), `tests/Unit/ZteEponTest.php`,
+  `tests/Feature/ZteEponTest.php` (16 skenario poll/aksi/registrasi/API, termasuk saklar mati = nol perintah CLI),
+  `tests/js/ZteEponPages.spec.js` (PortOnus GPON & EPON + form EPON dirender tanpa error).
+
+### Changed
+
+- `PollOltJob` memanggil `ZteEponInventoryService::augmentPoll()` setelah hasil GPON digabung (RX EPON ikut `onu_rx_samples`);
+  `SmartOltController::refresh()`/`refreshOnuMonitor()` membawa port EPON.
+- Cabang per port: `ZteRemoteOnuService` (reboot/hapus/hapus banyak ke interface EPON, `setEponInfo()`, Bind ditolak),
+  `SmartOltController` (`assertPortCapability()` di aksi ONU/port termasuk shutdown & deskripsi port, refresh port EPON, rename
+  EPON, form registrasi EPON, form GPON ditolak 422 untuk slot/port EPON), API v1 `OnuActionController` (rename & refresh port),
+  `OnuRegistrationService::prepare()` (registrasi lewat API menolak port EPON), `OnuMapController` + `OnuMapPayloadService`
+  (rename pin & kapabilitas pin), `AlarmNotificationTargetResolver` (alarm ONU EPON membuka port + focus),
+  `UnconfiguredOnuDiscovery` (ONU EPON belum terdaftar ditempel ke daftar GPON).
+- UI: `PortOnus.vue` (lencana EPON, banner eksperimental, tombol «Daftarkan ONU EPON», kolom MAC — tombol lain tetap lewat
+  capability), `OltChassis.vue` (kartu ETG yang port-nya dikenal → tautan ke daftar ONU port), `Unconfigured*.vue` (Bind
+  disembunyikan untuk baris EPON). i18n `portonus.*` + namespace `registerepon` (id/en), `lang/{id,en}/zte.php` `epon_*`.
+- `SmartOltSupport::cleanCustomerName()` juga membuang nama berawalan `epon-onu_`.
+- Dokumentasi: guide ZTE §18a (sumber, alur, langkah menyalakan & memverifikasi, ajakan menguji), `CLAUDE.md` (Scope reality).
+
+### Notes
+
+- Saklar mati → perilaku GPON tak berubah dan tak ada perintah EPON yang dikirim ke OLT.
+- Yang sengaja tidak dibangun: OID SNMP EPON, enable/disable ONU EPON (sumber bertentangan `shutdown` vs `admin enable`), detail
+  ONU, configure/salin, TR069 massal, Bind, Pre-Register, shutdown/deskripsi port EPON, registrasi EPON lewat API.
+- `show pon power onu-rx epon-olt_…` adalah perintah paling meragukan (belum ada contoh keluaran EPON); bila ditolak, RX EPON «-».
+- Diuji: 820 test PHP + 60 Vitest lulus; halaman Detail, ONU per port (GPON & EPON), Register EPON, dan Unconfigured dirender di
+  server lokal (OLT fiktif, MAC rentang dokumentasi `00:00:5E:00:53:xx`) tanpa error konsol.
+
 ## 2026-10-19 — Docs: Panduan HTTPS Langkah demi Langkah
 
 ### Created

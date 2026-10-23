@@ -26,6 +26,8 @@ use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
 use App\Services\Zte\C600MgmtPoolService;
+use App\Services\Zte\Epon\ZteEponInventoryService;
+use App\Services\Zte\Epon\ZteEponProvisioningScriptBuilder;
 use App\Services\Zte\OnuPreregisterService;
 use App\Services\Zte\OnuRegistrationService;
 use App\Services\Zte\UnconfiguredOnuDiscovery;
@@ -40,12 +42,14 @@ use App\Services\ZteTr069BulkService;
 use App\Support\AuditLogger;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -328,6 +332,7 @@ class SmartOltController extends Controller
             'port' => ['required', 'integer', 'min:0', 'max:99'],
             'description' => ['nullable', 'string', 'max:64'],
         ]);
+        $this->assertPortCapability($olt, (int) $data['slot'], (int) $data['port'], 'supports_port_description_write');
 
         $interface = SmartOltSupport::gponOltInterface(
             (int) $data['slot'],
@@ -365,6 +370,7 @@ class SmartOltController extends Controller
             'port' => ['required', 'integer', 'min:0', 'max:99'],
             'enabled' => ['required', 'boolean'],
         ]);
+        $this->assertPortCapability($olt, (int) $data['slot'], (int) $data['port'], 'supports_port_admin_write');
 
         $slot = (int) $data['slot'];
         $port = (int) $data['port'];
@@ -414,8 +420,17 @@ class SmartOltController extends Controller
 
     public function portOnus(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService, GenieacsMapService $genieacsMap): Response
     {
+        $serialized = $this->serializeOlt($olt);
+        $isEpon = ZteEpon::isEponPort($olt, $slot, $port);
+        // Port EPON (kartu ETG): halaman yang sama, kapabilitas diturunkan per port — tombol fitur
+        // bersintaks GPON otomatis tersembunyi lewat gerbang capability yang sudah ada.
+        if ($isEpon) {
+            $serialized['capabilities'] = ZteEpon::portCapabilities((array) $serialized['capabilities']);
+        }
+
         return Inertia::render('SmartOlt/PortOnus', [
-            'olt' => $this->serializeOlt($olt),
+            'olt' => $serialized,
+            'pon_type' => $isEpon ? 'epon' : 'gpon',
             'slot' => $slot,
             'port' => $port,
             'snapshot' => $this->serializePortOnusSnapshot($olt, $slot, $port),
@@ -488,6 +503,7 @@ class SmartOltController extends Controller
 
             $snapshot = $olt->last_test_result ?? [];
             data_set($snapshot, 'ports', $ports);
+            $snapshot = ZteEpon::carryPorts($olt, $snapshot, $olt->last_test_result ?? []);
             $now = now()->toIso8601String();
 
             // Index ports by slot_port so ONUs that resolved via if-index fallback still get a row.
@@ -587,10 +603,14 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function registerOnuForm(Request $request, SnmpOlt $olt, OnuOdpService $odpService, OnuPreregisterService $prereg): Response
+    public function registerOnuForm(Request $request, SnmpOlt $olt, OnuOdpService $odpService, OnuPreregisterService $prereg, ZteEponInventoryService $epon): Response
     {
         $slot = (int) $request->query('slot');
         $port = (int) $request->query('port');
+
+        if (ZteEpon::isEponPort($olt, $slot, $port)) {
+            return $this->registerEponOnuForm($request, $olt, $slot, $port, $odpService, $epon);
+        }
         $isC600 = SmartOltSupport::isC600($olt);
         // `?pre=1` = Pre-Register ONU: SN diketik manual, ONU belum tersambung (lihat OnuPreregisterService).
         $preregister = $request->boolean('pre') && $this->hasCapability($olt, 'supports_onu_preregister');
@@ -705,6 +725,189 @@ class SmartOltController extends Controller
                 'remote_ont_protocol' => 'web',
             ],
         ]);
+    }
+
+    /**
+     * Form registrasi ONU EPON (port kartu ETG, saklar ZTE_EPON_ENABLED). Model bridge: otorisasi
+     * MAC + SLA + VLAN layanan; tanpa WAN/TR069/T-CONT GPON. Pratinjau skrip selalu ditampilkan
+     * sebelum eksekusi karena sintaksnya belum diverifikasi di perangkat asli.
+     */
+    private function registerEponOnuForm(Request $request, SnmpOlt $olt, int $slot, int $port, OnuOdpService $odpService, ZteEponInventoryService $epon): Response
+    {
+        $serialized = $this->serializeOlt($olt);
+        $serialized['capabilities'] = ZteEpon::portCapabilities((array) $serialized['capabilities']);
+        $suggestions = $epon->formSuggestions($olt);
+        $suggested = (int) $request->query('suggested_onu_id');
+        $used = array_map(
+            fn ($onu): int => (int) ($onu['onu_id'] ?? 0),
+            data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []),
+        );
+        $sysDescr = (string) data_get($olt->last_test_result, 'system.sys_descr', '');
+
+        return Inertia::render('SmartOlt/RegisterEponOnu', [
+            'olt' => $serialized,
+            'epon_ports' => array_map(fn (array $row): array => [
+                'slot' => (int) $row['slot'],
+                'port' => (int) $row['port'],
+                'name' => (string) ($row['name'] ?? ZteEpon::oltInterface((int) $row['slot'], (int) $row['port'])),
+            ], ZteEpon::ports($olt->last_test_result ?? [])),
+            'odps' => $odpService->odpsForOlt($olt),
+            'suggestions' => $suggestions,
+            'onu_model' => (string) $request->query('model', ''),
+            'defaults' => [
+                'slot' => $slot,
+                'port' => $port,
+                'onu_id' => $suggested >= 1 && $suggested <= 128 && ! in_array($suggested, $used, true)
+                    ? $suggested
+                    : $epon->nextFreeOnuId($olt, $slot, $port),
+                'mac' => (string) (ZteEpon::displayMac((string) $request->query('sn', '')) ?? ''),
+                'onu_type' => $suggestions['onu_types'][0] ?? 'ALL-EPON',
+                'customer_name' => '',
+                'description' => '',
+                'sla_profile' => $suggestions['sla_profiles'][0] ?? '',
+                'vlan' => 100,
+                // Firmware V1.x (manual C300 V1.2) memakai `switchport vlan V tag`; V2.x memakai
+                // model vport `service-port 1 vport 1 …` (catatan lapangan C320 V2.1).
+                'service_style' => preg_match('/\bV1\./i', $sysDescr) === 1 ? 'switchport' : 'service-port',
+                'onu_vlan_mode' => 'none',
+                'onu_eth_port' => 1,
+                'odp_id' => null,
+            ],
+        ]);
+    }
+
+    public function registerEponPreview(Request $request, SnmpOlt $olt, ZteEponProvisioningScriptBuilder $builder): JsonResponse
+    {
+        try {
+            $data = $this->validatedEponProvisioning($request, $olt);
+        } catch (ValidationException) {
+            return response()->json(['script' => __('zte.preview_fill_required')]);
+        }
+
+        return response()->json(['script' => $builder->build($data)]);
+    }
+
+    /**
+     * Simpan (dan opsional eksekusi) registrasi ONU EPON — pola sama dengan {@see storeOnu()}:
+     * baris audit `smartolt_onu_registrations` (MAC di kolom serial, `wan_mode=bridge`), ODP
+     * dikaitkan hanya setelah CLI sukses dan di luar blok try.
+     */
+    public function storeEponOnu(Request $request, SnmpOlt $olt, ZteEponProvisioningScriptBuilder $builder, ZteCliProvisioningExecutor $executor, OnuOdpService $odps): RedirectResponse
+    {
+        $data = $this->validatedEponProvisioning($request, $olt);
+        $script = $builder->build($data);
+        $execute = $request->boolean('execute');
+        $ponPort = ZteEpon::onuInterface((int) $data['slot'], (int) $data['port'], (int) $data['onu_id']);
+
+        $base = [
+            'snmp_olt_id' => $olt->id,
+            'serial_number' => (string) $data['mac'],
+            'slot' => (int) $data['slot'],
+            'port' => (int) $data['port'],
+            'onu_id' => (int) $data['onu_id'],
+            'pon_port' => $ponPort,
+            'customer_name' => (string) $data['customer_name'],
+            'onu_type' => (string) $data['onu_type'],
+            'vlan' => (int) $data['vlan'],
+            'vlan_profile' => ($data['sla_profile'] ?? '') !== '' ? (string) $data['sla_profile'] : null,
+            'wan_mode' => 'bridge',
+            'cli_script' => $script,
+            'created_by' => $request->user()?->id,
+        ];
+
+        if (! $execute) {
+            SmartOltOnuRegistration::create([...$base, 'status' => 'generated']);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('success', __('flash.prov_generated'));
+        }
+
+        $this->assertPortCapability($olt, (int) $data['slot'], (int) $data['port'], 'supports_provisioning');
+
+        try {
+            $result = $executor->execute($olt, $script);
+            $output = CliOutputSanitizer::clean($result['output']);
+            $error = $result['error'] === null ? null : CliOutputSanitizer::clean($result['error']);
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => $result['ok'] ? 'executed' : 'failed',
+                'execution_output' => $output,
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+        } catch (\Throwable $exception) {
+            $error = CliOutputSanitizer::clean($exception->getMessage());
+
+            SmartOltOnuRegistration::create([
+                ...$base,
+                'status' => 'failed',
+                'execution_error' => $error,
+                'executed_at' => now(),
+                'executed_by' => $request->user()?->id,
+            ]);
+
+            return redirect()
+                ->route('smartolt.registrations', $olt)
+                ->with('error', __('flash.register_exec_failed').$error);
+        }
+
+        $odpNote = $result['ok'] && ($data['odp_id'] ?? null) !== null
+            ? $this->odpWarningNote($odps->assignQuietly(
+                $olt,
+                (int) $data['slot'],
+                (int) $data['port'],
+                (int) $data['onu_id'],
+                (string) $data['mac'],
+                (int) $data['odp_id'],
+                $request->user()?->id,
+            ))
+            : '';
+
+        return redirect()
+            ->route('smartolt.registrations', $olt)
+            ->with(
+                $result['ok'] ? 'success' : 'error',
+                $result['ok']
+                    ? __('zte.epon_registered_ok', ['interface' => $ponPort]).$odpNote
+                    : __('flash.register_rejected').$error,
+            );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedEponProvisioning(Request $request, SnmpOlt $olt): array
+    {
+        $data = $request->validate([
+            'slot' => ['required', 'integer', 'between:1,255'],
+            'port' => ['required', 'integer', 'between:1,255'],
+            'onu_id' => ['required', 'integer', 'between:1,128'],
+            'mac' => ['required', 'string', 'max:32', function (string $attribute, mixed $value, \Closure $fail): void {
+                if (ZteEpon::cliMac((string) $value) === null) {
+                    $fail(__('zte.epon_mac_invalid'));
+                }
+            }],
+            'onu_type' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'customer_name' => ['required', 'string', 'max:64'],
+            'description' => ['nullable', 'string', 'max:64'],
+            'sla_profile' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/'],
+            'vlan' => ['required', 'integer', 'between:1,4094'],
+            'service_style' => ['required', Rule::in(ZteEponProvisioningScriptBuilder::SERVICE_STYLES)],
+            'onu_vlan_mode' => ['required', Rule::in(ZteEponProvisioningScriptBuilder::ONU_VLAN_MODES)],
+            'onu_eth_port' => ['nullable', 'integer', 'between:1,4'],
+            'odp_id' => ['nullable', 'integer', 'exists:odps,id'],
+        ]);
+
+        // Slot/port wajib port EPON yang dikenal poll — skrip EPON ke slot GPON akan ditolak OLT
+        // atau, lebih buruk, mengenai interface yang salah.
+        abort_unless(ZteEpon::isEponPort($olt, (int) $data['slot'], (int) $data['port']), 422, __('zte.epon_port_unknown'));
+
+        $data['mac'] = ZteEpon::displayMac((string) $data['mac']);
+
+        return $data;
     }
 
     public function store(Request $request): RedirectResponse
@@ -850,7 +1053,8 @@ class SmartOltController extends Controller
         $result = $client->snapshot($olt);
 
         // Merge ke existing snapshot agar port_onus & unconfigured_onus yang sudah di-cache tidak terhapus.
-        $merged = array_merge($olt->last_test_result ?? [], $result);
+        // `ports` dari IF-MIB tak memuat port EPON → bawa dari snapshot lama (no-op saat saklar mati).
+        $merged = ZteEpon::carryPorts($olt, array_merge($olt->last_test_result ?? [], $result), $olt->last_test_result ?? []);
 
         $olt->forceFill([
             'last_test_result' => $merged,
@@ -873,10 +1077,15 @@ class SmartOltController extends Controller
             ->with($result['ok'] ? 'success' : 'error', $message);
     }
 
-    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): RedirectResponse
+    public function refreshPortOnus(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, ZteEponInventoryService $epon): RedirectResponse
     {
-        $result = $client->portOnusSnapshot($olt, $slot, $port);
-        $result['refreshed_at'] = now()->toIso8601String();
+        if (ZteEpon::isEponPort($olt, $slot, $port)) {
+            // Port EPON dibaca lewat CLI (status, MAC/tipe, Rx, lalu nama per ONU).
+            $result = $epon->refreshPort($olt, $slot, $port, now());
+        } else {
+            $result = $client->portOnusSnapshot($olt, $slot, $port);
+            $result['refreshed_at'] = now()->toIso8601String();
+        }
 
         $snapshot = $olt->last_test_result ?? [];
         data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
@@ -919,7 +1128,7 @@ class SmartOltController extends Controller
                 ->with(
                     $result['ok'] ? 'success' : 'error',
                     $result['ok']
-                        ? sprintf(__('flash.reboot_sent_iface_fmt'), SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt)))
+                        ? sprintf(__('flash.reboot_sent_iface_fmt'), $this->onuInterfaceFor($olt, $slot, $port, $onuId))
                         : __('zte.onu_reboot_partial').$result['error'],
                 );
         } catch (\Throwable $exception) {
@@ -931,7 +1140,7 @@ class SmartOltController extends Controller
 
     public function setOnuState(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
     {
-        $this->assertCapability($olt, 'supports_onu_toggle');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_toggle');
 
         $data = $request->validate([
             'active' => ['required', 'boolean'],
@@ -962,7 +1171,7 @@ class SmartOltController extends Controller
 
     public function updateOnuInfo(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote): RedirectResponse
     {
-        $this->assertCapability($olt, 'supports_onu_info_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_info_write');
 
         $data = $request->validate([
             'name' => ['nullable', 'string', 'max:191'],
@@ -982,7 +1191,24 @@ class SmartOltController extends Controller
         $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
 
         try {
-            $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
+            if (ZteEpon::isEponPort($olt, $slot, $port)) {
+                // ONU EPON: nama & deskripsi ditulis bersama dalam satu baris — yang tak diubah
+                // diisi nilai lamanya dari cache supaya tak terhapus.
+                $cached = $this->cachedOnu($olt, $slot, $port, $onuId);
+                $result = $remote->setEponInfo(
+                    $olt,
+                    $slot,
+                    $port,
+                    $onuId,
+                    $name ?? (string) ($cached['name'] ?? ''),
+                    $description ?? (string) ($cached['description'] ?? ''),
+                );
+                if (! $result['ok']) {
+                    throw new \RuntimeException((string) $result['error']);
+                }
+            } else {
+                $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
+            }
             $this->mutateCachedOnu($olt, $slot, $port, $onuId, function (array $onu) use ($name, $description) {
                 if ($name !== null) {
                     $onu['name'] = $name;
@@ -1006,7 +1232,7 @@ class SmartOltController extends Controller
 
     public function onuDetail(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuDetailService $service): Response
     {
-        $this->assertCapability($olt, 'supports_cli_onu_detail');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_cli_onu_detail');
 
         $cached = $this->findCachedOnu($olt, $slot, $port, $onuId);
 
@@ -1059,7 +1285,7 @@ class SmartOltController extends Controller
 
     public function configureOnuForm(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuRunningConfigService $service): Response
     {
-        $this->assertCapability($olt, 'supports_cli_onu_configure');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_cli_onu_configure');
 
         // Sandi ACS di running-config tak ikut ke browser (lihat maskLiveConfig()).
         $live = $this->maskLiveConfig($service->fetch($olt, $slot, $port, $onuId));
@@ -1085,7 +1311,7 @@ class SmartOltController extends Controller
 
     public function configureOnuPreview(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
 
         $baseline = $request->input('baseline', []);
         $baseline = is_array($baseline) ? $baseline : [];
@@ -1109,7 +1335,7 @@ class SmartOltController extends Controller
 
     public function configureOnuApply(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): RedirectResponse
     {
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
 
         $target = $this->validatedReconfigure($request);
         $baseline = $request->input('baseline', []);
@@ -1163,7 +1389,7 @@ class SmartOltController extends Controller
      */
     public function configureOnuItem(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
 
         $target = $this->validatedReconfigure($request);
         $baseline = $request->input('baseline', []);
@@ -1228,7 +1454,7 @@ class SmartOltController extends Controller
      */
     public function configureOnuUnbindProfile(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteOnuReconfigureScriptBuilder $builder, ZteCliProvisioningExecutor $executor, ZteOnuRunningConfigService $service): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
 
         $isC600 = SmartOltSupport::isC600($olt);
         $iface = SmartOltSupport::onuInterfaceId($slot, $port, $onuId, $isC600);
@@ -1464,7 +1690,7 @@ class SmartOltController extends Controller
     {
         // Rebuild registrasi gaya C300 (tcont/gemport/service-port) — butuh capability TULIS
         // config, bukan sekadar CLI configure (C600 read-only untuk jalur ini).
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
 
         $data = $request->validate([
             'onu_ids' => ['required', 'array', 'min:1', 'max:256'],
@@ -1479,6 +1705,10 @@ class SmartOltController extends Controller
 
         if ($dstSlot === $slot && $dstPort === $port) {
             return response()->json(['ok' => false, 'message' => __('zte.copy_same_port')], 422);
+        }
+
+        if (ZteEpon::isEponPort($olt, $dstSlot, $dstPort)) {
+            return response()->json(['ok' => false, 'message' => __('zte.epon_action_unsupported')], 422);
         }
 
         $onuIds = array_values(array_unique(array_map('intval', $data['onu_ids'])));
@@ -1523,7 +1753,7 @@ class SmartOltController extends Controller
     public function tr069Bulk(Request $request, SnmpOlt $olt, int $slot, int $port, ZteTr069BulkService $service): JsonResponse
     {
         // Menulis baris tr069-mgmt gaya C300 (dua-baris state+acs) — gate capability tulis config.
-        $this->assertCapability($olt, 'supports_onu_config_write');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_config_write');
         // Target = ACS di Pengaturan, hanya untuk OLT global non-demo (AcsSetting::servesOlt).
         // OLT privat partner & OLT demo tak punya target — jangan jalankan.
         abort_if(AcsSetting::resolved($olt)['url'] === '', 422, __('flash.acs_target_missing'));
@@ -1596,7 +1826,7 @@ class SmartOltController extends Controller
      */
     public function replaceCandidates(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client): JsonResponse
     {
-        $this->assertCapability($olt, 'supports_onu_replace');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_replace');
 
         $result = $client->portOnusSnapshot($olt, $slot, $port);
         $live = (bool) ($result['ok'] ?? false);
@@ -1641,7 +1871,7 @@ class SmartOltController extends Controller
      */
     public function replaceOnu(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, ZteCliProvisioningExecutor $executor): RedirectResponse
     {
-        $this->assertCapability($olt, 'supports_onu_replace');
+        $this->assertPortCapability($olt, $slot, $port, 'supports_onu_replace');
 
         $data = $request->validate([
             // Alfanumerik saja: SN ditulis apa adanya ke baris CLI.
@@ -1858,6 +2088,9 @@ class SmartOltController extends Controller
         }
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->previewProvisioningInput($request));
+        if (ZteEpon::isEponPort($olt, (int) ($data['slot'] ?? 0), (int) ($data['port'] ?? 0))) {
+            return response()->json(['script' => __('zte.epon_use_epon_form')]);
+        }
 
         // Sandi ACS diisi server untuk skrip, tapi tak ikut ke browser.
         return response()->json(['script' => AcsSetting::maskScript($builder->build($data))]);
@@ -1891,6 +2124,7 @@ class SmartOltController extends Controller
         }
 
         $data = $this->hydrateProvisioningProfiles($olt, $this->validatedProvisioning($request, $olt));
+        $this->rejectEponPortForGpon($olt, (int) $data['slot'], (int) $data['port']);
         if ($preregister) {
             $prereg->assertCanPreregister($olt, (string) $data['serial_number'], (int) $data['slot'], (int) $data['port'], (int) $data['onu_id']);
         }
@@ -2033,6 +2267,9 @@ class SmartOltController extends Controller
         $this->assertCapability($olt, 'supports_onu_config_write');
 
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
+        if (ZteEpon::isEponPort($olt, (int) $header['slot'], (int) $header['port'])) {
+            return response()->json(['script' => __('zte.epon_use_epon_form')]);
+        }
 
         $script = $builder->buildForRegistration($config, $this->advancedRegistrationContext($olt, $header));
 
@@ -2048,6 +2285,7 @@ class SmartOltController extends Controller
     {
         $preregister = $this->preparePreregister($request, $olt);
         [$header, $config] = $this->validatedAdvancedProvisioning($request, $olt);
+        $this->rejectEponPortForGpon($olt, (int) $header['slot'], (int) $header['port']);
         if ($preregister) {
             $prereg->assertCanPreregister($olt, (string) $header['serial_number'], (int) $header['slot'], (int) $header['port'], (int) $header['onu_id']);
         }
@@ -2740,6 +2978,59 @@ class SmartOltController extends Controller
             'error' => data_get($snapshot, 'error'),
             'refreshed_at' => data_get($snapshot, 'refreshed_at'),
         ];
+    }
+
+    /**
+     * Seperti {@see assertCapability()}, tapi untuk aksi pada satu PON port: port EPON (kartu ETG,
+     * saklar ZTE_EPON_ENABLED) memakai kapabilitas EPON-nya ({@see ZteEpon::portCapabilities()}),
+     * port GPON tetap kapabilitas OLT apa adanya.
+     */
+    private function assertPortCapability(SnmpOlt $olt, int $slot, int $port, string $capability): void
+    {
+        if (! ZteEpon::isEponPort($olt, $slot, $port)) {
+            $this->assertCapability($olt, $capability);
+
+            return;
+        }
+
+        $driver = SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        );
+        $caps = ZteEpon::portCapabilities(SmartOltSupport::capabilities($driver, $olt));
+
+        abort_unless((bool) ($caps[$capability] ?? false), 403, __('zte.epon_action_unsupported'));
+    }
+
+    /**
+     * Form/registrasi GPON yang diarahkan ke slot/port EPON akan menulis `interface gpon-olt_…`
+     * ke slot kartu ETG — tolak sebelum OLT disentuh; ONU EPON punya form sendiri.
+     */
+    private function rejectEponPortForGpon(SnmpOlt $olt, int $slot, int $port): void
+    {
+        abort_if(ZteEpon::isEponPort($olt, $slot, $port), 422, __('zte.epon_use_epon_form'));
+    }
+
+    private function onuInterfaceFor(SnmpOlt $olt, int $slot, int $port, int $onuId): string
+    {
+        return ZteEpon::isEponPort($olt, $slot, $port)
+            ? ZteEpon::onuInterface($slot, $port, $onuId)
+            : SmartOltSupport::onuInterfaceId($slot, $port, $onuId, SmartOltSupport::isC600($olt));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): array
+    {
+        foreach (data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []) as $onu) {
+            if (is_array($onu) && (int) ($onu['onu_id'] ?? 0) === $onuId) {
+                return $onu;
+            }
+        }
+
+        return [];
     }
 
     private function assertCapability(SnmpOlt $olt, string $capability): void

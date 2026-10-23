@@ -5,6 +5,7 @@ namespace App\Services\Alarm;
 use App\Models\AlarmEvent;
 use App\Models\SnmpOlt;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 
 /**
  * Resuelve a QUÉ pantalla lleva una notificación de alarma.
@@ -69,7 +70,9 @@ class AlarmNotificationTargetResolver
             // La página de detalle individual solo existe donde la capability lo permite
             // (hoy: ZTE C300/C320/C600). En el resto se abre el puerto resaltando la ONU
             // con el parámetro `focus` que esas páginas ya soportan.
-            $supportsDetail = (bool) (SmartOltSupport::capabilities($driver, $olt)['supports_cli_onu_detail'] ?? false);
+            // Port EPON ZTE (kartu ETG) tak punya halaman detail ONU → selalu buka port + focus.
+            $supportsDetail = (bool) (SmartOltSupport::capabilities($driver, $olt)['supports_cli_onu_detail'] ?? false)
+                && ! ZteEpon::isEponPort($olt, (int) $location['slot'], (int) $location['port']);
 
             $url = $supportsDetail
                 ? route("{$prefix}.onu.detail", [$olt, $location['slot'], $location['port'], $location['onu_id']], absolute: false)

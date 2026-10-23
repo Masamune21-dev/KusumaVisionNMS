@@ -9,6 +9,7 @@ use App\Services\Odp\OdpPhotoService;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Support\Collection;
 
 /**
@@ -246,7 +247,10 @@ class OnuMapPayloadService
             'olt_cdata' => $meta['is_cdata'] ?? false,
             // Nama rute halaman ONU per port (per family) untuk link "buka di Port ONUs".
             'port_route' => $meta['port_route'] ?? 'smartolt.port-onus',
-            'capabilities' => $meta['capabilities'] ?? [],
+            // Pin ONU di port EPON ZTE: kapabilitas diturunkan per port (tanpa detail ONU dsb.).
+            'capabilities' => $olt !== null && ZteEpon::isEponPort($olt, (int) $pin->slot, (int) $pin->port)
+                ? ZteEpon::portCapabilities($meta['capabilities'] ?? [])
+                : ($meta['capabilities'] ?? []),
             'slot' => $pin->slot,
             'port' => $pin->port,
             'onu_id' => $pin->onu_id,

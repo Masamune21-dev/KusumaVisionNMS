@@ -33,4 +33,14 @@ return [
     'prereg_serial_format' => 'Format SN tidak valid — SN GPON = 4 karakter vendor + 8 heksa (mis. ZTEGC1234567). Periksa lagi label di dus/ONU.',
     'prereg_serial_registered' => 'SN ini sudah terdaftar di OLT ini (:interface).',
     'prereg_onu_id_used' => 'ONU ID :onu_id sudah dipakai di port ini — pilih ID lain.',
+
+    // Kartu EPON ZTE C300/C320 (ZteEpon, saklar ZTE_EPON_ENABLED) — eksperimental
+    'epon_cli_unreadable' => 'Daftar kartu (show card) tidak terbaca lewat CLI — data EPON terakhir dipertahankan.',
+    'epon_state_unreadable' => 'Status ONU EPON (show epon onu state) tidak terbaca — data EPON terakhir dipertahankan.',
+    'epon_rx_unreadable' => 'Rx ONU EPON tidak terbaca (perintah show pon power onu-rx untuk port EPON ditolak atau kosong).',
+    'epon_mac_invalid' => 'MAC ONU EPON tidak valid — isi 12 digit heksa, mis. 1c18.4a0d.d30f atau 1C:18:4A:0D:D3:0F.',
+    'epon_action_unsupported' => 'Aksi ini belum tersedia untuk port EPON (kartu ETG).',
+    'epon_use_epon_form' => 'Port ini port EPON (kartu ETG) — daftarkan ONU-nya lewat form registrasi EPON.',
+    'epon_port_unknown' => 'Slot/port ini bukan port EPON yang dikenal NMS. Jalankan poll/refresh OLT dulu.',
+    'epon_registered_ok' => 'ONU EPON :interface berhasil didaftarkan (sintaks EPON belum terverifikasi — periksa keluaran CLI di riwayat registrasi).',
 ];

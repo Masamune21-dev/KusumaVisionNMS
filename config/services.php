@@ -50,6 +50,15 @@ return [
         'min_severity' => env('FCM_MIN_SEVERITY', 'major'),
     ],
 
+    // Kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO). EKSPERIMENTAL, BAWAAN MATI: dibangun dari manual ZTE,
+    // contoh keluaran operator, dan catatan lapangan pihak ketiga TANPA OLT ETG untuk diuji — semua
+    // sintaks CLI-nya belum pernah diverifikasi di perangkat. Saat mati, port EPON tetap dibuang
+    // seperti sebelumnya dan tak ada satu pun perintah EPON yang dikirim. Lihat
+    // docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md §EPON dan App\Support\ZteEpon.
+    'zte_epon' => [
+        'enabled' => (bool) env('ZTE_EPON_ENABLED', false),
+    ],
+
     'snmp_poller' => [
         'driver' => env('SNMP_POLLER_DRIVER', 'php'),
         'binary' => env('SNMP_POLLER_BINARY', base_path('bin/kv-snmp-poller')),

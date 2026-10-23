@@ -269,6 +269,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/smartolt/{olt}/register/advanced/preview', [SmartOltController::class, 'registerOnuAdvancedPreview'])->name('smartolt.register.advanced.preview');
     Route::post('/smartolt/{olt}/register/advanced', [SmartOltController::class, 'storeOnuAdvanced'])->name('smartolt.register.advanced.store');
     Route::post('/smartolt/{olt}/register', [SmartOltController::class, 'storeOnu'])->name('smartolt.register.store');
+    // ONU EPON (kartu ETG ZTE C300/C320, saklar ZTE_EPON_ENABLED) — form dibuka lewat smartolt.register
+    // yang sama; slot/port di luar port EPON yang dikenal ditolak 422 di controller.
+    Route::post('/smartolt/{olt}/register-epon/preview', [SmartOltController::class, 'registerEponPreview'])->name('smartolt.register-epon.preview');
+    Route::post('/smartolt/{olt}/register-epon', [SmartOltController::class, 'storeEponOnu'])->name('smartolt.register-epon.store');
     Route::get('/smartolt/{olt}/registrations', [SmartOltController::class, 'registrations'])->name('smartolt.registrations');
     Route::post('/smartolt/{olt}/registrations/{registration}/execute', [SmartOltController::class, 'executeRegistration'])->name('smartolt.registrations.execute');
     Route::delete('/smartolt/{olt}/registrations/{registration}', [SmartOltController::class, 'destroyRegistration'])->name('smartolt.registrations.destroy');

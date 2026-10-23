@@ -23,6 +23,8 @@ const props = defineProps({
 
 // Tipe kartu layanan GPON (C300/C320/C600) — port-nya diwarnai live dari oper_status.
 const GPON_PREFIX = /^G[TF]/i;
+// Kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO) — eksperimental (saklar ZTE_EPON_ENABLED).
+const EPON_PREFIX = /^ET[GT]/i;
 // Kartu uplink (selaras dgn ZteCardUplinkService): XGEI = 10GE, GEI = 1GE — hanya tebakan awal;
 // nama asli per port datang dari interface tersimpan (uplinkNameBySlotPort).
 const XGEI_CARDS = ['HUVQ', 'HUVG', 'HUVX'];
@@ -136,7 +138,14 @@ const chassisColumns = computed(() => {
     return cols;
 });
 
+// Kartu ETG dianggap EPON hanya bila poll sudah membawa port-nya (saklar menyala); tanpa itu
+// kartu tetap tampil seperti dulu (status kartu saja, tanpa tautan).
+const isEponCard = (card) => !props.isC600
+    && EPON_PREFIX.test(card.cfg_type ?? '')
+    && Object.keys(portsBySlot.value[Number(card.slot)] ?? {}).length > 0;
+
 const isGponCard = (card) => {
+    if (isEponCard(card)) return false;
     const slotPorts = portsBySlot.value[Number(card.slot)];
     return (slotPorts && Object.keys(slotPorts).length > 0) || GPON_PREFIX.test(card.cfg_type ?? '');
 };
@@ -159,6 +168,7 @@ const interfaceName = (card, port) => {
         if (C600_GEI_CARDS.includes(cfg)) return known ?? `gei-1/${card.slot}/${port}`;
         return null;
     }
+    if (isEponCard(card)) return `epon-olt_1/${card.slot}/${port}`;
     if (isGponCard(card)) return `gpon-olt_1/${card.slot}/${port}`;
     if (XGEI_CARDS.includes(cfg)) return known ?? `xgei_1/${card.slot}/${port}`;
     if (GEI_CARDS.includes(cfg)) return known ?? `gei_1/${card.slot}/${port}`;
@@ -173,7 +183,8 @@ const ledsFor = (card) => {
     const count = portCount(card);
     if (count === 0) return [];
 
-    const gpon = isGponCard(card);
+    const epon = isEponCard(card);
+    const gpon = epon || isGponCard(card);
     const slotPorts = portsBySlot.value[Number(card.slot)] ?? {};
     const cardStatus = String(card.status ?? '').toUpperCase();
     const leds = [];
@@ -209,7 +220,8 @@ const ledsFor = (card) => {
             num,
             state,
             live,
-            link: iface ? portDetailHref(iface) : null,
+            // Port EPON belum punya halaman detail port (sintaksnya tak terverifikasi) → buka daftar ONU-nya.
+            link: iface ? (epon ? route('smartolt.port-onus', [props.oltId, Number(card.slot), num]) : portDetailHref(iface)) : null,
             title,
         });
     }

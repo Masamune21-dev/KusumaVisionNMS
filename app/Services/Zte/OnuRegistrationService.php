@@ -12,7 +12,9 @@ use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProvisioningScriptBuilder;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Inti registrasi ONU ZTE (mode dasar / single-service template): validasi,
@@ -240,6 +242,12 @@ class OnuRegistrationService
      */
     private function prepare(SnmpOlt $olt, array $data): array
     {
+        // Builder di sini menulis `interface gpon-olt_…`; port EPON (kartu ETG) punya form web
+        // sendiri dan belum dibuka untuk aplikasi.
+        if (ZteEpon::isEponPort($olt, (int) ($data['slot'] ?? 0), (int) ($data['port'] ?? 0))) {
+            throw ValidationException::withMessages(['port' => __('zte.epon_use_epon_form')]);
+        }
+
         $data['is_c600'] = SmartOltSupport::isC600($olt);
         // Password ACS disisipkan di server: klien hanya tahu `acs_password_set`. OLT privat
         // partner & OLT demo tidak menerima password ACS Pengaturan (AcsSetting::resolved).

@@ -9,9 +9,11 @@ use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\Epon\ZteEponInventoryService;
 use App\Services\Zte\UnconfiguredOnuDiscovery;
 use App\Services\ZteRemoteOnuService;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -97,6 +99,20 @@ class OnuActionController extends Controller
 
                 // Cache non-ZTE memakai name sekaligus sebagai description (paritas web).
                 $description = $name;
+            } elseif (ZteEpon::isEponPort($olt, $slot, $port)) {
+                // ONU EPON ZTE: nama+deskripsi satu baris `property description` (paritas web).
+                $cached = $this->cachedOnu($olt, $slot, $port, $onuId);
+                $result = $remote->setEponInfo(
+                    $olt,
+                    $slot,
+                    $port,
+                    $onuId,
+                    $name ?? (string) ($cached['name'] ?? ''),
+                    $description ?? (string) ($cached['description'] ?? ''),
+                );
+                if (! $result['ok']) {
+                    return response()->json(['message' => __('flash.onu_info_failed').($result['error'] ?? '')], 422);
+                }
             } else {
                 $ifIndex = $this->resolveOnuIfIndex($olt, $slot, $port, $onuId, $data['if_index'] ?? null);
                 $remote->setInfo($olt, $ifIndex, $onuId, $name, $description);
@@ -165,9 +181,11 @@ class OnuActionController extends Controller
      * per-port di halaman web C-Data/HiOSO. Keduanya menulis `port_onus.{slot}_{port}`
      * berbentuk-ZTE yang dibaca endpoint GET port-onus.
      */
-    public function refreshPort(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, SmartOltSnmpServiceResolver $resolver): JsonResponse
+    public function refreshPort(SnmpOlt $olt, int $slot, int $port, OltSnmpClient $client, SmartOltSnmpServiceResolver $resolver, ZteEponInventoryService $epon): JsonResponse
     {
-        if (SmartOltSupport::isNonZte($this->driver($olt))) {
+        if (ZteEpon::isEponPort($olt, $slot, $port)) {
+            $result = $epon->refreshPort($olt, $slot, $port, now());
+        } elseif (SmartOltSupport::isNonZte($this->driver($olt))) {
             try {
                 $onus = $resolver->resolve($olt)->getRegisteredOnusByPort($olt, $slot, $port);
                 $result = [
@@ -184,7 +202,7 @@ class OnuActionController extends Controller
         } else {
             $result = $client->portOnusSnapshot($olt, $slot, $port);
         }
-        $result['refreshed_at'] = now()->toIso8601String();
+        $result['refreshed_at'] ??= now()->toIso8601String();
 
         $snapshot = $olt->last_test_result ?? [];
         data_set($snapshot, "port_onus.{$slot}_{$port}", $result);
@@ -287,6 +305,20 @@ class OnuActionController extends Controller
     /**
      * @param  callable(array<string, mixed>): array<string, mixed>  $mutator
      */
+    /**
+     * @return array<string, mixed>
+     */
+    private function cachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId): array
+    {
+        foreach (data_get($olt->last_test_result ?? [], "port_onus.{$slot}_{$port}.onus", []) as $onu) {
+            if (is_array($onu) && (int) ($onu['onu_id'] ?? 0) === $onuId) {
+                return $onu;
+            }
+        }
+
+        return [];
+    }
+
     private function mutateCachedOnu(SnmpOlt $olt, int $slot, int $port, int $onuId, callable $mutator): void
     {
         $snapshot = $olt->last_test_result ?? [];

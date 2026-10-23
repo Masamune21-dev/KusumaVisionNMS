@@ -4,6 +4,7 @@ namespace App\Services\Zte;
 
 use App\Models\SnmpOlt;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\Epon\ZteEponInventoryService;
 use Carbon\CarbonInterface;
 
 /**
@@ -21,7 +22,10 @@ class UnconfiguredOnuDiscovery
 {
     public const SEEN_KEY = 'unconfigured_seen';
 
-    public function __construct(private readonly OltSnmpClient $client) {}
+    public function __construct(
+        private readonly OltSnmpClient $client,
+        private readonly ?ZteEponInventoryService $epon = null,
+    ) {}
 
     /**
      * @return array<string, mixed> snapshot yang disimpan di `last_test_result.unconfigured_onus`
@@ -30,6 +34,7 @@ class UnconfiguredOnuDiscovery
     {
         $now = now();
         $result = $this->client->unconfiguredOnusSnapshot($olt);
+        $result = $this->withEpon($olt, $result);
         $result['refreshed_at'] = $now->toIso8601String();
 
         $snapshot = $olt->last_test_result ?? [];
@@ -41,6 +46,30 @@ class UnconfiguredOnuDiscovery
         }
 
         $olt->forceFill(['last_test_result' => $snapshot])->save();
+
+        return $result;
+    }
+
+    /**
+     * ONU EPON belum terdaftar (CLI `show onu unauthentication`, port kartu ETG) ditempel ke daftar
+     * GPON dari SNMP. No-op tanpa port EPON / saklar ZTE_EPON_ENABLED mati. Gagal baca EPON tak
+     * menggagalkan daftar GPON — dicatat di `epon_error`.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function withEpon(SnmpOlt $olt, array $result): array
+    {
+        $epon = ($this->epon ?? app(ZteEponInventoryService::class))->unconfigured($olt);
+
+        if ($epon['onus'] !== []) {
+            $result['onus'] = [...($result['onus'] ?? []), ...$epon['onus']];
+            $result['count'] = count($result['onus']);
+        }
+
+        if ($epon['error'] !== null) {
+            $result['epon_error'] = $epon['error'];
+        }
 
         return $result;
     }

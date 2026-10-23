@@ -9,7 +9,9 @@ use App\Services\AlarmEvaluator;
 use App\Services\CData\CDataOltScanner;
 use App\Services\Snmp\GoSnmpPoller;
 use App\Services\Snmp\OltSnmpClient;
+use App\Services\Zte\Epon\ZteEponInventoryService;
 use App\Support\SmartOltSupport;
+use App\Support\ZteEpon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -36,7 +38,7 @@ class PollOltJob implements ShouldQueue
         return [(new WithoutOverlapping($this->oltId))->expireAfter($this->timeout + 300)->dontRelease()];
     }
 
-    public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null, ?CDataOltScanner $cdataScanner = null): void
+    public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null, ?CDataOltScanner $cdataScanner = null, ?ZteEponInventoryService $eponInventory = null): void
     {
         $olt = SnmpOlt::find($this->oltId);
 
@@ -133,6 +135,28 @@ class PollOltJob implements ShouldQueue
             }
         }
 
+        // Kartu EPON ZTE C300/C320 (saklar ZTE_EPON_ENABLED, bawaan MATI → hanya membuang jejak EPON,
+        // tanpa telnet). Port EPON tak ada di IF-MIB/GPON, jadi ditambahkan lewat CLI setelah hasil
+        // GPON digabung; gagalnya tak pernah menyentuh data GPON.
+        $eponOnus = [];
+        $eponRxOk = false;
+        if ($snapshot['ok']) {
+            try {
+                $epon = ($eponInventory ?? app(ZteEponInventoryService::class))
+                    ->augmentPoll($olt, $merged, $previousSnapshot, $now, $rxPollDue);
+                $merged = $epon['snapshot'];
+                $eponOnus = $epon['onus'];
+                $eponRxOk = $epon['rx_ok'];
+            } catch (Throwable $exception) {
+                $merged = ZteEpon::carryPorts($olt, $merged, $previousSnapshot);
+                $merged['epon'] = [
+                    ...(is_array($previousSnapshot['epon'] ?? null) ? $previousSnapshot['epon'] : []),
+                    'ok' => false,
+                    'error' => $exception->getMessage(),
+                ];
+            }
+        }
+
         $updates = [
             'last_test_result' => $merged,
             'last_tested_at' => $now,
@@ -147,6 +171,10 @@ class PollOltJob implements ShouldQueue
 
         if ($rxPollSucceeded && is_array($onus)) {
             $this->recordRxSamples($olt->id, $onus, $now);
+        }
+
+        if ($eponRxOk) {
+            $this->recordRxSamples($olt->id, $eponOnus, $now);
         }
 
         $alarms->evaluate($olt, $previousSnapshot);
