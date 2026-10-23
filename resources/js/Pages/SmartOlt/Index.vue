@@ -7,7 +7,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Antenna, BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -28,6 +28,10 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    hsgqOlts: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const page = usePage();
@@ -42,15 +46,16 @@ const canDeleteOlt = (olt) => canManageInventory.value || Boolean(olt.owned);
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
-/* Tab: ZTE / C-Data / HiOSO — state disinkronkan ke ?tab              */
+/* Tab: ZTE / C-Data / HiOSO / HSGQ — state disinkronkan ke ?tab       */
 /* agar bertahan saat reload / redirect back dari aksi test/refresh.   */
 /* ------------------------------------------------------------------ */
 const tabs = [
     { key: 'zte', label: 'OLT ZTE', icon: Cable },
     { key: 'cdata', label: 'OLT C-Data', icon: Server },
     { key: 'hioso', label: 'OLT HiOSO', icon: RadioTower },
+    { key: 'hsgq', label: 'OLT HSGQ', icon: Antenna },
 ];
-const nonZteTabs = ['cdata', 'hioso'];
+const nonZteTabs = ['cdata', 'hioso', 'hsgq'];
 const initialTab = new URLSearchParams(window.location.search).get('tab');
 const activeTab = ref(nonZteTabs.includes(initialTab) ? initialTab : 'zte');
 const setTab = (key) => {
@@ -65,7 +70,7 @@ const setTab = (key) => {
 };
 
 /* Seluruh tab non-ZTE berbagi satu body tabel; data, judul, ikon, dan prefix rute di-switch per   */
-/* family aktif (tiap family punya controller sendiri: cdata-olt.* / hioso-olt.*).                  */
+/* family aktif (controller sendiri per family: cdata-olt.* / hioso-olt.* / hsgq-olt.*).            */
 const isNonZteTab = computed(() => nonZteTabs.includes(activeTab.value));
 const nonZteFamilies = {
     cdata: {
@@ -87,6 +92,16 @@ const nonZteFamilies = {
         emptyTitle: 'smartolt.empty_hioso_title',
         emptySubtitle: 'smartolt.empty_hioso_subtitle',
         deleteTitle: 'smartolt.confirm_delete_hioso_title',
+    },
+    hsgq: {
+        olts: 'hsgqOlts',
+        prefix: 'hsgq-olt',
+        icon: Antenna,
+        title: 'hsgq.inventory_title',
+        subtitle: 'hsgq.inventory_subtitle',
+        emptyTitle: 'hsgq.empty_title',
+        emptySubtitle: 'hsgq.empty_subtitle',
+        deleteTitle: 'hsgq.confirm_delete_title',
     },
 };
 const nonZteFamily = computed(() => nonZteFamilies[activeTab.value] ?? nonZteFamilies.cdata);
@@ -192,7 +207,8 @@ const testCdataOlt = (olt) => {
 
 /* ------------------------------------------------------------------ */
 /* Simpan konfigurasi OLT ke memori (write) — family yang mendukung.   */
-/* ZTE `write` (~30 detik di C300), C-Data `config`→`save`, HiOSO `write`. */
+/* ZTE `write` (~30 detik di C300), C-Data `config`→`save`, HiOSO `write`, */
+/* HSGQ `/system_save` lewat web (butuh port web, bukan telnet).         */
 /* Route dipilih per-driver agar konsisten di tab ZTE maupun non-ZTE.  */
 /* Tombolnya sendiri di-gate `capabilities.supports_config_save`.      */
 /* ------------------------------------------------------------------ */
@@ -201,8 +217,13 @@ const saveConfigRoute = (olt) => {
     if (olt.driver === 'zte') {
         return route('smartolt.config.save', olt.id);
     }
+    if (olt.driver.startsWith('hsgq')) {
+        return route('hsgq-olt.config.save', olt.id);
+    }
     return route(`${olt.driver.startsWith('hioso') ? 'hioso-olt' : 'cdata-olt'}.config.save`, olt.id);
 };
+const canSaveConfig = (olt) => Boolean(canManageOlt.value && olt.capabilities?.supports_config_save
+    && (olt.driver.startsWith('hsgq') ? olt.web_port : olt.cli_transport === 'telnet'));
 const saveConfig = async (olt) => {
     const ok = await confirm({
         title: t('smartolt.confirm_save_title'),
@@ -373,7 +394,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <Database class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                        v-if="canSaveConfig(olt)"
                                         :title="$t('smartolt.title_save_config')"
                                         :disabled="savingId === olt.id"
                                         @click="saveConfig(olt)"
@@ -498,7 +519,7 @@ const formatDate = (value) => formatDateTime(value);
                                                 <Database class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                                v-if="canSaveConfig(olt)"
                                                 :title="$t('smartolt.title_save_config')"
                                                 :disabled="savingId === olt.id"
                                                 @click="saveConfig(olt)"
@@ -570,6 +591,7 @@ const formatDate = (value) => formatDateTime(value);
                                     <div class="flex flex-col items-end gap-1">
                                         <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
                                         <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                        <span v-if="olt.capabilities?.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
                                     </div>
                                 </div>
 
@@ -632,7 +654,7 @@ const formatDate = (value) => formatDateTime(value);
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                        v-if="canSaveConfig(olt)"
                                         :title="$t('smartolt.title_save_config_short')"
                                         :disabled="savingId === olt.id"
                                         @click="saveConfig(olt)"
@@ -687,6 +709,7 @@ const formatDate = (value) => formatDateTime(value);
                                             <div class="flex flex-wrap items-center gap-1.5">
                                                 <span class="kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
                                                 <span v-if="firmwareBadge(olt)" class="kv-pill-muted">{{ firmwareBadge(olt) }}</span>
+                                                <span v-if="olt.capabilities?.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
                                             </div>
                                             <div
                                                 class="flex items-center gap-1.5 text-xs"
@@ -753,7 +776,7 @@ const formatDate = (value) => formatDateTime(value);
                                                 <Pencil class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt && olt.cli_transport === 'telnet' && olt.capabilities.supports_config_save"
+                                                v-if="canSaveConfig(olt)"
                                                 :title="$t('smartolt.title_save_config_short')"
                                                 :disabled="savingId === olt.id"
                                                 @click="saveConfig(olt)"

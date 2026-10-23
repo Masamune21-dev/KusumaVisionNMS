@@ -78,7 +78,7 @@ const submit = () => {
     const ids = parseOnuId(selected.value.id);
     if (!ids) return;
 
-    // Family ONU (ZTE / C-Data / HiOSO) menentukan prefix route: smartolt / cdata-olt / hioso-olt.
+    // Family ONU (ZTE / C-Data / HiOSO / HSGQ) menentukan prefix route: smartolt / cdata-olt / hioso-olt / hsgq-olt.
     const prefix = selected.value.route_prefix ?? 'smartolt';
     const params = { olt: ids.oltId, slot: ids.slot, port: ids.port, onuId: ids.onuId };
 
@@ -100,6 +100,12 @@ const submit = () => {
             { preserveScroll: true, onSuccess, onError, onFinish: finish },
         );
     } else if (props.action === 'enable' || props.action === 'disable') {
+        // HSGQ tak punya rute enable/disable (payload-nya tak dikenal) → tolak sebelum Ziggy melempar galat.
+        if (!route().has(`${prefix}.onu.state`)) {
+            onError();
+            finish();
+            return;
+        }
         router.post(
             route(`${prefix}.onu.state`, params),
             { active: props.action === 'enable' },

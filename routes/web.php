@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\GenieacsController;
 use App\Http\Controllers\HiosoOltController;
+use App\Http\Controllers\HsgqOltController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationsController;
 use App\Http\Controllers\OdpController;
@@ -182,6 +183,25 @@ Route::middleware('auth')->group(function () {
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/state', [HiosoOltController::class, 'setOnuState'])->name('hioso-olt.onu.state');
     Route::post('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HiosoOltController::class, 'updateOnuInfo'])->name('hioso-olt.onu.info');
     Route::delete('/hioso-olt/{olt}/ports/{slot}/{port}/onus/{onuId}', [HiosoOltController::class, 'deleteOnu'])->name('hioso-olt.onu.delete');
+
+    // OLT HSGQ asli (HS Fiber, enterprise 50224) — EPON & GPON. Baca via SNMP; reboot/ganti nama/simpan
+    // via API JSON web OLT. Belum terverifikasi di perangkat (docs/SMARTOLT_HSGQ_GUIDE.md). Hapus,
+    // enable/disable, dan registrasi ONU sengaja tak punya rute — payload-nya tak dikenal.
+    Route::get('/hsgq-olt', [HsgqOltController::class, 'index'])->name('hsgq-olt.index');
+    Route::get('/hsgq-olt/create', [HsgqOltController::class, 'create'])->middleware('role:admin,operator,partner')->name('hsgq-olt.create');
+    Route::post('/hsgq-olt', [HsgqOltController::class, 'store'])->middleware('role:admin,operator,partner')->name('hsgq-olt.store');
+    Route::get('/hsgq-olt/{olt}/edit', [HsgqOltController::class, 'edit'])->name('hsgq-olt.edit');
+    Route::put('/hsgq-olt/{olt}', [HsgqOltController::class, 'update'])->name('hsgq-olt.update');
+    Route::delete('/hsgq-olt/{olt}', [HsgqOltController::class, 'destroy'])->middleware('role:admin,operator,partner')->name('hsgq-olt.destroy');
+    Route::post('/hsgq-olt/{olt}/test', [HsgqOltController::class, 'test'])->middleware('throttle:olt-refresh')->name('hsgq-olt.test');
+    Route::get('/hsgq-olt/{olt}/detail', [HsgqOltController::class, 'detail'])->name('hsgq-olt.detail');
+    Route::post('/hsgq-olt/{olt}/refresh', [HsgqOltController::class, 'refresh'])->middleware('throttle:olt-refresh')->name('hsgq-olt.refresh');
+    Route::post('/hsgq-olt/{olt}/config/save', [HsgqOltController::class, 'saveConfig'])->middleware('throttle:olt-refresh')->name('hsgq-olt.config.save');
+    Route::get('/hsgq-olt/{olt}/pon-ports', [HsgqOltController::class, 'ponPorts'])->name('hsgq-olt.pon-ports');
+    Route::get('/hsgq-olt/{olt}/ports/{slot}/{port}/onus', [HsgqOltController::class, 'portOnus'])->name('hsgq-olt.port-onus');
+    Route::post('/hsgq-olt/{olt}/ports/{slot}/{port}/onus/refresh', [HsgqOltController::class, 'refreshPortOnus'])->name('hsgq-olt.port-onus.refresh');
+    Route::post('/hsgq-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/reboot', [HsgqOltController::class, 'rebootOnu'])->middleware('throttle:olt-refresh')->name('hsgq-olt.onu.reboot');
+    Route::post('/hsgq-olt/{olt}/ports/{slot}/{port}/onus/{onuId}/info', [HsgqOltController::class, 'updateOnuInfo'])->middleware('throttle:olt-refresh')->name('hsgq-olt.onu.info');
 
     Route::get('/smartolt', [SmartOltController::class, 'index'])->name('smartolt.index');
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->middleware('role:admin,operator,partner')->name('smartolt.create');

@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, dan **HiOSO EPON (HA7304/HA7302)**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
+Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, **HiOSO EPON (HA7304/HA7302)**, serta — eksperimental — **HSGQ EPON/GPON**: monitoring OLT/ONU, provisioning ONU, remote management, alarm + notifikasi Telegram & push Android, peta pelanggan, dan dashboard. Alternatif modern untuk SmartOLT/NetNumen bagi ISP FTTH di Indonesia.
 
 </div>
 
@@ -47,7 +47,7 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 
 ## Fitur Utama
 
-- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) dan EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk). OLT V-Sol tidak didukung, dan dukungan HsAirPo/HSGQ dihapus pada September 2026.
+- **Multi-vendor OLT** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) dan EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Deteksi otomatis, tab terpisah per-vendor, satu **halaman PON Port** untuk semua vendor, dan detail C-Data/HiOSO setara ZTE (faceplate panel depan sesuai posisi port fisik, foto produk). OLT HSGQ asli (HS Fiber, enterprise 50224 — EPON & GPON) didukung **secara eksperimental**: disusun dari dokumentasi komunitas tanpa perangkat uji, dengan laporan diagnostik bawaan agar pemilik OLT bisa memverifikasinya (laporan lewat GitHub Issues dipersilakan). OLT V-Sol dan unit OEM berlabel HSGQ ber-enterprise 12170 tidak didukung.
 - **Monitoring** — port PON, status ONU (online/LOS/listrik mati/offline) dengan label ramah dwibahasa, RX power dengan **riwayat panjang** (sampel mentah 24 jam, ringkasan min/rata-rata/maks per jam untuk 7/30 hari), faceplate, ONU Monitoring lintas OLT (filter OLT/port/status/**ODP**), nama pelanggan sebagai identitas utama di tabel ONU, global search (⌘K), dashboard grafik, deskripsi port PON (edit langsung via CLI dari dashboard).
 - **Provisioning ONU (ZTE)** — discovery ONU unconfigured (dengan waktu **pertama terlihat** + lencana *Baru*) → registrasi (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR069, **Deskripsi** opsional terpisah dari Nama, **pilih ODP langsung saat registrasi**), reconfigure via delta script atau **editor ONU per bagian gaya NetNumen** (tambah/ubah/hapus T-CONT, GEM, service, VLAN… langsung ke OLT; ONU ber-`onu-profile` dikenali, perubahan yang pasti ditolak dijelaskan, dan profile bisa dilepas), manajemen profile per-OLT — **termasuk C600** (mode Model B/SmartOLT TR069, alokasi mgmt-IP otomatis, dropdown profil dari katalog).
 - **Bind ONU (ZTE C300/C320)** — ganti ONU rusak dengan unit baru dari halaman Unconfigured: SN baru menempati slot ONU lama di port yang sama, jadi seluruh konfigurasinya diwarisi tanpa register ulang.
@@ -140,7 +140,7 @@ optimize, restart worker). **Di belakang Cloudflare "Flexible" atau load balance
 - [`docs/API.md`](docs/API.md) — REST API v1 (endpoint, token, contoh kode).
 - [`docs/handbook/20-genieacs-tr069.md`](docs/handbook/20-genieacs-tr069.md) — jembatan GenieACS / TR-069 (opsional): pemasangan & keamanan NBI, aturan pencocokan, penyematan manual, perangkat terhubung, ubah WiFi.
 - [`docs/BUILD_APK.md`](docs/BUILD_APK.md) — build & install aplikasi Android.
-- Referensi OID/CLI per-vendor: [ZTE C300/C320](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) · [ZTE C600](docs/SMARTOLT_ZTE_C600_GUIDE.md) · [C-Data](docs/SMARTOLT_CDATA_GUIDE.md) · [HiOSO](docs/SMARTOLT_HIOSO_GUIDE.md).
+- Referensi OID/CLI per-vendor: [ZTE C300/C320](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) · [ZTE C600](docs/SMARTOLT_ZTE_C600_GUIDE.md) · [C-Data](docs/SMARTOLT_CDATA_GUIDE.md) · [HiOSO](docs/SMARTOLT_HIOSO_GUIDE.md) · [HSGQ (eksperimental)](docs/SMARTOLT_HSGQ_GUIDE.md).
 - [`WORKLOG.md`](WORKLOG.md) — riwayat pengembangan fase per fase.
 
 ---

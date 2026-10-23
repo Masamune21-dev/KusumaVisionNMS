@@ -47,13 +47,13 @@ trait ManagesOltOwnership
 
     /**
      * Kolom koneksi OLT yang dikunci untuk partner pada OLT global
-     * yang di-assign: alamat, port, komunitas SNMP, transport & kredensial CLI.
+     * yang di-assign: alamat, port, komunitas SNMP, transport & kredensial CLI, port web (HSGQ).
      *
      * @var list<string>
      */
     protected const OLT_CONNECTION_FIELDS = [
         'ip', 'snmp_port', 'snmp_version', 'snmp_read_community', 'snmp_write_community',
-        'cli_transport', 'cli_port', 'cli_username', 'cli_password',
+        'cli_transport', 'cli_port', 'cli_username', 'cli_password', 'web_port',
     ];
 
     /**

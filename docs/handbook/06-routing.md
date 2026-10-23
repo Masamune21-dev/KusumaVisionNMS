@@ -167,7 +167,7 @@ Detail di [20 — GenieACS / TR-069](20-genieacs-tr069.md#9-izin--rute).
 **Inventory & global**
 | Method | URI | Aksi | Nama |
 |--------|-----|------|------|
-| GET | `/smartolt` | `index` (tab ZTE / C-Data / HiOSO) | `smartolt.index` |
+| GET | `/smartolt` | `index` (tab ZTE / C-Data / HiOSO / HSGQ) | `smartolt.index` |
 | GET | `/smartolt/create` | `create` (`role:admin,operator,partner`) | `smartolt.create` |
 | POST | `/smartolt` | `store` (`role:admin,operator,partner`) | `smartolt.store` |
 | GET | `/smartolt/{olt}/edit` | `edit` | `smartolt.edit` |
@@ -282,6 +282,13 @@ pola rute yang sama; `{prefix}` = `/cdata-olt` atau `/hioso-olt`.
 | POST | `…/onus/{onuId}/state` | `setOnuState` (gated `supports_onu_toggle`) | `onu.state` |
 | POST | `…/onus/{onuId}/info` | `updateOnuInfo` (rename) | `onu.info` |
 | DELETE | `…/onus/{onuId}` | `deleteOnu` (gated `supports_onu_delete`) | `onu.delete` |
+
+### HSGQ (`hsgq-olt.*`) — eksperimental, semua `auth`
+`HsgqOltController`, pola sama dengan tabel di atas **minus** `onu.state` dan `onu.delete` (payload web-nya tak
+dikenal, jadi rutenya sengaja tak ada). `test` menyimpan laporan diagnostik (`last_test_result.hsgq_diag`) lalu
+mengarah ke `detail`. `onu.reboot`, `onu.info` (nama + deskripsi), dan `config.save` menulis lewat API JSON web
+OLT (`HsgqWebService`, butuh `web_port`), `throttle:olt-refresh`, dan `canManageOlt()`. Rute `smartolt.*` menolak
+OLT HSGQ (403) walau kapabilitasnya menyala. Lihat [`SMARTOLT_HSGQ_GUIDE.md`](../SMARTOLT_HSGQ_GUIDE.md).
 
 Khusus C-Data:
 

@@ -163,7 +163,9 @@ class AlarmEvaluator
         // (kabel distribusi/splitter) — naikkan satu alarm `odp_down` dan supres alarm ONU anggotanya.
         $downOdps = [];
         $recoveredOdps = [];
-        $odpStatuses = $this->odp()->statuses($olt, $snapshot);
+        // Status ONU yang belum terverifikasi (HSGQ: sinyal status tak cocok dengan penghitung OLT) tak
+        // boleh dipakai menilai "semua ONU satu ODP offline" — bisa jadi seluruhnya salah baca.
+        $odpStatuses = $this->hasUnverifiedOnuStatus($snapshot) ? [] : $this->odp()->statuses($olt, $snapshot);
 
         if ($odpStatuses !== []) {
             $previousOdpStatuses = $this->odp()->statuses($olt, $previous);
@@ -211,12 +213,34 @@ class AlarmEvaluator
                 $parentRecovered = ! $parentDown
                     && $this->parentIsDown($onu, $recoveredPorts, $recoveredOdps, $onuOdp);
 
-                $detected += $this->onuStateAlarms($onu, $prev, $open, $parentDown, $parentRecovered);
+                // Driver yang belum bisa memastikan arti status ONU menandai barisnya `status_verified=false`
+                // (HSGQ, `Hsgq\HsgqSnmpService`) → tanpa alarm offline/LOS/dying-gasp; alarm Rx tetap jalan.
+                if (($onu['status_verified'] ?? true) !== false) {
+                    $detected += $this->onuStateAlarms($onu, $prev, $open, $parentDown, $parentRecovered);
+                }
                 $detected += $this->onuRxAlarm($onu, $prev, $open);
             }
         }
 
         return $this->reconcile($olt, $open, $detected, $this->indexCurrent($snapshot), $confirm);
+    }
+
+    /**
+     * Ada baris ONU yang status online-nya belum terverifikasi driver (`status_verified=false`)?
+     *
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function hasUnverifiedOnuStatus(array $snapshot): bool
+    {
+        foreach ($snapshot['port_onus'] ?? [] as $portData) {
+            foreach ($portData['onus'] ?? [] as $onu) {
+                if (($onu['status_verified'] ?? true) === false) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

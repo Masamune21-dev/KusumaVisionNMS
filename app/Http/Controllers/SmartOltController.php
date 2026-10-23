@@ -79,7 +79,7 @@ class SmartOltController extends Controller
 
     public function index(): Response
     {
-        // Tiga tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO. Pisahkan berdasarkan driver.
+        // Empat tab: OLT ZTE (+ unknown), OLT C-Data, OLT HiOSO, OLT HSGQ. Pisahkan berdasarkan driver.
         $rows = SnmpOlt::query()
             ->orderBy('name')
             ->get()
@@ -89,6 +89,7 @@ class SmartOltController extends Controller
             'olts' => $rows->reject(fn (array $row) => SmartOltSupport::isNonZte($row['driver']))->values(),
             'cdataOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isCData($row['driver']))->values(),
             'hiosoOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isHioso($row['driver']))->values(),
+            'hsgqOlts' => $rows->filter(fn (array $row) => SmartOltSupport::isHsgq($row['driver']))->values(),
         ]);
     }
 
@@ -2838,6 +2839,8 @@ class SmartOltController extends Controller
             'cli_transport' => $olt->cli_transport,
             'cli_port' => $olt->cli_port,
             'cli_username' => $olt->cli_username,
+            // Port web OLT (HSGQ: aksi ONU & simpan config lewat API web).
+            'web_port' => $olt->web_port,
             // Kolom koneksi (IP/port/SNMP/CLI) terkunci untuk partner pada OLT
             // global yang di-assign — ditegakkan server (ManagesOltOwnership::authorizeOltUpdate).
             'connection_locked' => ! (bool) auth()->user()?->canEditOltConnection($olt),
@@ -3045,6 +3048,12 @@ class SmartOltController extends Controller
             data_get($olt->last_test_result, 'system.sys_descr'),
             data_get($olt->last_test_result, 'system.sys_object_id'),
         );
+
+        // HSGQ menulis lewat API web-nya sendiri (`hsgq-olt.*`); kapabilitasnya (reboot, info, simpan)
+        // tak boleh membuka jalur CLI/SNMP ZTE di controller ini lewat URL rakitan.
+        if (SmartOltSupport::isHsgq($driver)) {
+            return false;
+        }
 
         // Teruskan $olt agar kapabilitas yang bergantung C600 (mis. supports_onu_config_write,
         // supports_provisioning) dinilai benar — tanpa ini isC600 selalu false di jalur ini.

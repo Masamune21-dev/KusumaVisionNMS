@@ -19,7 +19,7 @@ use Throwable;
  * scan saat OLT dibuat) dan bot Telegram (perintah /refresh).
  *
  * Dipakai ulang oleh SELURUH family non-ZTE yang lewat {@see SmartOltSnmpServiceResolver}: HiOSO
- * (`HiosoOltController`) — jalur polling terjadwal `PollOltJob::pollViaScanner()` juga memakai
+ * (`HiosoOltController`), HSGQ (`HsgqOltController`) — jalur polling terjadwal `PollOltJob::pollViaScanner()` juga memakai
  * kelas ini.
  */
 class CDataOltScanner
@@ -76,10 +76,12 @@ class CDataOltScanner
 
         // Faceplate (panel depan) — best-effort; kegagalan tak boleh menggagalkan scan/polling.
         // HiOSO punya layout panel sendiri (HA7304) + status PON dari ONU online ($ports turunan).
+        // HSGQ belum punya panel (tata letak port fisiknya belum diketahui) → tanpa faceplate.
         try {
             $driver = $this->resolver->driverKey($olt);
             $panel = match (true) {
                 SmartOltSupport::isHioso($driver) => $this->hiosoFaceplate->build($olt, $ports),
+                SmartOltSupport::isHsgq($driver) => null,
                 default => $this->faceplate->collect($olt),
             };
 

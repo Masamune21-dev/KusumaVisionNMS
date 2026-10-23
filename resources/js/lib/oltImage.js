@@ -28,6 +28,15 @@ export function oltImageKey(olt = {}) {
     if (driver.startsWith('cdata-epon')) return 'cdata-epon';
     // HA7302 dikenali backend dari firmware/sysDescr juga (capabilities.is_ha7302), bukan cuma nama.
     if (driver.startsWith('hioso')) return olt.capabilities?.is_ha7302 || hay.includes('ha7302') ? 'hioso-ha7302' : 'hioso-epon';
+    // HSGQ: jumlah PON dari kode model (`HSGQ-G16L`, `HSGQ-XE08R`; model = sysDescr); EPON dari
+    // capabilities (hasil scan) atau kode model. Tanpa model → foto 4 PON.
+    if (driver.startsWith('hsgq')) {
+        const ports = hay.match(/hsgq[\s_-]*x?[eg](\d{2})/)?.[1];
+        if (olt.capabilities?.is_hsgq_epon || /hsgq[\s_-]*x?e\d/.test(hay)) return ports === '08' ? 'hsgq-epon-8' : 'hsgq-epon';
+        if (ports === '01' || ports === '02') return 'hsgq-gpon-mini';
+        if (ports === '08' || ports === '16') return `hsgq-gpon-${Number(ports)}`;
+        return 'hsgq-gpon';
+    }
 
     if (hay.includes('c320')) return 'zte-c320';
     if (hay.includes('c600') || hay.includes('titan')) return 'zte-c600';

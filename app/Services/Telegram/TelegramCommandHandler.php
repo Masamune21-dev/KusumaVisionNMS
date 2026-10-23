@@ -9,6 +9,7 @@ use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
 use App\Services\Dashboard\DashboardStatsService;
 use App\Services\Hioso\HiosoCliWriteService;
+use App\Services\Hsgq\HsgqWebService;
 use App\Services\ZteRemoteOnuService;
 use App\Services\ZteUncfgOnuService;
 use App\Support\DisplayTime;
@@ -498,7 +499,9 @@ class TelegramCommandHandler
         $label = 'ONU '.$slot.'/'.$port.':'.$onuId.' — '.$olt->name;
 
         try {
-            if (SmartOltSupport::isHioso($driver)) {
+            if (SmartOltSupport::isHsgq($driver)) {
+                $result = app(HsgqWebService::class)->reboot($olt, $slot, $port, $onuId);
+            } elseif (SmartOltSupport::isHioso($driver)) {
                 $result = $this->hiosoWrite->reboot($olt, $port, $onuId);
             } elseif (SmartOltSupport::isCData($driver)) {
                 $iface = $driver === SmartOltSupport::DRIVER_CDATA_EPON ? 'epon' : 'gpon';

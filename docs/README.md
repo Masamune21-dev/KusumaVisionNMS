@@ -59,8 +59,8 @@ alarm, laporan, pengguna & hak akses, pengaturan, aplikasi Android, praktik aman
 
 Peta OID SNMP & perintah CLI yang **sudah diverifikasi di perangkat asli** — dipakai saat menambah
 dukungan atau memecahkan masalah. Keluarga yang didukung: ZTE C300/C320/C600, C-Data GPON (FD1608S FlashV3,
-FD1601S, FD1602S) & EPON (FD1304E), HiOSO HA7304/HA7302. V-Sol tidak didukung; HsAirPo/HSGQ dihapus
-29 Sep 2026.
+FD1601S, FD1602S) & EPON (FD1304E), HiOSO HA7304/HA7302, dan HSGQ 50224 (eksperimental, belum diverifikasi).
+V-Sol tidak didukung; HsAirPo (OEM 12170 berlabel HSGQ) dihapus 29 Sep 2026.
 
 - [SMARTOLT_ZTE_C300_C320_C600_GUIDE.md](SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) — referensi CLI ZTE C300/C320
   (otoritatif; bagian C600-nya digantikan dokumen berikut). *Authoritative ZTE C300/C320 CLI reference.*
@@ -77,6 +77,9 @@ FD1601S, FD1602S) & EPON (FD1304E), HiOSO HA7304/HA7302. V-Sol tidak didukung; H
 - [handbook/17-cdata-gpon-snmp-walk.md](handbook/17-cdata-gpon-snmp-walk.md) — peta OID C-Data GPON (NSCRTV)
   hasil walk FD1608S & FD1601S. *C-Data GPON SNMP walk and OID map.*
 - [SMARTOLT_HIOSO_GUIDE.md](SMARTOLT_HIOSO_GUIDE.md) — HiOSO EPON HA7304 & HA7302. *HiOSO EPON reference.*
+- [SMARTOLT_HSGQ_GUIDE.md](SMARTOLT_HSGQ_GUIDE.md) — HSGQ EPON & GPON (enterprise 50224), **eksperimental, belum
+  terverifikasi di perangkat**: OID/endpoint bertingkat keyakinan, implementasi, checklist verifikasi.
+  *HSGQ reference, experimental and unverified.*
 
 ## 5. Developer & maintainer
 

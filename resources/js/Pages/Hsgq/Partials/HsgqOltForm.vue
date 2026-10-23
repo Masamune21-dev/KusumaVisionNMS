@@ -1,0 +1,263 @@
+<script setup>
+import { computed } from 'vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
+import { Link, useForm } from '@inertiajs/vue3';
+import { Activity, Cpu, Globe, Lock, Network, TriangleAlert } from '@lucide/vue';
+
+const props = defineProps({
+    olt: {
+        type: Object,
+        default: null,
+    },
+    defaults: {
+        type: Object,
+        default: () => ({}),
+    },
+    submitLabel: {
+        type: String,
+        required: true,
+    },
+});
+
+const form = useForm({
+    name: props.olt?.name ?? '',
+    // Satu driver HSGQ (enterprise 50224) untuk EPON & GPON — teknologi PON dikenali saat scan.
+    vendor: props.olt?.vendor ?? props.defaults.vendor ?? 'HSGQ 50224',
+    ip: props.olt?.ip ?? '',
+    snmp_port: props.olt?.snmp_port ?? props.defaults.snmp_port ?? 161,
+    snmp_version: props.olt?.snmp_version ?? props.defaults.snmp_version ?? 'v2c',
+    snmp_read_community: '',
+    snmp_write_community: '',
+    web_port: props.olt?.web_port ?? props.defaults.web_port ?? 80,
+    cli_transport: props.olt?.cli_transport ?? props.defaults.cli_transport ?? '',
+    cli_port: props.olt?.cli_port ?? props.defaults.cli_port ?? 23,
+    cli_username: props.olt?.cli_username ?? '',
+    cli_password: '',
+    polling_enabled: props.olt?.polling_enabled ?? true,
+    poll_interval_minutes: props.olt?.poll_interval_minutes ?? props.defaults.poll_interval_minutes ?? 5,
+    rx_poll_interval_minutes: props.olt?.rx_poll_interval_minutes ?? props.defaults.rx_poll_interval_minutes ?? 5,
+});
+
+// Partner/sub-operator pada OLT global yang di-assign: kolom koneksi hanya-baca (server 403).
+const connectionLocked = computed(() => !!props.olt?.connection_locked);
+
+const submit = () => {
+    // Kosong = tak dipakai (null), bukan string kosong yang ditolak validasi integer.
+    form.transform((data) => ({
+        ...data,
+        web_port: data.web_port === '' ? null : data.web_port,
+        cli_transport: data.cli_transport === '' ? null : data.cli_transport,
+    }));
+
+    if (props.olt) {
+        form.put(route('hsgq-olt.update', props.olt.id), { preserveScroll: true });
+
+        return;
+    }
+
+    form.post(route('hsgq-olt.store'), { preserveScroll: true });
+};
+</script>
+
+<template>
+    <form class="space-y-5" @submit.prevent="submit">
+        <div
+            v-if="connectionLocked"
+            class="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200/90"
+        >
+            <Lock class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+            <p>{{ $t('oltform.connection_locked') }}</p>
+        </div>
+
+        <div class="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+            <TriangleAlert class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+            <div>
+                <p class="font-semibold text-amber-200">{{ $t('hsgq.notice_title') }}</p>
+                <p class="mt-0.5 text-xs">{{ $t('hsgq.form_notice') }}</p>
+            </div>
+        </div>
+
+        <!-- Identitas -->
+        <div class="kv-glass-panel">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <span class="kv-circle-cyan !h-8 !w-8"><Cpu class="h-4 w-4" /></span>
+                <div>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_identity_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('hsgq.identity_sub') }}</p>
+                </div>
+            </div>
+            <div class="grid gap-5 p-6 md:grid-cols-2">
+                <div>
+                    <InputLabel for="name" :value="$t('oltform.name')" />
+                    <TextInput id="name" v-model="form.name" class="mt-1 block w-full" autocomplete="off" required />
+                    <InputError class="mt-2" :message="form.errors.name" />
+                </div>
+
+                <div>
+                    <InputLabel for="vendor" :value="$t('cdataform.family')" />
+                    <TextInput id="vendor" model-value="HSGQ (50224)" class="mt-1 block w-full opacity-70" disabled />
+                    <p class="mt-1 text-xs text-slate-500">{{ $t('hsgq.family_hint') }}</p>
+                </div>
+
+                <div>
+                    <InputLabel for="ip" :value="$t('oltform.ip')" />
+                    <TextInput id="ip" v-model="form.ip" :disabled="connectionLocked" class="mt-1 block w-full" autocomplete="off" required />
+                    <InputError class="mt-2" :message="form.errors.ip" />
+                </div>
+            </div>
+        </div>
+
+        <!-- SNMP -->
+        <div class="kv-glass-panel">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <span class="kv-circle-cyan !h-8 !w-8"><Network class="h-4 w-4" /></span>
+                <div>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_snmp_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('hsgq.snmp_sub') }}</p>
+                </div>
+            </div>
+            <div class="grid gap-5 p-6 md:grid-cols-2">
+                <div>
+                    <InputLabel for="snmp_port" :value="$t('oltform.snmp_port')" />
+                    <TextInput id="snmp_port" v-model="form.snmp_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" required />
+                    <InputError class="mt-2" :message="form.errors.snmp_port" />
+                </div>
+
+                <div>
+                    <InputLabel for="snmp_version" :value="$t('oltform.snmp_version')" />
+                    <select
+                        id="snmp_version"
+                        v-model="form.snmp_version"
+                        :disabled="connectionLocked"
+                        class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
+                        required
+                    >
+                        <option value="v1">v1</option>
+                        <option value="v2c">v2c</option>
+                    </select>
+                    <InputError class="mt-2" :message="form.errors.snmp_version" />
+                </div>
+
+                <div>
+                    <InputLabel for="snmp_read_community" :value="$t('oltform.snmp_read')" />
+                    <TextInput
+                        id="snmp_read_community"
+                        v-model="form.snmp_read_community"
+                        :disabled="connectionLocked"
+                        class="mt-1 block w-full"
+                        autocomplete="new-password"
+                        :required="!olt"
+                        type="password"
+                    />
+                    <p v-if="olt" class="mt-1 text-xs text-slate-500">{{ $t('oltform.keep_community') }}</p>
+                    <InputError class="mt-2" :message="form.errors.snmp_read_community" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Akses web & CLI -->
+        <div class="kv-glass-panel">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <span class="kv-circle-cyan !h-8 !w-8"><Globe class="h-4 w-4" /></span>
+                <div>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('hsgq.access_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('hsgq.access_sub') }}</p>
+                </div>
+            </div>
+            <div class="space-y-5 p-6">
+                <div class="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200/90">
+                    <TriangleAlert class="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                    <p>{{ $t('hsgq.web_http_warning') }}</p>
+                </div>
+
+                <div class="grid gap-5 md:grid-cols-2">
+                    <div>
+                        <InputLabel for="web_port" :value="$t('hsgq.web_port')" />
+                        <TextInput id="web_port" v-model="form.web_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" placeholder="80" />
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('hsgq.web_port_hint') }}</p>
+                        <InputError class="mt-2" :message="form.errors.web_port" />
+                    </div>
+
+                    <div class="hidden md:block" aria-hidden="true"></div>
+
+                    <div>
+                        <InputLabel for="cli_username" :value="$t('hsgq.username')" />
+                        <TextInput id="cli_username" v-model="form.cli_username" :disabled="connectionLocked" class="mt-1 block w-full" autocomplete="off" />
+                        <InputError class="mt-2" :message="form.errors.cli_username" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="cli_password" :value="$t('hsgq.password')" />
+                        <TextInput id="cli_password" v-model="form.cli_password" :disabled="connectionLocked" class="mt-1 block w-full" autocomplete="new-password" type="password" />
+                        <p v-if="olt" class="mt-1 text-xs text-slate-500">{{ $t('oltform.keep_password') }}</p>
+                        <InputError class="mt-2" :message="form.errors.cli_password" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="cli_transport" :value="$t('oltform.cli_transport')" />
+                        <select
+                            id="cli_transport"
+                            v-model="form.cli_transport"
+                            :disabled="connectionLocked"
+                            class="mt-1 block w-full rounded-md border-white/10 shadow-sm focus:border-cyan-500 focus:ring-cyan-500"
+                        >
+                            <option value="">{{ $t('oltform.cli_transport_none') }}</option>
+                            <option value="telnet">Telnet</option>
+                        </select>
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('hsgq.cli_transport_hint') }}</p>
+                        <InputError class="mt-2" :message="form.errors.cli_transport" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="cli_port" :value="$t('oltform.cli_port')" />
+                        <TextInput id="cli_port" v-model="form.cli_port" :disabled="connectionLocked" class="mt-1 block w-full" type="number" min="1" max="65535" placeholder="23" />
+                        <InputError class="mt-2" :message="form.errors.cli_port" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Polling -->
+        <div class="kv-glass-panel">
+            <div class="flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+                <span class="kv-circle-cyan !h-8 !w-8"><Activity class="h-4 w-4" /></span>
+                <div>
+                    <h3 class="text-sm font-semibold text-white">{{ $t('oltform.section_poll_title') }}</h3>
+                    <p class="text-xs text-slate-500">{{ $t('hsgq.poll_sub') }}</p>
+                </div>
+            </div>
+            <div class="p-6">
+                <label class="inline-flex items-center gap-2 text-sm text-slate-200">
+                    <input v-model="form.polling_enabled" type="checkbox" class="rounded border-white/10 text-cyan-400 shadow-sm focus:ring-cyan-500" />
+                    {{ $t('oltform.enable_autopoll') }}
+                </label>
+                <div class="mt-4 grid gap-5 md:grid-cols-2">
+                    <div>
+                        <InputLabel for="poll_interval_minutes" :value="$t('oltform.poll_interval')" />
+                        <TextInput id="poll_interval_minutes" v-model="form.poll_interval_minutes" class="mt-1 block w-full" type="number" min="1" max="1440" required />
+                        <InputError class="mt-2" :message="form.errors.poll_interval_minutes" />
+                    </div>
+                    <div>
+                        <InputLabel for="rx_poll_interval_minutes" :value="$t('oltform.rx_interval')" />
+                        <TextInput id="rx_poll_interval_minutes" v-model="form.rx_poll_interval_minutes" class="mt-1 block w-full" type="number" min="1" max="1440" required />
+                        <InputError class="mt-2" :message="form.errors.rx_poll_interval_minutes" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit bar -->
+        <div class="kv-glass-panel grid gap-2 px-4 py-4 sm:flex sm:items-center sm:justify-end sm:gap-3 sm:px-6">
+            <Link :href="route('smartolt.index', { tab: 'hsgq' })">
+                <SecondaryButton type="button">{{ $t('common.cancel') }}</SecondaryButton>
+            </Link>
+            <PrimaryButton :disabled="form.processing">
+                {{ submitLabel }}
+            </PrimaryButton>
+        </div>
+    </form>
+</template>

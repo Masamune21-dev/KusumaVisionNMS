@@ -8,6 +8,7 @@ use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
+use App\Services\Hsgq\HsgqWebService;
 use App\Services\Map\OnuMapPayloadService;
 use App\Services\ZteRemoteOnuService;
 use App\Support\OdpColors;
@@ -160,14 +161,18 @@ class OnuMapController extends Controller
      * Reboot ONU dari detail pin — delegasi ke service ZTE / C-Data, lalu balik ke peta
      * (berbeda dari rute smartolt/cdata yang redirect ke halaman Port ONUs).
      */
-    public function rebootPin(OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): RedirectResponse
+    public function rebootPin(OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HsgqWebService $hsgq): RedirectResponse
     {
         $olt = $pin->olt;
         $back = redirect()->route('map.index');
         $this->assertPinCapability($olt, 'supports_reboot');
 
         try {
-            if ($this->isHioso($olt)) {
+            if ($this->isHsgq($olt)) {
+                $result = $hsgq->reboot($olt, (int) $pin->slot, (int) $pin->port, (int) $pin->onu_id);
+                $ok = (bool) ($result['ok'] ?? false);
+                $error = $result['error'] ?? null;
+            } elseif ($this->isHioso($olt)) {
                 $result = $hioso->reboot($olt, $pin->port, $pin->onu_id);
                 $ok = (bool) ($result['ok'] ?? false);
                 $error = $result['error'] ?? null;
@@ -193,7 +198,7 @@ class OnuMapController extends Controller
     /**
      * Ganti nama ONU dari detail pin — delegasi ke service ZTE / C-Data, lalu balik ke peta.
      */
-    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp): RedirectResponse
+    public function renamePin(Request $request, OnuMapPin $pin, ZteRemoteOnuService $zte, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp, HsgqWebService $hsgq): RedirectResponse
     {
         $olt = $pin->olt;
         $back = redirect()->route('map.index');
@@ -203,7 +208,14 @@ class OnuMapController extends Controller
         $name = trim((string) ($data['name'] ?? ''));
 
         try {
-            if ($this->isHioso($olt)) {
+            if ($this->isHsgq($olt)) {
+                // HSGQ: API web OLT; deskripsi di OLT dipertahankan (pin hanya mengubah nama).
+                $result = $hsgq->rename($olt, (int) $pin->slot, (int) $pin->port, (int) $pin->onu_id, $name);
+                if (! ($result['ok'] ?? false)) {
+                    return $back->with('error', __('flash.onu_rename_failed').($result['error'] ?? ''));
+                }
+                $name = (string) $result['name'];
+            } elseif ($this->isHioso($olt)) {
                 // HA7302 (`description_mode='snmp'`): rename via SNMP SET, bukan CLI.
                 $result = (string) (SmartOltSupport::capabilities($this->driverOf($olt), $olt)['description_mode'] ?? 'cli_hioso') === 'snmp'
                     ? $hiosoSnmp->setOnuName($olt, $pin->port, $pin->onu_id, $name)
@@ -436,6 +448,11 @@ class OnuMapController extends Controller
     private function isHioso(SnmpOlt $olt): bool
     {
         return SmartOltSupport::isHioso($this->driverOf($olt));
+    }
+
+    private function isHsgq(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isHsgq($this->driverOf($olt));
     }
 
     private function ifaceKeyword(SnmpOlt $olt): string

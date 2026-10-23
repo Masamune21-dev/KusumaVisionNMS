@@ -15,6 +15,12 @@ class SmartOltSupport
 
     public const DRIVER_HIOSO_EPON = 'hioso-epon-25355';
 
+    /**
+     * HSGQ asli (Shenzhen HS Fiber, enterprise IANA 50224) — EPON & GPON satu driver; varian PON
+     * dibaca dari snapshot ({@see self::hsgqPonType()}). BUKAN OEM 12170 yang juga berlabel HSGQ.
+     */
+    public const DRIVER_HSGQ = 'hsgq-50224';
+
     public const DRIVER_UNKNOWN = 'unknown';
 
     public static function driverKey(?SnmpOlt $olt, ?string $sysDescr = null, ?string $sysObjectId = null): string
@@ -39,6 +45,17 @@ class SmartOltSupport
         foreach (['hioso', 'ha7304', '25355'] as $needle) {
             if (str_contains($haystack, $needle)) {
                 return self::DRIVER_HIOSO_EPON;
+            }
+        }
+
+        // HSGQ (HS Fiber 50224) — sebelum needle "epon"/"gpon" C-Data: nama/model OLT HSGQ hampir selalu
+        // memuat kata itu ("HSGQ EPON", "HSGQ-G04L GPON"). sysObjectID-nya `.1.3.6.1.4.1.50224.…`; sysDescr
+        // = model (`HSGQ-G02ID`). OEM 12170 berlabel HSGQ sengaja tak dikenali (driver lamanya dihapus).
+        if (! str_contains($haystack, '12170')) {
+            foreach (['hsgq', 'hs fiber', '.4.1.50224', 'enterprises.50224'] as $needle) {
+                if (str_contains($haystack, $needle)) {
+                    return self::DRIVER_HSGQ;
+                }
             }
         }
 
@@ -77,20 +94,25 @@ class SmartOltSupport
         return $driver === self::DRIVER_HIOSO_EPON;
     }
 
+    public static function isHsgq(string $driver): bool
+    {
+        return $driver === self::DRIVER_HSGQ;
+    }
+
     /**
      * Family non-ZTE yang digerakkan {@see SmartOltSnmpServiceResolver} + scanner
-     * (C-Data EPON/GPON & HiOSO). Dipakai untuk routing/pengelompokan (tab inventory, halaman
+     * (C-Data EPON/GPON, HiOSO & HSGQ). Dipakai untuk routing/pengelompokan (tab inventory, halaman
      * `cdata-olt.*`, jalur polling scanner, link search/monitoring/peta) — bukan gating write,
      * yang tetap memakai {@see self::isCData()} karena CLI write masih spesifik C-Data.
      */
     public static function isNonZte(string $driver): bool
     {
-        return self::isCData($driver) || self::isHioso($driver);
+        return self::isCData($driver) || self::isHioso($driver) || self::isHsgq($driver);
     }
 
     /**
-     * Prefix nama rute inventori untuk sebuah driver: `hioso-olt` (HiOSO), `cdata-olt` (C-Data),
-     * atau `smartolt` (ZTE + unknown). Sumber tunggal pemilihan rute
+     * Prefix nama rute inventori untuk sebuah driver: `hioso-olt` (HiOSO), `hsgq-olt` (HSGQ),
+     * `cdata-olt` (C-Data), atau `smartolt` (ZTE + unknown). Sumber tunggal pemilihan rute
      * detail/port-onus lintas halaman (global search, peta, ONU monitoring) sehingga tiap family
      * memakai controller-nya sendiri.
      */
@@ -98,6 +120,10 @@ class SmartOltSupport
     {
         if (self::isHioso($driver)) {
             return 'hioso-olt';
+        }
+
+        if (self::isHsgq($driver)) {
+            return 'hsgq-olt';
         }
 
         if (self::isCData($driver)) {
@@ -207,6 +233,10 @@ class SmartOltSupport
 
         if ($driver === self::DRIVER_HIOSO_EPON) {
             return self::hiosoEponCapabilities($olt);
+        }
+
+        if ($driver === self::DRIVER_HSGQ) {
+            return self::hsgqCapabilities($olt);
         }
 
         if ($driver !== self::DRIVER_ZTE) {
@@ -418,6 +448,97 @@ class SmartOltSupport
             'supports_port_label' => true,
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
+    }
+
+    /**
+     * HSGQ asli (HS Fiber 50224). ⚠️ BELUM TERVERIFIKASI DI PERANGKAT: dibangun 23 Okt 2026 tanpa OLT
+     * uji dari peta OID komunitas (G02ID, dicocokkan ke web UI) dan klien API web pihak ketiga — lihat
+     * `docs/SMARTOLT_HSGQ_GUIDE.md`. Baca via SNMP; reboot, ganti nama/deskripsi, dan simpan config via
+     * API JSON web OLT (target ONU dicari lewat SN/MAC, bukan nomor port/ONU). Hapus, enable/disable,
+     * registrasi, dan ONU belum terdaftar MATI: payload-nya tak punya sumber.
+     *
+     * @return array<string, mixed>
+     */
+    private static function hsgqCapabilities(?SnmpOlt $olt = null): array
+    {
+        $epon = self::hsgqPonType($olt) === 'epon';
+
+        return [
+            'driver' => self::DRIVER_HSGQ,
+            'vendor_family' => $epon ? 'HSGQ EPON' : 'HSGQ GPON',
+            'pon_label' => $epon ? 'EPON' : 'GPON',
+            'port_label' => $epon ? 'EPON Port' : 'GPON Port',
+            'port_name_prefix' => 'PON',
+            'onu_interface_pattern' => 'PON%02d/%d',
+            'is_c600' => false,
+            'is_hsgq_epon' => $epon,
+            // Penanda UI "belum terverifikasi di perangkat" (lencana di halaman HSGQ).
+            'hsgq_unverified' => true,
+            'read_only' => false,
+            'supports_snmp_rx' => true,
+            'supports_cli_rx' => false,
+            'supports_cli_onu_detail' => false,
+            'supports_cli_onu_configure' => false,
+            'supports_reboot' => true,
+            'reboot_mode' => 'web_hsgq',
+            'supports_provisioning' => false,
+            'supports_onu_delete' => false,
+            // Web HSGQ menulis nama & deskripsi ONU sebagai dua field (`ont_name`/`ont_description`,
+            // EPON `onu_name`/`onu_desc`).
+            'supports_separate_description' => true,
+            'supports_onu_info_write' => true,
+            'description_mode' => 'web_hsgq',
+            'supports_onu_toggle' => false,
+            'supports_config_save' => true,
+            'supports_port_label' => true,
+            'rx_source_label' => 'Rx ONU (SNMP)',
+        ];
+    }
+
+    /**
+     * Teknologi PON OLT HSGQ: 'epon' | 'gpon'. Sumber utama = hasil scan (`system.pon_type`, dari
+     * model sysDescr atau jenis identitas ONU di tabel SNMP); sebelum scan pertama ditebak dari
+     * vendor/nama/sysDescr (`HSGQ-E04`, `XE08`, "EPON" → epon). Bawaan GPON.
+     */
+    public static function hsgqPonType(?SnmpOlt $olt): string
+    {
+        if ($olt === null) {
+            return 'gpon';
+        }
+
+        $scanned = data_get($olt->last_test_result, 'system.pon_type');
+        if (in_array($scanned, ['epon', 'gpon'], true)) {
+            return $scanned;
+        }
+
+        return self::hsgqPonTypeFromText(implode(' ', array_filter([
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            $olt->vendor,
+            $olt->name,
+        ]))) ?? 'gpon';
+    }
+
+    /**
+     * Tebak teknologi PON dari teks model HSGQ: `HSGQ-G04L`/`G02ID` → gpon, `HSGQ-E04I`/`XE08R` → epon;
+     * kata "epon"/"gpon" dipakai bila model tak berpola. Null bila tak ada petunjuk.
+     */
+    public static function hsgqPonTypeFromText(?string $text): ?string
+    {
+        $text = strtolower((string) $text);
+
+        if (preg_match('/hsgq[\s_-]*x?([eg])\d/', $text, $m)) {
+            return $m[1] === 'e' ? 'epon' : 'gpon';
+        }
+
+        if (str_contains($text, 'epon')) {
+            return 'epon';
+        }
+
+        if (str_contains($text, 'gpon')) {
+            return 'gpon';
+        }
+
+        return null;
     }
 
     /**

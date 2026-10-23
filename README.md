@@ -15,7 +15,7 @@
 
 **Unified FTTH Network Management Platform** — PT Berkah Media Kusuma Vision (BMKV).
 
-A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, and **HiOSO EPON (HA7304/HA7302)** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
+A web-based FTTH network management platform for operating **ZTE C300/C320/C600**, **C-Data (EPON/GPON)**, **HiOSO EPON (HA7304/HA7302)**, and — experimental — **HSGQ EPON/GPON** OLTs: OLT/ONU monitoring, ONU provisioning, remote management, alarms with Telegram and Android push notifications, a customer map, and dashboards. A modern open-source alternative to SmartOLT/NetNumen for FTTH ISPs.
 
 </div>
 
@@ -47,7 +47,7 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 
 ## Key Features
 
-- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) and EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo). V-Sol OLTs are not supported, and HsAirPo/HSGQ support was removed in September 2026.
+- **Multi-vendor OLT support** — ZTE C300/C320/C600 (ZXA10/Titan); C-Data GPON (FD1608S FlashV3, FD1601S, FD1602S) and EPON (FD1304E); HiOSO EPON (HA7304, HA7302). Automatic detection with a separate tab per vendor, one **PON Port page** for every vendor, and C-Data/HiOSO detail pages on par with ZTE (front-panel faceplate that follows the physical port layout, product photo). Genuine HSGQ OLTs (HS Fiber, enterprise 50224 — EPON & GPON) are supported **experimentally**: built from community documentation without a test device, with a built-in diagnostic report so owners can verify it (reports welcome via GitHub Issues). V-Sol OLTs and HSGQ-labelled OEM units with enterprise 12170 are not supported.
 - **Monitoring** — PON ports, ONU state (online / LOS / power off / offline) with friendly bilingual labels, RX power with **long-range history** (raw samples for 24 h, hourly min/avg/max summaries for 7/30 days), faceplate view, cross-OLT ONU monitoring (filter by OLT / port / state / **ODP**), customer name as the primary identity in ONU tables, global search (⌘K), dashboard charts, and PON port descriptions editable directly from the dashboard via CLI.
 - **ONU provisioning (ZTE)** — discovery of unconfigured ONUs (with a **first-seen** time and a *New* badge) → registration (VLAN, T-CONT, PPPoE/DHCP/Static/Bridge, TR-069, an optional **Description** separate from the name, **pick the ODP right at registration**), reconfiguration via delta scripts or a **NetNumen-style per-section ONU editor** (add/edit/delete a T-CONT, GEM, service, VLAN… sent straight to the OLT; ONUs bound to an `onu-profile` are detected, blocked changes are explained, and the profile can be released), per-OLT profile management — **including C600** (Model B / SmartOLT TR-069 mode, automatic management IP allocation, profile dropdown sourced from the catalog).
 - **Bind ONU (ZTE C300/C320)** — replace a broken ONU with a new unit from the Unconfigured page: the new serial takes over the old ONU's slot on the same port, so its whole configuration is inherited without re-registering.
@@ -140,7 +140,7 @@ optimize, restart workers). **Behind Cloudflare "Flexible" or a load balancer on
 - [`docs/API.md`](docs/API.md) — REST API v1 (endpoints, tokens, code samples).
 - [`docs/handbook/20-genieacs-tr069.md`](docs/handbook/20-genieacs-tr069.md) — optional GenieACS / TR-069 bridge: setup and NBI security, matching rules, manual pinning, connected devices, WiFi changes.
 - [`docs/BUILD_APK.md`](docs/BUILD_APK.md) — build and install the Android app.
-- Per-vendor OID/CLI reference: [ZTE C300/C320](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) · [ZTE C600](docs/SMARTOLT_ZTE_C600_GUIDE.md) · [C-Data](docs/SMARTOLT_CDATA_GUIDE.md) · [HiOSO](docs/SMARTOLT_HIOSO_GUIDE.md).
+- Per-vendor OID/CLI reference: [ZTE C300/C320](docs/SMARTOLT_ZTE_C300_C320_C600_GUIDE.md) · [ZTE C600](docs/SMARTOLT_ZTE_C600_GUIDE.md) · [C-Data](docs/SMARTOLT_CDATA_GUIDE.md) · [HiOSO](docs/SMARTOLT_HIOSO_GUIDE.md) · [HSGQ (experimental)](docs/SMARTOLT_HSGQ_GUIDE.md).
 - [`WORKLOG.md`](WORKLOG.md) — phase-by-phase development history.
 
 ---

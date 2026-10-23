@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-10-23 — Created: OLT HSGQ asli (HS Fiber 50224) EPON & GPON — eksperimental, belum diuji di perangkat
+
+Driver HSGQ disediakan langsung di aplikasi walau belum ada OLT uji, supaya pemilik OLT HSGQ bisa mencoba dan melapor
+(GitHub Issues + laporan diagnostik dari tombol «Test & diagnostik»). Rincian sumber & tingkat keyakinan tiap
+OID/endpoint: `docs/SMARTOLT_HSGQ_GUIDE.md`.
+
+### Created
+
+- Migrasi `2026_10_23_000002_add_web_port_to_snmp_olts_table` (nullable). Jalankan `php artisan migrate` saat update.
+- `app/Services/Hsgq/` (transport SNMP, helper, driver `HsgqSnmpService`, klien web `HsgqWebClient`, aksi `HsgqWebService`),
+  `HsgqOltController` + rute `hsgq-olt.*`, `Pages/Hsgq/*`, tab "OLT HSGQ", i18n `hsgq` (id/en), foto produk
+  `public/img/olt/hsgq-*.webp` (render resmi hsgq.com/datasheet, latar transparan).
+- Test fiktif: `tests/Unit/HsgqSnmpDriverTest`, `tests/Feature/HsgqOltTest`, `tests/js/HsgqPages.spec.js`.
+
+### Changed
+
+- `SmartOltSupport`: driver `hsgq-50224` (needle `hsgq|hs fiber|.4.1.50224` sebelum `epon`/`gpon` C-Data; `12170`
+  dikecualikan), kapabilitas EPON/GPON, prefix rute `hsgq-olt`. Resolver, scanner, polling non-ZTE mengenalnya.
+- `AlarmEvaluator`: ONU ber-`status_verified=false` tak memicu alarm offline/ODP (Rx tetap).
+- `SmartOltController::hasCapability()` menolak HSGQ (rute `smartolt.*` tak menjalankan CLI ZTE ke OLT HSGQ); cabang
+  HSGQ di API v1 (reboot/rename), peta (pin), dan Telegram (reboot). `OnuQuickActionModal` menolak enable/disable bila
+  rute `onu.state` tak ada.
+
+### Notes
+
+- **Belum terverifikasi di perangkat.** Peta OID GPON (G02ID) berasal dari peta komunitas yang dicocokkan ke web UI;
+  skema EPON `.3.3` dan payload API web dari klien pihak ketiga. CLI tidak dipakai. Hapus, enable/disable, registrasi,
+  dan daftar ONU belum terdaftar sengaja mati.
+- Status ONU dipilih dari sinyal yang cocok dengan penghitung OLT per PON; tak cocok → peringatan di halaman dan alarm
+  ONU offline OLT itu ditahan. Web OLT HSGQ hanya HTTP polos: akses lewat VPN/jaringan manajemen.
+- Klien web menolak alamat loopback/link-local/multicast/cadangan; batasi jaringan internal lewat firewall server.
+- OLT terdaftar yang nama/vendornya memuat `hsgq` (tanpa sysObjectID 12170) pindah dari tab C-Data ke tab HSGQ.
+
 ## 2026-10-23 — Docs: Catatan Keamanan PHP2Shell + Update Docker Mengambil Image Dasar Terbaru
 
 ### Changed

@@ -7,6 +7,7 @@ use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
+use App\Services\Hsgq\HsgqWebService;
 use App\Services\SmartOltSnmpServiceResolver;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Zte\Epon\ZteEponInventoryService;
@@ -30,12 +31,14 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/reboot
      */
-    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso): JsonResponse
+    public function reboot(SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HsgqWebService $hsgq): JsonResponse
     {
         $this->assertCapability($olt, 'supports_reboot');
 
         try {
-            if ($this->isHioso($olt)) {
+            if ($this->isHsgq($olt)) {
+                $result = $hsgq->reboot($olt, $slot, $port, $onuId);
+            } elseif ($this->isHioso($olt)) {
                 $result = $hioso->reboot($olt, $port, $onuId);
             } elseif ($this->isCdata($olt)) {
                 $result = $cdata->reboot($olt, $this->ifaceKeyword($olt), $slot, $port, $onuId);
@@ -60,7 +63,7 @@ class OnuActionController extends Controller
     /**
      * POST /api/v1/olts/{olt}/onus/{slot}/{port}/{onuId}/name  {name?, description?}
      */
-    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp): JsonResponse
+    public function rename(Request $request, SnmpOlt $olt, int $slot, int $port, int $onuId, ZteRemoteOnuService $remote, CDataCliWriteService $cdata, HiosoCliWriteService $hioso, HiosoEponSnmpService $hiosoSnmp, HsgqWebService $hsgq): JsonResponse
     {
         $this->assertCapability($olt, 'supports_onu_info_write');
 
@@ -78,7 +81,20 @@ class OnuActionController extends Controller
         }
 
         try {
-            if ($this->isHioso($olt) || $this->isCdata($olt)) {
+            if ($this->isHsgq($olt)) {
+                // HSGQ: nama wajib (web OLT), deskripsi opsional — null = pertahankan yang di OLT.
+                if ($name === null) {
+                    return response()->json(['message' => __('hsgq.onu_name_required')], 422);
+                }
+
+                $result = $hsgq->rename($olt, $slot, $port, $onuId, $name, $description);
+                if (! ($result['ok'] ?? false)) {
+                    return response()->json(['message' => __('flash.onu_info_failed').($result['error'] ?? '')], 422);
+                }
+
+                $name = (string) $result['name'];
+                $description = (string) $result['description'];
+            } elseif ($this->isHioso($olt) || $this->isCdata($olt)) {
                 // Non-ZTE hanya punya satu field nama; `description` khusus ZTE (paritas web).
                 if ($name === null) {
                     return response()->json(['message' => __('common.onu_name_only')], 422);
@@ -255,6 +271,11 @@ class OnuActionController extends Controller
     private function isHioso(SnmpOlt $olt): bool
     {
         return SmartOltSupport::isHioso($this->driver($olt));
+    }
+
+    private function isHsgq(SnmpOlt $olt): bool
+    {
+        return SmartOltSupport::isHsgq($this->driver($olt));
     }
 
     private function descriptionMode(SnmpOlt $olt): string
