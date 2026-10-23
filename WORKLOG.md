@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-10-23 — Docs: Catatan Keamanan PHP2Shell + Update Docker Mengambil Image Dasar Terbaru
+
+### Changed
+
+- `README.md` & `README.id.md`: kotak peringatan **PHP2Shell** (CVE-2026-109618/109619, RCE tanpa login di semua PHP
+  sejak 5.4, ditambal 21 Okt 2026 di 8.2.35/8.3.36/8.4.27/8.5.12) dengan cara cek (`php -v`) dan perintah pembaruan untuk
+  server `install.sh` dan Docker. Bagian Upgrading/Update kini memakai `docker compose build --pull` dan mengingatkan
+  bahwa `git pull` tidak pernah memperbarui PHP atau paket sistem.
+- `docs/INSTALL.md` §9: subbagian baru «Catatan keamanan Oktober 2026 (PHP2Shell)» — rincian CVE/advisory, perintah
+  upgrade khusus paket PHP terpasang (`dpkg-query … | awk '/^ii/'`; pola polos `php8.3-*` gagal karena memuat paket
+  virtual seperti `php8.3-json`), restart PHP-FPM + daemon NMS, catatan jeda 502 saat paket dibongkar, dan langkah Docker.
+- `docs/DOCKER.md` §7: update = `docker compose build --pull` lalu `docker compose up -d`, dengan penjelasan bahwa
+  `up -d --build` tanpa `--pull` tetap memakai image dasar lama di PC.
+- `update.bat`: membangun dengan `docker compose build --pull` sebelum `docker compose up -d`, supaya pembaruan lewat
+  launcher Windows ikut memasang tambalan PHP.
+
+### Fixed
+
+- `update.bat`: baris `echo Membangun ulang & menjalankan versi terbaru...` — `&` di batch Windows adalah pemisah
+  perintah, jadi `menjalankan` dieksekusi sebagai perintah dan memunculkan galat «is not recognized». Teksnya diganti.
+
+### Notes
+
+- Hanya dokumentasi + `update.bat`, tanpa perubahan kode aplikasi. Perintah upgrade PHP diuji dengan `apt-get -s` di
+  Ubuntu 22.04 (apt 2.4); tag `php:8.3.36-fpm-bookworm` dan `php:8.3-fpm-bookworm` di Docker Hub sudah diperbarui
+  21 Okt 2026, jadi `build --pull` mendapatkan versi bertambal.
+
 ## 2026-10-23 — Created: dukungan kartu EPON ZTE C300/C320 (ETGO/ETGH/ETTO) — eksperimental, saklar mati
 
 Selama ini NMS memperlakukan ZTE C300/C320 sebagai GPON saja: port kartu EPON (ETGO 8-port, ETGH 16-port, ETTO 10G-EPON)

@@ -127,10 +127,13 @@ entrypoint akan membangun ulang cache config otomatis.
 ## 7. Update ke versi kode baru (mode source)
 
 ```bash
-git pull        # ambil kode terbaru
-docker compose up -d --build   # rebuild + jalankan; migrasi jalan otomatis
+git pull                      # ambil kode terbaru
+docker compose build --pull   # rebuild + ambil image dasar terbaru (tambalan keamanan PHP/Node/Go)
+docker compose up -d          # jalankan; migrasi jalan otomatis
 ```
-Di Windows bisa pakai **`update.bat`**. Data tetap aman di volume.
+Di Windows bisa pakai **`update.bat`**. Data tetap aman di volume. Tanpa `--pull`, Docker memakai image dasar
+yang sudah tersimpan di PC, jadi tambalan PHP (mis. PHP2Shell, [INSTALL.md §9](INSTALL.md#catatan-keamanan-oktober-2026-php2shell))
+tidak ikut terpasang. Cek versinya dengan `docker compose exec app php -v`.
 
 Catatan pembaruan (TRUSTED_PROXIES di belakang reverse proxy, ringkasan RX per jam, dua tema, APK baru,
 penghapusan HsAirPo): lihat [INSTALL.md §9](INSTALL.md#9-update-ke-versi-baru). Aplikasi dibuka lewat

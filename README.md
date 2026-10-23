@@ -63,6 +63,15 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 
 **Stack:** Laravel 12 (PHP 8.3) + Vue 3/Inertia + TailwindCSS · PostgreSQL + Redis · Go SNMP poller · SNMP v1/v2c + Telnet CLI · Flutter (Android).
 
+> ⚠️ **Security update — PHP2Shell (October 2026).** CVE-2026-109618 and CVE-2026-109619 allow unauthenticated
+> remote code execution on every PHP version since 5.4. Fixed on 21 Oct 2026 in PHP **8.3.36** (also 8.2.35 / 8.4.27 /
+> 8.5.12). `git pull` alone does **not** update PHP — check with `php -v` (Docker: `docker compose exec app php -v`):
+> - **Ubuntu server (`install.sh`)**: `sudo apt update && sudo apt upgrade`, then `sudo systemctl restart php8.3-fpm`
+>   and `sudo supervisorctl restart kusumavision-worker kusumavision-scheduler kusumavision-telnet-proxy`.
+> - **Docker**: `docker compose build --pull && docker compose up -d` (`update.bat` now does this).
+>
+> Details and a PHP-only upgrade command: [`docs/INSTALL.md` §9](docs/INSTALL.md#catatan-keamanan-oktober-2026-php2shell) (Indonesian).
+
 ---
 
 ## Installation
@@ -111,10 +120,12 @@ The script is idempotent and safe to re-run. Verify with `bash scripts/check-req
 
 ### Upgrading
 
-`git pull`, then rebuild: Docker → `docker compose up -d --build`; server → the command list in
+`git pull`, then rebuild: Docker → `docker compose build --pull && docker compose up -d` (`--pull` also fetches
+the patched PHP base image); server → the command list in
 [`docs/INSTALL.md` §9](docs/INSTALL.md#9-update-ke-versi-baru) (composer, npm build, Go poller, migrate,
 optimize, restart workers). **Behind Cloudflare "Flexible" or a load balancer on another host, set
 `TRUSTED_PROXIES` in `.env`** — only localhost is trusted by default, otherwise logins fail with 419.
+`git pull` never updates PHP or other system packages — keep the server patched with `sudo apt upgrade`.
 
 ---
 

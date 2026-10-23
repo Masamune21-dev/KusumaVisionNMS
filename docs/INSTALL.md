@@ -200,8 +200,9 @@ menampilkan peringatan bila saklar itu dimatikan. Dua pilihan:
 
 ## 9. Update ke versi baru
 
-**Docker:** `git pull` lalu `docker compose up -d --build` (atau `update.bat`) — migrasi & build jalan
-otomatis. Lihat [DOCKER.md §7](DOCKER.md).
+**Docker:** `git pull` lalu `docker compose build --pull && docker compose up -d` (atau `update.bat`) —
+migrasi & build jalan otomatis, dan `--pull` mengambil image dasar terbaru (termasuk tambalan keamanan PHP).
+Lihat [DOCKER.md §7](DOCKER.md).
 
 **Server `install.sh` / manual** — dari folder proyek, dengan pengguna yang sama seperti saat instalasi:
 
@@ -217,6 +218,44 @@ sudo supervisorctl restart kusumavision-telnet-proxy
 ```
 
 Lalu muat ulang browser dengan Ctrl+Shift+R (nama berkas aset berubah).
+
+`git pull` hanya memperbarui kode NMS. PHP, PostgreSQL, Redis, dan nginx adalah paket sistem — perbarui lewat
+`sudo apt update && sudo apt upgrade` secara berkala.
+
+### Catatan keamanan Oktober 2026 (PHP2Shell)
+
+**PHP2Shell** — CVE-2026-109618 (kehabisan memori saat *request startup* merusak memori) dan CVE-2026-109619
+(*use-after-free*, salah satu jalurnya `session.upload_progress`) — memungkinkan eksekusi kode jarak jauh **tanpa
+login** di semua PHP sejak 5.4 (CVSS 9.2). Ditambal 21 Okt 2026 di **8.2.35, 8.3.36, 8.4.27, dan 8.5.12**; advisory
+`GHSA-w8hw-w9fx-j79w` dan `GHSA-6wmf-4rv5-p3rp` di `php/php-src`. PHP-FPM (yang dipasang `install.sh` dan image
+Docker) lebih kecil risikonya daripada mod_php, tetapi tetap rentan. Segera perbarui bila `php -v` masih di bawah
+versi tambalan.
+
+**Server `install.sh` / manual** — perbarui paket PHP saja (atau `sudo apt upgrade` untuk semuanya), lalu
+muat ulang PHP-FPM dan daemon NMS supaya memakai binary baru:
+
+```bash
+sudo apt update
+sudo apt-get install --only-upgrade $(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' 'php8.3*' | awk '/^ii/{print $2}')
+php -v                                   # harus 8.3.36 atau lebih baru
+sudo systemctl restart php8.3-fpm
+sudo supervisorctl restart kusumavision-worker kusumavision-scheduler kusumavision-telnet-proxy
+```
+
+Ganti `8.3` bila memasang versi lain lewat `PHP_VERSION`. Saat paket dibongkar, PHP-FPM berhenti beberapa detik
+(halaman menjawab 502 sebentar) — kerjakan di luar jam sibuk. PPA ondrej/php hanya menyimpan versi terbaru, jadi
+tidak ada jalan kembali ke versi lama; salin `/etc/php/8.3` dulu bila konfigurasinya pernah diubah.
+
+**Docker** — bangun ulang dengan image dasar terbaru (`php:8.3-fpm-bookworm` sudah memuat 8.3.36 sejak 21 Okt):
+
+```bash
+docker compose build --pull
+docker compose up -d
+docker compose exec app php -v           # harus 8.3.36 atau lebih baru
+```
+
+`update.bat` kini menjalankan langkah yang sama. `docker compose up -d --build` **tanpa** `--pull` memakai image
+dasar yang sudah tersimpan di PC, jadi PHP lama tetap terpakai.
 
 ### Catatan pembaruan September 2026
 

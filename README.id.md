@@ -63,6 +63,15 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 
 **Stack:** Laravel 12 (PHP 8.3) + Vue 3/Inertia + TailwindCSS · PostgreSQL + Redis · Go SNMP poller · SNMP v1/v2c + CLI Telnet · Flutter (Android).
 
+> ⚠️ **Pembaruan keamanan — PHP2Shell (Oktober 2026).** CVE-2026-109618 dan CVE-2026-109619 memungkinkan eksekusi
+> kode jarak jauh **tanpa login** di semua PHP sejak 5.4. Ditambal 21 Okt 2026 di PHP **8.3.36** (juga 8.2.35 / 8.4.27 /
+> 8.5.12). `git pull` saja **tidak** memperbarui PHP — cek dengan `php -v` (Docker: `docker compose exec app php -v`):
+> - **Server Ubuntu (`install.sh`)**: `sudo apt update && sudo apt upgrade`, lalu `sudo systemctl restart php8.3-fpm`
+>   dan `sudo supervisorctl restart kusumavision-worker kusumavision-scheduler kusumavision-telnet-proxy`.
+> - **Docker**: `docker compose build --pull && docker compose up -d` (`update.bat` kini menjalankan ini).
+>
+> Rincian dan perintah upgrade khusus PHP: [`docs/INSTALL.md` §9](docs/INSTALL.md#catatan-keamanan-oktober-2026-php2shell).
+
 ---
 
 ## Instalasi
@@ -111,10 +120,12 @@ Skrip aman dijalankan ulang (idempotent). Verifikasi: `bash scripts/check-requir
 
 ### Update ke versi baru
 
-`git pull`, lalu bangun ulang: Docker → `docker compose up -d --build`; server → daftar perintah di
+`git pull`, lalu bangun ulang: Docker → `docker compose build --pull && docker compose up -d` (`--pull` ikut
+mengambil image dasar PHP yang sudah ditambal); server → daftar perintah di
 [`docs/INSTALL.md` §9](docs/INSTALL.md#9-update-ke-versi-baru) (composer, build npm, poller Go, migrate,
 optimize, restart worker). **Di belakang Cloudflare "Flexible" atau load balancer di host lain, isi
 `TRUSTED_PROXIES` di `.env`** — bawaannya hanya localhost, kalau tidak login gagal 419.
+`git pull` tidak pernah memperbarui PHP atau paket sistem lain — jaga server tetap ditambal dengan `sudo apt upgrade`.
 
 ---
 
