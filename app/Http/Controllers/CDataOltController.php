@@ -409,7 +409,12 @@ class CDataOltController extends Controller
         $back = back(fallback: route('cdata-olt.detail', $olt));
 
         try {
+            $startedAt = now();
             $result = $writer->saveConfig($olt);
+            if ($result['ok']) {
+                // Bahan auto save: OLT bersih kembali (perubahan selama save tetap kotor).
+                SnmpOlt::markConfigSaved($olt->id, $startedAt);
+            }
 
             return $back->with(
                 $result['ok'] ? 'success' : 'error',

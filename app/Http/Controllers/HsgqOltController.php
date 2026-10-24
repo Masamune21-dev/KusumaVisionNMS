@@ -287,7 +287,12 @@ class HsgqOltController extends Controller
     {
         $this->assertWritable($request, $olt, 'supports_config_save');
         $back = back(fallback: route('hsgq-olt.detail', $olt));
+        $startedAt = now();
         $result = $web->saveConfig($olt);
+        if ($result['ok']) {
+            // Bahan auto save: OLT bersih kembali (perubahan selama save tetap kotor).
+            SnmpOlt::markConfigSaved($olt->id, $startedAt);
+        }
 
         return $back->with(
             $result['ok'] ? 'success' : 'error',

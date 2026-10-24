@@ -105,7 +105,7 @@ Route::prefix('v1')->group(function () {
             Route::post('olts/{olt}/register/preview', [OnuRegistrationController::class, 'preview'])
                 ->name('api.olts.register.preview');
             Route::post('olts/{olt}/register', [OnuRegistrationController::class, 'store'])
-                ->name('api.olts.register');
+                ->middleware('olt.config-changed')->name('api.olts.register');
 
             Route::post('olts/{olt}/unconfigured/refresh', [OnuActionController::class, 'refreshUnconfigured'])
                 ->name('api.olts.unconfigured.refresh');
@@ -118,7 +118,7 @@ Route::prefix('v1')->group(function () {
                 ->name('api.olts.onu.reboot');
             Route::post('olts/{olt}/onus/{slot}/{port}/{onuId}/name', [OnuActionController::class, 'rename'])
                 ->whereNumber(['slot', 'port', 'onuId'])
-                ->name('api.olts.onu.name');
+                ->middleware('olt.config-changed')->name('api.olts.onu.name');
 
             // Ubah SSID & kata sandi WiFi lewat GenieACS (bukan CLI OLT).
             Route::post('olts/{olt}/onus/{slot}/{port}/{onuId}/acs-wifi', [ApiGenieacsController::class, 'updateWifi'])
@@ -126,7 +126,7 @@ Route::prefix('v1')->group(function () {
                 ->name('api.onus.acs-wifi');
             Route::delete('olts/{olt}/onus/{slot}/{port}/{onuId}', [OnuActionController::class, 'delete'])
                 ->whereNumber(['slot', 'port', 'onuId'])
-                ->name('api.olts.onu.delete');
+                ->middleware('olt.config-changed')->name('api.olts.onu.delete');
 
             // Warna pin & foto dokumentasi ODP — dua-duanya aksi tulis ODP dari aplikasi
             // (tambah/ubah/hapus ODP dan pin ONU tetap web-only).

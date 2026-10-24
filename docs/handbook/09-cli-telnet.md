@@ -69,10 +69,13 @@ Perubahan di running-config hilang saat OLT reboot kecuali di-`write`. Perilaku 
 | Configure ONU, salin ONU, TR069 massal, hapus/reboot ONU, profil via CLI | **Tidak** | builder/service masing-masing |
 | C-Data: VLAN, tag port, Remote ONT, rename/hapus ONU; HiOSO: aksi ONU | **Tidak** (pakai tombol Save Config) | `CDataGponPortService`, `CDataCliWriteService`, `HiosoCliWriteService` |
 | Tombol **Save Config** | **Ya** (itulah fungsinya) | bagian C-bis |
+| **Auto save** (saklar per-OLT, 24 Okt 2026) | **Ya**, terjadwal — ±10–15 menit setelah perubahan lewat NMS + harian 02:00; **ditunda** selama ada port PON yang dimatikan dari NMS | bagian C-bis.1 |
 
 > ⚠️ Karena beberapa fitur menulis `write` otomatis, **port yang sedang sengaja dimatikan ikut
 > tersimpan permanen** bila setelahnya ada yang menekan Save Config, mengedit deskripsi port, atau
 > menambah VLAN uplink di OLT yang sama. Nyalakan port dulu sebelum menyimpan konfigurasi.
+> **Auto save tidak ikut mengabadikannya**: selama ada alarm `port_disabled` terbuka di OLT itu,
+> auto save ditunda tanpa menyentuh OLT (status "ditunda" di daftar OLT).
 
 ## B. Builder script
 
@@ -125,6 +128,35 @@ Tombol ikon `Save` di daftar OLT (`Pages/SmartOlt/Index.vue`, tab ZTE & non-ZTE)
 - **ZTE C300 config besar:** perintah `write` bisa **hening ~30 detik** sebelum prompt kembali. `saveConfig` membaca via `readUntilIdle(quiet=75s, cap=120s)` → hanya prompt CLI yang menghentikan pembacaan (bukan patokan output sunyi), jadi tak berhenti prematur di tengah write.
 - **Akun CLI ber-privilege rendah (prompt `ZXAN>`):** sesi yang mendarat di user-mode ditolak saat `terminal length 0` (`%Error 20200: Invalid input detected at '^' marker`) — perintah itu hanya ada di privileged mode, padahal hampir semua service CLI ZTE mendahului `show`-nya dengan pager-off tersebut. `login()` karena itu memanggil `enterPrivileged()`: bila output login berakhir prompt `>` (`hasUserModePrompt`), kirim `enable` sekali (password enable = password CLI bila diminta; prompt password dideteksi di **ekor** output, bukan `str_contains`, karena banner login memuat kata "password"). Sifatnya **best-effort** — `enable` dan `terminal length 0` masuk `BEST_EFFORT_COMMANDS`, jadi penolakannya **tidak** lagi menggagalkan seluruh sesi (dulu satu baris `%Error` dari pager-off membuat `detectError()` menandai `ok=false` → banner merah "gagal baca running-config" padahal `show`-nya berhasil).
 - Konfirmasi CLI (bila muncul) dijawab otomatis; password CLI tetap di-mask dari output tersimpan.
+
+## C-bis.1 Auto save config (saklar per-OLT, 24 Okt 2026)
+
+Saklar ikon `SaveAll`/`SaveOff` di samping tombol Save (daftar OLT, semua family, gerbang sama dengan Save:
+admin/operator/partner + `supports_config_save` + jalur akses) → `POST smartolt.config.autosave`
+(`OltConfigAutosaveController::toggle`, kolom `snmp_olts.config_autosave_enabled`, bawaan **mati**, diaudit).
+Menyalakan ditolak bila NMS tak bisa menyimpan OLT itu (`OltConfigAutosaveService::supports()`: capability,
+telnet — HSGQ: port web — dan akun CLI terisi).
+
+- **Penanda perubahan** — middleware `olt.config-changed` (`MarkOltConfigChanged`) di rute tulis ONU/port/profil
+  web + API v1 (respons < 400) memanggil `SnmpOlt::markConfigChanged()`: `config_changed_at` = sekarang,
+  `config_dirty_since` = sekarang **hanya bila sebelumnya bersih**. Juga dipanggil di akhir job
+  `CopyOnusToPortJob`/`Tr069BulkConfigJob` (execute). **Tidak** dipasang di reboot/refresh/preview, rute yang
+  sudah `write` sendiri, dan **Matikan Port** (sengaja tanpa `write`).
+  Daftar rute dikunci `OltConfigAutosaveTest::test_write_routes_carry_marker_and_port_shutdown_does_not`.
+- **Save berhasil** (manual maupun otomatis) → `SnmpOlt::markConfigSaved($id, $startedAt)`: `config_saved_at`
+  = waktu MULAI save; `config_dirty_since` dibersihkan hanya bila tak ada perubahan sejak detik itu
+  (pembanding ketat — perubahan selama `write` berjalan tetap kotor).
+- **Penjadwal** `olts:autosave-config` (`routes/console.php`), **sinkron satu OLT bergantian** di proses latar
+  scheduler — bukan antrean, karena `write` ZTE 30–120 dtk dan worker antrean juga melayani poll + push alarm:
+  - tiap 5 menit: OLT kotor yang sudah tenang `SETTLE_MINUTES` (10) menit, atau kotor ≥ `MAX_DIRTY_MINUTES`
+    (60) menit walau terus diubah; OLT yang baru **gagal** tak dicoba lagi selama 30 menit;
+  - `--all` harian 02:00 (sebelum backup 02:30): semua OLT ber-saklar nyala, jaring pengaman perubahan
+    lewat telnet/terminal yang tak terlihat NMS.
+  Kunci cache `olt-autosave:{id}` (300 dtk) mencegah dua jalur menyimpan OLT yang sama bersamaan.
+- **Ditunda** (`status=deferred`, OLT tak dihubungi) selama ada alarm `port_disabled` ACTIVE/PENDING di OLT itu.
+- Hasil percobaan terakhir di `config_autosave_at/status/error` (ok · failed · deferred) — query polos, tak
+  menggeser `updated_at` dan tak menulis audit; tampil sebagai baris "Auto save" + tooltip di daftar OLT.
+  Gagal juga tercatat `Log::warning('Auto save config OLT gagal')`.
 
 ## C-ter. Matikan/Nyalakan port PON (ZTE C300/C320)
 

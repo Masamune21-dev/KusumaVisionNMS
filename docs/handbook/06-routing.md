@@ -177,6 +177,7 @@ Detail di [20 — GenieACS / TR-069](20-genieacs-tr069.md#9-izin--rute).
 | POST | `/smartolt/{olt}/refresh` | `refresh` (snapshot penuh, `throttle:olt-refresh`) | `smartolt.refresh` |
 | POST | `/smartolt/{olt}/alarms/toggle` | `toggleAlarms` — saklar notifikasi alarm per-OLT, semua family | `smartolt.alarms.toggle` |
 | POST | `/smartolt/{olt}/config/save` | `saveConfig` (CLI `write` → memori OLT, `throttle:olt-refresh`) | `smartolt.config.save` |
+| POST | `/smartolt/{olt}/config/autosave` | `OltConfigAutosaveController::toggle` — saklar auto save per-OLT, semua family (`role:admin,operator,partner`, sama dengan tombol Save) | `smartolt.config.autosave` |
 | GET | `/smartolt/unconfigured` | `unconfiguredGlobal` | `smartolt.unconfigured-all` |
 | GET | `/onu-monitoring` | `onuMonitor` | `monitoring.onu` |
 | POST | `/onu-monitoring/{olt}/refresh` | `refreshOnuMonitor` (`throttle:olt-refresh`) | `monitoring.onu.refresh` |

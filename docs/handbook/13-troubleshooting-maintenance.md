@@ -279,6 +279,9 @@ bisa disematkan lewat posisi (`manual_ref_type = position`) dan memang tidak tah
   (`smartolt.port.description`), tag VLAN uplink (`smartolt.port.vlan`), **Bind ONU** dengan centang
   simpan (bawaan nyala), registrasi C600, dan `write` manual di terminal telnet. Setelah itu port
   **tetap mati** walau OLT reboot.
+- **Auto save** (saklar per-OLT) sengaja **bukan** jalur ini: selama alarm `port_disabled` terbuka,
+  auto save OLT itu ditunda tanpa menyentuh OLT (daftar OLT: "Auto save: On · ditunda"). Perubahan
+  lain di OLT itu baru tersimpan otomatis setelah port dinyalakan dari NMS.
 - **Gejala sebaliknya** (tanpa `write`, OLT reboot): port hidup lagi, NMS masih menandainya
   dimatikan; 10 menit setelah `disabled_at` poll membaca oper UP → penanda dilepas dengan notifikasi
   "… terbaca menyala lagi (dinyalakan di luar NMS)". Hal yang sama terjadi bila seseorang mengetik

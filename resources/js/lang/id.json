@@ -290,7 +290,21 @@
         "confirm_delete_hioso_title": "Hapus OLT HiOSO",
         "confirm_delete_msg": "Hapus OLT {name}? Tindakan ini permanen.",
         "confirm_save_title": "Simpan konfigurasi OLT",
-        "confirm_save_msg": "Simpan (write) konfigurasi berjalan ke memori OLT {name}? Pada OLT dengan config besar (mis. ZTE C300) proses bisa memakan ~30 detik."
+        "confirm_save_msg": "Simpan (write) konfigurasi berjalan ke memori OLT {name}? Pada OLT dengan config besar (mis. ZTE C300) proses bisa memakan ~30 detik.",
+        "col_autosave": "Auto save",
+        "autosave_on_title": "Auto save nyala — klik untuk mematikan",
+        "autosave_off_title": "Auto save mati — klik untuk menyalakan",
+        "autosave_confirm_title": "Nyalakan auto save?",
+        "autosave_confirm_msg": "NMS akan menyimpan (write) konfigurasi {name} ke memori OLT secara otomatis: ±10–15 menit setelah ada perubahan lewat NMS (paling lambat 1 jam), dan setiap hari pukul 02:00 untuk perubahan lewat telnet. Selama ada port PON yang dimatikan dari NMS, auto save ditunda supaya port itu tetap menyala lagi bila OLT reboot.",
+        "autosave_confirm_ok": "Nyalakan",
+        "autosave_short_failed": "gagal",
+        "autosave_short_deferred": "ditunda",
+        "autosave_status_ok": "Tersimpan otomatis {time}",
+        "autosave_status_failed": "Auto save gagal {time}: {error}",
+        "autosave_status_deferred": "Ditunda {time}: ada port PON yang dimatikan dari NMS",
+        "autosave_unsaved": "Ada perubahan belum tersimpan sejak {time}",
+        "autosave_saved": "Terakhir disimpan {time}",
+        "autosave_never": "Belum pernah disimpan otomatis"
     },
     "oltform": {
         "connection_locked": "OLT ini milik pusat dan hanya di-assign ke Anda: alamat IP, port, komunitas SNMP, dan kredensial CLI hanya bisa diubah staf Pusat. Nama, vendor, dan pengaturan polling tetap bisa disimpan.",

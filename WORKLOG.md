@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-10-24 — Created: auto save config OLT, saklar per-OLT (semua family)
+
+Konfigurasi OLT tersimpan ke memori tanpa menekan tombol Save, dengan saklar per OLT (bawaan mati). NMS menyimpan
+setelah ada perubahan lewat NMS dan sekali sehari sebagai jaring pengaman.
+
+### Created
+
+- Migrasi `2026_10_24_000001`: `snmp_olts.config_autosave_enabled` (bawaan mati) + `config_changed_at`,
+  `config_dirty_since`, `config_saved_at`, `config_autosave_at/status/error` (aditif, nullable).
+- `OltConfigAutosaveService` (`app/Services/Olt`): dispatch per family ke perintah yang sama dengan tombol Save (ZTE
+  `write`, C-Data `config`→`save`, HiOSO `write`, HSGQ `/system_save`); `supports()` = capability + telnet/port web + akun;
+  `isDue()` = kotor & tenang 10 mnt, atau kotor ≥ 60 mnt, jeda 30 mnt setelah gagal; `deferReason()` = alarm
+  `port_disabled` terbuka; kunci cache `olt-autosave:{id}`.
+- Perintah `olts:autosave-config` (tiap 5 mnt) dan `--all` (harian 02:00, sebelum backup 02:30), sinkron satu OLT
+  bergantian di proses latar scheduler — sengaja bukan antrean (write ZTE bisa 30–120 dtk).
+- Middleware `olt.config-changed` (`MarkOltConfigChanged`) di 27 rute tulis web + 3 rute API v1 (registrasi, hapus,
+  rename, enable/disable, configure, salin, TR069 massal, profil, Remote ONT/VLAN C-Data, rename HSGQ). Tidak dipasang di
+  Matikan Port PON, reboot, refresh/preview, dan rute yang sudah `write` sendiri. Akhir job `CopyOnusToPortJob` /
+  `Tr069BulkConfigJob` ikut menandai.
+- Saklar `smartolt.config.autosave` (`OltConfigAutosaveController`, gerbang sama dengan tombol Save) + UI daftar OLT:
+  tombol `SaveAll`/`SaveOff` di samping Save (konfirmasi info saat menyalakan), baris «Auto save: On/Off · gagal/ditunda»
+  + tooltip (hasil terakhir, perubahan belum tersimpan, save terakhir) di tabel & kartu HP, keempat tab. i18n ID/EN.
+
+### Changed
+
+- Tombol Save manual keempat family mencatat `SnmpOlt::markConfigSaved()` (waktu MULAI save; perubahan selama save tetap
+  kotor) supaya auto save tak menyimpan ulang OLT yang baru disimpan tangan.
+
+### Notes
+
+- **Ditunda selama ada port PON dimatikan dari NMS** — Matikan Port sengaja tanpa `write` (port menyala lagi bila OLT
+  reboot); save apa pun akan mengabadikan `shutdown`. Perubahan lain di OLT itu menunggu port dinyalakan.
+- Perubahan lewat telnet/terminal (di luar NMS) hanya tertangkap jalur harian 02:00.
+- Setelah memperbarui: `php artisan migrate`, lalu pastikan scheduler (`schedule:work` / cron `schedule:run`) berjalan.
+- Test: `OltConfigAutosaveTest` (13 kasus). Dokumen: handbook 09 §C-bis.1, 07, 06, 13; CLAUDE.md.
+
 ## 2026-10-24 — Changed: EPON ZTE C300/C320 dibaca lewat SNMP + CLI diverifikasi di OLT ETGO asli
 
 Seorang penguji meminjamkan C300 V2.1.0 berkartu ETGO (2 kartu, ±130 ONU). Jalur EPON yang sebelumnya dibangun tanpa

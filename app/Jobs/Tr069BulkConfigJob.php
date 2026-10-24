@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Services\ZteTr069BulkService;
 use App\Support\CliOutputSanitizer;
@@ -79,6 +80,12 @@ class Tr069BulkConfigJob implements ShouldQueue
             ]);
 
             throw $exception;
+        } finally {
+            // Batch berjalan lama: tandai lagi SETELAH selesai supaya auto save tak menyimpan di
+            // tengah batch (penanda rute dipasang saat batch baru dimulai). Dry-run tak menulis.
+            if ($task->execute) {
+                SnmpOlt::markConfigChanged($olt->id);
+            }
         }
     }
 }

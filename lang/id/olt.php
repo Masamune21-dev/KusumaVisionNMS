@@ -23,6 +23,7 @@ return [
     'cli_transport_not_telnet' => 'CLI transport OLT bukan telnet. Set ke telnet di pengaturan OLT.',
     'cli_credentials_missing' => 'Username/password CLI OLT belum diisi.',
     'cli_save_telnet_only' => 'Simpan konfigurasi saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.',
+    'autosave_unsupported' => 'Family OLT ini tidak mendukung simpan konfigurasi.',
     'cli_save_credentials_missing' => 'Username dan password CLI OLT wajib diisi sebelum simpan konfigurasi.',
     'cli_exec_telnet_only' => 'Eksekusi otomatis saat ini baru mendukung Telnet. Set CLI transport OLT ke telnet.',
     'cli_exec_credentials_missing' => 'Username dan password CLI OLT wajib diisi sebelum eksekusi provisioning.',

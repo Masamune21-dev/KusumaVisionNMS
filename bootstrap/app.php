@@ -5,6 +5,7 @@ use App\Support\Theme;
 use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\MarkOltConfigChanged;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -50,6 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureUserRole::class,
+            // Penanda "config OLT diubah, belum di-save" untuk auto save (rute tulis ONU/port).
+            'olt.config-changed' => MarkOltConfigChanged::class,
         ]);
 
         // Telegram posts to the webhook without a CSRF token; the secret token header is the gate.

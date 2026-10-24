@@ -20,6 +20,7 @@ use App\Models\Tr069BulkTask;
 use App\Services\AlarmEvaluator;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Genieacs\GenieacsMapService;
+use App\Services\Olt\OltConfigAutosaveService;
 use App\Services\OnuInventoryService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
@@ -1036,7 +1037,12 @@ class SmartOltController extends Controller
         $back = back(fallback: route('smartolt.index'));
 
         try {
+            $startedAt = now();
             $result = $executor->saveConfig($olt);
+            if ($result['ok']) {
+                // Bahan auto save: OLT bersih kembali (perubahan selama save tetap kotor).
+                SnmpOlt::markConfigSaved($olt->id, $startedAt);
+            }
 
             return $back->with(
                 $result['ok'] ? 'success' : 'error',
@@ -2850,6 +2856,16 @@ class SmartOltController extends Controller
             // Efektif per-penerima: partner lihat saklar webhook-nya sendiri (pivot),
             // admin/operator lihat saklar OLT.
             'alarms_enabled' => $this->viewerAlarmsEnabled($olt),
+            // Auto save config: saklar + hasil percobaan terakhir ({@see OltConfigAutosaveService}).
+            'config_autosave' => [
+                'enabled' => (bool) $olt->config_autosave_enabled,
+                'unsaved_since' => $olt->config_dirty_since?->toIso8601String(),
+                'saved_at' => $olt->config_saved_at?->toIso8601String(),
+                'last_at' => $olt->config_autosave_at?->toIso8601String(),
+                'last_status' => $olt->config_autosave_status,
+                'last_error' => $olt->config_autosave_status === SnmpOlt::AUTOSAVE_FAILED ? $olt->config_autosave_error : null,
+                'defer_reason' => $olt->config_autosave_status === SnmpOlt::AUTOSAVE_DEFERRED ? $olt->config_autosave_error : null,
+            ],
             'poll_interval_minutes' => $olt->pollIntervalMinutes(),
             'rx_poll_interval_minutes' => $olt->rxPollIntervalMinutes(),
             'driver' => $driver,

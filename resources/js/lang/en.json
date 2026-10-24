@@ -290,7 +290,21 @@
         "confirm_delete_hioso_title": "Delete HiOSO OLT",
         "confirm_delete_msg": "Delete OLT {name}? This action is permanent.",
         "confirm_save_title": "Save OLT config",
-        "confirm_save_msg": "Save (write) the running config to OLT {name}'s memory? On OLTs with a large config (e.g. ZTE C300) this can take ~30 seconds."
+        "confirm_save_msg": "Save (write) the running config to OLT {name}'s memory? On OLTs with a large config (e.g. ZTE C300) this can take ~30 seconds.",
+        "col_autosave": "Auto save",
+        "autosave_on_title": "Auto save on — click to turn off",
+        "autosave_off_title": "Auto save off — click to turn on",
+        "autosave_confirm_title": "Turn on auto save?",
+        "autosave_confirm_msg": "NMS will automatically save (write) the configuration of {name} to the OLT memory: about 10–15 minutes after a change made through NMS (at most 1 hour), and every day at 02:00 for changes made over telnet. While a PON port is shut down from NMS, auto save is postponed so that port still comes back up if the OLT reboots.",
+        "autosave_confirm_ok": "Turn on",
+        "autosave_short_failed": "failed",
+        "autosave_short_deferred": "postponed",
+        "autosave_status_ok": "Saved automatically {time}",
+        "autosave_status_failed": "Auto save failed {time}: {error}",
+        "autosave_status_deferred": "Postponed {time}: a PON port is shut down from NMS",
+        "autosave_unsaved": "Unsaved changes since {time}",
+        "autosave_saved": "Last saved {time}",
+        "autosave_never": "Not saved automatically yet"
     },
     "oltform": {
         "connection_locked": "This OLT is centrally owned and only assigned to you: IP address, ports, SNMP communities and CLI credentials can only be changed by central staff. Name, vendor and polling settings can still be saved.",

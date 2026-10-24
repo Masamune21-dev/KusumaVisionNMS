@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CopyOnuTask;
+use App\Models\SnmpOlt;
 use App\Services\ZteOnuCopyService;
 use App\Support\CliOutputSanitizer;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -81,6 +82,12 @@ class CopyOnusToPortJob implements ShouldQueue
             ]);
 
             throw $exception;
+        } finally {
+            // Batch berjalan lama: tandai lagi SETELAH selesai supaya auto save tak menyimpan di
+            // tengah batch (penanda rute dipasang saat batch baru dimulai). Dry-run tak menulis.
+            if ($task->execute) {
+                SnmpOlt::markConfigChanged($olt->id);
+            }
         }
     }
 }

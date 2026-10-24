@@ -2,21 +2,25 @@
 
 namespace App\Models;
 
+use App\Console\Commands\AutosaveOltConfigsCommand;
 use App\Models\Concerns\Auditable;
 use App\Models\Scopes\DemoScope;
 use App\Models\Scopes\PartnerOltScope;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 class SnmpOlt extends Model
 {
     use Auditable, HasFactory;
 
     /**
-     * Field volatil hasil polling — bukan aksi pengguna, jadi tidak diaudit.
+     * Field volatil hasil polling & jejak auto save — bukan aksi pengguna, jadi tidak diaudit.
+     * Saklar `config_autosave_enabled` sendiri tetap diaudit.
      *
      * @var list<string>
      */
@@ -25,7 +29,20 @@ class SnmpOlt extends Model
         'last_tested_at',
         'last_polled_at',
         'last_rx_polled_at',
+        'config_changed_at',
+        'config_dirty_since',
+        'config_saved_at',
+        'config_autosave_at',
+        'config_autosave_status',
+        'config_autosave_error',
     ];
+
+    public const AUTOSAVE_OK = 'ok';
+
+    public const AUTOSAVE_FAILED = 'failed';
+
+    /** Ditunda tanpa menyentuh OLT (mis. ada port PON yang sedang dimatikan dari NMS). */
+    public const AUTOSAVE_DEFERRED = 'deferred';
 
     /**
      * Default atribut untuk instance baru — mencerminkan default kolom DB sehingga
@@ -53,6 +70,7 @@ class SnmpOlt extends Model
         'polling_enabled',
         'alarms_enabled',
         'config_backup_enabled',
+        'config_autosave_enabled',
         'poll_interval_minutes',
         'rx_poll_interval_minutes',
         'last_test_result',
@@ -118,6 +136,11 @@ class SnmpOlt extends Model
             'polling_enabled' => 'boolean',
             'alarms_enabled' => 'boolean',
             'config_backup_enabled' => 'boolean',
+            'config_autosave_enabled' => 'boolean',
+            'config_changed_at' => 'datetime',
+            'config_dirty_since' => 'datetime',
+            'config_saved_at' => 'datetime',
+            'config_autosave_at' => 'datetime',
             'is_demo' => 'boolean',
             'poll_interval_minutes' => 'integer',
             'rx_poll_interval_minutes' => 'integer',
@@ -190,5 +213,38 @@ class SnmpOlt extends Model
     public function rxPollIntervalMinutes(): int
     {
         return max(1, (int) ($this->rx_poll_interval_minutes ?: 5));
+    }
+
+    /**
+     * Catat bahwa NMS baru saja mengubah konfigurasi OLT ini (running-config ≠ memori sampai
+     * di-save). Query polos: tanpa global scope, tanpa `updated_at`, tanpa baris audit.
+     * `config_dirty_since` hanya diisi saat sebelumnya bersih — umur perubahan tertua yang belum
+     * tersimpan, dipakai {@see AutosaveOltConfigsCommand} sebagai batas tunggu.
+     */
+    public static function markConfigChanged(int $oltId): void
+    {
+        $now = now();
+
+        DB::table('snmp_olts')->where('id', $oltId)->update(['config_changed_at' => $now]);
+        DB::table('snmp_olts')->where('id', $oltId)->whereNull('config_dirty_since')->update(['config_dirty_since' => $now]);
+    }
+
+    /**
+     * Catat save yang berhasil (manual maupun otomatis). `$startedAt` = saat save DIMULAI:
+     * perubahan yang masuk selagi `write` berjalan belum tentu ikut tersimpan, jadi OLT tetap
+     * ditandai kotor bila ada perubahan sejak detik itu (pembanding ketat → condong save ulang).
+     */
+    public static function markConfigSaved(int $oltId, CarbonInterface $startedAt): void
+    {
+        DB::table('snmp_olts')->where('id', $oltId)->update(['config_saved_at' => $startedAt]);
+        DB::table('snmp_olts')->where('id', $oltId)
+            ->where(fn ($query) => $query->whereNull('config_changed_at')->orWhere('config_changed_at', '<', $startedAt))
+            ->update(['config_dirty_since' => null]);
+    }
+
+    /** Ada perubahan dari NMS yang belum di-save ke memori OLT. */
+    public function hasUnsavedConfig(): bool
+    {
+        return $this->config_dirty_since !== null;
     }
 }

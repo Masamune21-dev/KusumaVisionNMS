@@ -7,9 +7,9 @@ use App\Models\OnuMapPin;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataOltScanner;
+use App\Services\Genieacs\GenieacsMapService;
 use App\Services\Hioso\HiosoCliWriteService;
 use App\Services\Hioso\HiosoEponSnmpService;
-use App\Services\Genieacs\GenieacsMapService;
 use App\Services\OltPortLabelService;
 use App\Services\OnuOdpService;
 use App\Services\SmartOltSnmpServiceResolver;
@@ -366,7 +366,12 @@ class HiosoOltController extends Controller
         $back = back(fallback: route('hioso-olt.detail', $olt));
 
         try {
+            $startedAt = now();
             $result = $hioso->saveConfig($olt);
+            if ($result['ok']) {
+                // Bahan auto save: OLT bersih kembali (perubahan selama save tetap kotor).
+                SnmpOlt::markConfigSaved($olt->id, $startedAt);
+            }
 
             return $back->with(
                 $result['ok'] ? 'success' : 'error',

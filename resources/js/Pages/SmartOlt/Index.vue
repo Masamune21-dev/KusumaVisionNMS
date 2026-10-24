@@ -7,7 +7,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Antenna, BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Antenna, BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, SaveAll, SaveOff, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -242,6 +242,80 @@ const saveConfig = async (olt) => {
     });
 };
 
+/* ------------------------------------------------------------------ */
+/* Auto save config per-OLT — satu route untuk semua family. Yang     */
+/* menyimpan adalah penjadwal (`olts:autosave-config`): ±10 menit     */
+/* setelah perubahan lewat NMS + harian 02:00. Saklarnya mengikuti     */
+/* gerbang tombol Save (`canSaveConfig`).                              */
+/* ------------------------------------------------------------------ */
+const autosaveTitle = (olt) => (olt.config_autosave?.enabled
+    ? t('smartolt.autosave_on_title')
+    : t('smartolt.autosave_off_title'));
+const toggleAutosave = async (olt) => {
+    // Mematikan tak perlu konfirmasi; menyalakan menjelaskan kapan NMS akan menulis ke OLT.
+    if (!olt.config_autosave?.enabled) {
+        const ok = await confirm({
+            title: t('smartolt.autosave_confirm_title'),
+            message: t('smartolt.autosave_confirm_msg', { name: olt.name }),
+            confirmLabel: t('smartolt.autosave_confirm_ok'),
+            variant: 'info',
+        });
+
+        if (!ok) {
+            return;
+        }
+    }
+
+    router.post(route('smartolt.config.autosave', olt.id), {}, {
+        preserveScroll: true,
+    });
+};
+const autosaveTone = (olt) => {
+    const autosave = olt.config_autosave ?? {};
+    if (!autosave.enabled) {
+        return { text: 'text-slate-500', dot: 'bg-slate-600' };
+    }
+    if (autosave.last_status === 'failed') {
+        return { text: 'text-rose-400', dot: 'bg-rose-400' };
+    }
+    if (autosave.last_status === 'deferred') {
+        return { text: 'text-amber-400', dot: 'bg-amber-400' };
+    }
+    return { text: 'text-emerald-400', dot: 'bg-emerald-400' };
+};
+const autosaveText = (olt) => {
+    const autosave = olt.config_autosave ?? {};
+    if (!autosave.enabled) {
+        return t('common.off');
+    }
+    if (autosave.last_status === 'failed') {
+        return `${t('common.on')} · ${t('smartolt.autosave_short_failed')}`;
+    }
+    if (autosave.last_status === 'deferred') {
+        return `${t('common.on')} · ${t('smartolt.autosave_short_deferred')}`;
+    }
+    return t('common.on');
+};
+// Tooltip: hasil percobaan terakhir + perubahan yang belum tersimpan + save terakhir.
+const autosaveHint = (olt) => {
+    const autosave = olt.config_autosave ?? {};
+    const lines = [];
+    if (autosave.last_status === 'ok') {
+        lines.push(t('smartolt.autosave_status_ok', { time: formatDate(autosave.last_at) }));
+    } else if (autosave.last_status === 'failed') {
+        lines.push(t('smartolt.autosave_status_failed', { time: formatDate(autosave.last_at), error: autosave.last_error ?? '' }));
+    } else if (autosave.last_status === 'deferred') {
+        lines.push(t('smartolt.autosave_status_deferred', { time: formatDate(autosave.last_at) }));
+    }
+    if (autosave.unsaved_since) {
+        lines.push(t('smartolt.autosave_unsaved', { time: formatDate(autosave.unsaved_since) }));
+    }
+    if (autosave.saved_at) {
+        lines.push(t('smartolt.autosave_saved', { time: formatDate(autosave.saved_at) }));
+    }
+    return lines.length ? lines.join('\n') : t('smartolt.autosave_never');
+};
+
 const firmwareBadge = (olt) => (olt.last_test_result?.cdata?.firmware_v3 ? 'FlashV3.x' : null);
 
 const formatDate = (value) => formatDateTime(value);
@@ -354,6 +428,12 @@ const formatDate = (value) => formatDateTime(value);
                                         </span>
                                     </div>
                                     <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">{{ $t('smartolt.col_autosave') }}</span>
+                                        <span class="kv-mobile-value" :class="autosaveTone(olt).text" :title="autosaveHint(olt)">
+                                            {{ autosaveText(olt) }}
+                                        </span>
+                                    </div>
+                                    <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('smartolt.col_test') }}</span>
                                         <span
                                             class="kv-mobile-value font-semibold"
@@ -400,6 +480,14 @@ const formatDate = (value) => formatDateTime(value);
                                         @click="saveConfig(olt)"
                                     >
                                         <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canSaveConfig(olt)"
+                                        :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
+                                        :title="autosaveTitle(olt)"
+                                        @click="toggleAutosave(olt)"
+                                    >
+                                        <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
                                         v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
@@ -471,6 +559,17 @@ const formatDate = (value) => formatDateTime(value);
                                                 ></span>
                                                 {{ $t('smartolt.col_alarm') }}: {{ olt.alarms_enabled ? $t('common.on') : $t('common.off') }}
                                             </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="autosaveTone(olt).text"
+                                                :title="autosaveHint(olt)"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="autosaveTone(olt).dot"
+                                                ></span>
+                                                {{ $t('smartolt.col_autosave') }}: {{ autosaveText(olt) }}
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-3">
@@ -525,6 +624,14 @@ const formatDate = (value) => formatDateTime(value);
                                                 @click="saveConfig(olt)"
                                             >
                                                 <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canSaveConfig(olt)"
+                                                :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
+                                                :title="autosaveTitle(olt)"
+                                                @click="toggleAutosave(olt)"
+                                            >
+                                                <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
@@ -633,6 +740,12 @@ const formatDate = (value) => formatDateTime(value);
                                             {{ olt.alarms_enabled ? $t('common.on') : $t('common.off') }}
                                         </span>
                                     </div>
+                                    <div class="kv-mobile-field">
+                                        <span class="kv-mobile-label">{{ $t('smartolt.col_autosave') }}</span>
+                                        <span class="kv-mobile-value" :class="autosaveTone(olt).text" :title="autosaveHint(olt)">
+                                            {{ autosaveText(olt) }}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
@@ -660,6 +773,14 @@ const formatDate = (value) => formatDateTime(value);
                                         @click="saveConfig(olt)"
                                     >
                                         <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
+                                    </IconButton>
+                                    <IconButton
+                                        v-if="canSaveConfig(olt)"
+                                        :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
+                                        :title="autosaveTitle(olt)"
+                                        @click="toggleAutosave(olt)"
+                                    >
+                                        <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
                                         v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
@@ -731,6 +852,17 @@ const formatDate = (value) => formatDateTime(value);
                                                 ></span>
                                                 {{ $t('smartolt.col_alarm') }}: {{ olt.alarms_enabled ? $t('common.on') : $t('common.off') }}
                                             </div>
+                                            <div
+                                                class="flex items-center gap-1.5 text-xs"
+                                                :class="autosaveTone(olt).text"
+                                                :title="autosaveHint(olt)"
+                                            >
+                                                <span
+                                                    class="h-1.5 w-1.5 rounded-full"
+                                                    :class="autosaveTone(olt).dot"
+                                                ></span>
+                                                {{ $t('smartolt.col_autosave') }}: {{ autosaveText(olt) }}
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="px-4 py-3">
@@ -782,6 +914,14 @@ const formatDate = (value) => formatDateTime(value);
                                                 @click="saveConfig(olt)"
                                             >
                                                 <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
+                                            </IconButton>
+                                            <IconButton
+                                                v-if="canSaveConfig(olt)"
+                                                :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
+                                                :title="autosaveTitle(olt)"
+                                                @click="toggleAutosave(olt)"
+                                            >
+                                                <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
                                                 v-if="olt.can_telnet && olt.cli_transport === 'telnet'"

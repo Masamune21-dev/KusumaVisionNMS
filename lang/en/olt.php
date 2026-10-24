@@ -23,6 +23,7 @@ return [
     'cli_transport_not_telnet' => 'The OLT CLI transport is not telnet. Set it to telnet in the OLT settings.',
     'cli_credentials_missing' => 'The OLT CLI username/password has not been set.',
     'cli_save_telnet_only' => 'Saving the configuration currently supports Telnet only. Set the OLT CLI transport to telnet.',
+    'autosave_unsupported' => 'This OLT family does not support saving its configuration.',
     'cli_save_credentials_missing' => 'The OLT CLI username and password must be set before saving the configuration.',
     'cli_exec_telnet_only' => 'Automatic execution currently supports Telnet only. Set the OLT CLI transport to telnet.',
     'cli_exec_credentials_missing' => 'The OLT CLI username and password must be set before running provisioning.',

@@ -56,6 +56,10 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   running-config ke **memori OLT** via CLI (persist; beda dari _backup ke DB_). ZTE `write`,
   C-Data `enable→config→save`, HiOSO `enable→write`. Gated capability `supports_config_save`.
   Lihat [09 CLI & Telnet §C-bis](09-cli-telnet.md).
+- **Auto save** (24 Okt 2026, saklar per-OLT `SaveAll`/`SaveOff` di samping tombol Save, bawaan mati) →
+  penjadwal `olts:autosave-config` menyimpan ±10–15 menit setelah perubahan lewat NMS (paling lambat 1 jam)
+  dan harian 02:00; ditunda selama ada port PON yang dimatikan dari NMS. Status (On · gagal · ditunda)
+  di kolom driver/family + tooltip. Lihat [09 §C-bis.1](09-cli-telnet.md).
   > Tombol lama **"Refresh ONU (scan penuh)"** di daftar OLT C-Data/HiOSO sudah **dihapus** —
   > scan penuh manual kini lewat tombol "Scan ONU" di halaman Detail OLT.
 
@@ -154,6 +158,7 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
 - Efek alarm: mematikan menaikkan alarm `port_disabled` + satu notifikasi; menyalakan menutupnya + satu
   notifikasi pulih — detail di [10 §A](10-alarm-telegram.md#port-yang-dimatikan-dari-nms-port_disabled).
   Audit: `port.disabled|enabled|disable_failed|enable_failed`.
+- Auto save **tidak** mengabadikannya: selama alarm `port_disabled` terbuka, auto save OLT itu ditunda.
 - ⚠️ Karena tanpa `write`, aksi lain yang menulis `write` ke OLT yang sama (Save Config, edit deskripsi
   port, tag VLAN uplink, Bind ONU dengan centang simpan) ikut **mengabadikan** `shutdown` — lihat
   [13](13-troubleshooting-maintenance.md#port-pon-dimatikan-dari-nms--save-config).
