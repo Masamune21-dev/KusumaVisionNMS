@@ -65,7 +65,7 @@ Bagian di bawah menjelaskan langkah **manual** (untuk dev, atau bila ingin paham
 | Node.js | 22 / npm 10 | untuk build Vite |
 | PostgreSQL | 14+ | database `kusumavision_nms` |
 | Redis | — | cache, session, queue |
-| Go | 1.18+ | hanya untuk build ulang `bin/kv-snmp-poller` |
+| Go | 1.26+ (`install.sh` memasang 1.27 dari go.dev, bukan `golang-go` apt) | hanya untuk build ulang `bin/kv-snmp-poller`; pustaka standarnya ikut terbungkus di biner, jadi pakai rilis yang masih menerima tambalan keamanan |
 | Net-SNMP | — | `snmpget`/`snmpwalk` membantu debugging; PHP ext-snmp dipakai `OltSnmpClient` |
 | Supervisor | — | jalankan worker, scheduler, telnet proxy di prod |
 | Nginx + PHP-FPM | — | web server prod |

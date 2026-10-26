@@ -28,6 +28,12 @@ PHP_VERSION="${PHP_VERSION:-8.3}"
 PHP_CLI="php${PHP_VERSION}"          # binari CLI versi target (mis. php8.3) — dipakai eksplisit, bukan 'php' polos
 NODE_MAJOR="${NODE_MAJOR:-22}"
 
+# Go resmi (go.dev) untuk build bin/kv-snmp-poller. Saat menaikkan versi, ganti ketiganya
+# bersamaan dari https://go.dev/dl/?mode=json.
+GO_VERSION="1.27.3"
+GO_SHA256_AMD64="65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+GO_SHA256_ARM64="a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49"
+
 DB_NAME="${DB_NAME:-kusumavision_nms}"
 DB_USER="${DB_USER:-kusumavision}"
 DB_PASSWORD="${DB_PASSWORD:-}"
@@ -328,7 +334,7 @@ ok "$(t "Repository siap" "Repositories ready")"
 # ---------------------------------------------------------------------------
 # 2. Runtime
 # ---------------------------------------------------------------------------
-step "$(t "Memasang runtime" "Installing runtimes") (PHP ${PHP_VERSION}, PostgreSQL, Redis, Nginx, Supervisor, Go, SNMP, Node)"
+step "$(t "Memasang runtime" "Installing runtimes") (PHP ${PHP_VERSION}, PostgreSQL, Redis, Nginx, Supervisor, SNMP, Node)"
 apt-get install -y \
   php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-common \
   php${PHP_VERSION}-bcmath php${PHP_VERSION}-curl php${PHP_VERSION}-intl \
@@ -339,7 +345,6 @@ apt-get install -y \
   redis-server \
   nginx \
   supervisor \
-  golang-go \
   snmp \
   webp \
   nodejs
@@ -373,6 +378,37 @@ if ! command -v composer >/dev/null 2>&1; then
   rm -f /tmp/composer-setup.php
 fi
 ok "Composer: $(composer --version 2>/dev/null | head -n1)"
+
+# Go — dari go.dev, bukan apt: golang-go Ubuntu 22.04 = 1.18 dan 24.04 = 1.22, keduanya sudah
+# lepas dukungan keamanan, padahal pustaka standarnya ikut terbungkus di bin/kv-snmp-poller.
+step "$(t "Memasang Go" "Installing Go") ${GO_VERSION}"
+GO_CURRENT="$(/usr/local/go/bin/go env GOVERSION 2>/dev/null || true)"
+GO_CURRENT="${GO_CURRENT#go}"
+if [ -n "$GO_CURRENT" ] && [ "$(printf '%s\n%s\n' "$GO_VERSION" "$GO_CURRENT" | sort -V | head -n1)" = "$GO_VERSION" ]; then
+  ok "$(t "Go ${GO_CURRENT} sudah terpasang di /usr/local/go" "Go ${GO_CURRENT} already installed in /usr/local/go")"
+else
+  case "$(dpkg --print-architecture)" in
+    amd64) GO_ARCH=amd64; GO_SHA256="$GO_SHA256_AMD64" ;;
+    arm64) GO_ARCH=arm64; GO_SHA256="$GO_SHA256_ARM64" ;;
+    *) die "$(t "Arsitektur $(dpkg --print-architecture) belum didukung (Go disiapkan untuk amd64/arm64)." \
+                "Architecture $(dpkg --print-architecture) is not supported yet (Go is set up for amd64/arm64).")" ;;
+  esac
+  GO_TARBALL="$(mktemp)"
+  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o "$GO_TARBALL"
+  echo "${GO_SHA256}  ${GO_TARBALL}" | sha256sum -c --quiet - \
+    || { rm -f "$GO_TARBALL"; die "$(t "Checksum Go ${GO_VERSION} tidak cocok." "Go ${GO_VERSION} checksum mismatch.")"; }
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf "$GO_TARBALL"
+  rm -f "$GO_TARBALL"
+  ok "$(t "Go ${GO_VERSION} terpasang di /usr/local/go" "Go ${GO_VERSION} installed in /usr/local/go")"
+fi
+# /usr/local/bin mendahului /usr/bin di PATH (juga secure_path sudo), jadi 'go' menunjuk ke sini
+# walau golang-go lama masih terpasang. Biner 'go' milik admin sendiri (bukan symlink) tak ditimpa.
+for GO_TOOL in go gofmt; do
+  if [ ! -e "/usr/local/bin/$GO_TOOL" ] || [ -L "/usr/local/bin/$GO_TOOL" ]; then
+    ln -sf "/usr/local/go/bin/$GO_TOOL" "/usr/local/bin/$GO_TOOL"
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # 3. Database PostgreSQL
@@ -451,8 +487,8 @@ ok "$(t ".env dikonfigurasi (production)" ".env configured (production)")"
 step "$(t "Build Go SNMP poller (statis)" "Building the Go SNMP poller (static)")"
 # CGO_ENABLED=0 -> binary self-contained (tak tergantung glibc), aman dipindah antar
 # server. -mod=mod karena repo punya folder vendor/ (PHP) di root. -trimpath + -s -w
-# memperkecil & menstabilkan build.
-(cd "$PROJECT_DIR" && CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller)
+# memperkecil & menstabilkan build. Path Go eksplisit = versi yang dipasang di atas.
+(cd "$PROJECT_DIR" && CGO_ENABLED=0 /usr/local/go/bin/go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller)
 chmod +x "$PROJECT_DIR/bin/kv-snmp-poller"
 
 # Smoke test: pastikan binary benar-benar jalan & emit JSON. Kalau tidak, PollOltJob

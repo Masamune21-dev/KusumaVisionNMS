@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-10-26 — Changed: `install.sh` & `Dockerfile` memasang Go 1.27 resmi, bukan `golang-go` apt
+
+Pemasangan baru memakai `golang-go` apt (Ubuntu 22.04 = Go 1.18, 24.04 = 1.22) atau image `golang:1.22`. Semuanya
+sudah lepas dukungan keamanan, padahal pustaka standarnya ikut terbungkus di `bin/kv-snmp-poller`. Menurut
+`govulncheck`, biner hasil Go 1.18.1 terkena 3 celah stdlib yang terjangkau kode (GO-2026-4971 `net`, GO-2023-1840
+`runtime`, GO-2022-1039 `regexp/syntax`); hasil Go 1.27.3 nol.
+
+### Changed
+
+- `install.sh`: konstanta `GO_VERSION=1.27.3` + `GO_SHA256_AMD64`/`GO_SHA256_ARM64` (dari `go.dev/dl/?mode=json`).
+  Langkah baru «Memasang Go» setelah Composer mengunduh tarball go.dev, mencocokkan SHA256, lalu memasangnya ke
+  `/usr/local/go`. Langkah dilewati bila Go di sana sudah ≥ versi itu (tak pernah menurunkan versi). Symlink
+  `/usr/local/bin/{go,gofmt}` dibuat, kecuali bila admin sudah menaruh biner sendiri (bukan symlink) di situ. Arsitektur
+  selain amd64/arm64 berhenti dengan pesan jelas. Checksum salah juga berhenti, dan tarball dihapus. Pesan dwibahasa
+  lewat `t`. `golang-go` dibuang dari daftar apt. Build poller memanggil `/usr/local/go/bin/go` secara eksplisit.
+- `Dockerfile`: stage build poller `golang:1.22-bookworm` → `golang:1.27-bookworm` (tag mengambang di minor 1.27,
+  image multi-arch amd64/arm64).
+- `scripts/check-requirements.sh`: minimal Go 1.18 → 1.26 (dua rilis terbaru yang masih ditambal).
+- Dokumen: `docs/handbook/04-instalasi-deploy.md` (tabel prasyarat), `docs/handbook/18-docker-appliance.md`.
+
+### Notes
+
+- `go.mod` tetap `go 1.18` dan gosnmp tetap v1.34.0 (tanpa celah tercatat). Toolchain baru membangun modul lama tanpa
+  masalah. Keluaran biner Go 1.27.3 dibandingkan dengan biner Go 1.18.1 ke OLT ZTE C320, C300, dan C600: port, daftar
+  ONU, dan field statis identik.
+- Uji blok pemasangan Go di sandbox (path `/usr/local` dialihkan, amd64, `UI_LANG` id & en): pasang baru, jalankan ulang
+  (dilewati), Go lama (di-upgrade), Go lebih baru (dibiarkan), biner `go` milik admin (tak ditimpa), checksum salah
+  (berhenti, tanpa sisa tarball). `bash -n` lulus untuk kedua skrip. Jalur arm64 dan build Docker belum diuji.
+- Server yang sudah terpasang: jalankan ulang `install.sh`, atau pasang Go ≥ 1.26 dari go.dev lalu build ulang poller
+  (`CGO_ENABLED=0 go build -mod=mod -trimpath -ldflags='-s -w' -o bin/kv-snmp-poller ./cmd/kv-snmp-poller`).
+
 ## 2026-10-24 — Created: auto save config OLT, saklar per-OLT (semua family)
 
 Konfigurasi OLT tersimpan ke memori tanpa menekan tombol Save, dengan saklar per OLT (bawaan mati). NMS menyimpan

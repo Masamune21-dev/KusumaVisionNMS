@@ -126,7 +126,7 @@ check_tool "PHP"               php       8.2
 check_tool "Composer"          composer  2
 check_tool "Node.js"           node      20
 check_tool "npm"               npm       10
-check_tool "Go"                go        1.18
+check_tool "Go"                go        1.26   # rilis yang masih ditambal; stdlib-nya terbungkus di biner poller
 check_tool "PostgreSQL client" psql      14
 check_tool "Redis CLI"         redis-cli
 check_tool "SNMP walk"         snmpwalk

@@ -13,7 +13,7 @@ Panduan operator (langkah pasang, backup, distribusi): [`docs/DOCKER.md`](../DOC
 
 | File | Peran |
 |------|-------|
-| `Dockerfile` | Image multi-stage: (0) `composer:2` hanya mengunduh `vendor/tightenco/ziggy` (di-import `app.js`, sedangkan `vendor/` di-`.dockerignore`), (1) `node:22` build Vite → `public/build`, (2) `golang:1.22` build `bin/kv-snmp-poller` (`CGO_ENABLED=0 -mod=mod`), (3) `php:8.3-fpm` runtime + nginx + supervisor + composer install. Semua berkas config & `entrypoint.sh` dinormalkan CRLF→LF saat build. |
+| `Dockerfile` | Image multi-stage: (0) `composer:2` hanya mengunduh `vendor/tightenco/ziggy` (di-import `app.js`, sedangkan `vendor/` di-`.dockerignore`), (1) `node:22` build Vite → `public/build`, (2) `golang:1.27` build `bin/kv-snmp-poller` (`CGO_ENABLED=0 -mod=mod`), (3) `php:8.3-fpm` runtime + nginx + supervisor + composer install. Semua berkas config & `entrypoint.sh` dinormalkan CRLF→LF saat build. |
 | `docker-compose.yml` | 3 service: `app`, `db` (postgres:16), `redis` (redis:7) + volume & healthcheck. |
 | `.dockerignore` | Kecualikan artefak yang dibangun ulang (vendor/node_modules/bin/public/build), rahasia (`.env`, `.env.*`), data runtime, test, dokumentasi (`docs/`, `*.md`), dan skrip host (`install.sh`, `scripts/`). `.env.example` sengaja **tidak** dikecualikan (dibutuhkan saat build). |
 | `docker/nginx.conf` | Server block (root `public/`, `/telnet-ws` → 127.0.0.1:6002, fastcgi → 127.0.0.1:9000) — adaptasi dari blok nginx `install.sh`. |

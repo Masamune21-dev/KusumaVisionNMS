@@ -38,7 +38,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 2 — build Go SNMP poller (biner statis, sama flag seperti install.sh).
 # ---------------------------------------------------------------------------
-FROM golang:1.22-bookworm AS gobuild
+FROM golang:1.27-bookworm AS gobuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
