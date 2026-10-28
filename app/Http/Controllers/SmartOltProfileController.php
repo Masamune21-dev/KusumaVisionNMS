@@ -6,6 +6,7 @@ use App\Models\SmartOltProfile;
 use App\Models\SnmpOlt;
 use App\Services\ZteCliProvisioningExecutor;
 use App\Services\ZteProfileCatalogService;
+use App\Support\SmartOltSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,7 @@ class SmartOltProfileController extends Controller
         $script = $catalog->buildScript('add', $data);
 
         if ($request->boolean('execute_cli')) {
+            $this->assertZteProfileCli($olt);
             $executor->execute($olt, $script);
         }
 
@@ -61,6 +63,7 @@ class SmartOltProfileController extends Controller
         $script = $catalog->buildScript('add', $data, $oldName);
 
         if ($request->boolean('execute_cli')) {
+            $this->assertZteProfileCli($olt);
             $executor->execute($olt, $script);
         }
 
@@ -76,6 +79,7 @@ class SmartOltProfileController extends Controller
         abort_unless($profile->snmp_olt_id === $olt->id, 404);
 
         if ($request->boolean('execute_cli')) {
+            $this->assertZteProfileCli($olt);
             $executor->execute($olt, $catalog->buildScript('delete', $profile->toArray()));
         }
 
@@ -88,6 +92,8 @@ class SmartOltProfileController extends Controller
 
     public function syncFromOlt(SnmpOlt $olt, ZteProfileCatalogService $catalog): RedirectResponse
     {
+        $this->assertZteProfileCli($olt);
+
         try {
             $result = $catalog->syncFromOlt($olt);
 
@@ -197,6 +203,25 @@ class SmartOltProfileController extends Controller
             ['key' => 'ip', 'label' => 'IP Profile', 'uses_vlan' => false],
             ['key' => 'traffic', 'label' => 'Traffic Profile (GEM Port)', 'uses_vlan' => false],
         ];
+    }
+
+    /**
+     * Perintah profil (`onu-type`, `profile tcont`, `onu profile vlan`, `show …`) adalah
+     * sintaks ZTE — dulu dikirim ke OLT family apa pun yang dibuka di halaman ini.
+     */
+    private function assertZteProfileCli(SnmpOlt $olt): void
+    {
+        $driver = SmartOltSupport::driverKey(
+            $olt,
+            data_get($olt->last_test_result, 'system.sys_descr'),
+            data_get($olt->last_test_result, 'system.sys_object_id'),
+        );
+
+        abort_unless(
+            (bool) (SmartOltSupport::capabilities($driver, $olt)['supports_provisioning'] ?? false),
+            403,
+            __('olt.driver_action_unsupported'),
+        );
     }
 
     /**

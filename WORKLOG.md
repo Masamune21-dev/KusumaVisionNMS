@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-10-28 — Fixed: halaman Profiles menolak injeksi CLI lewat catatan dan perintah ZTE ke OLT non-ZTE
+
+### Fixed
+
+- `ZteProfileCatalogService`: catatan profil `onu_type` kini dibersihkan helper `cli()` (CR/LF dan karakter kontrol
+  lain → spasi) sebelum masuk `onu-type NAMA gpon description "…"`. Dulu catatan berisi baris baru menjadi perintah
+  CLI tambahan, karena executor mengirim skrip baris per baris. Builder provisioning sudah memakai pembersih yang sama.
+- `SmartOltProfileController`: Sync Dari OLT serta tambah/ubah/hapus dengan Eksekusi CLI kini hanya untuk OLT yang
+  `supports_provisioning` (ZTE). OLT C-Data/HiOSO/HSGQ ditolak 403 (`olt.driver_action_unsupported`) sebelum telnet
+  dibuka. Dulu sintaks profil ZTE dikirim ke family apa pun. Menyimpan profil ke katalog NMS tanpa Eksekusi CLI
+  tetap bisa.
+
+### Created
+
+- `tests/Feature/SmartOltProfileCliGuardTest.php` (3 test): catatan berbaris banyak tetap satu baris CLI; OLT non-ZTE
+  menolak sync/tambah/ubah/hapus ber-CLI tanpa menyentuh executor; OLT ZTE tetap mengeksekusi. Dua test pertama
+  gagal pada kode sebelum perbaikan.
+
+### Notes
+
+- Verifikasi: `scripts/test.sh` 879 lulus, `npm test` 66 lulus. Tanpa perubahan frontend, rute, atau kunci i18n.
+
 ## 2026-10-28 — Created: Traffic Profile ZTE di halaman Profiles + dropdown Upstream/Downstream Limit GEM Port
 
 Profil `gpon profile traffic` (yang dirujuk `gemport N traffic-limit upstream U downstream D`) sebelumnya tidak dikelola

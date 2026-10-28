@@ -270,7 +270,7 @@ class ZteProfileCatalogService
             'onu_type' => implode("\n", array_filter([
                 'conf t',
                 'pon',
-                sprintf('onu-type %s gpon%s', $name, ($data['notes'] ?? null) ? ' description "'.str_replace('"', '', (string) $data['notes']).'"' : ''),
+                sprintf('onu-type %s gpon%s', $name, self::cli($data['notes'] ?? '') !== '' ? ' description "'.str_replace('"', '', self::cli($data['notes'])).'"' : ''),
                 'exit',
             ])),
             'tcont' => implode("\n", [
@@ -331,5 +331,15 @@ class ZteProfileCatalogService
         $pattern = '/>\s*'.preg_quote($command, '/').'\s*(.*?)(?=\n\s*>|\r\n\s*>|$)/is';
 
         return preg_match($pattern, $output, $matches) ? $matches[1] : $output;
+    }
+
+    /**
+     * Skrip profil dieksekusi baris-per-baris ke sesi telnet OLT (executor memecahnya dengan
+     * "\n"). Catatan profil adalah teks bebas: CR/LF atau karakter kontrol lain di dalamnya
+     * dulu menjadi perintah CLI tambahan. Sama dengan builder provisioning.
+     */
+    private static function cli(mixed $value): string
+    {
+        return trim(preg_replace('/[\x00-\x1F\x7F]+/', ' ', (string) $value) ?? '');
     }
 }
