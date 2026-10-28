@@ -27,6 +27,22 @@ const vlanProfiles = computed(() => props.profiles.vlan ?? []);
 const ipProfiles = computed(() => props.profiles.ip ?? []);
 const vlanProfileNames = computed(() => vlanProfiles.value.map((p) => p.name));
 const ipProfileNames = computed(() => ipProfiles.value.map((p) => p.name));
+// Traffic-limit GEM port: dropdown bila profil traffic OLT sudah tersinkron, selain itu
+// tetap kolom teks bebas seperti dulu.
+const trafficProfiles = computed(() => props.profiles.traffic ?? []);
+const trafficProfileNames = computed(() => trafficProfiles.value.map((p) => p.name));
+const trafficLabel = (p) => (p.params?.pir ? `${p.name} · ${Math.round(p.params.pir / 1000)} Mbps` : p.name);
+// Label panjang bisa terpotong di kolom sempit — `title` memuat label penuh nilai terpilih.
+const trafficTitle = (name) => {
+    const p = trafficProfiles.value.find((x) => x.name === name);
+    return p ? trafficLabel(p) : (name || null);
+};
+
+// Select memakai '' untuk "tanpa profile"; running-config mengirim null.
+(cfg.gemports ?? []).forEach((row) => {
+    row.traffic_up ??= '';
+    row.traffic_down ??= '';
+});
 
 // Visibilitas password PPPoE per-baris WAN-IP (key = index baris).
 const pppoeShown = ref({});
@@ -117,7 +133,8 @@ onUnmounted(() => {
 
 const cols = {
     tcont: '4rem minmax(8rem,1fr) minmax(8rem,1fr) minmax(6rem,1fr) 2.75rem',
-    gemport: '4rem minmax(7rem,1fr) 6rem minmax(7rem,1fr) minmax(7rem,1fr) 2.75rem',
+    // Kolom batas lebih lebar: label dropdown traffic memuat laju (`SERVER · 1024 Mbps`).
+    gemport: '4rem minmax(5rem,0.6fr) 5rem minmax(10rem,1.2fr) minmax(10rem,1.2fr) 2.75rem',
     servicePort: '4rem minmax(6rem,1fr) minmax(7rem,1fr) minmax(6rem,1fr) 2.75rem',
     service: 'minmax(8rem,1.3fr) minmax(6rem,1fr) 4rem 4rem minmax(5rem,1fr) 2.75rem',
     uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
@@ -193,13 +210,21 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">T-CONT</span><TextInput v-model.number="row.tcont" type="number" :class="fieldClass" /></div>
-                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Upstream Limit</span><TextInput v-model="row.traffic_up" :class="fieldClass" placeholder="profile" /></div>
-                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Downstream Limit</span><TextInput v-model="row.traffic_down" :class="fieldClass" placeholder="profile" /></div>
+                        <div v-for="dir in ['traffic_up', 'traffic_down']" :key="dir" class="kv-cell" :class="{ 'col-span-2': !isWide }">
+                            <span v-if="!isWide" class="kv-flabel">{{ dir === 'traffic_up' ? 'Upstream Limit' : 'Downstream Limit' }}</span>
+                            <select v-if="trafficProfiles.length" v-model="row[dir]" :class="fieldClass" :title="trafficTitle(row[dir])">
+                                <option value="">{{ $t('configonu.cfg_no_profile') }}</option>
+                                <option v-if="row[dir] && !trafficProfileNames.includes(row[dir])" :value="row[dir]">{{ $t('configonu.cfg_profile_from_olt', { name: row[dir] }) }}</option>
+                                <option v-for="p in trafficProfiles" :key="p.id" :value="p.name">{{ trafficLabel(p) }}</option>
+                            </select>
+                            <TextInput v-else v-model="row[dir]" :class="fieldClass" placeholder="profile" />
+                        </div>
                         <div class="kv-cell kv-action-cell">
                             <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.gemports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
                     <p v-if="!cfg.gemports.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_gemport') }}</p>
+                    <p class="pt-1 text-xs text-slate-500">{{ trafficProfiles.length ? $t('configonu.cfg_traffic_hint') : $t('configonu.cfg_traffic_sync_hint') }}</p>
                 </div>
             </div>
         </section>

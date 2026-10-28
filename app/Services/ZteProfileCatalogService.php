@@ -8,13 +8,14 @@ use Illuminate\Support\Arr;
 
 class ZteProfileCatalogService
 {
-    public const TYPES = ['onu_type', 'tcont', 'vlan', 'ip'];
+    public const TYPES = ['onu_type', 'tcont', 'vlan', 'ip', 'traffic'];
 
     private const SHOW_COMMANDS = [
         'tcont' => 'show gpon profile tcont',
         'vlan' => 'show gpon onu profile vlan',
         'ip' => 'show gpon onu profile ip',
         'onu_type' => 'show onu-type',
+        'traffic' => 'show gpon profile traffic',
     ];
 
     public function __construct(private readonly ZteCliProvisioningExecutor $executor)
@@ -67,6 +68,7 @@ class ZteProfileCatalogService
             ...$this->parseVlan($output),
             ...$this->parseIp($output),
             ...$this->parseOnuTypes($output),
+            ...$this->parseTraffic($output),
         ];
     }
 
@@ -220,6 +222,43 @@ class ZteProfileCatalogService
     }
 
     /**
+     * Profil traffic = batas yang dirujuk `gemport N traffic-limit upstream U downstream D`.
+     * Bentuk keluaran (sama di C300 & C320, diambil live 28 Okt 2026) — CBS/PBS bisa `default`:
+     *   Profile name  :SERVER
+     *     SIR(kbps)  PIR(kbps)  CBS(kbytes)  PBS(kbytes)
+     *    1024000     1024000    default      default
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function parseTraffic(string $output): array
+    {
+        $output = $this->section($output, self::SHOW_COMMANDS['traffic']);
+        preg_match_all('/Profile name\s*:\s*([^\r\n]+)(.*?)(?=Profile name\s*:|[A-Za-z0-9._-]+#\s*>|$)/is', $output, $matches, PREG_SET_ORDER);
+
+        return collect($matches)
+            ->map(function (array $match) {
+                if (! preg_match('/^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S+)/m', $match[2], $params)) {
+                    return null;
+                }
+
+                return [
+                    'profile_type' => 'traffic',
+                    'name' => trim($match[1]),
+                    'source' => self::SHOW_COMMANDS['traffic'],
+                    'params' => [
+                        'sir' => (int) $params[1],
+                        'pir' => (int) $params[2],
+                        'cbs' => ctype_digit($params[3]) ? (int) $params[3] : null,
+                        'pbs' => ctype_digit($params[4]) ? (int) $params[4] : null,
+                    ],
+                ];
+            })
+            ->filter(fn (?array $row) => $row && $this->validProfileName($row['name']))
+            ->values()
+            ->all();
+    }
+
+    /**
      * @param array<string, mixed> $data
      */
     private function addScript(string $type, array $data): string
@@ -258,6 +297,14 @@ class ZteProfileCatalogService
                 ),
                 'exit',
             ])),
+            // Sintaks dari running-config C300 (`profile traffic SERVER sir 1024000 pir 1024000`).
+            // CBS/PBS sengaja tak ditulis: bentuknya belum diverifikasi di perangkat → bawaan OLT.
+            'traffic' => implode("\n", [
+                'conf t',
+                'gpon',
+                sprintf('profile traffic %s sir %d pir %d', $name, (int) Arr::get($params, 'sir', 1024000), (int) Arr::get($params, 'pir', 1024000)),
+                'exit',
+            ]),
             default => '',
         };
     }
@@ -269,6 +316,7 @@ class ZteProfileCatalogService
             'tcont' => "conf t\ngpon\nno profile tcont {$name}\nexit",
             'vlan' => "conf t\ngpon\nno onu profile vlan {$name}\nexit",
             'ip' => "conf t\ngpon\nno onu profile ip {$name}\nexit",
+            'traffic' => "conf t\ngpon\nno profile traffic {$name}\nexit",
             default => '',
         };
     }

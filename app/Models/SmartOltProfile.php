@@ -9,7 +9,7 @@ class SmartOltProfile extends Model
 {
     use Auditable;
 
-    public const TYPES = ['onu_type', 'tcont', 'vlan', 'ip'];
+    public const TYPES = ['onu_type', 'tcont', 'vlan', 'ip', 'traffic'];
 
     protected $table = 'smartolt_profiles';
 

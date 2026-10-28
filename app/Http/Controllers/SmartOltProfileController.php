@@ -123,6 +123,8 @@ class SmartOltProfileController extends Controller
             'vlan' => ['nullable', 'required_if:profile_type,vlan', 'integer', 'between:1,4094'],
             'params.type' => ['nullable', 'required_if:profile_type,tcont', 'integer', 'between:1,5'],
             'params.maximum' => ['nullable', 'required_if:profile_type,tcont', 'integer', 'between:64,9953280'],
+            'params.sir' => ['nullable', 'required_if:profile_type,traffic', 'integer', 'between:64,9953280'],
+            'params.pir' => ['nullable', 'required_if:profile_type,traffic', 'integer', 'between:64,9953280', 'gte:params.sir'],
             'params.tag_mode' => ['nullable', 'required_if:profile_type,vlan', Rule::in(['tag', 'untag', 'translate'])],
             'params.pri' => ['nullable', 'integer', 'between:0,7'],
             'params.gateway' => ['nullable', 'required_if:profile_type,ip', 'ip'],
@@ -193,6 +195,7 @@ class SmartOltProfileController extends Controller
             ['key' => 'tcont', 'label' => 'T-CONT Profile', 'uses_vlan' => false],
             ['key' => 'vlan', 'label' => 'VLAN Profile', 'uses_vlan' => true],
             ['key' => 'ip', 'label' => 'IP Profile', 'uses_vlan' => false],
+            ['key' => 'traffic', 'label' => 'Traffic Profile (GEM Port)', 'uses_vlan' => false],
         ];
     }
 

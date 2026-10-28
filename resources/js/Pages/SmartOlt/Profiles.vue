@@ -38,6 +38,8 @@ const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 const defaultParams = () => ({
     type: 4,
     maximum: 1024000,
+    sir: 1024000,
+    pir: 1024000,
     tag_mode: 'tag',
     pri: 0,
     gateway: '',
@@ -207,6 +209,16 @@ const syncFromOlt = () => {
                                 <TextInput :id="`maximum-${type.key}`" v-model="createForms[type.key].params.maximum" type="number" class="mt-1 block w-full" required />
                                 <InputError class="mt-2" :message="createForms[type.key].errors['params.maximum']" />
                             </div>
+                            <div v-if="type.key === 'traffic'" class="md:col-span-2">
+                                <InputLabel :for="`sir-${type.key}`" value="SIR (kbps)" />
+                                <TextInput :id="`sir-${type.key}`" v-model="createForms[type.key].params.sir" type="number" class="mt-1 block w-full" required />
+                                <InputError class="mt-2" :message="createForms[type.key].errors['params.sir']" />
+                            </div>
+                            <div v-if="type.key === 'traffic'" class="md:col-span-2">
+                                <InputLabel :for="`pir-${type.key}`" value="PIR (kbps)" />
+                                <TextInput :id="`pir-${type.key}`" v-model="createForms[type.key].params.pir" type="number" class="mt-1 block w-full" required />
+                                <InputError class="mt-2" :message="createForms[type.key].errors['params.pir']" />
+                            </div>
                             <div v-if="type.key === 'ip'" class="md:col-span-3">
                                 <InputLabel :for="`gateway-${type.key}`" value="Gateway" />
                                 <TextInput :id="`gateway-${type.key}`" v-model="createForms[type.key].params.gateway" class="mt-1 block w-full" required />
@@ -254,6 +266,11 @@ const syncFromOlt = () => {
                                     <div v-if="type.key === 'tcont'" class="grid gap-2 sm:grid-cols-2">
                                         <TextInput v-model="editing[profile.id].params.type" type="number" class="block w-full" />
                                         <TextInput v-model="editing[profile.id].params.maximum" type="number" class="block w-full" />
+                                    </div>
+                                    <div v-else-if="type.key === 'traffic'" class="grid gap-2 sm:grid-cols-2">
+                                        <TextInput v-model="editing[profile.id].params.sir" type="number" class="block w-full" placeholder="SIR (kbps)" aria-label="SIR (kbps)" />
+                                        <TextInput v-model="editing[profile.id].params.pir" type="number" class="block w-full" placeholder="PIR (kbps)" aria-label="PIR (kbps)" />
+                                        <InputError class="sm:col-span-2" :message="editing[profile.id].errors['params.sir'] || editing[profile.id].errors['params.pir']" />
                                     </div>
                                     <TextInput v-else-if="type.key === 'ip'" v-model="editing[profile.id].params.gateway" class="block w-full" />
                                     <TextInput v-else v-model="editing[profile.id].notes" class="block w-full" />
@@ -304,6 +321,7 @@ const syncFromOlt = () => {
                                         <span class="kv-mobile-label">Params</span>
                                         <span class="kv-mobile-value">
                                             <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
+                                            <span v-else-if="type.key === 'traffic'">SIR {{ profile.params?.sir ?? '-' }} · PIR {{ profile.params?.pir ?? '-' }} kbps</span>
                                             <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
                                             <span v-else>{{ profile.notes || '-' }}</span>
                                         </span>
@@ -357,6 +375,11 @@ const syncFromOlt = () => {
                                                 <TextInput v-model="editing[profile.id].params.type" type="number" class="block w-full" />
                                                 <TextInput v-model="editing[profile.id].params.maximum" type="number" class="block w-full" />
                                             </div>
+                                            <div v-else-if="type.key === 'traffic'" class="grid gap-2 md:grid-cols-2">
+                                                <TextInput v-model="editing[profile.id].params.sir" type="number" class="block w-full" placeholder="SIR (kbps)" aria-label="SIR (kbps)" />
+                                                <TextInput v-model="editing[profile.id].params.pir" type="number" class="block w-full" placeholder="PIR (kbps)" aria-label="PIR (kbps)" />
+                                                <InputError class="md:col-span-2" :message="editing[profile.id].errors['params.sir'] || editing[profile.id].errors['params.pir']" />
+                                            </div>
                                             <TextInput v-else-if="type.key === 'ip'" v-model="editing[profile.id].params.gateway" class="block w-full" />
                                             <TextInput v-else v-model="editing[profile.id].notes" class="block w-72" />
                                         </td>
@@ -386,6 +409,7 @@ const syncFromOlt = () => {
                                         <td v-if="type.key === 'vlan'" class="px-4 py-3 text-xs text-slate-200">{{ profile.vlan }}</td>
                                         <td class="px-4 py-3 text-xs text-slate-200">
                                             <span v-if="type.key === 'tcont'">type {{ profile.params?.type ?? '-' }} · max {{ profile.params?.maximum ?? '-' }}</span>
+                                            <span v-else-if="type.key === 'traffic'">SIR {{ profile.params?.sir ?? '-' }} · PIR {{ profile.params?.pir ?? '-' }} kbps</span>
                                             <span v-else-if="type.key === 'ip'">gateway {{ profile.params?.gateway ?? '-' }}</span>
                                             <span v-else>{{ profile.notes || '-' }}</span>
                                         </td>

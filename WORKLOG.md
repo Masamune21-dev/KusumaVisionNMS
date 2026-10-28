@@ -1,5 +1,41 @@
 # Worklog
 
+## 2026-10-28 — Created: Traffic Profile ZTE di halaman Profiles + dropdown Upstream/Downstream Limit GEM Port
+
+Profil `gpon profile traffic` (yang dirujuk `gemport N traffic-limit upstream U downstream D`) sebelumnya tidak dikelola
+NMS. Batas GEM port di editor ONU diketik bebas, sehingga salah ketik nama profil baru ketahuan saat OLT menolak.
+Pemicunya kasus upload mentok jauh di bawah batas T-CONT. Dugaan sementara: policer upstream di gemport memotong
+semburan upload GPON, padahal upstream sudah dibatasi T-CONT. Dugaan ini belum diverifikasi.
+
+### Created
+
+- Tipe profil `traffic` (`SmartOltProfile::TYPES`, `ZteProfileCatalogService::TYPES`, label «Traffic Profile (GEM Port)»).
+  Sinkron dari `show gpon profile traffic`. `parseTraffic()` dibuat dari keluaran asli C300 & C320 (SIR/PIR kbps,
+  CBS/PBS `default` → `null`). Tambah: `gpon` → `profile traffic NAMA sir X pir Y`. Hapus: `no profile traffic NAMA`.
+  CBS/PBS tidak ditulis karena bentuknya belum diverifikasi di perangkat.
+- Validasi `params.sir`/`params.pir` (64–9.953.280, wajib untuk tipe traffic, PIR ≥ SIR).
+- `tests/Feature/SmartOltTrafficProfileTest.php` (3 test): parser, skrip tambah/ganti nama/hapus, serta simpan lewat
+  form (PIR < SIR ditolak, tanpa Eksekusi CLI OLT tak disentuh).
+
+### Changed
+
+- `Pages/SmartOlt/Profiles.vue`: kolom SIR/PIR (kbps) di form tambah dan form edit (desktop + kartu HP); kolom
+  Params `SIR … · PIR … kbps`.
+- `Components/SmartOlt/OnuConfigEditor.vue` (Configure ONU + Register mode Lanjutan): Upstream/Downstream Limit
+  menjadi dropdown profil traffic OLT (label `NAMA · N Mbps`, `title` berisi label penuh). Nilai di luar katalog tampil
+  «(dari OLT)». Kolom teks lama tetap dipakai bila profil traffic belum tersinkron, disertai petunjuk Sync. Kolom batas
+  diberi ruang lebih di desktop dan selebar kartu di HP. Petunjuk: untuk melepas batas upstream pilih profil `default`
+  (9,95 Gbps), karena mengosongkan upstream membuat builder menulis `traffic-limit downstream D` saja. Apakah perintah
+  itu mencabut upstream yang sudah terpasang belum diverifikasi.
+- `lang/{id,en}.json` `configonu`: `cfg_profile_from_olt`, `cfg_traffic_hint`, `cfg_traffic_sync_hint`.
+
+### Notes
+
+- Tanpa migrasi, rute, atau config baru. Profil traffic muncul di dropdown setelah **Sync Dari OLT** di halaman Profiles.
+- Verifikasi: `scripts/test.sh` 876 lulus, `npm test` 66 lulus, kv-ui-check 0 pelanggaran keras. Playwright di server
+  lokal (SQLite, admin uji, dua OLT uji dengan & tanpa profil traffic), desktop + HP, 21 cek lolos tanpa error JS.
+  Respons 422 dari pratinjau Register Lanjutan saat form kosong (SN/slot/port/nama) adalah perilaku lama.
+
 ## 2026-10-26 — Changed: `install.sh` & `Dockerfile` memasang Go 1.27 resmi, bukan `golang-go` apt
 
 Pemasangan baru memakai `golang-go` apt (Ubuntu 22.04 = Go 1.18, 24.04 = 1.22) atau image `golang:1.22`. Semuanya
