@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-11-08 — Fixed: pesan alarm, Telegram, dan push mengikuti bahasa instalasi (issue #3)
+
+Laporan pengguna publik (issue #3): instalasi berbahasa Inggris tetap menampilkan «OLT tidak dapat dihubungi: …».
+Pesan alarm ditulis langsung dalam bahasa Indonesia di kode, padahal installer sudah menanyakan bahasa (`APP_LOCALE`).
+
+### Fixed
+
+- `AlarmEvaluator`: semua teks alarm dan pemulihan (OLT tak terjangkau, port down/up, port dimatikan/dinyalakan dari
+  NMS, ODP down/pulih, ONU LOS/dying gasp/offline/online, RX di luar rentang) kini diambil dari
+  `lang/{id,en}/alarm.php` dalam bahasa instalasi.
+- `TelegramNotifier`, `TelegramWebhookManager`, `FcmAlarmNotifier`: teks grup ODP (pulih/down/gangguan), tes notifikasi,
+  dan galat bot ikut diterjemahkan. Judul push memakai `AlarmEvent::typeLabel()` yang kini dwibahasa.
+- `ZteOnuCopyService`, `ZteTr069BulkService`, `CopyOnusToPortJob`, `Tr069BulkConfigJob`: hasil per ONU tugas Salin ONU
+  dan TR069 massal diterjemahkan (kunci baru di `lang/{id,en}/zte.php`).
+
+### Created
+
+- `App\Support\SystemText`: terjemahan dalam bahasa instalasi (`config('app.system_locale')` = `APP_LOCALE`), terpisah
+  dari bahasa UI per user. Teks ini disimpan ke DB atau dikirim ke banyak penerima, jadi tidak boleh ikut bahasa user
+  yang kebetulan memicu aksinya. `app.locale` tak bisa dipakai karena `app()->setLocale()` per request ikut menimpanya.
+- `lang/{id,en}/alarm.php` (pesan, label jenis, Telegram, push). Teks Indonesia identik dengan teks lama, jadi
+  instalasi `APP_LOCALE=id` tidak berubah.
+- `tests/Feature/AlarmSystemLocaleTest.php` (5 test): instalasi `en` menulis alarm berbahasa Inggris, `id` tetap
+  Indonesia, `SystemText` mengabaikan bahasa UI request, `typeLabel()` mengikuti locale + teknologi PON, dan setiap jenis
+  alarm punya label di kedua bahasa.
+
+### Notes
+
+- Alarm yang sudah tersimpan tidak diterjemahkan ulang. Mengganti `APP_LOCALE` berlaku untuk alarm berikutnya setelah
+  `php artisan config:cache` dan restart worker.
+- Balasan perintah bot Telegram dan keluaran perintah konsol belum dwibahasa; menyusul di paket terpisah.
+- Verifikasi: `scripts/test.sh` 884 lulus, `npm test` 66 lulus. Tanpa perubahan frontend atau rute.
+
 ## 2026-10-28 — Fixed: halaman Profiles menolak injeksi CLI lewat catatan dan perintah ZTE ke OLT non-ZTE
 
 ### Fixed

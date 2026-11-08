@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Models\Tr069BulkTask;
 use App\Services\ZteTr069BulkService;
 use App\Support\CliOutputSanitizer;
+use App\Support\SystemText;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -39,7 +40,7 @@ class Tr069BulkConfigJob implements ShouldQueue
 
         $olt = $task->olt;
         if (! $olt) {
-            $task->update(['status' => 'failed', 'error' => 'OLT tidak ditemukan.', 'finished_at' => now()]);
+            $task->update(['status' => 'failed', 'error' => SystemText::get('zte.task_olt_not_found'), 'finished_at' => now()]);
 
             return;
         }

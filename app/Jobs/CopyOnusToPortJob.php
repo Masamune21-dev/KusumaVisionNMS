@@ -6,6 +6,7 @@ use App\Models\CopyOnuTask;
 use App\Models\SnmpOlt;
 use App\Services\ZteOnuCopyService;
 use App\Support\CliOutputSanitizer;
+use App\Support\SystemText;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -37,7 +38,7 @@ class CopyOnusToPortJob implements ShouldQueue
 
         $olt = $task->olt;
         if (! $olt) {
-            $task->update(['status' => 'failed', 'error' => 'OLT tidak ditemukan.', 'finished_at' => now()]);
+            $task->update(['status' => 'failed', 'error' => SystemText::get('zte.task_olt_not_found'), 'finished_at' => now()]);
 
             return;
         }

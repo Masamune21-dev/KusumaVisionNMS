@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Scopes\DemoScope;
 use App\Models\Scopes\PartnerOltScope;
+use App\Support\SystemText;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -68,7 +69,8 @@ class AlarmEvent extends Model
 
     /**
      * Every alarm type the evaluator can raise, with a human label. Single source
-     * of truth for the per-type notification filter (Settings → Alarm).
+     * of truth for the per-type notification filter (Settings → Alarm). Labels here
+     * are the Indonesian fallback; translated labels: {@see self::typeLabel()}.
      */
     public const TYPE_LABELS = [
         self::TYPE_OLT_UNREACHABLE => 'OLT tidak terhubung',
@@ -93,18 +95,15 @@ class AlarmEvent extends Model
      * Label jenis alarm yang menyadari teknologi PON OLT: untuk port-down memakai label PON aktual
      * (GPON/EPON) alih-alih 'PON' generik di {@see self::TYPE_LABELS}. Dipakai judul push FCM & API
      * agar OLT EPON tak salah tertulis "GPON". Jenis lain tak bergantung teknologi PON.
+     * Teks dari lang/{id,en}/alarm.php (`type.*`); `$locale` null = bahasa request,
+     * notifikasi memakai {@see SystemText::locale()}.
      */
-    public static function typeLabel(string $type, string $ponLabel = 'GPON'): string
+    public static function typeLabel(string $type, string $ponLabel = 'GPON', ?string $locale = null): string
     {
-        if ($type === self::TYPE_PORT_DOWN) {
-            return "Port {$ponLabel} down";
-        }
+        $key = "alarm.type.{$type}";
+        $label = __($key, ['pon' => $ponLabel], $locale);
 
-        if ($type === self::TYPE_PORT_DISABLED) {
-            return "Port {$ponLabel} dimatikan admin";
-        }
-
-        return self::TYPE_LABELS[$type] ?? $type;
+        return is_string($label) && $label !== $key ? $label : (self::TYPE_LABELS[$type] ?? $type);
     }
 
     protected $fillable = [

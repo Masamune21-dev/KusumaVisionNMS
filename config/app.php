@@ -96,6 +96,13 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    /*
+    | Bahasa pesan yang dibuat di latar belakang dan dikirim/disimpan untuk semua orang
+    | (teks alarm, notifikasi Telegram & push, hasil tugas massal). Sengaja terpisah dari
+    | 'locale' karena app()->setLocale() per request ikut menimpa 'app.locale'.
+    */
+    'system_locale' => env('APP_LOCALE', 'en'),
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

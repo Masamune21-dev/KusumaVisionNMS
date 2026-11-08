@@ -12,6 +12,7 @@ use App\Services\Alarm\OdpAlarmGrouper;
 use App\Services\AlarmEvaluator;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
+use App\Support\SystemText;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Factory;
@@ -267,7 +268,7 @@ class FcmAlarmNotifier
     private function buildMessage(SnmpOlt $olt, AlarmEvent $alarm, string $event): CloudMessage
     {
         // Label jenis menyadari teknologi PON OLT (EPON tak tertulis "GPON") untuk judul notifikasi.
-        $typeLabel = AlarmEvent::typeLabel($alarm->type, SmartOltSupport::ponLabel($olt));
+        $typeLabel = AlarmEvent::typeLabel($alarm->type, SmartOltSupport::ponLabel($olt), SystemText::locale());
         $emoji = $event === 'cleared' ? '✅' : $this->severityEmoji($alarm->severity);
 
         $title = $event === 'cleared'
@@ -332,15 +333,15 @@ class FcmAlarmNotifier
         );
 
         if ($recovered) {
-            $title = "✅ ODP pulih · $name ($count ONU)";
-            $body = "ODP $name — $count ONU kembali online: ".implode(', ', $names)." — {$olt->name}";
+            $title = '✅ '.SystemText::get('alarm.push.odp_recovered_title', ['odp' => $name, 'count' => $count]);
+            $body = SystemText::get('alarm.push.odp_recovered_body', ['odp' => $name, 'count' => $count, 'list' => implode(', ', $names)])." — {$olt->name}";
         } elseif ($item['all_down']) {
             // Semua ONU 1 ODP down → cukup "ODP ini down (semua)".
             $title = $this->severityEmoji($item['severity'])." ODP DOWN · $name";
-            $body = "ODP $name — semua {$item['total']} pelanggan offline. — {$olt->name}";
+            $body = SystemText::get('alarm.push.odp_all_down_body', ['odp' => $name, 'total' => $item['total']])." — {$olt->name}";
         } else {
-            $title = $this->severityEmoji($item['severity'])." ODP gangguan · $name ($count ONU)";
-            $body = "ODP $name — $count ONU down: ".implode(', ', $names)." — {$olt->name}";
+            $title = $this->severityEmoji($item['severity']).' '.SystemText::get('alarm.push.odp_degraded_title', ['odp' => $name, 'count' => $count]);
+            $body = SystemText::get('alarm.push.odp_degraded_body', ['odp' => $name, 'count' => $count, 'list' => implode(', ', $names)])." — {$olt->name}";
         }
 
         $data = array_map(

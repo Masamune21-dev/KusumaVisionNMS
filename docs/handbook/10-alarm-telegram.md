@@ -21,7 +21,8 @@ sebelumnya dan sesudahnya. Prinsip inti:
 | `los` / `dying_gasp` / `onu_offline` | onu | major / minor / minor (di `onuStateAlarms`) | online → fault (`phase_state`/`last_down_cause`) | online lagi |
 | `high_rx_attenuation` | onu | warning | RX ≤ −28 dBm atau ≥ −8 dBm, dari bacaan sebelumnya yang sehat | kembali ke dalam −26..−10 dBm (histeresis) |
 
-Daftar jenis kanonis + label: `AlarmEvent::TYPE_LABELS` (label frontend dwibahasa lewat
+Daftar jenis kanonis: `AlarmEvent::TYPE_LABELS`; label backend dwibahasa (judul push, API) `AlarmEvent::typeLabel()` →
+`lang/{id,en}/alarm.php` `type.*` (label frontend dwibahasa lewat
 `resources/js/lib/alarm.js` → `alarms.type_*`; jenis baru wajib ditambahkan ke `KNOWN_TYPES` di sana).
 
 **Port kosong bukan gangguan** (28 Sep 2026): port yang terbaca utuh (`port_onus.{slot}_{port}.ok ===
@@ -97,8 +98,13 @@ Membandingkan alarm aktif di DB (`activeAlarms`) dengan yang terdeteksi sekarang
 - Setelah reconcile, raise/clear diteruskan `dispatchNotifications()` ke `TelegramNotifier::notify()`
   dan — bila FCM aktif — job antre `SendFcmAlarmNotifications`. Jalur yang sama dipakai
   `raisePortDisabled()`/`clearPortDisabled()`.
-- Pesan alarm (`message`, `meta.recovery.message`) **sengaja tetap bahasa Indonesia** — disimpan sebagai
-  data oleh worker tanpa locale pengguna; UI menerjemahkan label jenis/status, bukan isi pesan.
+- Pesan alarm (`message`, `meta.recovery.message`), teks Telegram/push FCM, dan hasil per ONU tugas Salin ONU /
+  TR069 massal memakai **bahasa instalasi** (`APP_LOCALE`, dipilih saat `install.sh`) lewat
+  `App\Support\SystemText` → `lang/{id,en}/alarm.php` (dan `zte.php` untuk tugas massal). Bukan bahasa UI user:
+  teks ini disimpan sebagai data atau dikirim ke banyak penerima sekaligus. `SystemText` membaca
+  `config('app.system_locale')` karena `app()->setLocale()` per request ikut menimpa `app.locale`. Alarm yang
+  sudah tersimpan tidak diterjemahkan ulang; ganti `APP_LOCALE` hanya berlaku untuk alarm berikutnya
+  (jalankan `php artisan config:cache` lalu restart worker). UI tetap menerjemahkan label jenis/status sendiri.
 
 ### Penyajian
 - Halaman **Alarms** (`AlarmController` → `SmartOlt/Alarms.vue`) baca `alarm_events`.

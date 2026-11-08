@@ -29,7 +29,7 @@ class TelegramWebhookManager
         $config ??= TelegramSetting::instance();
 
         if ($config->botToken() === '') {
-            return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
+            return ['ok' => false, 'message' => __('alarm.telegram.token_missing')];
         }
 
         $config->markCommandsEnabled();
@@ -58,7 +58,7 @@ class TelegramWebhookManager
         $config ??= TelegramSetting::instance();
 
         if ($config->botToken() === '') {
-            return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
+            return ['ok' => false, 'message' => __('alarm.telegram.token_missing')];
         }
 
         $result = $this->call($config->botToken(), 'getWebhookInfo');
@@ -78,7 +78,7 @@ class TelegramWebhookManager
         $config ??= TelegramSetting::instance();
 
         if ($config->botToken() === '') {
-            return ['ok' => false, 'message' => 'Bot token belum dikonfigurasi.'];
+            return ['ok' => false, 'message' => __('alarm.telegram.token_missing')];
         }
 
         $result = $this->call($config->botToken(), 'deleteWebhook', ['drop_pending_updates' => false]);

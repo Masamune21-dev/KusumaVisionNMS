@@ -6,6 +6,7 @@ use App\Models\AcsSetting;
 use App\Models\SnmpOlt;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
+use App\Support\SystemText;
 
 /**
  * Bulk-activates TR069 (ACS management) on every registered ONU of a ZTE OLT,
@@ -90,7 +91,7 @@ class ZteTr069BulkService
                 $sn = strtoupper(trim((string) ($onu['serial_number'] ?? '')));
 
                 if ($id <= 0 || $sn === '') {
-                    $record($this->item($slot, $port, $id, $sn, 'skipped', 'ONU tidak terdaftar (tanpa serial) — dilewati.'));
+                    $record($this->item($slot, $port, $id, $sn, 'skipped', SystemText::get('zte.tr069_skip_unregistered')));
 
                     continue;
                 }
@@ -103,13 +104,13 @@ class ZteTr069BulkService
                 // queues a working ONU for a write. Surface it as a read failure
                 // so it shows up and can be re-scanned instead.
                 if ($read === null || ! $read['mgmt']) {
-                    $record($this->item($slot, $port, $id, $sn, 'failed', 'Running-config tak lengkap terbaca (blok management hilang) — TR069 tidak diubah, coba pindai ulang.'));
+                    $record($this->item($slot, $port, $id, $sn, 'failed', SystemText::get('zte.tr069_config_incomplete')));
 
                     continue;
                 }
 
                 if ($this->alreadyActive($read['config'], $acs)) {
-                    $record($this->item($slot, $port, $id, $sn, 'skipped', 'TR069 sudah aktif & mengarah ke ACS target.'));
+                    $record($this->item($slot, $port, $id, $sn, 'skipped', SystemText::get('zte.tr069_already_active')));
 
                     continue;
                 }
@@ -125,7 +126,7 @@ class ZteTr069BulkService
             // Dry-run: report intent without touching the OLT.
             if (! $execute) {
                 foreach ($applyIds as $id) {
-                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'would-apply', 'Akan diaktifkan TR069 + ACS.'));
+                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'would-apply', SystemText::get('zte.tr069_would_apply')));
                 }
 
                 continue;
@@ -138,19 +139,19 @@ class ZteTr069BulkService
                 $result = $this->executor->execute($olt, $script);
                 if ($result['ok']) {
                     foreach ($applyIds as $id) {
-                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'applied', 'TR069 diaktifkan + ACS di-set.'));
+                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'applied', SystemText::get('zte.tr069_applied')));
                     }
                 } else {
                     // Galat CLI bisa menggemakan baris `validate basic … password …` — status tugas dikirim ke browser.
                     $error = AcsSetting::maskScript(CliOutputSanitizer::clean((string) ($result['error'] ?? 'unknown')));
                     foreach ($applyIds as $id) {
-                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} error: {$error}"));
+                        $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', SystemText::get('zte.tr069_exec_error', ['port' => "{$slot}/{$port}", 'error' => $error])));
                     }
                 }
             } catch (\Throwable $exception) {
                 $error = AcsSetting::maskScript(CliOutputSanitizer::clean($exception->getMessage()));
                 foreach ($applyIds as $id) {
-                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', "Eksekusi port {$slot}/{$port} gagal: {$error}"));
+                    $record($this->item($slot, $port, $id, $applyOnus[$id], 'failed', SystemText::get('zte.tr069_exec_failed', ['port' => "{$slot}/{$port}", 'error' => $error])));
                 }
             }
         }

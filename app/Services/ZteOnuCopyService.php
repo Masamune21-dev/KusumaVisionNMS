@@ -6,6 +6,7 @@ use App\Models\SmartOltOnuRegistration;
 use App\Models\SnmpOlt;
 use App\Support\CliOutputSanitizer;
 use App\Support\SmartOltSupport;
+use App\Support\SystemText;
 
 /**
  * Batch-copies one or more registered ONUs from a source PON port to another
@@ -83,7 +84,7 @@ class ZteOnuCopyService
 
             if ($cached === null) {
                 $failed++;
-                $record($this->item($srcId, 0, '', false, 'ONU sumber tidak ada di cache port asal.'));
+                $record($this->item($srcId, 0, '', false, SystemText::get('zte.copy_src_missing')));
 
                 continue;
             }
@@ -91,7 +92,7 @@ class ZteOnuCopyService
             $sn = strtoupper(trim((string) ($cached['serial_number'] ?? '')));
             if ($sn === '') {
                 $failed++;
-                $record($this->item($srcId, 0, '', false, 'Serial number ONU sumber kosong — tidak bisa diregister ulang.'));
+                $record($this->item($srcId, 0, '', false, SystemText::get('zte.copy_src_no_serial')));
 
                 continue;
             }
@@ -99,7 +100,7 @@ class ZteOnuCopyService
             $live = $configs[$srcId] ?? ['ok' => false, 'config' => []];
             if (! $live['ok']) {
                 $failed++;
-                $record($this->item($srcId, 0, $sn, false, 'Gagal baca running-config ONU sumber (kosong/tidak terbaca).'));
+                $record($this->item($srcId, 0, $sn, false, SystemText::get('zte.copy_src_config_unreadable')));
 
                 continue;
             }
@@ -108,7 +109,7 @@ class ZteOnuCopyService
             $targetId = $this->allocateOnuId($usedIds);
             if ($targetId === 0) {
                 $failed++;
-                $record($this->item($srcId, 0, $sn, false, 'Slot onu-id di port tujuan habis.'));
+                $record($this->item($srcId, 0, $sn, false, SystemText::get('zte.copy_no_free_id')));
 
                 continue;
             }
@@ -140,7 +141,7 @@ class ZteOnuCopyService
             $created++;
 
             if (! $execute) {
-                $record($this->item($srcId, $targetId, $sn, true, "Script untuk {$onuIface} digenerate."));
+                $record($this->item($srcId, $targetId, $sn, true, SystemText::get('zte.copy_script_generated', ['onu' => $onuIface])));
 
                 continue;
             }
@@ -160,10 +161,10 @@ class ZteOnuCopyService
 
                 if ($result['ok']) {
                     $executed++;
-                    $record($this->item($srcId, $targetId, $sn, true, "Diregister & dieksekusi ke {$onuIface}."));
+                    $record($this->item($srcId, $targetId, $sn, true, SystemText::get('zte.copy_executed', ['onu' => $onuIface])));
                 } else {
                     $failed++;
-                    $record($this->item($srcId, $targetId, $sn, false, "Eksekusi {$onuIface} error: ".$error));
+                    $record($this->item($srcId, $targetId, $sn, false, SystemText::get('zte.copy_exec_error', ['onu' => $onuIface, 'error' => $error])));
                 }
             } catch (\Throwable $exception) {
                 $error = CliOutputSanitizer::clean($exception->getMessage());
@@ -174,7 +175,7 @@ class ZteOnuCopyService
                     'executed_by' => $userId,
                 ]);
                 $failed++;
-                $record($this->item($srcId, $targetId, $sn, false, "Eksekusi {$onuIface} gagal: ".$error));
+                $record($this->item($srcId, $targetId, $sn, false, SystemText::get('zte.copy_exec_failed', ['onu' => $onuIface, 'error' => $error])));
             }
         }
 

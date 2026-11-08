@@ -9,6 +9,7 @@ use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
 use App\Services\Alarm\OdpAlarmGrouper;
 use App\Support\DisplayTime;
+use App\Support\SystemText;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -161,11 +162,11 @@ class TelegramNotifier
         $config ??= TelegramSetting::instance();
 
         if (! $config->isConfigured()) {
-            return ['ok' => false, 'error' => 'Bot token dan chat ID harus diisi terlebih dahulu.'];
+            return ['ok' => false, 'error' => __('alarm.telegram.not_configured')];
         }
 
         $text = '✅ <b>KusumaVision NMS</b>'."\n"
-            .'Tes notifikasi Telegram berhasil. Bot terhubung dengan benar.'
+            .SystemText::get('alarm.telegram.test_ok')
             ."\n\n🕒 ".DisplayTime::stamp();
 
         try {
@@ -190,7 +191,7 @@ class TelegramNotifier
         $token = ($config ?? TelegramSetting::instance())->botToken();
 
         if ($token === '') {
-            return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
+            return ['ok' => false, 'error' => __('alarm.telegram.token_missing')];
         }
 
         $payload = [
@@ -220,7 +221,7 @@ class TelegramNotifier
         $token = ($config ?? TelegramSetting::instance())->botToken();
 
         if ($token === '') {
-            return ['ok' => false, 'error' => 'Bot token belum dikonfigurasi.'];
+            return ['ok' => false, 'error' => __('alarm.telegram.token_missing')];
         }
 
         $payload = [
@@ -346,7 +347,7 @@ class TelegramNotifier
 
             if (! $response->successful() || $response->json('ok') !== true) {
                 $error = $response->json('description')
-                    ?: 'HTTP '.$response->status().' dari Telegram.';
+                    ?: SystemText::get('alarm.telegram.http_error', ['status' => $response->status()]);
             }
         }
 
@@ -416,7 +417,7 @@ class TelegramNotifier
                 $lines[] = '• '.$this->escape(OdpAlarmGrouper::memberLabel($alarm));
             }
 
-            return '✅ <b>ODP PULIH</b> · '.$count.' ONU kembali online'
+            return '✅ <b>'.SystemText::get('alarm.telegram.odp_recovered').'</b> · '.SystemText::get('alarm.telegram.onus_back_online', ['count' => $count])
                 ."\n".'🟧 ODP <b>'.$name.'</b>:'
                 ."\n".implode("\n", $lines);
         }
@@ -425,8 +426,8 @@ class TelegramNotifier
 
         // Semua ONU 1 ODP down → cukup satu baris "ODP ini down".
         if ($item['all_down']) {
-            return $emoji.' <b>ODP DOWN</b> · Semua ONU'
-                ."\n".'🟧 ODP <b>'.$name.'</b> — semua '.$item['total'].' pelanggan offline.';
+            return $emoji.' <b>ODP DOWN</b> · '.SystemText::get('alarm.telegram.odp_all_down_tag')
+                ."\n".'🟧 ODP <b>'.$name.'</b> — '.SystemText::get('alarm.telegram.odp_all_down', ['total' => $item['total']]);
         }
 
         // Sebagian → daftar pelanggan yang down + sebabnya.
@@ -435,9 +436,9 @@ class TelegramNotifier
                 .' — '.$this->escape(OdpAlarmGrouper::causeLabel($alarm->type));
         }
 
-        $suffix = $item['total'] > 0 ? ' dari '.$item['total'] : '';
+        $suffix = $item['total'] > 0 ? SystemText::get('alarm.telegram.of_total', ['total' => $item['total']]) : '';
 
-        return $emoji.' <b>ODP GANGGUAN</b> · '.$count.' ONU down'
+        return $emoji.' <b>'.SystemText::get('alarm.telegram.odp_degraded').'</b> · '.SystemText::get('alarm.telegram.onus_down', ['count' => $count])
             ."\n".'🟧 ODP <b>'.$name.'</b>'.$suffix.':'
             ."\n".implode("\n", $lines);
     }

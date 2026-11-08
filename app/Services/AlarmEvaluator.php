@@ -10,6 +10,7 @@ use App\Services\Alarm\OdpAlarmGrouper;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Telegram\TelegramNotifier;
 use App\Support\SmartOltSupport;
+use App\Support\SystemText;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -104,7 +105,7 @@ class AlarmEvaluator
                     'type' => AlarmEvent::TYPE_OLT_UNREACHABLE,
                     'severity' => AlarmEvent::SEVERITY_CRITICAL,
                     'scope' => 'olt',
-                    'message' => 'OLT tidak dapat dihubungi: '.($snapshot['error'] ?? 'unknown error'),
+                    'message' => SystemText::get('alarm.msg.olt_unreachable', ['error' => $snapshot['error'] ?? SystemText::get('alarm.unknown_error')]),
                 ];
             }
 
@@ -278,13 +279,13 @@ class AlarmEvaluator
     private function buildRecovery(AlarmEvent $alarm, array $current): ?array
     {
         if ($alarm->scope === 'olt') {
-            return ['message' => 'OLT kembali terhubung.', 'online' => true];
+            return ['message' => SystemText::get('alarm.msg.olt_recovered'), 'online' => true];
         }
 
         if ($alarm->type === AlarmEvent::TYPE_PORT_DISABLED) {
             // Penanda dilepas poll = port terbaca UP lewat tenggang, dinyalakan di luar NMS (CLI).
             return [
-                'message' => "{$this->ponLabel} port {$alarm->slot}/{$alarm->port} terbaca menyala lagi (dinyalakan di luar NMS).",
+                'message' => SystemText::get('alarm.msg.port_enabled_outside', ['pon' => $this->ponLabel, 'port' => "{$alarm->slot}/{$alarm->port}"]),
                 'online' => true,
             ];
         }
@@ -297,19 +298,19 @@ class AlarmEvaluator
             // Port down yang kemudian dimatikan admin: bukan pulih, gangguannya kini disengaja.
             if (isset($this->disabledPorts[$key])) {
                 return [
-                    'message' => "{$this->ponLabel} port {$name} dimatikan admin — alarm ditutup.",
+                    'message' => SystemText::get('alarm.msg.port_disabled_closed', ['pon' => $this->ponLabel, 'port' => $name]),
                     'online' => false,
                     'silent' => true,
                 ];
             }
 
-            return ['message' => "{$this->ponLabel} port {$name} kembali up.", 'online' => true];
+            return ['message' => SystemText::get('alarm.msg.port_up', ['pon' => $this->ponLabel, 'port' => $name]), 'online' => true];
         }
 
         if ($alarm->scope === 'odp') {
             $name = data_get($alarm->meta, 'odp_name') ?: 'ODP #'.data_get($alarm->meta, 'odp_id');
 
-            return ['message' => "ODP {$name} kembali normal — ada ONU yang online lagi.", 'online' => true];
+            return ['message' => SystemText::get('alarm.msg.odp_recovered', ['odp' => $name]), 'online' => true];
         }
 
         $key = $alarm->serial_number ?: sprintf('%d/%d:%d', $alarm->slot ?? 0, $alarm->port ?? 0, $alarm->onu_id ?? 0);
@@ -325,10 +326,12 @@ class AlarmEvaluator
 
         if ($alarm->type === AlarmEvent::TYPE_HIGH_RX) {
             $message = $rx !== null
-                ? "ONU {$iface} RX {$rx} dBm kembali normal."
-                : "ONU {$iface} RX kembali normal.";
+                ? SystemText::get('alarm.msg.rx_normal_value', ['onu' => $iface, 'rx' => $rx])
+                : SystemText::get('alarm.msg.rx_normal', ['onu' => $iface]);
         } else {
-            $message = "ONU {$iface} kembali online".($rx !== null ? ", RX {$rx} dBm." : '.');
+            $message = $rx !== null
+                ? SystemText::get('alarm.msg.onu_online_rx', ['onu' => $iface, 'rx' => $rx])
+                : SystemText::get('alarm.msg.onu_online', ['onu' => $iface]);
         }
 
         return ['message' => $message, 'rx_power_dbm' => $rx, 'online' => $online];
@@ -388,7 +391,6 @@ class AlarmEvaluator
 
         // Korelasi root-cause: satu port down menjatuhkan semua ONU-nya. Sebutkan jumlah ONU terdampak
         // agar penerima paham ini bukan gangguan per-ONU; alarm ONU-offline anaknya disupres di onuStateAlarms.
-        $affected = $affectedOnus > 0 ? " ({$affectedOnus} ONU terdampak)" : '';
 
         return [$signature => [
             'type' => AlarmEvent::TYPE_PORT_DOWN,
@@ -396,7 +398,9 @@ class AlarmEvaluator
             'scope' => 'port',
             'slot' => $slot,
             'port' => $portNo,
-            'message' => "{$this->ponLabel} port {$port['name']} oper status down{$affected}.",
+            'message' => $affectedOnus > 0
+                ? SystemText::get('alarm.msg.port_down_affected', ['pon' => $this->ponLabel, 'port' => $port['name'], 'count' => $affectedOnus])
+                : SystemText::get('alarm.msg.port_down', ['pon' => $this->ponLabel, 'port' => $port['name']]),
             'meta' => $affectedOnus > 0 ? ['affected_onus' => $affectedOnus] : null,
         ]];
     }
@@ -429,17 +433,15 @@ class AlarmEvaluator
             return [];
         }
 
-        $where = $status['slot'] !== null && $status['port'] !== null
-            ? " (port {$this->ponLabel} {$status['slot']}/{$status['port']})"
-            : '';
-
         return [$signature => [
             'type' => AlarmEvent::TYPE_ODP_DOWN,
             'severity' => AlarmEvent::SEVERITY_MAJOR,
             'scope' => 'odp',
             'slot' => $status['slot'],
             'port' => $status['port'],
-            'message' => "ODP {$status['name']} down — semua {$status['total']} ONU offline{$where}.",
+            'message' => $status['slot'] !== null && $status['port'] !== null
+                ? SystemText::get('alarm.msg.odp_down_port', ['odp' => $status['name'], 'total' => $status['total'], 'pon' => $this->ponLabel, 'port' => "{$status['slot']}/{$status['port']}"])
+                : SystemText::get('alarm.msg.odp_down', ['odp' => $status['name'], 'total' => $status['total']]),
             'meta' => [
                 'odp_id' => $odpId,
                 'odp_name' => $status['name'],
@@ -599,7 +601,7 @@ class AlarmEvaluator
                 ...$base,
                 'type' => AlarmEvent::TYPE_DYING_GASP,
                 'severity' => AlarmEvent::SEVERITY_MINOR,
-                'message' => "ONU {$iface} power off (dying gasp).",
+                'message' => SystemText::get('alarm.msg.onu_dying_gasp', ['onu' => $iface]),
             ]];
         }
 
@@ -608,7 +610,7 @@ class AlarmEvaluator
                 ...$base,
                 'type' => AlarmEvent::TYPE_LOS,
                 'severity' => AlarmEvent::SEVERITY_MAJOR,
-                'message' => "ONU {$iface} loss of signal (LOS).",
+                'message' => SystemText::get('alarm.msg.onu_los', ['onu' => $iface]),
             ]];
         }
 
@@ -616,7 +618,7 @@ class AlarmEvaluator
             ...$base,
             'type' => AlarmEvent::TYPE_ONU_OFFLINE,
             'severity' => AlarmEvent::SEVERITY_MINOR,
-            'message' => "ONU {$iface} offline (phase: ".($phase ?? 'unknown').').',
+            'message' => SystemText::get('alarm.msg.onu_offline', ['onu' => $iface, 'phase' => $phase ?? 'unknown']),
         ]];
     }
 
@@ -673,7 +675,7 @@ class AlarmEvaluator
             ...$this->onuScopeFields($onu),
             'type' => AlarmEvent::TYPE_HIGH_RX,
             'severity' => AlarmEvent::SEVERITY_WARNING,
-            'message' => "ONU {$iface} RX {$rx} dBm di luar rentang sehat.",
+            'message' => SystemText::get('alarm.msg.high_rx', ['onu' => $iface, 'rx' => $rx]),
             'meta' => [
                 ...$this->onuMeta($onu),
                 'rx_power_dbm' => $rx,
@@ -870,8 +872,8 @@ class AlarmEvaluator
     {
         $this->ponLabel = SmartOltSupport::ponLabel($olt);
         $now = Carbon::now();
-        $affected = $affectedOnus > 0 ? " — {$affectedOnus} ONU terputus sampai port dinyalakan lagi" : '';
-        $by = $actor !== null && $actor !== '' ? " oleh {$actor}" : '';
+        $affected = $affectedOnus > 0 ? SystemText::get('alarm.msg.port_shutdown_affected', ['count' => $affectedOnus]) : '';
+        $by = $actor !== null && $actor !== '' ? SystemText::get('alarm.msg.by_actor', ['actor' => $actor]) : '';
         $data = [
             'type' => AlarmEvent::TYPE_PORT_DISABLED,
             'severity' => AlarmEvent::SEVERITY_MAJOR,
@@ -879,7 +881,7 @@ class AlarmEvaluator
             'scope' => 'port',
             'slot' => $slot,
             'port' => $port,
-            'message' => "{$this->ponLabel} port {$interface} dimatikan (shutdown) dari NMS{$by}{$affected}.",
+            'message' => SystemText::get('alarm.msg.port_shutdown', ['pon' => $this->ponLabel, 'port' => $interface, 'by' => $by, 'affected' => $affected]),
             'meta' => ['affected_onus' => $affectedOnus, 'actor' => $actor, 'disabled_at' => $now->toIso8601String()],
             'last_seen_at' => $now,
         ];
@@ -918,7 +920,7 @@ class AlarmEvaluator
     {
         $this->ponLabel = SmartOltSupport::ponLabel($olt);
         $name = $interface !== null && $interface !== '' ? $interface : "{$slot}/{$port}";
-        $by = $actor !== null && $actor !== '' ? " oleh {$actor}" : '';
+        $by = $actor !== null && $actor !== '' ? SystemText::get('alarm.msg.by_actor', ['actor' => $actor]) : '';
         $cleared = [];
 
         foreach ($this->openPortDisabled($olt, $slot, $port)->get() as $alarm) {
@@ -926,7 +928,7 @@ class AlarmEvaluator
                 'status' => AlarmEvent::STATUS_CLEARED,
                 'cleared_at' => Carbon::now(),
                 'meta' => [...($alarm->meta ?? []), 'recovery' => [
-                    'message' => "{$this->ponLabel} port {$name} dinyalakan lagi dari NMS{$by}.",
+                    'message' => SystemText::get('alarm.msg.port_enabled_nms', ['pon' => $this->ponLabel, 'port' => $name, 'by' => $by]),
                     'online' => true,
                 ]],
             ]);

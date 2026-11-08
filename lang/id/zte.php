@@ -43,4 +43,22 @@ return [
     'epon_use_epon_form' => 'Port ini port EPON (kartu ETG) — daftarkan ONU-nya lewat form registrasi EPON.',
     'epon_port_unknown' => 'Slot/port ini bukan port EPON yang dikenal NMS. Jalankan poll/refresh OLT dulu.',
     'epon_registered_ok' => 'ONU EPON :interface berhasil didaftarkan (sintaks EPON belum terverifikasi — periksa keluaran CLI di riwayat registrasi).',
+
+    // Hasil per ONU tugas Salin ONU & TR069 massal (bahasa instalasi, App\Support\SystemText).
+    'task_olt_not_found' => 'OLT tidak ditemukan.',
+    'copy_src_missing' => 'ONU sumber tidak ada di cache port asal.',
+    'copy_src_no_serial' => 'Serial number ONU sumber kosong — tidak bisa diregister ulang.',
+    'copy_src_config_unreadable' => 'Gagal baca running-config ONU sumber (kosong/tidak terbaca).',
+    'copy_no_free_id' => 'Slot onu-id di port tujuan habis.',
+    'copy_script_generated' => 'Script untuk :onu digenerate.',
+    'copy_executed' => 'Diregister & dieksekusi ke :onu.',
+    'copy_exec_error' => 'Eksekusi :onu error: :error',
+    'copy_exec_failed' => 'Eksekusi :onu gagal: :error',
+    'tr069_skip_unregistered' => 'ONU tidak terdaftar (tanpa serial) — dilewati.',
+    'tr069_config_incomplete' => 'Running-config tak lengkap terbaca (blok management hilang) — TR069 tidak diubah, coba pindai ulang.',
+    'tr069_already_active' => 'TR069 sudah aktif & mengarah ke ACS target.',
+    'tr069_would_apply' => 'Akan diaktifkan TR069 + ACS.',
+    'tr069_applied' => 'TR069 diaktifkan + ACS di-set.',
+    'tr069_exec_error' => 'Eksekusi port :port error: :error',
+    'tr069_exec_failed' => 'Eksekusi port :port gagal: :error',
 ];
