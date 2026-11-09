@@ -1,5 +1,14 @@
 # Worklog
 
+## 2026-11-09 — Fixed: halaman Detail OLT HiOSO kosong/tombol Edit hilang karena `page` tak terdefinisi
+
+- **Fixed** `Pages/Hioso/Detail.vue` memakai `page.props.auth.can.manage_olt` untuk tombol Edit, padahal
+  `const page = usePage()` tidak dideklarasikan → render header melempar `ReferenceError: page is not defined`
+  yang ditelan Vue (halaman bisa tampil kosong, tombol Edit tak pernah muncul). Ditambah `const page = usePage()`,
+  sama seperti `CDataOlt/Detail.vue` & `Hsgq/Detail.vue`. Tak ada komponen `.vue` lain yang memakai `page` tanpa deklarasi.
+- **Notes** Diuji Playwright di server lokal (sqlite, OLT HiOSO fiktif): versi lama memunculkan `ReferenceError` di konsol
+  dan tombol Edit hilang; versi baru tampil lewat navigasi maupun reload, konsol bersih. PHPUnit 884 lulus, Vitest 66 lulus.
+
 ## 2026-11-08 — Fixed: pesan alarm, Telegram, dan push mengikuti bahasa instalasi (issue #3)
 
 Laporan pengguna publik (issue #3): instalasi berbahasa Inggris tetap menampilkan «OLT tidak dapat dihubungi: …».

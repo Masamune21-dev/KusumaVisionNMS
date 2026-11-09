@@ -15,6 +15,8 @@ const props = defineProps({
     port_labels: { type: Object, default: () => ({}) },
 });
 
+const page = usePage();
+
 const system = computed(() => props.snapshot.system ?? {});
 const ports = computed(() => props.snapshot.ports ?? []);
 const counts = computed(() => props.snapshot.port_counts ?? {});
