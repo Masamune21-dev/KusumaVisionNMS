@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\GoPollerTimeoutException;
 use App\Models\OnuRxSample;
 use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
@@ -16,11 +17,18 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Carbon;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Throwable;
 
 class PollOltJob implements ShouldQueue
 {
     use Queueable;
+
+    /** Sisa waktu job yang dicadangkan untuk menyimpan snapshot & evaluasi alarm setelah ulangan poller Go tanpa RX. */
+    private const GO_RETRY_MARGIN_SECONDS = 60;
+
+    /** Ulangan tanpa RX tak dicoba bila sisa waktunya kurang dari ini (status ribuan ONU lewat internet ±45 dtk). */
+    private const GO_RETRY_MIN_SECONDS = 30;
 
     public int $tries = 1;
 
@@ -40,6 +48,7 @@ class PollOltJob implements ShouldQueue
 
     public function handle(OltSnmpClient $client, AlarmEvaluator $alarms, ?GoSnmpPoller $goPoller = null, ?CDataOltScanner $cdataScanner = null, ?ZteEponInventoryService $eponInventory = null): void
     {
+        $startedAt = microtime(true);
         $olt = SnmpOlt::find($this->oltId);
 
         if (! $olt || ! $olt->polling_enabled || ! $olt->isPollDue()) {
@@ -68,12 +77,13 @@ class PollOltJob implements ShouldQueue
 
         if ($goPoller->enabled()) {
             try {
-                $poll = $goPoller->poll($olt, $rxPollDue);
+                [$poll, $rxTimeoutError] = $this->pollViaGo($goPoller, $olt, $rxPollDue, $startedAt);
                 $ports = $poll['ports'] ?? [];
                 $goOnus = $poll['onus'] ?? [];
-                $rxPowerError = $rxPollDue ? data_get($poll, 'rx_power.error') : null;
+                $rxPowerError = $rxPollDue ? ($rxTimeoutError ?? data_get($poll, 'rx_power.error')) : null;
                 $rxPowerError = $rxPowerError === null ? null : (string) $rxPowerError;
-                $rxPollSucceeded = $rxPollDue && data_get($poll, 'rx_power.ok') === true;
+                // Ulangan tanpa RX tetap melapor rx_power.ok=true (bawaan poller Go) — bukan berarti RX terbaca.
+                $rxPollSucceeded = $rxPollDue && $rxTimeoutError === null && data_get($poll, 'rx_power.ok') === true;
                 $preserveExistingRx = ! $rxPollDue || ! $rxPollSucceeded;
                 $poller = 'go';
                 $snapshot = [
@@ -85,6 +95,8 @@ class PollOltJob implements ShouldQueue
                     'error' => $poll['error'] ?? null,
                 ];
                 $onus = is_array($goOnus) ? array_values($goOnus) : [];
+            } catch (GoPollerTimeoutException $exception) {
+                throw $exception;
             } catch (Throwable $exception) {
                 $goPollerError = $exception->getMessage();
             }
@@ -258,6 +270,45 @@ class PollOltJob implements ShouldQueue
         // lagi di sini hanya menggandakan tiap kegagalan jadi dua baris identik.
         if ($rxPollDue && $ok) {
             PollingEvent::log($olt->id, PollingEvent::KIND_RX_POLL, $ok, $error);
+        }
+    }
+
+    /**
+     * Poll lewat poller Go. Bila prosesnya melewati batas waktu saat RX ikut ditarik, ulangi SEKALI tanpa RX
+     * dalam sisa waktu job: tabel RX ZTE C320 dihitung OLT per ONU (±35–80 ms/ONU; OLT 2.325 ONU = RX ±80 dtk
+     * dari poll ±125 dtk, sedangkan C300 dengan jumlah ONU sama cuma 6 dtk), jadi RX-lah yang membengkak saat
+     * OLT sedang berat. Status ONU tetap segar, RX lama dipertahankan, tanpa alarm palsu "OLT tak terjangkau".
+     *
+     * Batas waktu TIDAK pernah jatuh ke fallback PHP: `OltSnmpClient` me-walk tabel yang sama dan lebih lambat,
+     * sehingga job pasti menabrak `$timeout` setelah menahan worker 10 menit tanpa menyimpan apa pun
+     * (21 Okt 2026: 4× berturut-turut di satu OLT C320).
+     *
+     * @return array{0: array<string, mixed>, 1: string|null} hasil poll + pesan RX gagal bila diulang tanpa RX
+     *
+     * @throws GoPollerTimeoutException
+     */
+    private function pollViaGo(GoSnmpPoller $goPoller, SnmpOlt $olt, bool $rxPollDue, float $startedAt): array
+    {
+        try {
+            return [$goPoller->poll($olt, $rxPollDue), null];
+        } catch (ProcessTimedOutException $exception) {
+            $limit = (int) $exception->getExceededTimeout();
+            $budget = $this->timeout - (int) ceil(microtime(true) - $startedAt) - self::GO_RETRY_MARGIN_SECONDS;
+
+            if (! $rxPollDue || $budget < self::GO_RETRY_MIN_SECONDS) {
+                throw new GoPollerTimeoutException(__('olt.go_poller_timeout', ['seconds' => $limit]), previous: $exception);
+            }
+
+            try {
+                $poll = $goPoller->poll($olt, false, (float) min($limit, $budget));
+            } catch (Throwable $retry) {
+                throw new GoPollerTimeoutException(__('olt.go_poller_rx_retry_failed', [
+                    'seconds' => $limit,
+                    'error' => $retry->getMessage(),
+                ]), previous: $retry);
+            }
+
+            return [$poll, __('olt.go_poller_rx_timeout', ['seconds' => $limit])];
         }
     }
 

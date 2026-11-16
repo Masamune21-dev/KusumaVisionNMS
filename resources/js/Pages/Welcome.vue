@@ -642,7 +642,7 @@ onBeforeUnmount(() => {
         >
             <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
                 <Link href="/" class="flex items-center gap-2.5">
-                    <ApplicationLogo class="h-9 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.45)]" />
+                    <ApplicationLogo class="h-9 w-auto" />
                     <div class="leading-tight">
                         <div class="text-[15px] font-bold text-white">KusumaVision</div>
                         <div class="text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
@@ -1221,7 +1221,7 @@ onBeforeUnmount(() => {
                 <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
                     <div class="lg:col-span-2">
                         <div class="flex items-center gap-2.5">
-                            <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+                            <ApplicationLogo class="h-8 w-auto" />
                             <div class="leading-tight">
                                 <div class="text-sm font-bold text-white">KusumaVision NMS</div>
                                 <div class="text-[10px] text-slate-500">PT Berkah Media Kusuma Vision</div>

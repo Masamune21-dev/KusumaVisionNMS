@@ -46,7 +46,7 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
 
         <!-- Brand -->
         <Link href="/" class="relative flex flex-col items-center gap-2">
-            <ApplicationLogo class="h-14 w-auto fill-current text-cyan-400 drop-shadow-[0_0_14px_rgba(34,211,238,0.5)]" />
+            <ApplicationLogo class="h-14 w-auto" />
             <div class="text-center">
                 <div class="text-lg font-bold text-white">KusumaVision NMS</div>
                 <div class="text-[11px] text-slate-500">ZTE OLT Management & Provisioning Platform</div>

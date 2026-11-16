@@ -207,7 +207,7 @@ onUnmounted(() => {
                 <Menu class="h-5 w-5" />
             </button>
             <Link :href="route('dashboard')" class="flex min-w-0 items-center gap-2">
-                <ApplicationLogo class="h-6 w-auto fill-current text-cyan-400" />
+                <ApplicationLogo class="h-6 w-auto" />
                 <span class="hidden text-sm font-bold text-white sm:inline">{{ appName }}</span>
             </Link>
             <div class="ml-auto flex items-center gap-2">
@@ -263,7 +263,7 @@ onUnmounted(() => {
                             @click="sidebarOpen = false"
                         >
                             <div class="relative flex-shrink-0">
-                                <ApplicationLogo class="h-8 w-auto fill-current text-cyan-400" />
+                                <ApplicationLogo class="h-8 w-auto" />
                             </div>
                             <div v-if="showSidebarContent" class="min-w-0">
                                 <div class="truncate text-base font-bold leading-tight text-white">{{ appName }}</div>

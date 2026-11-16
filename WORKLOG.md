@@ -1,5 +1,27 @@
 # Worklog
 
+## 2026-11-16 — Changed: logo & favicon bawaan, dan poller Go tak lagi jatuh ke fallback PHP saat kehabisan waktu
+
+- **Changed — logo bawaan:** `Components/ApplicationLogo.vue` memakai lambang Kusumanet One (SVG, ikut warna teks),
+  dan aset ikon aplikasi ditambahkan — `public/favicon.ico`, `public/apple-touch-icon.png`,
+  `public/images/kusumanet-one.webp` — lalu dipasang di `resources/views/app.blade.php`. `Layouts/GuestLayout.vue`,
+  `Layouts/AuthenticatedLayout.vue`, dan `Pages/Welcome.vue` menyusul supaya logo tampil konsisten di halaman
+  masuk, kerangka aplikasi, dan halaman depan.
+- **Changed — poller Go:** kegagalan batas waktu poller Go kini dibedakan dari kegagalan biasa lewat
+  `App\Exceptions\GoPollerTimeoutException`; `PollOltJob` membatalkan poll tabel yang lambat tanpa menjalankan
+  **fallback PHP** (tabel yang sama, jauh lebih lambat, hanya menambah beban OLT), dan mencoba **ulangan tanpa RX**
+  dengan sisa waktu yang disisakan (`GO_RETRY_MARGIN_SECONDS` / `GO_RETRY_MIN_SECONDS`) agar status ONU tetap
+  segar walau tabel RX kehabisan waktu. Pesan barunya ada di `lang/{id,en}/olt.php`
+  (`go_poller_timeout`, `go_poller_rx_timeout`, `go_poller_rx_retry_failed`).
+- **Notes — tidak ikut paket ini:** *HiOSO melewati walk RX saat belum jatuh tempo* (`SkipsRxWalk`) sengaja
+  **ditunda** karena bergantung pada pembacaan Rx dari TR-069 (GenieACS) yang belum ada di edisi publik —
+  memasukkannya sekarang berarti menyalin separuh fitur. Label dropdown batas GEM Port juga sudah ada di
+  `main` (dirilis bersama paket Traffic Profile), jadi tak ada perubahan baru.
+- **Notes — verifikasi:** `scripts/test.sh` 900 lulus (5.190 assertion, termasuk 4 test baru alur timeout poller),
+  `npm test` 66 lulus, `kv-ui-check` 0 pelanggaran keras, `npm run build` bersih. Dirender dengan Playwright
+  (sqlite + data demo): halaman masuk menampilkan logo SVG baru, `favicon.ico` & `apple-touch-icon.png` terpasang
+  di `<head>`, kerangka aplikasi memuat logo di sidebar, 0 galat konsol/404.
+
 ## 2026-11-16 — Changed: bilah tab & menu aksi bersama di semua halaman OLT, halaman ONU Monitoring dihapus
 
 - **Created — `Components/SmartOlt/OltPageHeader.vue`:** satu kepala halaman untuk ZTE, C-Data, HiOSO, dan HSGQ —

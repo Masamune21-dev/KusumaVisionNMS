@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\GoPollerTimeoutException;
 use App\Jobs\PollOltJob;
 use App\Models\OnuRxSample;
+use App\Models\PollingEvent;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\CData\CDataOltScanner;
@@ -11,8 +13,12 @@ use App\Services\Snmp\GoSnmpPoller;
 use App\Services\Snmp\OltSnmpClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use LogicException;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
+use Throwable;
 
 class OltPollingTest extends TestCase
 {
@@ -380,32 +386,99 @@ class OltPollingTest extends TestCase
 
     private function fakeGoPoller(array $onus): GoSnmpPoller
     {
-        return new class($onus) extends GoSnmpPoller
+        return new class($this->goPollResult($onus)) extends GoSnmpPoller
         {
-            public function __construct(private readonly array $onus) {}
+            public function __construct(private readonly array $result) {}
 
             public function enabled(): bool
             {
                 return true;
             }
 
-            public function poll(SnmpOlt $olt, bool $includeRx): array
+            public function poll(SnmpOlt $olt, bool $includeRx, ?float $processTimeout = null): array
             {
-                return [
-                    'ok' => true,
-                    'driver' => 'zte',
-                    'latency_ms' => 5,
-                    'system' => ['sys_name' => 'ZXAN'],
-                    'ports' => [
-                        // Port 1/1 cocok dgn ONU fakeClient::registeredOnus (fallback C600);
-                        // port 3/1 cocok dgn goOnu (jalur non-C600). Keduanya agar bucketing jalan.
-                        ['if_index' => 268501760, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
-                        ['if_index' => 285278977, 'name' => 'gpon_olt-1/3/1', 'slot' => 3, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
-                    ],
-                    'onus' => $this->onus, // C600: poller Go tak punya OID ONU-nya → selalu kosong
-                    'rx_power' => ['ok' => false, 'error' => null],
-                    'error' => null,
-                ];
+                return $this->result;
+            }
+        };
+    }
+
+    private function goPollResult(array $onus, array $rxPower = ['ok' => false, 'error' => null]): array
+    {
+        return [
+            'ok' => true,
+            'driver' => 'zte',
+            'latency_ms' => 5,
+            'system' => ['sys_name' => 'ZXAN'],
+            'ports' => [
+                // Port 1/1 cocok dgn ONU fakeClient::registeredOnus (fallback C600);
+                // port 3/1 cocok dgn goOnu (jalur non-C600). Keduanya agar bucketing jalan.
+                ['if_index' => 268501760, 'name' => 'gpon-olt_1/1/1', 'slot' => 1, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
+                ['if_index' => 285278977, 'name' => 'gpon_olt-1/3/1', 'slot' => 3, 'port' => 1, 'oper_status_code' => 1, 'oper_status' => 'up'],
+            ],
+            'onus' => $onus, // C600: poller Go tak punya OID ONU-nya → selalu kosong
+            'rx_power' => $rxPower,
+            'error' => null,
+        ];
+    }
+
+    /**
+     * Poller Go yang melewati batas waktu proses setiap kali RX ikut ditarik (perilaku OLT C320 besar).
+     * `$retry` = hasil ulangan tanpa RX: array poll, Throwable yang dilempar, atau null = ikut melewati batas waktu.
+     */
+    private function timingOutGoPoller(array|Throwable|null $retry): GoSnmpPoller
+    {
+        return new class($retry) extends GoSnmpPoller
+        {
+            /** @var list<array{0: bool, 1: float|null}> */
+            public array $calls = [];
+
+            public function __construct(private readonly array|Throwable|null $retry) {}
+
+            public function enabled(): bool
+            {
+                return true;
+            }
+
+            public function poll(SnmpOlt $olt, bool $includeRx, ?float $processTimeout = null): array
+            {
+                $this->calls[] = [$includeRx, $processTimeout];
+
+                if ($includeRx || $this->retry === null) {
+                    throw new ProcessTimedOutException(
+                        new Process(['kv-snmp-poller'], null, null, null, 300),
+                        ProcessTimedOutException::TYPE_GENERAL,
+                    );
+                }
+
+                if ($this->retry instanceof Throwable) {
+                    throw $this->retry;
+                }
+
+                return $this->retry;
+            }
+        };
+    }
+
+    /** OltSnmpClient yang menggagalkan test bila fallback PHP sampai dijalankan. */
+    private function forbiddenPhpClient(): OltSnmpClient
+    {
+        return new class extends OltSnmpClient
+        {
+            public function __construct() {}
+
+            public function snapshot(SnmpOlt $olt): array
+            {
+                throw new LogicException('Fallback PHP tidak boleh jalan setelah poller Go melewati batas waktu.');
+            }
+
+            public function registeredOnus(SnmpOlt $olt, ?array $ports = null, ?string $scope = null): array
+            {
+                throw new LogicException('Fallback PHP tidak boleh jalan setelah poller Go melewati batas waktu.');
+            }
+
+            public function onuRxPowers(SnmpOlt $olt, ?string $scope = null): array
+            {
+                throw new LogicException('Fallback PHP tidak boleh jalan setelah poller Go melewati batas waktu.');
             }
         };
     }
@@ -463,5 +536,94 @@ class OltPollingTest extends TestCase
         $this->assertCount(1, $onus);
         $this->assertSame('C600GO5', $onus[0]['serial_number']); // dari Go native, bukan fallback PHP
         $this->assertSame('GO CUSTOMER', $onus[0]['name']);
+    }
+
+    public function test_poll_job_retries_go_without_rx_when_rx_poll_times_out(): void
+    {
+        // OLT C320 besar: tabel RX dihitung OLT per ONU sehingga poller Go menabrak batas waktunya. Status ONU
+        // harus tetap tersimpan dari ulangan tanpa RX, RX lama dipertahankan, dan fallback PHP tak dijalankan.
+        $olt = $this->makeOlt([
+            'polling_enabled' => true,
+            'last_test_result' => [
+                'port_onus' => [
+                    '3_1' => [
+                        'onus' => [
+                            ['onu_id' => 5, 'rx_power_dbm' => -18.5, 'rx_power_label' => '-18.500 dBm', 'rx_power_source' => 'snmp_onu_rx'],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $goOnu = [[
+            'if_index' => 285278977, 'onu_id' => 5, 'slot' => 3, 'port' => 1,
+            'interface' => 'gpon-onu_1/3/1:5', 'type_name' => 'F660', 'serial_number' => 'ZTEGRETRY5',
+            'name' => 'PELANGGAN UJI', 'online' => true, 'phase_state' => 'Working',
+        ]];
+        // Poller Go asli tetap melapor rx_power.ok=true walau RX tidak ditarik.
+        $goPoller = $this->timingOutGoPoller($this->goPollResult($goOnu, ['ok' => true, 'source' => 'snmp', 'count' => 0, 'error' => null]));
+
+        (new PollOltJob($olt->id))->handle($this->forbiddenPhpClient(), new AlarmEvaluator, $goPoller);
+
+        $this->assertSame([[true, null], [false, 300.0]], $goPoller->calls);
+
+        $olt->refresh();
+        $this->assertTrue($olt->last_test_result['ok']);
+        $this->assertSame('go', $olt->last_test_result['poller']);
+        $this->assertNotNull($olt->last_polled_at);
+        $this->assertNull($olt->last_rx_polled_at, 'RX tidak terbaca, jadwal RX tak boleh maju');
+        $this->assertSame('ZTEGRETRY5', data_get($olt->last_test_result, 'port_onus.3_1.onus.0.serial_number'));
+        $this->assertSame(-18.5, data_get($olt->last_test_result, 'port_onus.3_1.onus.0.rx_power_dbm'));
+        $this->assertDatabaseCount('onu_rx_samples', 0);
+
+        $rxEvent = PollingEvent::query()->where('snmp_olt_id', $olt->id)->where('kind', PollingEvent::KIND_RX_POLL)->sole();
+        $this->assertFalse((bool) $rxEvent->success);
+        $this->assertStringContainsString('batas waktu', (string) $rxEvent->message);
+    }
+
+    public function test_poll_job_fails_without_php_fallback_when_go_times_out_and_rx_is_not_due(): void
+    {
+        $olt = $this->makeOlt([
+            'polling_enabled' => true,
+            'rx_poll_interval_minutes' => 15,
+            'last_rx_polled_at' => now()->subMinutes(5),
+        ]);
+        $goPoller = $this->timingOutGoPoller(null);
+
+        try {
+            (new PollOltJob($olt->id))->handle($this->forbiddenPhpClient(), new AlarmEvaluator, $goPoller);
+            $this->fail('GoPollerTimeoutException tidak dilempar.');
+        } catch (GoPollerTimeoutException $exception) {
+            $this->assertStringContainsString('300 detik', $exception->getMessage());
+        }
+
+        $this->assertSame([[false, null]], $goPoller->calls);
+        $this->assertNull($olt->refresh()->last_polled_at);
+    }
+
+    public function test_poll_job_fails_without_php_fallback_when_retry_without_rx_also_fails(): void
+    {
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+        $goPoller = $this->timingOutGoPoller(new RuntimeException('request timeout (after 2 retries)'));
+
+        $this->expectException(GoPollerTimeoutException::class);
+        $this->expectExceptionMessage('request timeout (after 2 retries)');
+
+        (new PollOltJob($olt->id))->handle($this->forbiddenPhpClient(), new AlarmEvaluator, $goPoller);
+    }
+
+    public function test_poll_job_skips_retry_without_rx_when_job_time_is_nearly_spent(): void
+    {
+        $olt = $this->makeOlt(['polling_enabled' => true]);
+        $goPoller = $this->timingOutGoPoller($this->goPollResult([]));
+        $job = new PollOltJob($olt->id);
+        $job->timeout = 60; // sisa waktu 60 − margin 60 dtk < minimum ulangan
+
+        try {
+            $job->handle($this->forbiddenPhpClient(), new AlarmEvaluator, $goPoller);
+            $this->fail('GoPollerTimeoutException tidak dilempar.');
+        } catch (GoPollerTimeoutException) {
+        }
+
+        $this->assertSame([[true, null]], $goPoller->calls);
     }
 }

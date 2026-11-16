@@ -4,6 +4,7 @@ namespace App\Services\Snmp;
 
 use App\Models\SnmpOlt;
 use RuntimeException;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 class GoSnmpPoller
@@ -18,9 +19,12 @@ class GoSnmpPoller
     }
 
     /**
+     * @param  float|null  $processTimeout  batas waktu proses (detik); null = `services.snmp_poller.process_timeout`
      * @return array<string, mixed>
+     *
+     * @throws ProcessTimedOutException proses melewati batas waktunya
      */
-    public function poll(SnmpOlt $olt, bool $includeRx): array
+    public function poll(SnmpOlt $olt, bool $includeRx, ?float $processTimeout = null): array
     {
         if ($olt->snmp_version === 'v3') {
             throw new RuntimeException(__('olt.go_poller_v3_unsupported'));
@@ -53,7 +57,7 @@ class GoSnmpPoller
             base_path(),
             ['KV_SNMP_COMMUNITY' => $olt->snmp_read_community],
             null,
-            (float) config('services.snmp_poller.process_timeout', 300),
+            $processTimeout ?? (float) config('services.snmp_poller.process_timeout', 300),
         );
         $process->run();
 
