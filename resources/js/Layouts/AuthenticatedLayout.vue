@@ -11,7 +11,7 @@ import ThemeSegmented from '@/Components/Shell/ThemeSegmented.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellRing, BookOpen, Cable, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Radar, ScrollText, Search, Send, Settings, User, Users, Waypoints, WifiOff } from '@lucide/vue';
+import { BellRing, BookOpen, Cable, ChevronDown, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Network, Radar, ScrollText, Search, Send, Settings, ShieldCheck, User, Users, Waypoints, WifiOff } from '@lucide/vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -44,6 +44,8 @@ const userInitial = computed(() => (user.value.name ?? '?').charAt(0).toUpperCas
 // Menu dikelompokkan per alur kerja: label kelompok
 // saat sidebar lebar, garis pemisah saat diciutkan. Kelompok yang semua itemnya tersembunyi
 // (mis. Administrasi untuk operator) ikut hilang supaya tak ada label kosong.
+// Kelompok dengan banyak menu (Jaringan OLT & Administrasi) tampil sebagai dropdown —
+// sama seperti Billing. Saat diciutkan ke ikon, semua menunya tetap tampil.
 const navGroups = computed(() => {
     const groups = [
         {
@@ -56,6 +58,8 @@ const navGroups = computed(() => {
         {
             key: 'network',
             label: t('nav.group_network'),
+            dropdown: true,
+            icon: Network,
             items: [
                 { name: t('nav.smartolt'), icon: Cable, href: route('smartolt.index'), match: ['smartolt.*', 'cdata-olt.*', 'hioso-olt.*', 'hsgq-olt.*'], except: 'smartolt.unconfigured-all' },
                 { name: t('nav.unconfigured'), icon: WifiOff, href: route('smartolt.unconfigured-all'), match: 'smartolt.unconfigured-all' },
@@ -81,6 +85,8 @@ const navGroups = computed(() => {
         {
             key: 'admin',
             label: t('nav.group_admin'),
+            dropdown: true,
+            icon: ShieldCheck,
             items: [
                 can.value.manage_users && {
                     name: t('nav.users'),
@@ -112,6 +118,29 @@ const isActive = (link) => {
     return true;
 };
 
+/*
+ * Kelompok dropdown (Jaringan OLT & Administrasi) membuka/menutup menunya di
+ * tempat, pola yang sama dengan sidebar Billing. Buka/tutupnya diingat per
+ * browser; kelompok yang memuat halaman aktif selalu dibuka saat halaman
+ * dimuat. Saat sidebar diciutkan ke ikon, semua menu tampil seperti biasa.
+ */
+const SIDEBAR_GROUPS_KEY = 'kv-sidebar-groups';
+const groupOpen = ref({});
+const groupHasActive = (group) => group.items.some((link) => isActive(link));
+const isGroupOpen = (group) => !group.dropdown || !showSidebarContent.value || !!groupOpen.value[group.key];
+const simpanGroupOpen = () => {
+    if (typeof window === 'undefined') return;
+    try {
+        window.localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(groupOpen.value));
+    } catch (e) {
+        // Penyimpanan browser diblokir — buka/tutup tetap jalan, hanya tidak diingat.
+    }
+};
+const toggleGroup = (group) => {
+    groupOpen.value = { ...groupOpen.value, [group.key]: !groupOpen.value[group.key] };
+    simpanGroupOpen();
+};
+
 const onKey = (e) => {
     const isModK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey);
     if (isModK) {
@@ -135,6 +164,20 @@ onMounted(() => {
     sidebarMediaQuery = window.matchMedia('(min-width: 1024px)');
     syncSidebarViewport();
     sidebarMediaQuery.addEventListener('change', syncSidebarViewport);
+
+    // Pulihkan buka/tutup kelompok dropdown, lalu pastikan kelompok yang memuat
+    // halaman aktif selalu terbuka.
+    let tersimpan = {};
+    try {
+        tersimpan = JSON.parse(window.localStorage.getItem(SIDEBAR_GROUPS_KEY) || '{}') || {};
+    } catch (e) {
+        tersimpan = {};
+    }
+    navGroups.value
+        .filter((group) => group.dropdown && groupHasActive(group))
+        .forEach((group) => { tersimpan[group.key] = true; });
+    groupOpen.value = tersimpan;
+    simpanGroupOpen();
 });
 
 onUnmounted(() => {
@@ -244,9 +287,32 @@ onUnmounted(() => {
                     <!-- Navigation -->
                     <nav class="min-h-0 flex-1 overflow-y-auto px-3 py-4">
                         <template v-for="(group, gi) in navGroups" :key="group.key">
+                            <!-- Kelompok dropdown: kepala berupa tombol buka/tutup, sama seperti Billing -->
+                            <div
+                                v-if="showSidebarContent && group.dropdown"
+                                :class="gi === 0 ? '' : (navGroups[gi - 1]?.dropdown ? 'pt-1.5' : 'pt-4')"
+                            >
+                                <button
+                                    type="button"
+                                    :aria-expanded="isGroupOpen(group) ? 'true' : 'false'"
+                                    :aria-controls="`nav-grup-${group.key}`"
+                                    class="flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                                    :class="!isGroupOpen(group) && groupHasActive(group)
+                                        ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30'
+                                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'"
+                                    @click="toggleGroup(group)"
+                                >
+                                    <component :is="group.icon" class="h-4 w-4 flex-shrink-0" />
+                                    <span class="truncate">{{ group.label }}</span>
+                                    <ChevronDown
+                                        class="ml-auto h-4 w-4 flex-shrink-0 text-slate-400 transition-transform"
+                                        :class="{ 'rotate-180': isGroupOpen(group) }"
+                                    />
+                                </button>
+                            </div>
                             <!-- Label kelompok; saat sidebar diciutkan berubah jadi garis pemisah -->
                             <div
-                                v-if="showSidebarContent"
+                                v-else-if="showSidebarContent"
                                 class="px-3 pb-1.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-slate-500"
                                 :class="gi === 0 ? 'pt-0.5' : 'pt-4'"
                             >
@@ -254,7 +320,12 @@ onUnmounted(() => {
                             </div>
                             <div v-else-if="gi > 0" class="mx-auto my-2.5 h-px w-8 bg-slate-700/70" role="separator" :aria-label="group.label"></div>
 
-                            <div class="space-y-1.5">
+                            <div
+                                v-show="isGroupOpen(group)"
+                                :id="group.dropdown ? `nav-grup-${group.key}` : undefined"
+                                class="space-y-1.5"
+                                :class="group.dropdown && showSidebarContent ? 'ml-3 mt-1.5 border-l border-slate-700/70 pl-1.5' : ''"
+                            >
                                 <Link
                                     v-for="link in group.items"
                                     :key="link.name"
@@ -266,7 +337,11 @@ onUnmounted(() => {
                                         isActive(link)
                                             ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-onaccent shadow-lg shadow-cyan-500/30'
                                             : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
-                                        showSidebarContent ? 'gap-3 px-3.5 py-3' : 'mx-auto h-11 w-11 justify-center',
+                                        // Di dalam dropdown sedikit lebih rapat supaya nama panjang
+                                        // tidak terpotong oleh indentasi.
+                                        showSidebarContent
+                                            ? (group.dropdown ? 'gap-2.5 px-3 py-3' : 'gap-3 px-3.5 py-3')
+                                            : 'mx-auto h-11 w-11 justify-center',
                                     ]"
                                     :title="!showSidebarContent ? link.name : null"
                                     @click="sidebarOpen = false"
@@ -375,9 +450,9 @@ onUnmounted(() => {
             </div>
 
             <!-- Page content -->
-            <main class="relative z-10 flex-1">
+            <main class="relative z-10 flex flex-1 flex-col min-h-0">
                 <Transition name="page" mode="out-in">
-                    <div :key="page.component" class="relative min-w-0">
+                    <div :key="page.component" class="relative flex flex-1 flex-col min-h-0 min-w-0 [&>*]:shrink-0">
                         <slot />
                     </div>
                 </Transition>
@@ -388,7 +463,7 @@ onUnmounted(() => {
             <!-- Footer — desktop: diam di dasar layar (di luar area gulir); HP: di akhir halaman -->
             <footer class="kv-shell-bar z-10 flex-shrink-0 border-t border-white/10 bg-canvas-3/40 backdrop-blur-xl">
                 <div class="flex flex-col items-center justify-between gap-1 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
-                    <p>&copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}</p>
+                    <p>&copy; {{ copyrightYear }} {{ appName }} &middot; {{ owner }}</p>
                     <p class="hidden sm:block">{{ $t('shell.footer_tagline') }}</p>
                 </div>
             </footer>

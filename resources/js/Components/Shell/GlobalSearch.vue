@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ArrowRight, Cable, Loader2, Search, WifiOff } from '@lucide/vue';
 
@@ -8,6 +8,11 @@ const props = defineProps({
     open: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:open']);
+
+// Label sumber hasil mengikuti identitas aplikasi di Pengaturan › Umum,
+// bukan nama hardcoded — supaya tidak menyimpang dari sidebar/footer.
+const page = usePage();
+const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
 
 const query = ref('');
 const results = ref([]);
@@ -107,7 +112,7 @@ const iconFor = (type) => ({
                             class="h-14 w-full border-0 bg-transparent text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-0"
                         />
                         <Loader2 v-if="loading" class="h-4 w-4 flex-shrink-0 animate-spin text-cyan-400" />
-                        <kbd class="hidden flex-shrink-0 items-center rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5 text-[11px] text-slate-400 sm:inline-flex">esc</kbd>
+                        <kbd class="hidden flex-shrink-0 items-center rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5 text-xs text-slate-400 sm:inline-flex">esc</kbd>
                     </div>
 
                     <div class="max-h-[60vh] overflow-y-auto">
@@ -136,7 +141,7 @@ const iconFor = (type) => ({
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between gap-3 border-t border-white/10 bg-canvas-3/40 px-4 py-2 text-[11px] text-slate-500">
+                    <div class="flex items-center justify-between gap-3 border-t border-white/10 bg-canvas-3/40 px-4 py-2 text-xs text-slate-500">
                         <span class="flex items-center gap-3">
                             <span class="flex items-center gap-1">
                                 <kbd class="rounded border border-white/10 bg-slate-800/80 px-1.5 py-0.5">&uarr;&darr;</kbd>
@@ -147,7 +152,7 @@ const iconFor = (type) => ({
                                 {{ $t('shell.search_pick') }}
                             </span>
                         </span>
-                        <span>KusumaVision NMS</span>
+                        <span>{{ appName }}</span>
                     </div>
                 </div>
             </div>

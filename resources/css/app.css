@@ -442,6 +442,14 @@
         @apply block min-h-11 w-full rounded-lg border-white/10 bg-slate-900/60 px-3 text-sm text-slate-100 shadow-inner shadow-black/20 placeholder:text-slate-500 focus:border-cyan-500 focus:ring-cyan-500 disabled:cursor-not-allowed disabled:opacity-50;
     }
 
+    /* Panah bawaan <select> (plugin forms) butuh ruang di kanan; padding
+       horizontal kelas ini dulu menimpanya sehingga teks pilihan tertimpa panah
+       ("Semua Port", "Semua OLT", dll.) pada select yang lebarnya auto. */
+    select.kv-filter-control {
+        padding-right: 2.25rem;
+        background-position: right 0.6rem center;
+    }
+
     /* Baris tombol aksi (Reset/Terapkan) di kaki kartu filter server-side. */
     .kv-filter-actions {
         @apply mt-4 grid gap-2 border-t border-white/10 pt-4 sm:flex sm:flex-wrap sm:items-center sm:justify-end;

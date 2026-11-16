@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-11-16 — Changed: sidebar kelompok dropdown, kerangka isi flex-fill, dan tiga perapian kecil
+
+- **Changed — `Layouts/AuthenticatedLayout.vue`:**
+  - Kelompok **Jaringan OLT** dan **Administrasi** kini tampil sebagai **dropdown berikon** dengan submenu menjorok
+    (pola yang sama dengan sidebar aplikasi Billing). Kelompok pendek (Ringkasan, Lapangan, Pantauan, Bantuan) tetap
+    datar agar Alarm, Laporan, Peta, dan ODP tetap satu klik. Buka/tutup diingat per browser (`localStorage
+    kv-sidebar-groups`), kelompok yang memuat halaman aktif selalu terbuka saat halaman dimuat, dan saat sidebar
+    diciutkan ke ikon semua menu tetap tampil seperti sebelumnya.
+  - Kerangka halaman dibuat **flex-fill**: `<main>` dan pembungkus transisi halaman kini `flex flex-1 flex-col min-h-0`
+    dan anak langsungnya `shrink-0`. Footer tetap menempel di dasar layar di semua breakpoint, hanya satu scrollbar
+    (area `.kv-app-scroll`), dan padding bawah halaman tidak lagi terlipat sehingga kartu terakhir tidak menempel ke
+    footer. Berlaku sama untuk tema gelap dan terang.
+  - Footer **tidak lagi menulis akhiran «NMS» ganda** (`branding.name` sudah memuat nama lengkap) dan label
+    «KusumaVision NMS» yang hardcoded di hasil palet pencarian diganti `appName` dari Pengaturan › Umum.
+- **Changed — `Components/Shell/GlobalSearch.vue`:** label sumber hasil pencarian memakai `appName`, bukan teks tetap.
+- **Fixed — `resources/css/app.css`:** `select.kv-filter-control` diberi `padding-right` + `background-position` supaya
+  teks pilihan tidak tertimpa panah bawaan `<select>` pada select selebar auto («Semua Port», «Semua OLT», dll.).
+- **Notes** Verifikasi: `scripts/test.sh` 884 lulus (5.145 assertion), `npm test` 66 lulus, `kv-ui-check` 0 pelanggaran
+  keras pada berkas yang disentuh (metrik `<button>` +1 karena kepala kelompok dropdown; metrik lain tidak bertambah).
+  Dirender dengan Playwright di server lokal (sqlite + data demo, tema gelap & terang) untuk `/dashboard`, `/smartolt`,
+  `/users`, `/panduan`, `/alarms`, `/map`: **0 galat konsol/jaringan**, footer selalu di dasar viewport, tak ada scroll
+  ganda, padding bawah halaman utuh. Dropdown diuji buka/tutup, diingat setelah reload, dan kelompok berisi halaman
+  aktif terbuka otomatis; saat sidebar diciutkan semua menu tetap tampil.
+
 ## 2026-11-09 — Fixed: halaman Detail OLT HiOSO kosong/tombol Edit hilang karena `page` tak terdefinisi
 
 - **Fixed** `Pages/Hioso/Detail.vue` memakai `page.props.auth.can.manage_olt` untuk tombol Edit, padahal
