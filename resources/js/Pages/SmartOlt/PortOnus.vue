@@ -873,7 +873,7 @@ const rxBadgeClass = (value) => {
                                     </div>
                                     <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('portonus.col_acs') }}</span>
-                                        <AcsPinCell :acs="acsFor(onu)" :can-manage="canUseAcs" @pin="openPin(onu)" />
+                                        <AcsPinCell :acs="acsFor(onu)" :onu-online="onu.online" :can-manage="canUseAcs" @pin="openPin(onu)" />
                                     </div>
                                     <div class="kv-mobile-field">
                                         <span class="kv-mobile-label">{{ $t('portonus.col_odp') }}</span>
@@ -993,7 +993,7 @@ const rxBadgeClass = (value) => {
                                         <span class="font-mono text-xs text-slate-200">{{ onu.serial_number || '—' }}</span>
                                     </td>
                                     <td class="px-4 py-3">
-                                        <AcsPinCell :acs="acsFor(onu)" :can-manage="canUseAcs" @pin="openPin(onu)" />
+                                        <AcsPinCell :acs="acsFor(onu)" :onu-online="onu.online" :can-manage="canUseAcs" @pin="openPin(onu)" />
                                     </td>
                                     <td class="px-4 py-3">
                                         <OnuOdpCell

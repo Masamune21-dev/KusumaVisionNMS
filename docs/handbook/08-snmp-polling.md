@@ -207,6 +207,14 @@ per `"slot_port"` agar halaman per-port & ONU Monitoring cepat membacanya.
   (best-effort). Status port HiOSO yang tak terbaca SNMP diturunkan dari jumlah ONU online.
 - Job menambahkan `ok`/`error`/`poller = cdata` (penanda yang dibutuhkan `AlarmEvaluator`), mencatat
   sampel RX saat RX due, lalu mengevaluasi alarm.
+- **Walk RX hanya saat RX due (HiOSO, 26 Okt 2026)**: job memanggil `scan($olt, walkRx: $rxPollDue)`; driver
+  yang mengimplementasikan `App\Contracts\SkipsRxWalk` (saat ini hanya `HiosoEponSnmpService`) melewati tabel
+  RX dan membawa nilai + sumber RX poll lalu (padanan `preserveExistingRx` ZTE); status tetap segar dari
+  link-state. Tanpa satu pun baris link-state, walk RX tetap jalan (status bergantung RX). Cadangan TR-069
+  hanya mengisi ONU yang di poll RX terakhir tak punya RX OLT valid. Alasannya waktu: tabel RX HiOSO dihitung
+  OLT ±150 ms/ONU — GEMBONG-1 (155 ONU) 30,5 dtk → 1,8 dtk tanpa RX, PATI 28,1 → 0,3, NDOKATON 14,3 → 0,5,
+  status identik. Go vs PHP terukur sama lambatnya, jadi bahasa bukan pengungkitnya. Driver lain (C-Data,
+  HSGQ) tetap membaca RX tiap scan; refresh manual/halaman selalu dengan RX.
 - Aturan status per vendor (jangan diubah tanpa verifikasi live): C-Data GPON online dari
   `onuOperationStatus` `.7` (bukan tabel optik `34592…21`); HiOSO online dari link-state `.39.1`
   (bukan disimpulkan dari Rx). Detail OID: [17](17-cdata-gpon-snmp-walk.md),

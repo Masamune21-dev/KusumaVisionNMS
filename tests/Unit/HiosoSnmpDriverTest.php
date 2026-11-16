@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Models\SnmpOlt;
+use App\Services\Genieacs\GenieacsRxReadings;
 use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\Hioso\HiosoSnmp;
 use Tests\TestCase;
@@ -23,6 +24,9 @@ class FakeHiosoSnmp extends HiosoSnmp
 
     public bool $setResult = true;
 
+    /** @var list<string> OID yang di-walk, berurutan */
+    public array $walked = [];
+
     public function get(SnmpOlt $olt, string $oid): ?string
     {
         return $this->gets[$oid] ?? null;
@@ -30,6 +34,8 @@ class FakeHiosoSnmp extends HiosoSnmp
 
     public function walk(SnmpOlt $olt, string $oid, int $timeoutUs = 10_000_000, int $retries = 3): array
     {
+        $this->walked[] = $oid;
+
         return $this->walks[$oid] ?? [];
     }
 
@@ -67,6 +73,22 @@ class QueuedHiosoSnmp extends HiosoSnmp
         return count($this->queues[$oid]) > 1
             ? array_shift($this->queues[$oid])
             : $this->queues[$oid][0];
+    }
+}
+
+/**
+ * Bacaan TR-069 tetap (tanpa DB) ber-key "{slot}.{PON}.{ONU}", seperti GenieacsRxReadings::forOlt().
+ */
+class FakeGenieacsRxReadings extends GenieacsRxReadings
+{
+    /**
+     * @param  array<string, array{dbm: float, at: \Illuminate\Support\Carbon}>  $readings
+     */
+    public function __construct(private array $readings = []) {}
+
+    public function forOlt(SnmpOlt $olt): array
+    {
+        return $this->readings;
     }
 }
 
@@ -604,5 +626,223 @@ class HiosoSnmpDriverTest extends TestCase
 
         $this->assertFalse($result['ok']);
         $this->assertNotNull($result['error']);
+    }
+
+    /**
+     * Satu ONU EPON di PON 2 dengan link-state & Rx tertentu (dipakai test cadangan TR-069).
+     */
+    private function tr069Snmp(string $link, string $rx = 'na'): FakeHiosoSnmp
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $rxOid = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+        $linkOid = '1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1';
+
+        return new FakeHiosoSnmp([
+            $name => ["{$name}.2.1" => 'pelanggan-uji'],
+            $mac => ["{$mac}.2.1" => 'd05fafd29c49'],
+            $rxOid => ["{$rxOid}.2.1" => $rx],
+            $linkOid => ["{$linkOid}.2.1" => $link],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $prev
+     */
+    private function tr069Olt(?array $prev = null): SnmpOlt
+    {
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        if ($prev !== null) {
+            $olt->last_test_result = ['port_onus' => ['1_2' => ['onus' => [['onu_key' => '2.1', ...$prev]]]]];
+        }
+
+        return $olt;
+    }
+
+    /**
+     * Gejala PEKALONGAN PON 2–4: link Up tapi OLT melapor DDM `na` (ONU tertahan CtcInfo). Bacaan
+     * TR-069 segar mengisi kolom Rx, ditandai sumbernya.
+     */
+    public function test_tr069_rx_fills_online_onu_whose_olt_rx_is_na(): void
+    {
+        $at = now()->subMinutes(4);
+        $driver = new HiosoEponSnmpService($this->tr069Snmp('1'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -19.5, 'at' => $at]]));
+
+        $onu = $driver->getRegisteredOnus($this->tr069Olt())[0];
+
+        $this->assertTrue($onu['online']);
+        $this->assertSame(-19.5, $onu['rx_power_dbm']);
+        $this->assertSame('-19.50 dBm', $onu['rx_power_label']);
+        $this->assertSame('tr069', $onu['rx_power_source']);
+        $this->assertSame($at->toIso8601String(), $onu['rx_power_at']);
+    }
+
+    /**
+     * Rx OLT yang valid selalu menang — TR-069 hanya cadangan.
+     */
+    public function test_olt_rx_wins_over_tr069_reading(): void
+    {
+        $driver = new HiosoEponSnmpService($this->tr069Snmp('1', '-17.38'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -25.0, 'at' => now()]]));
+
+        $onu = $driver->getRegisteredOnus($this->tr069Olt())[0];
+
+        $this->assertSame(-17.38, $onu['rx_power_dbm']);
+        $this->assertSame('snmp', $onu['rx_power_source']);
+        $this->assertNull($onu['rx_power_at']);
+    }
+
+    /**
+     * ONU offline/LOS berhenti inform → bacaan TR-069 terakhirnya = redaman lama yang bagus. Tak boleh
+     * tampil di ONU yang mati.
+     */
+    public function test_tr069_rx_is_never_shown_for_offline_onu(): void
+    {
+        $driver = new HiosoEponSnmpService($this->tr069Snmp('2'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -19.5, 'at' => now()->subMinute()]]));
+
+        $onu = $driver->getRegisteredOnus($this->tr069Olt())[0];
+
+        $this->assertFalse($onu['online']);
+        $this->assertNull($onu['rx_power_dbm']);
+        $this->assertNull($onu['rx_power_source']);
+        $this->assertNotNull($onu['link_down_at'], 'Putus teramati → dicatat untuk menolak bacaan lama nanti');
+    }
+
+    /**
+     * Dalam jendela debounce (link Down pertama, ONU masih ditampilkan online) Rx TR-069 poll lalu TIDAK
+     * dibawa sebagai 'snmp_stale' — kalau dibawa, ONU yang baru putus menampilkan redaman sebelum putus.
+     */
+    public function test_tr069_rx_is_not_carried_through_offline_debounce(): void
+    {
+        $driver = new HiosoEponSnmpService($this->tr069Snmp('2'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -19.5, 'at' => now()->subMinute()]]));
+
+        $onu = $driver->getRegisteredOnus($this->tr069Olt([
+            'online' => true, 'offline_strikes' => 0,
+            'rx_power_dbm' => -19.5, 'rx_power_label' => '-19.50 dBm', 'rx_power_source' => 'tr069',
+        ]))[0];
+
+        $this->assertTrue($onu['online'], 'Strike pertama masih dalam debounce');
+        $this->assertNull($onu['rx_power_dbm']);
+        $this->assertNull($onu['rx_power_label']);
+        $this->assertNull($onu['rx_power_source']);
+    }
+
+    /**
+     * ONU tersambung lagi setelah putus: bacaan TR-069 yang diambil SEBELUM poll terakhir yang melihat
+     * putus ditolak (redaman pra-putus), bacaan sesudahnya dipakai.
+     */
+    public function test_tr069_reading_older_than_last_link_down_is_rejected(): void
+    {
+        $prev = ['online' => false, 'offline_strikes' => 3, 'link_down_at' => now()->subMinutes(5)->toIso8601String()];
+
+        $old = new HiosoEponSnmpService($this->tr069Snmp('1'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -18.0, 'at' => now()->subMinutes(12)]]));
+        $onu = $old->getRegisteredOnus($this->tr069Olt($prev))[0];
+
+        $this->assertTrue($onu['online']);
+        $this->assertNull($onu['rx_power_dbm'], 'Bacaan sebelum putus tak boleh tampil');
+        $this->assertSame($prev['link_down_at'], $onu['link_down_at'], 'Batas putus dibawa sampai ada bacaan baru');
+
+        $fresh = new HiosoEponSnmpService($this->tr069Snmp('1'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -21.3, 'at' => now()->subMinute()]]));
+        $onu = $fresh->getRegisteredOnus($this->tr069Olt($prev))[0];
+
+        $this->assertSame(-21.3, $onu['rx_power_dbm']);
+        $this->assertSame('tr069', $onu['rx_power_source']);
+    }
+
+    /**
+     * Rx OLT sesekali `na` satu poll (masih dibawa 'snmp_stale'): bacaan TR-069 segar adalah pengukuran
+     * sekarang, jadi didahulukan atas angka OLT lama.
+     */
+    public function test_fresh_tr069_reading_beats_stale_olt_carry(): void
+    {
+        $driver = new HiosoEponSnmpService($this->tr069Snmp('1'), new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -18.1, 'at' => now()->subMinutes(2)]]));
+
+        $onu = $driver->getRegisteredOnus($this->tr069Olt([
+            'online' => true, 'rx_power_dbm' => -17.0, 'rx_power_label' => '-17.00 dBm', 'rx_power_source' => 'snmp', 'rx_na_strikes' => 0,
+        ]))[0];
+
+        $this->assertSame(-18.1, $onu['rx_power_dbm']);
+        $this->assertSame('tr069', $onu['rx_power_source']);
+        $this->assertSame(1, $onu['rx_na_strikes'], 'Strike `na` OLT tetap dihitung');
+    }
+
+    private const RX_OID = '1.3.6.1.4.1.25355.3.2.6.14.2.1.8.1';
+
+    /**
+     * Polling terjadwal saat Rx belum jatuh tempo: tabel Rx (lambat di sisi OLT) tak di-walk, Rx & sumbernya
+     * dibawa dari poll lalu, status tetap segar dari link-state.
+     */
+    public function test_without_rx_walk_carries_previous_rx_and_reads_status_from_link_state(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $link = '1.3.6.1.4.1.25355.3.2.6.3.2.1.39.1';
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.2.1" => 'pelanggan-a', "{$name}.2.2" => 'pelanggan-b'],
+            $mac => ["{$mac}.2.1" => 'd05fafd29c49', "{$mac}.2.2" => 'd05fafd29c4a'],
+            self::RX_OID => [self::RX_OID.'.2.1' => '-25.00', self::RX_OID.'.2.2' => '-25.00'],
+            $link => ["{$link}.2.1" => '1', "{$link}.2.2" => '2'],
+        ]);
+        $olt = new SnmpOlt(['snmp_version' => 'v2c']);
+        $olt->last_test_result = ['port_onus' => ['1_2' => ['onus' => [
+            ['onu_key' => '2.1', 'online' => true, 'rx_power_dbm' => -18.5, 'rx_power_label' => '-18.50 dBm', 'rx_power_source' => 'snmp', 'rx_na_strikes' => 1],
+            ['onu_key' => '2.2', 'online' => false, 'offline_strikes' => 3, 'rx_power_dbm' => null],
+        ]]]];
+
+        [$up, $down] = (new HiosoEponSnmpService($snmp))->getRegisteredOnusWithoutRx($olt);
+
+        $this->assertNotContains(self::RX_OID, $snmp->walked, 'Tabel Rx tak boleh di-walk');
+        $this->assertTrue($up['online']);
+        $this->assertSame(-18.5, $up['rx_power_dbm']);
+        $this->assertSame('-18.50 dBm', $up['rx_power_label']);
+        $this->assertSame('snmp', $up['rx_power_source'], 'Sumber dibawa apa adanya, seperti preserveExistingRx ZTE');
+        $this->assertSame(1, $up['rx_na_strikes'], 'Tanpa pembacaan, strike na tak bertambah');
+        $this->assertFalse($down['online']);
+        $this->assertNull($down['rx_power_dbm']);
+    }
+
+    /**
+     * Tanpa kolom link-state status ONU hanya bisa disimpulkan dari Rx → walk Rx tetap dijalankan.
+     */
+    public function test_without_rx_walk_still_walks_rx_when_link_state_is_unavailable(): void
+    {
+        $name = '1.3.6.1.4.1.25355.3.2.6.3.2.1.37.1';
+        $mac = '1.3.6.1.4.1.25355.3.2.6.3.2.1.11.1';
+        $snmp = new FakeHiosoSnmp([
+            $name => ["{$name}.2.1" => 'pelanggan-a'],
+            $mac => ["{$mac}.2.1" => 'd05fafd29c49'],
+            self::RX_OID => [self::RX_OID.'.2.1' => '-17.00'],
+        ]);
+
+        $onu = (new HiosoEponSnmpService($snmp))->getRegisteredOnusWithoutRx($this->tr069Olt([
+            'online' => false, 'offline_strikes' => 3,
+        ]))[0];
+
+        $this->assertContains(self::RX_OID, $snmp->walked);
+        $this->assertTrue($onu['online']);
+        $this->assertSame(-17.0, $onu['rx_power_dbm']);
+        $this->assertSame('snmp', $onu['rx_power_source']);
+    }
+
+    /**
+     * Tanpa walk Rx, cadangan TR-069 hanya untuk ONU yang di poll Rx terakhir tak punya Rx OLT valid —
+     * Rx SNMP yang sedang dibawa tak boleh tertimpa, bacaan TR-069 yang memang dipakai tetap disegarkan.
+     */
+    public function test_without_rx_walk_tr069_only_fills_onus_without_olt_rx(): void
+    {
+        $readings = new FakeGenieacsRxReadings(['1.2.1' => ['dbm' => -20.1, 'at' => now()->subMinute()]]);
+
+        $carried = (new HiosoEponSnmpService($this->tr069Snmp('1', '-25.00'), $readings))->getRegisteredOnusWithoutRx($this->tr069Olt([
+            'online' => true, 'rx_power_dbm' => -18.5, 'rx_power_label' => '-18.50 dBm', 'rx_power_source' => 'snmp',
+        ]))[0];
+
+        $this->assertSame(-18.5, $carried['rx_power_dbm']);
+        $this->assertSame('snmp', $carried['rx_power_source']);
+
+        $refreshed = (new HiosoEponSnmpService($this->tr069Snmp('1', '-25.00'), $readings))->getRegisteredOnusWithoutRx($this->tr069Olt([
+            'online' => true, 'rx_power_dbm' => -19.5, 'rx_power_label' => '-19.50 dBm', 'rx_power_source' => 'tr069',
+        ]))[0];
+
+        $this->assertSame(-20.1, $refreshed['rx_power_dbm']);
+        $this->assertSame('tr069', $refreshed['rx_power_source']);
     }
 }

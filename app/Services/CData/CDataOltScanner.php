@@ -2,6 +2,7 @@
 
 namespace App\Services\CData;
 
+use App\Contracts\SkipsRxWalk;
 use App\Http\Controllers\CDataOltController;
 use App\Models\SnmpOlt;
 use App\Services\Hioso\HiosoFaceplateService;
@@ -31,14 +32,18 @@ class CDataOltScanner
     ) {}
 
     /**
+     * @param  bool  $walkRx  false = polling terjadwal saat Rx belum jatuh tempo: driver {@see SkipsRxWalk}
+     *                        membawa Rx poll lalu (driver lain tetap membaca Rx seperti biasa)
      * @return int jumlah ONU yang ditemukan
      */
-    public function scan(SnmpOlt $olt): int
+    public function scan(SnmpOlt $olt, bool $walkRx = true): int
     {
         $driver = $this->resolver->resolve($olt);
         $system = $driver->getSystemInfo($olt);
         $ports = $driver->getPorts($olt);
-        $onus = $driver->getRegisteredOnus($olt);
+        $onus = ! $walkRx && $driver instanceof SkipsRxWalk
+            ? $driver->getRegisteredOnusWithoutRx($olt)
+            : $driver->getRegisteredOnus($olt);
 
         $now = now()->toIso8601String();
         $byPort = [];

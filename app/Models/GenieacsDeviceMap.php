@@ -46,6 +46,8 @@ class GenieacsDeviceMap extends Model
         'manual_at',
         'pppoe_username',
         'tr069_ip',
+        'rx_power_dbm',
+        'rx_power_at',
         'matched_at',
         'last_inform_at',
     ];
@@ -59,6 +61,8 @@ class GenieacsDeviceMap extends Model
             'onu_id' => 'integer',
             'matched_at' => 'datetime',
             'last_inform_at' => 'datetime',
+            'rx_power_dbm' => 'float',
+            'rx_power_at' => 'datetime',
             'manual_stale' => 'boolean',
             'manual_at' => 'datetime',
             'manual_by' => 'integer',

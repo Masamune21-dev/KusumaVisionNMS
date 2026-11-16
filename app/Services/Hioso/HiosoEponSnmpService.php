@@ -2,9 +2,12 @@
 
 namespace App\Services\Hioso;
 
+use App\Contracts\SkipsRxWalk;
 use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
+use App\Services\Genieacs\GenieacsRxReadings;
+use Illuminate\Support\Carbon;
 use Throwable;
 
 /**
@@ -17,7 +20,7 @@ use Throwable;
  * Berdiri sendiri: transport {@see HiosoSnmp} + helper {@see HiosoValue} (bukan milik C-Data).
  * JANGAN walk subtree `25355.3.2.6.2.1.*` (puluhan ribu entry, guide §10 quirk #4).
  */
-class HiosoEponSnmpService implements SmartOltSnmpDriver
+class HiosoEponSnmpService implements SkipsRxWalk, SmartOltSnmpDriver
 {
     private const SYS_DESCR = '1.3.6.1.2.1.1.1.0';
 
@@ -77,7 +80,19 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
      */
     private const MAX_RX_NA_STRIKES = 2;
 
-    public function __construct(private readonly HiosoSnmp $snmp) {}
+    /**
+     * `$tr069Rx` = cadangan redaman dari TR-069 untuk ONU yang DDM-nya `na` di OLT (gejala live:
+     * PEKALONGAN PON 2–4, ONU tertahan `CtcStatus = CtcInfo` di `show onu info` sehingga OLT tak
+     * pernah menarik data optiknya — semua kolom `.14.2.1.{4..8}` `na`/`0`).
+     *
+     * Default-nya instance, BUKAN null: container Laravel 12 memakai nilai default untuk parameter
+     * kelas yang tak di-bind, jadi `?GenieacsRxReadings $tr069Rx = null` membuat cadangan ini mati
+     * diam-diam di produksi walau unit test (yang menyuntik langsung) hijau.
+     */
+    public function __construct(
+        private readonly HiosoSnmp $snmp,
+        private readonly GenieacsRxReadings $tr069Rx = new GenieacsRxReadings,
+    ) {}
 
     public function ping(SnmpOlt $olt): bool
     {
@@ -168,7 +183,15 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
         return array_values(array_unique($ports));
     }
 
-    public function getRegisteredOnus(SnmpOlt $olt): array
+    public function getRegisteredOnusWithoutRx(SnmpOlt $olt): array
+    {
+        return $this->getRegisteredOnus($olt, walkRx: false);
+    }
+
+    /**
+     * @param  bool  $walkRx  false = Rx dibawa dari poll lalu ({@see SkipsRxWalk}); status tetap dari link-state
+     */
+    public function getRegisteredOnus(SnmpOlt $olt, bool $walkRx = true): array
     {
         // Daftar PON dari ifDescr (walk kecil & stabil). Dipakai untuk men-scope walk tabel ONU per
         // PON — walk seluruh tabel sering terpotong link WAN pada port padat sehingga hitungan ONU &
@@ -216,8 +239,13 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
         // {@see robustWalk} mengulang sampai semua ONU per PON ter-cover (Rx/nama tak bolong).
         $onuKeys = array_keys($registered);
         $nameByKey = $onuKeys === [] ? [] : $this->indexByPonOnu($this->walkTable($olt, self::ONU_NAME, $ports, $onuKeys));
-        $rxScan = $onuKeys === [] ? ['valid' => [], 'seen' => []] : $this->rxScan($olt, $ports, $onuKeys);
         $linkByKey = $onuKeys === [] ? [] : $this->indexByPonOnu($this->walkTable($olt, self::ONU_LINK_STATUS, $ports, $onuKeys));
+        // Tanpa satu pun baris link-state (firmware tanpa kolom `.39`, atau walk-nya gagal) status ONU
+        // hanya bisa disimpulkan dari Rx → walk Rx tetap dijalankan walau belum jatuh tempo.
+        $walkRx = $walkRx || $linkByKey === [];
+        $rxScan = $onuKeys === [] || ! $walkRx ? ['valid' => [], 'seen' => []] : $this->rxScan($olt, $ports, $onuKeys);
+        // Bacaan TR-069 segar ber-key "{slot}.{PON}.{ONU}" (slot HiOSO selalu 1) — satu query lokal.
+        $tr069 = $onuKeys === [] ? [] : $this->tr069Rx->forOlt($olt);
 
         $onus = [];
 
@@ -227,6 +255,9 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
             $rxValid = $rxScan['valid'][$key] ?? null;
             $rxSeen = isset($rxScan['seen'][$key]);
+            $rxAt = null;
+            // Kapan link ONU terakhir TERAMATI putus — batas bawah umur bacaan TR-069 yang boleh dipakai.
+            $linkDownAt = $prev['link_down_at'] ?? null;
 
             // Link-state: true/false bila barisnya terbaca, null bila absen dari walk (link lossy) atau
             // firmware tak punya kolom `.39` — null = jatuh ke bukti Rx seperti perilaku lama.
@@ -237,7 +268,24 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             if ($link === true || $rxValid !== null) {
                 $online = true;
                 $strikes = 0;
-                [$rx, $rxLabel, $rxSource, $rxNaStrikes] = $this->rxForOnlineOnu($rxValid, $rxSeen, $prev);
+                [$rx, $rxLabel, $rxSource, $rxNaStrikes] = $walkRx
+                    ? $this->rxForOnlineOnu($rxValid, $rxSeen, $prev)
+                    : $this->carriedRx($prev);
+
+                // OLT tak melaporkan DDM ONU ini → pakai bacaan TR-069 bila segar. HANYA di cabang ini
+                // (link teramati Up SEKARANG): ONU offline/LOS berhenti inform, jadi bacaan terakhirnya
+                // adalah redaman sebelum putus — tak boleh tampil di ONU yang mati maupun yang baru
+                // tersambung lagi. Bacaan segar didahulukan atas nilai OLT lama yang dibawa 'snmp_stale'.
+                // Tanpa walk Rx, "OLT tak melaporkan" diambil dari poll Rx terakhir: hanya ONU yang saat
+                // itu tak punya Rx OLT valid — Rx SNMP yang sedang dibawa tak boleh tertimpa TR-069.
+                $oltRxMissing = $walkRx ? $rxValid === null : ($prev['rx_power_source'] ?? null) !== 'snmp';
+                $reading = $oltRxMissing ? $this->tr069Reading($tr069["1.{$key}"] ?? null, $linkDownAt) : null;
+                if ($reading !== null) {
+                    $rx = $reading['dbm'];
+                    $rxLabel = sprintf('%.2f dBm', $rx);
+                    $rxSource = 'tr069';
+                    $rxAt = $reading['at']->toIso8601String();
+                }
             } elseif ($link === false || $rxSeen) {
                 // Down teramati sungguhan (link-state `2`, atau — tanpa kolom itu — baris Rx hadir tapi
                 // `na`/`0`). Di link lossy satu pembacaan buruk bisa transien, jadi transisi
@@ -247,13 +295,16 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 $prevOnline = (bool) ($prev['online'] ?? false);
                 $strikes = (int) ($prev['offline_strikes'] ?? 0) + 1;
                 $rxNaStrikes = (int) ($prev['rx_na_strikes'] ?? 0) + ($rxSeen ? 1 : 0);
+                // Diperbarui di SETIAP poll yang melihat putus, supaya bacaan TR-069 yang diambil
+                // sebelum/selama putus ditolak setelah ONU tersambung lagi.
+                $linkDownAt = now()->toIso8601String();
 
                 if ($prevOnline && $strikes < self::MAX_OFFLINE_STRIKES) {
                     // Masih dalam jendela debounce → pertahankan online; Rx dibawa 'snmp_stale' agar
                     // tampil kontinu tapi TAK dicatat ke time-series (lihat PollOltJob).
                     $online = true;
                     $rx = $this->prevRx($prev);
-                    $rxLabel = $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
+                    $rxLabel = $this->prevRxLabel($prev, $rx);
                     $rxSource = $rx !== null ? 'snmp_stale' : null;
                 } else {
                     $online = false;
@@ -268,7 +319,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 // buruk (sekadar tak ada data) → strike dibawa apa adanya, tak bertambah.
                 $online = (bool) ($prev['online'] ?? true); // tak ada acuan → MAC terdaftar, asumsikan up
                 $rx = $this->prevRx($prev);
-                $rxLabel = $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null);
+                $rxLabel = $this->prevRxLabel($prev, $rx);
                 $rxSource = $rx !== null ? 'snmp_stale' : null;
                 $strikes = (int) ($prev['offline_strikes'] ?? 0);
                 $rxNaStrikes = (int) ($prev['rx_na_strikes'] ?? 0);
@@ -277,7 +328,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             // Nama kadang absen dari walk (truncation) walau ONU terbaca di MAC → pertahankan nama lama.
             $name ??= HiosoValue::clean($previous[$key]['name'] ?? null);
 
-            $onus[$key] = $this->buildOnu($port, $onuId, $mac, $name, $online, $rx, $rxLabel, $rxSource, 0, $strikes, $rxNaStrikes);
+            $onus[$key] = $this->buildOnu($port, $onuId, $mac, $name, $online, $rx, $rxLabel, $rxSource, 0, $strikes, $rxNaStrikes, $rxAt, $linkDownAt);
         }
 
         // Carry-forward roster: ONU yang dikenal poll lalu tapi ABSEN dari walk MAC cycle ini (link
@@ -307,11 +358,13 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
                 HiosoValue::clean($prev['name'] ?? null),
                 (bool) ($prev['online'] ?? true),
                 $rx,
-                $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null),
+                $this->prevRxLabel($prev, $rx),
                 $rx !== null ? 'snmp_stale' : null,
                 $missed,
                 (int) ($prev['offline_strikes'] ?? 0),
                 (int) ($prev['rx_na_strikes'] ?? 0),
+                null,
+                $prev['link_down_at'] ?? null,
             );
         }
 
@@ -326,7 +379,7 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
      *
      * @return array<string, mixed>
      */
-    private function buildOnu(int $port, int $onuId, ?string $mac, ?string $name, bool $online, ?float $rx, ?string $rxLabel, ?string $rxSource, int $missedPolls, int $offlineStrikes = 0, int $rxNaStrikes = 0): array
+    private function buildOnu(int $port, int $onuId, ?string $mac, ?string $name, bool $online, ?float $rx, ?string $rxLabel, ?string $rxSource, int $missedPolls, int $offlineStrikes = 0, int $rxNaStrikes = 0, ?string $rxAt = null, ?string $linkDownAt = null): array
     {
         return [
             'onu_key' => "{$port}.{$onuId}",
@@ -349,6 +402,10 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
             'rx_power_dbm' => $rx,
             'rx_power_label' => $rxLabel,
             'rx_power_source' => $rxSource,
+            // Kapan bacaan TR-069 diambil ACS (hanya bila `rx_power_source` = 'tr069').
+            'rx_power_at' => $rxAt,
+            // Poll terakhir yang melihat link ONU putus (ISO) — penolak bacaan TR-069 basi.
+            'link_down_at' => $linkDownAt,
             'missed_polls' => $missedPolls,
             // Penghitung debounce anti-flap: berapa poll beruntun ONU teramati down sejak online terakhir.
             'offline_strikes' => $offlineStrikes,
@@ -382,10 +439,51 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
 
         return [
             $rx,
-            $prev['rx_power_label'] ?? ($rx !== null ? sprintf('%.2f dBm', $rx) : null),
+            $this->prevRxLabel($prev, $rx),
             $rx !== null ? 'snmp_stale' : null,
             $strikes,
         ];
+    }
+
+    /**
+     * Rx ONU online saat walk Rx dilewati ({@see SkipsRxWalk}): nilai & sumber poll lalu dibawa apa adanya
+     * — seperti `preserveExistingRx` jalur ZTE — dan strike `na` tak bertambah karena tak ada pembacaan.
+     * Bacaan TR-069 tak dibawa ({@see prevRx}); pemanggil menghitungnya ulang dari ACS.
+     *
+     * @param  array<string, mixed>|null  $prev
+     * @return array{0: ?float, 1: ?string, 2: ?string, 3: int}
+     */
+    private function carriedRx(?array $prev): array
+    {
+        $rx = $this->prevRx($prev);
+
+        return [
+            $rx,
+            $this->prevRxLabel($prev, $rx),
+            $rx !== null ? ($prev['rx_power_source'] ?? 'snmp') : null,
+            (int) ($prev['rx_na_strikes'] ?? 0),
+        ];
+    }
+
+    /**
+     * Bacaan TR-069 yang boleh dipakai: ada (sudah lolos batas umur di {@see GenieacsRxReadings}) DAN
+     * diambil SESUDAH link ONU terakhir teramati putus. Tanpa syarat kedua, ONU yang baru tersambung
+     * lagi menampilkan redaman sebelum putus sampai ACS menyegarkannya.
+     *
+     * @param  array{dbm: float, at: Carbon}|null  $reading
+     * @return array{dbm: float, at: Carbon}|null
+     */
+    private function tr069Reading(?array $reading, ?string $linkDownAt): ?array
+    {
+        if ($reading === null) {
+            return null;
+        }
+
+        if ($linkDownAt !== null && ! $reading['at']->greaterThan(Carbon::parse($linkDownAt))) {
+            return null;
+        }
+
+        return $reading;
     }
 
     /**
@@ -406,9 +504,26 @@ class HiosoEponSnmpService implements SmartOltSnmpDriver
      */
     private function prevRx(?array $prev): ?float
     {
+        // Bacaan TR-069 tak pernah dibawa: hanya sah selama link teramati Up dan dihitung ulang tiap
+        // poll ({@see tr069Reading}). Membawanya sebagai 'snmp_stale' justru memunculkan redaman lama di
+        // ONU yang sedang putus.
+        if (($prev['rx_power_source'] ?? null) === 'tr069') {
+            return null;
+        }
+
         $rx = $prev['rx_power_dbm'] ?? null;
 
         return is_numeric($rx) ? (float) $rx : null;
+    }
+
+    /**
+     * Label Rx yang dibawa bersama {@see prevRx} — null bila nilainya tak dibawa.
+     *
+     * @param  array<string, mixed>|null  $prev
+     */
+    private function prevRxLabel(?array $prev, ?float $rx): ?string
+    {
+        return $rx === null ? null : ($prev['rx_power_label'] ?? sprintf('%.2f dBm', $rx));
     }
 
     public function getRegisteredOnusByPort(SnmpOlt $olt, int $slot, int $port): array

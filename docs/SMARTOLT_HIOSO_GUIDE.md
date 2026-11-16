@@ -170,6 +170,14 @@ Bukti tambahan: OLT-side `show epon 0/N optical-ddm` confirms semua 4 PON physic
 > dari Rx membuat pelanggan aktif tampil "offline" di NMS dan memicu alarm palsu. Gunakan `.39.1`;
 > Rx valid boleh dipakai sebagai bukti pendukung online (cahaya sungguh diterima), tak pernah
 > sebaliknya.
+>
+> **Penyebab (diagnosis 23 Okt 2026, PEKALONGAN):** `show onu info epon 0/{PON} all` kolom `CtcStatus`. ONU ber-Rx
+> = `CtcNegDone`; ONU ber-`na` di PON 2–4 = `CtcInfo` (Firmware `0`, Ge `0`) — CTC OAM tak tuntas sehingga OLT tak
+> pernah menarik DDM-nya (SELURUH kolom `.14.2.1.{4..8}` `na`/`0`, bukan hanya Rx). Sisi OLT, per-PON: ONU model &
+> batch sama (CDTC FD511GW) `CtcNegDone` di PON 1; registrasi ulang ONU & reboot OLT tak memulihkan; config 4 PON
+> identik; laser OLT normal. WIDOROKANDANG PON 1 kasus lain: `CtcNegDone` tetapi DDM tetap `na`.
+> **Cadangan NMS:** Rx diambil dari TR-069 (`VirtualParameters.RXPower`) bila link teramati Up, Rx OLT `na`, bacaan
+> ≤ 30 menit dan lebih baru dari putus terakhir — `rx_power_source='tr069'`, tampil «via TR-069» (lihat §12).
 
 ### 4.3 ONU Table (canonical)
 
@@ -809,6 +817,7 @@ telnet HOST PORT
 | [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk **4** OID kanonik `.37.1`/`.11.1`/`.8.1` + link-state `.39.1` per-PON (`robustWalk`, target kelengkapan dari tabel MAC) + carry-forward roster + anti-flap; port agregat & `setOnuName()` (SNMP SET) untuk HA7302 |
 | [app/Services/Hioso/HiosoSnmp.php](../app/Services/Hioso/HiosoSnmp.php) | koneksi SNMP low-level (`robustWalk`, timeout floor, `set()` pakai write community) |
 | [app/Services/Hioso/HiosoValue.php](../app/Services/Hioso/HiosoValue.php) | helper parsing murni (MAC hex, Rx string+`na`, indeks `{PON}.{ONU}`) |
+| [app/Services/Genieacs/GenieacsRxReadings.php](../app/Services/Genieacs/GenieacsRxReadings.php) | bacaan Rx TR-069 segar per OLT (tabel lokal `genieacs_device_map`, ≤ 30 mnt) — cadangan Rx `na`; kapan dipakai diputuskan driver (`tr069Reading()`: link Up sekarang + lebih baru dari `link_down_at`) |
 | [app/Services/Hioso/HiosoCliWriteService.php](../app/Services/Hioso/HiosoCliWriteService.php) | CLI write ONU (rename HA7304/reboot/enable-disable/delete) + `saveConfig`; sesi telnet CRLF + banner + `enable`; dialek HA7302 (login 3-lapis, IAC, node `epon`) |
 | [app/Services/Hioso/HiosoFaceplateService.php](../app/Services/Hioso/HiosoFaceplateService.php) | faceplate panel-depan |
 | [app/Services/CData/CDataOltScanner.php](../app/Services/CData/CDataOltScanner.php) | scan penuh bersama (dipakai HiOSO **dan** C-Data) → `last_test_result.port_onus` |

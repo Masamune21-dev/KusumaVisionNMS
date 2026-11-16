@@ -239,7 +239,7 @@ class TelegramWebhookTest extends TestCase
         {
             public function __construct() {}
 
-            public function scan(SnmpOlt $olt): int
+            public function scan(SnmpOlt $olt, bool $walkRx = true): int
             {
                 return 258;
             }
@@ -264,7 +264,7 @@ class TelegramWebhookTest extends TestCase
         {
             public function __construct() {}
 
-            public function scan(SnmpOlt $olt): int
+            public function scan(SnmpOlt $olt, bool $walkRx = true): int
             {
                 throw new \RuntimeException('OLT ZTE tidak boleh di-scan oleh /refresh C-Data');
             }

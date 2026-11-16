@@ -447,7 +447,10 @@
         "col_mac": "MAC",
         "port_tools": "Alat port",
         "preregister_label": "Pre-Register ONU",
-        "more_actions": "Aksi lain ONU {id}"
+        "more_actions": "Aksi lain ONU {id}",
+        "acs_onu_down": "ONU putus",
+        "rx_via_tr069": "via TR-069",
+        "rx_via_tr069_title": "Dibaca ONU lewat TR-069 pada {time} — OLT tidak melaporkan redaman ONU ini"
     },
     "tr069": {
         "enable_title": "Aktifkan TR069 Massal",

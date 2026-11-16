@@ -35,9 +35,14 @@ class GenieacsDeviceSyncService
      * Kembarannya — `pppoeUsername2` dan `ManagementServer.ConnectionRequestURL`
      * — sengaja TIDAK diambil: terbukti identik di seluruh 2.192 device, jadi
      * hanya menambah 580 KB tanpa informasi baru.
+     *
+     * `RXPower` (23 Okt 2026) = cadangan redaman untuk ONU yang DDM-nya tak
+     * dilaporkan OLT (lihat {@see GenieacsRxReadings}); diukur +300 KB /
+     * +0,03 dtk pada 2.528 device. Nilainya cocok dengan RX OLT (median selisih
+     * 0,01 dB pada ±1.460 ONU yang punya keduanya, semua family & model).
      */
     private const PROJECTION = '_id,_deviceId,_lastInform,VirtualParameters.PonMac'
-        .',VirtualParameters.pppoeUsername,VirtualParameters.IPTR069';
+        .',VirtualParameters.pppoeUsername,VirtualParameters.IPTR069,VirtualParameters.RXPower';
 
     /** Katalog penuh boleh lebih lambat dari request web biasa. */
     private const REQUEST_TIMEOUT = 120;
@@ -146,6 +151,10 @@ class GenieacsDeviceSyncService
             'pon_mac' => data_get($raw, 'VirtualParameters.PonMac._value'),
             'pppoe_username' => data_get($raw, 'VirtualParameters.pppoeUsername._value'),
             'tr069_ip' => data_get($raw, 'VirtualParameters.IPTR069._value'),
+            'rx_power' => data_get($raw, 'VirtualParameters.RXPower._value'),
+            // Kapan ACS menyegarkan nilai itu — bukan `_lastInform`: device yang
+            // berhenti melapor RX tetap bisa inform, dan sebaliknya.
+            'rx_power_at' => data_get($raw, 'VirtualParameters.RXPower._timestamp'),
             'last_inform' => data_get($raw, '_lastInform'),
         ];
     }
@@ -187,6 +196,8 @@ class GenieacsDeviceSyncService
         ];
 
         foreach ($devices as $device) {
+            $rx = $this->rxDbm($device['rx_power'] ?? null);
+
             $row = [
                 'device_id' => $device['device_id'],
                 'serial_number' => GenieacsOnuMatcher::normalizeSerial($device['serial']),
@@ -195,6 +206,8 @@ class GenieacsDeviceSyncService
                 'product_class' => $this->trimTo($device['product_class'], 64),
                 'pppoe_username' => $this->trimTo($device['pppoe_username'], 100),
                 'tr069_ip' => $this->trimTo($device['tr069_ip'], 45),
+                'rx_power_dbm' => $rx,
+                'rx_power_at' => $rx !== null ? $this->toTimestamp($device['rx_power_at'] ?? null) : null,
                 'snmp_olt_id' => null,
                 'slot' => null,
                 'port' => null,
@@ -360,7 +373,7 @@ class GenieacsDeviceSyncService
                     ['device_id'],
                     [
                         'serial_number', 'pon_mac', 'manufacturer', 'product_class',
-                        'pppoe_username', 'tr069_ip',
+                        'pppoe_username', 'tr069_ip', 'rx_power_dbm', 'rx_power_at',
                         'snmp_olt_id', 'slot', 'port', 'onu_id',
                         'match_method', 'manual_ref_type', 'manual_ref', 'manual_stale',
                         'manual_by', 'manual_at',
@@ -406,6 +419,21 @@ class GenieacsDeviceSyncService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * `RXPower` berupa string dBm ("-19.5"); "N/A" (±⅓ armada) dan nilai di luar
+     * rentang optik yang masuk akal → null, sama seperti `na`/`0` dari OLT.
+     */
+    private function rxDbm(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $dbm = round((float) $value, 2);
+
+        return ($dbm !== 0.0 && $dbm >= -60.0 && $dbm <= 5.0) ? $dbm : null;
     }
 
     private function trimTo(mixed $value, int $length): ?string

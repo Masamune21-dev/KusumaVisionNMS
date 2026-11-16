@@ -527,6 +527,8 @@ bila belum berpasangan. Dibaca dari tabel lokal `genieacs_device_map`, **tidak**
 TR-069) berasal dari virtual parameter GenieACS dan bisa `null`. `online` memakai ambang **2 jam**
 karena `last_inform_at` hanya disegarkan penjadwal tiap 15 menit — bukan status realtime
 perangkat. Kesegaran sesungguhnya ada di `/acs-clients` (§3.16).
+`online` **selalu `false` bila ONU offline/LOS di OLT** — sebelumnya ONU yang baru putus tetap `true`
+sampai ambang 2 jam habis.
 
 ### 3.6. `GET /odps` — daftar ODP
 

@@ -85,10 +85,14 @@ class OltPollingTest extends TestCase
     {
         return new class extends CDataOltScanner
         {
+            /** @var list<bool> argumen `walkRx` tiap panggilan scan() */
+            public array $walkRxCalls = [];
+
             public function __construct() {}
 
-            public function scan(SnmpOlt $olt): int
+            public function scan(SnmpOlt $olt, bool $walkRx = true): int
             {
+                $this->walkRxCalls[] = $walkRx;
                 $now = now()->toIso8601String();
                 $snapshot = $olt->last_test_result ?? [];
                 $snapshot['system'] = ['sys_name' => 'CDATA-EPON'];
@@ -159,6 +163,32 @@ class OltPollingTest extends TestCase
         // Rx C-Data ikut tiap scan → time-series tercatat saat RX due (poll pertama: last_rx_polled_at null).
         $this->assertDatabaseCount('onu_rx_samples', 1);
         $this->assertNotNull($olt->last_rx_polled_at);
+    }
+
+    public function test_poll_job_asks_scanner_to_skip_rx_walk_when_rx_is_not_due(): void
+    {
+        $rxPolledAt = now()->subMinutes(5);
+        $olt = $this->makeOlt([
+            'polling_enabled' => true, 'vendor' => 'HiOSO EPON 25355', 'name' => 'OLT-HIOSO-UJI',
+            'rx_poll_interval_minutes' => 15, 'last_rx_polled_at' => $rxPolledAt,
+        ]);
+        $scanner = $this->fakeCDataScanner();
+
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, null, $scanner);
+
+        $olt->refresh();
+
+        $this->assertSame([false], $scanner->walkRxCalls);
+        $this->assertTrue((bool) data_get($olt->last_test_result, 'ok'));
+        // Rx tak dibaca → tak ada sampel time-series dan jadwal Rx berikutnya tak bergeser.
+        $this->assertDatabaseCount('onu_rx_samples', 0);
+        $this->assertSame($rxPolledAt->timestamp, $olt->last_rx_polled_at->timestamp);
+
+        $olt->forceFill(['last_polled_at' => now()->subMinutes(5), 'last_rx_polled_at' => now()->subMinutes(15)])->save();
+        (new PollOltJob($olt->id))->handle($this->fakeClient(), new AlarmEvaluator, null, $scanner);
+
+        $this->assertSame([false, true], $scanner->walkRxCalls);
+        $this->assertDatabaseCount('onu_rx_samples', 1);
     }
 
     public function test_poll_command_skips_enabled_olts_that_are_not_due(): void

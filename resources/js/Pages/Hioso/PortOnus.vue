@@ -17,6 +17,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
+import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
@@ -91,6 +92,9 @@ const rxClass = (dbm) => {
     if (dbm >= -28) return 'text-amber-300';
     return 'text-red-300';
 };
+// Redaman dari TR-069 (OLT tak melaporkan DDM ONU ini) — lihat HiosoEponSnmpService::tr069Reading.
+const rxViaTr069 = (o) => o.rx_power_source === 'tr069';
+const rxTr069Title = (o) => t('portonus.rx_via_tr069_title', { time: o.rx_power_at ? formatDateTime(o.rx_power_at) : '—' });
 const isFocus = (o) => props.focus != null && String(o.onu_id) === String(props.focus);
 
 const refresh = () => router.post(route('hioso-olt.port-onus.refresh', [props.olt.id, props.slot, props.port]), {}, { preserveScroll: true });
@@ -391,7 +395,7 @@ const viewOnMap = (onu) => {
                                             <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
+                                            <AcsPinCell :acs="acsFor(o)" :onu-online="o.online" :can-manage="canUseAcs" @pin="openPin(o)" />
                                         </td>
                                         <td class="px-4 py-3 text-xs text-slate-200">{{ o.name || '—' }}</td>
                                         <td class="px-4 py-3">
@@ -413,6 +417,7 @@ const viewOnMap = (onu) => {
                                         </td>
                                         <td class="px-4 py-3 font-mono text-xs" :class="rxClass(o.rx_power_dbm)">
                                             {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
+                                            <div v-if="rxViaTr069(o)" class="mt-0.5 font-sans text-xs text-slate-500" :title="rxTr069Title(o)">{{ $t('portonus.rx_via_tr069') }}</div>
                                         </td>
                                         <td v-if="hasActions" class="px-4 py-3">
                                             <div class="flex w-max items-center gap-1.5">
@@ -448,8 +453,10 @@ const viewOnMap = (onu) => {
                                 <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
                                 <div class="mt-2 flex items-center justify-between text-xs">
                                     <span class="font-mono text-slate-400">{{ o.serial_number || o.mac || '—' }}</span>
-                                    <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
-                                    <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
+                                    <AcsPinCell :acs="acsFor(o)" :onu-online="o.online" :can-manage="canUseAcs" @pin="openPin(o)" />
+                                    <span class="font-mono" :class="rxClass(o.rx_power_dbm)" :title="rxViaTr069(o) ? rxTr069Title(o) : null">
+                                        {{ o.rx_power_label || '—' }}<span v-if="rxViaTr069(o)" class="font-sans text-slate-500"> · {{ $t('portonus.rx_via_tr069') }}</span>
+                                    </span>
                                 </div>
                                 <div class="mt-2 flex items-center gap-2 text-xs">
                                     <span class="shrink-0 text-slate-500">{{ $t('portonus.col_odp') }}</span>

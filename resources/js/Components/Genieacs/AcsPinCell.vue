@@ -13,6 +13,8 @@ import { computed } from 'vue';
  */
 const props = defineProps({
     acs: { type: Object, default: null },
+    // Status ONU di OLT — lencana ACS tak boleh "Terhubung" saat ONU offline/LOS (lihat OnuAcsBadge).
+    onuOnline: { type: Boolean, default: null },
     canManage: { type: Boolean, default: false },
 });
 
@@ -37,7 +39,7 @@ const ipHref = (ip) => (IPV4.test(ip ?? '') ? `http://${ip}` : null);
 <template>
     <div class="flex flex-col items-start gap-1">
         <span class="inline-flex items-center gap-1.5">
-            <OnuAcsBadge :acs="acs" />
+            <OnuAcsBadge :acs="acs" :onu-online="onuOnline" />
 
             <!-- Katalog ACS milik staf Pusat: tertutup untuk partner & demo (lihat canPin). -->
             <button

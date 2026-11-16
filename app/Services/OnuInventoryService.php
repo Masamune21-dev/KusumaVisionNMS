@@ -218,6 +218,14 @@ class OnuInventoryService
         $onuId = (int) ($onu['onu_id'] ?? 0);
         $odp = $odpMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
         $acs = $acsMap["{$olt->id}.{$slot}.{$port}.{$onuId}"] ?? null;
+        $online = (bool) ($onu['online'] ?? false);
+
+        // ONU yang offline/LOS di OLT tak bisa bicara ke ACS, tapi inform terakhirnya masih di bawah
+        // ambang 2 jam GenieacsMapService → lencana "Terhubung" bertabrakan dengan status ONU. Status
+        // OLT yang menang (sumber yang sama dengan kolom status ONU).
+        if ($acs !== null && ! $online) {
+            $acs['online'] = false;
+        }
 
         return [
             'olt_id' => $olt->id,
@@ -238,7 +246,7 @@ class OnuInventoryService
             'customer_name' => SmartOltSupport::customerNameFromOnu($onu),
             'admin_state' => $onu['admin_state'] ?? 'unknown',
             'phase_state' => $onu['phase_state'] ?? 'Unknown',
-            'online' => (bool) ($onu['online'] ?? false),
+            'online' => $online,
             'last_down_cause' => $onu['last_down_cause'] ?? null,
             'rx_power_dbm' => $onu['rx_power_dbm'] ?? null,
             'rx_power_label' => $onu['rx_power_label'] ?? null,

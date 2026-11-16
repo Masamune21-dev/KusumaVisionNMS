@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-11-16 — Changed: cadangan Rx dari TR-069 untuk ONU HiOSO, poll Rx dilewati saat belum jatuh tempo
+
+- **Created — `App\Services\Genieacs\GenieacsRxReadings`:** bacaan redaman ONU hasil TR-069 (dari kolom baru
+  `rx_power`/`rx_power_at` di `genieacs_device_map`, migrasi `2026_10_23_000001_*`) yang disegarkan
+  `GenieacsDeviceSyncService` saat sinkronisasi ACS. Dipakai sebagai **cadangan** ketika OLT tidak melaporkan DDM
+  (HiOSO kadang menjawab `na` untuk ONU yang tertahan di sisi perangkat) — bacaan OLT yang valid selalu menang.
+- **Changed — HiOSO EPON:** `HiosoEponSnmpService` mengisi Rx dari TR-069 hanya untuk ONU yang **online sekarang**
+  dan bacaan yang diambil **sesudah** link terakhir teramati putus (bacaan pra-putus tak boleh tampil di ONU yang
+  baru tersambung lagi); sumbernya ditandai `tr069` dan tampil sebagai keterangan kecil di kolom Rx
+  (`portonus.rx_via_tr069`). Poll Rx (`SkipsRxWalk`) kini **dilewati saat belum jatuh tempo** — status ONU tetap
+  segar dari kolom link-state, sedangkan nilai & sumber Rx dibawa dari poll sebelumnya seperti jalur ZTE
+  (`preserveExistingRx`).
+- **Changed — lencana ACS ikut status OLT:** `Components/Genieacs/AcsPinCell.vue` menerima `onu-online`, dan
+  `OnuAcsBadge` memakainya — perangkat yang melapor ke ACS tetapi ONU-nya offline/LOS di OLT kini ditandai
+  "belum ter-ACS"/redup, bukan seolah sehat. `GenieacsDeviceMap` menyimpan waktu bacaan, `OnuInventoryService`
+  membawa `rx_power_source`/`rx_power_at` untuk REST API & aplikasi.
+- **Changed — `App\Contracts\SkipsRxWalk`:** kontrak untuk driver OLT yang bisa melewati walk Rx; dipakai
+  `PollOltJob` dan `CDataOltScanner` supaya polling terjadwal tidak menarik tabel Rx yang lambat setiap kali.
+- **Notes — penyesuaian edisi publik:** nomor bagian `docs/API.md` milik publik dipertahankan (versi internal
+  memakai penomoran berbeda), dan rujukan internal (jembatan Billing/Kusumanet One) tidak disalin.
+- **Notes — verifikasi:** `scripts/test.sh` 914 lulus (5.250 assertion, termasuk `GenieacsRxFallbackTest` baru
+  dan `HiosoSnmpDriverTest` yang diperluas), `npm test` 66 lulus, `kv-ui-check` 0 pelanggaran keras,
+  `npm run build` bersih. Dirender dengan Playwright (sqlite + data demo): halaman Port ONU **ZTE, C-Data, HiOSO**
+  semua HTTP 200, badge ACS tampil, 0 galat konsol/404.
+
 ## 2026-11-16 — Changed: logo & favicon bawaan, dan poller Go tak lagi jatuh ke fallback PHP saat kehabisan waktu
 
 - **Changed — logo bawaan:** `Components/ApplicationLogo.vue` memakai lambang Kusumanet One (SVG, ikut warna teks),

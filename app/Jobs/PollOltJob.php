@@ -230,7 +230,8 @@ class PollOltJob implements ShouldQueue
 
         try {
             // Scanner me-resolve driver (EPON SNMP / GPON V3 SNMP+CLI), tulis system/ports/port_onus.
-            $scanner->scan($olt);
+            // Rx belum jatuh tempo → driver yang sanggup (HiOSO) melewati walk Rx yang lambat di sisi OLT.
+            $scanner->scan($olt, walkRx: $rxPollDue);
             $onus = collect(data_get($olt->last_test_result, 'port_onus', []))
                 ->flatMap(fn ($port) => is_array($port['onus'] ?? null) ? $port['onus'] : [])
                 ->all();
@@ -257,7 +258,8 @@ class PollOltJob implements ShouldQueue
 
         $olt->forceFill($updates)->save();
 
-        // Rx C-Data ikut tiap scan (EPON via SNMP, GPON via CLI) → catat time-series sesuai cadence RX.
+        // Rx C-Data ikut tiap scan (EPON via SNMP, GPON via CLI); HiOSO hanya saat Rx due → catat time-series
+        // sesuai cadence RX.
         if ($ok && $rxPollDue) {
             $this->recordRxSamples($olt->id, $onus, $now);
         }

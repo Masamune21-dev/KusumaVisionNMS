@@ -408,7 +408,7 @@ const viewOnMap = (onu) => {
                                             <div v-if="o.mac && o.serial_number" class="mt-0.5 font-mono text-xs text-slate-500">{{ o.mac }}</div>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
+                                            <AcsPinCell :acs="acsFor(o)" :onu-online="o.online" :can-manage="canUseAcs" @pin="openPin(o)" />
                                         </td>
                                         <td class="px-4 py-3 text-xs text-slate-200">{{ o.name || '—' }}</td>
                                         <td class="px-4 py-3">
@@ -465,7 +465,7 @@ const viewOnMap = (onu) => {
                                 <p class="mt-1 text-sm text-slate-200">{{ o.name || '—' }}</p>
                                 <div class="mt-2 flex items-center justify-between text-xs">
                                     <span class="font-mono text-slate-400">{{ o.serial_number || o.mac || '—' }}</span>
-                                    <AcsPinCell :acs="acsFor(o)" :can-manage="canUseAcs" @pin="openPin(o)" />
+                                    <AcsPinCell :acs="acsFor(o)" :onu-online="o.online" :can-manage="canUseAcs" @pin="openPin(o)" />
                                     <span class="font-mono" :class="rxClass(o.rx_power_dbm)">{{ o.rx_power_label || '—' }}</span>
                                 </div>
                                 <div class="mt-2 flex items-center gap-2 text-xs">

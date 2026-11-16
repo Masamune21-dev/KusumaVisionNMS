@@ -447,7 +447,10 @@
         "col_mac": "MAC",
         "port_tools": "Port tools",
         "preregister_label": "Pre-Register ONU",
-        "more_actions": "More actions for ONU {id}"
+        "more_actions": "More actions for ONU {id}",
+        "acs_onu_down": "ONU down",
+        "rx_via_tr069": "via TR-069",
+        "rx_via_tr069_title": "Reported by the ONU over TR-069 at {time} — the OLT does not report this ONU's power"
     },
     "tr069": {
         "enable_title": "Enable Bulk TR069",
