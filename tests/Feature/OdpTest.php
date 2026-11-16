@@ -9,6 +9,7 @@ use App\Models\OnuOdpLink;
 use App\Models\Scopes\PartnerOltScope;
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Services\OnuInventoryService;
 use App\Support\OdpColors;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Inertia;
@@ -557,8 +558,10 @@ class OdpTest extends TestCase
             ->assertJsonMissingPath('props.odps');
     }
 
-    public function test_onu_monitoring_carries_odp_columns(): void
+    public function test_onu_inventory_carries_odp_columns(): void
     {
+        // Dulu diuji lewat halaman ONU Monitoring (dihapus 9 Nov 2026); kolom ODP di
+        // OnuInventoryService tetap dipakai REST API & aplikasi, jadi diuji langsung di service.
         $olt = $this->makeOlt('OLT-A', '10.8.0.1');
         $odp = $this->makeOdp($olt);
         OnuOdpLink::create([
@@ -569,13 +572,11 @@ class OdpTest extends TestCase
             'onu_id' => 5,
         ]);
 
-        $this->actingAs(User::factory()->admin()->create())
-            ->get(route('monitoring.onu'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->has('odps', 1)
-                ->where('onus.0.odp_id', $odp->id)
-                ->where('onus.0.odp_name', 'ODP-01')
-                ->where('onus.1.odp_id', null));
+        $this->actingAs(User::factory()->admin()->create());
+        $onus = app(OnuInventoryService::class)->collect(SnmpOlt::query()->orderBy('name')->get())['onus'];
+
+        $this->assertSame($odp->id, $onus[0]['odp_id']);
+        $this->assertSame('ODP-01', $onus[0]['odp_name']);
+        $this->assertNull($onus[1]['odp_id']);
     }
 }

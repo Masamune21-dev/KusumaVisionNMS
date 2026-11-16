@@ -8,10 +8,11 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import { splitPorts, vlanTypeKey } from '@/lib/cdataPorts';
 import { formatDateTime } from '@/lib/datetime';
 import { Deferred, Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Network, Plus, RefreshCw, Save, Search, Tags } from '@lucide/vue';
+import { Network, Plus, RefreshCw, Save, Search, Tags } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -143,22 +144,8 @@ const fmt = (v) => formatDateTime(v);
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="kv-circle-cyan !h-10 !w-10 flex-shrink-0"><Tags class="h-5 w-5" /></span>
-                    <div>
-                        <h1 class="text-xl font-semibold text-slate-100">{{ $t('cdatavlan.title', { name: olt.name }) }}</h1>
-                        <p class="mt-1 text-sm text-slate-400">{{ $t('cdatavlan.subtitle', { ip: olt.ip }) }}</p>
-                    </div>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('cdata-olt.detail', olt.id)">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader :olt="olt" family="cdata" :title="$t('oltnav.vlans')" :subtitle="$t('cdatavlan.subtitle', { ip: olt.ip })">
+                <template #actions>
                     <SecondaryButton v-if="canSaveConfig" type="button" :disabled="saving" @click="saveConfig">
                         <Save class="mr-2 h-4 w-4" :class="{ 'animate-pulse': saving }" />
                         {{ $t('cdatavlan.save_config') }}
@@ -167,8 +154,8 @@ const fmt = (v) => formatDateTime(v);
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': reloading }" />
                         {{ $t('cdatavlan.reload') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

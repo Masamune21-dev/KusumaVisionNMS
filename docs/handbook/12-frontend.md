@@ -51,7 +51,6 @@ SmartOlt/
                                  dulu GponPorts.vue) — kartu per port + cari ONU
   PortDetail                   ← detail port ZTE (trafik/SFP/VLAN, deskripsi, matikan/nyalakan port)
   PortOnus, OnuDetail, ConfigureOnu   ← ONU per port + detail + Configure ONU
-  OnuMonitor                   ← ONU Monitoring lintas OLT
   RegisterOnu, Registrations   ← provisioning (Sederhana / Lanjutan / C600)
   Profiles                     ← katalog profil
   UnconfiguredGlobal (+ Unconfigured per-OLT, tak ditautkan UI) ← ONU belum terdaftar + Bind ONU

@@ -13,7 +13,7 @@ ikut hilang:
 | Kelompok | Item | Siapa |
 |----------|------|-------|
 | Ringkasan | Dashboard | semua |
-| Jaringan OLT | SmartOLT · Unconfigured · Monitoring ONU | semua |
+| Jaringan OLT | SmartOLT · Unconfigured | semua |
 | Lapangan | Peta ONU · ODP | semua |
 | Pantauan | Alarm · Laporan | semua |
 | Administrasi | Pengguna · Log Audit · Pengaturan | admin |
@@ -224,13 +224,11 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   ([13](13-troubleshooting-maintenance.md#hioso-rx-na-padahal-onu-online)). Rujukan:
   `docs/SMARTOLT_HIOSO_GUIDE.md`.
 
-## 7. ONU Monitoring (lintas OLT)
-- **Controller**: `onuMonitor`, `refreshOnuMonitor` · **Page**: `SmartOlt/OnuMonitor.vue`.
-- Agregasi cache `port_onus` dari **semua** OLT (status online/offline, RX power, serial, nama).
-- `refreshOnuMonitor` melakukan satu walk SNMP penuh OLT terkait lalu menulis cache per port.
-- Kolom & filter **ACS** (semua / sudah / belum ter-ACS) dari field `acs` tiap ONU, plus tombol
-  perangkat terhubung untuk admin/operator — tanpa penyematan manual (§14b).
-- Dipakai juga oleh global search (⌘K) lewat `DashboardSearchController`.
+## 7. ONU Monitoring (dihapus 9 Nov 2026)
+- Halaman `SmartOlt/OnuMonitor.vue`, rute `monitoring.onu`/`monitoring.onu.refresh`, dan method `onuMonitor`/
+  `refreshOnuMonitor` dihapus: daftar ONU kini per port di dalam OLT (tab «Port PON & ONU»), dan `/onu-monitoring`
+  dialihkan ke `/smartolt` (`Route::redirect`) supaya bookmark lama tetap mendarat.
+- Agregasi lintas OLT `OnuInventoryService` tetap ada — dipakai global search (⌘K), Peta, dan REST API.
 
 ## 8. Unconfigured ONU
 - **Per-OLT**: `unconfigured`, `refreshUnconfigured` → `OltSnmpClient::unconfiguredOnus()`.

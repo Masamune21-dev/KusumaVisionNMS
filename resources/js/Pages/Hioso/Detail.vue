@@ -6,7 +6,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import OltFaceplate from '@/Components/CDataOlt/OltFaceplate.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, LayoutPanelTop, Pencil, RefreshCw, Server } from '@lucide/vue';
+import { ChevronRight, LayoutPanelTop, RefreshCw, Server } from '@lucide/vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import { computed } from 'vue';
 
 const props = defineProps({
@@ -55,40 +56,20 @@ const fmt = (v) => formatDateTime(v);
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight text-white sm:text-xl">
-                        {{ olt.name }}
-                        <span class="kv-pill kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
-                    </h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ olt.ip }}:{{ olt.snmp_port }} · {{ olt.snmp_version }}</p>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('smartolt.index', { tab: 'hioso' })">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link v-if="canManageOlt" :href="route('hioso-olt.edit', olt.id)">
-                        <SecondaryButton type="button">
-                            <Pencil class="mr-2 h-4 w-4" />
-                            {{ $t('common.edit') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('hioso-olt.pon-ports', olt.id)">
-                        <SecondaryButton type="button">
-                            <Cable class="mr-2 h-4 w-4" />
-                            {{ $t('ponports.title', { label: olt.capabilities.pon_label }) }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader :olt="olt" family="hioso" :title="olt.name">
+                <template #badges>
+                    <span class="kv-pill kv-pill-info">{{ olt.capabilities.vendor_family }}</span>
+                </template>
+                <template #subtitle>
+                    <span class="font-mono">{{ olt.ip }}:{{ olt.snmp_port }}</span> · {{ olt.snmp_version }}
+                </template>
+                <template #actions>
                     <PrimaryButton type="button" @click="scan">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         {{ $t('cdatadetail.scan_onu') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -96,22 +77,22 @@ const fmt = (v) => formatDateTime(v);
 
                 <!-- Ringkasan -->
                 <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
-                        <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ onuTotals.total.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.online') }}</p>
-                        <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-300">{{ onuTotals.online.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.offline') }}</p>
-                        <p class="mt-1 text-2xl font-bold tabular-nums" :class="onuTotals.offline > 0 ? 'text-red-300' : 'text-slate-300'">{{ onuTotals.offline.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.port_pon_up', { label: olt.capabilities.pon_label }) }}</p>
-                        <p class="mt-1 text-2xl font-bold tabular-nums text-white">{{ portsUp }}<span class="text-base text-slate-500"> / {{ ports.length }}</span></p>
-                    </div>
+                    <Link :href="route('hioso-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('portonus.stat_total_onu') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
+                        <p class="mt-1 text-2xl font-semibold tabular-nums text-white">{{ onuTotals.total.toLocaleString('id-ID') }}</p>
+                    </Link>
+                    <Link :href="route('hioso-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('common.online') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
+                        <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-300">{{ onuTotals.online.toLocaleString('id-ID') }}</p>
+                    </Link>
+                    <Link :href="route('hioso-olt.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('common.offline') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
+                        <p class="mt-1 text-2xl font-semibold tabular-nums" :class="onuTotals.offline > 0 ? 'text-rose-300' : 'text-slate-300'">{{ onuTotals.offline.toLocaleString('id-ID') }}</p>
+                    </Link>
+                    <Link :href="route('hioso-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('cdatadetail.port_pon_up', { label: olt.capabilities.pon_label }) }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
+                        <p class="mt-1 text-2xl font-semibold tabular-nums text-white">{{ portsUp }}<span class="text-base text-slate-500"> / {{ ports.length }}</span></p>
+                    </Link>
                 </div>
 
                 <!-- System info + gambar OLT (tata letak sama dengan ZTE) -->

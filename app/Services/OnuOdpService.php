@@ -52,28 +52,6 @@ class OnuOdpService
     }
 
     /**
-     * Opsi ODP lintas-OLT untuk dropdown filter (halaman Monitoring ONU).
-     *
-     * @param  Collection<int, SnmpOlt>|null  $olts  null = seluruh OLT dalam scope
-     * @return array<int, array{id:int, snmp_olt_id:int, name:string, slot:?int, port:?int}>
-     */
-    public function optionsForOlts(?Collection $olts = null): array
-    {
-        return Odp::query()
-            ->when($olts !== null, fn ($query) => $query->whereIn('snmp_olt_id', $olts->pluck('id')->all()))
-            ->orderBy('name')
-            ->get(['id', 'snmp_olt_id', 'name', 'slot', 'port'])
-            ->map(fn (Odp $odp) => [
-                'id' => $odp->id,
-                'snmp_olt_id' => $odp->snmp_olt_id,
-                'name' => $odp->name,
-                'slot' => $odp->slot,
-                'port' => $odp->port,
-            ])
-            ->all();
-    }
-
-    /**
      * Assignment ODP untuk ONU di satu PON port, di-key onu_id (untuk baris tabel).
      *
      * @return array<int, array{odp_id:int, odp_name:?string}>

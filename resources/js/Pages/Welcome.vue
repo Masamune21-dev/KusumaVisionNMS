@@ -335,7 +335,7 @@ const modules = computed(() => [
     { icon: Router, title: 'OLT C-Data & HiOSO', sub: t('welcome.m_nonzte_sub') },
     { icon: BellRing, title: 'Alarm Center', sub: t('welcome.m_alarm_sub') },
     { icon: Workflow, title: 'Provisioning', sub: t('welcome.m_prov_sub') },
-    { icon: Radar, title: 'ONU Monitoring', sub: t('welcome.m_monitoring_sub') },
+    { icon: Radar, title: 'ONU per Port', sub: t('welcome.m_monitoring_sub') },
     { icon: MapPin, title: t('welcome.m_map_title'), sub: t('welcome.m_map_sub') },
     { icon: Waypoints, title: 'ODP', sub: t('welcome.m_odp_sub') },
     { icon: Terminal, title: 'Telnet Console', sub: t('welcome.m_telnet_sub') },
@@ -391,13 +391,6 @@ const screenshots = [
         src: `/img/portonus.webp${SHOT_V}`,
         ratio: '1920 / 911',
         url: 'app.kusumavision.net/smartolt/1/ports/2/1/onus',
-    },
-    {
-        key: 'monitoring',
-        icon: Radar,
-        src: `/img/onumonitoring.webp${SHOT_V}`,
-        ratio: '1920 / 911',
-        url: 'app.kusumavision.net/onu-monitoring',
     },
     {
         key: 'map',

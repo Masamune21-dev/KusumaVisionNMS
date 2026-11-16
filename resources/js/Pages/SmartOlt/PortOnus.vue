@@ -14,6 +14,9 @@ import AcsPinCell from '@/Components/Genieacs/AcsPinCell.vue';
 import PinDeviceModal from '@/Components/Genieacs/PinDeviceModal.vue';
 import OnuOdpCell from '@/Components/OnuOdpCell.vue';
 import Tr069BulkModal from '@/Components/SmartOlt/Tr069BulkModal.vue';
+import ActionMenu from '@/Components/SmartOlt/ActionMenu.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
+import { ztePortDetailHref } from '@/lib/zteInterface';
 import ClientPagination from '@/Components/Shell/ClientPagination.vue';
 import ListSkeleton from '@/Components/Shell/ListSkeleton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -23,7 +26,7 @@ import { formatDateTime } from '@/lib/datetime';
 import { lastDownCauseLabel, onuPrimaryLabel, onuSecondaryLabel, phaseStateLabel } from '@/lib/onu';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
+import { ChevronLeft, ChevronRight, ClipboardPlus, Cloud, Copy, Info, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, Settings, SlidersHorizontal, ToggleLeft, ToggleRight, Trash2, Wifi, X } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -122,6 +125,22 @@ const canPreregister = computed(() => !!caps.value.supports_onu_preregister && B
 // Port EPON ZTE (kartu ETG): ONU dikenali dari MAC, didaftarkan lewat form EPON sendiri.
 const isEpon = computed(() => props.pon_type === 'epon');
 const canRegisterEpon = computed(() => isEpon.value && !!caps.value.supports_provisioning && Boolean(page.props.auth?.can?.manage_olt));
+
+// --- kepala halaman: jejak + menu «Alat port» (fitur jarang dipakai dikumpulkan di satu menu) ---
+const headerCrumbs = computed(() => [
+    { label: t('oltnav.ports'), href: route('smartolt.gpon-ports', props.olt.id) },
+    { label: `Slot ${props.slot} / Port ${props.port}` },
+]);
+const portToolItems = computed(() => {
+    const items = [];
+    const detail = ztePortDetailHref(props.olt, props.slot, props.port, props.pon_type);
+    if (detail) items.push({ key: 'detail', group: 'port', label: t('ponports.open_port_detail'), icon: SlidersHorizontal, href: detail });
+    if (canPreregister.value) {
+        items.push({ key: 'prereg', group: 'onu', label: t('portonus.preregister_label'), icon: ClipboardPlus, href: route('smartolt.register', { olt: props.olt.id, slot: props.slot, port: props.port, pre: 1 }) });
+    }
+    if (canTr069.value) items.push({ key: 'tr069', group: 'onu', label: t('portonus.tr069_bulk'), icon: Cloud, onClick: () => { tr069ModalOpen.value = true; } });
+    return items;
+});
 
 // --- navigasi cepat antar port (OLT sama) ---
 const navPorts = computed(() => {
@@ -343,6 +362,37 @@ const refresh = () => {
 const busy = reactive({});
 const actionKey = (onu) => `${onu.if_index}-${onu.onu_id}`;
 
+// Menu «⋯» per ONU — urutan tetap untuk setiap baris: lihat → perangkat pelanggan → ubah →
+// reboot/hapus paling bawah. Item yang tak didukung ONU/OLT ini disembunyikan, bukan digeser.
+const onuMenuGroups = computed(() => ({
+    view: t('actionmenu.group_view'),
+    customer: t('actionmenu.group_customer'),
+    edit: t('actionmenu.group_edit'),
+}));
+const onuMenu = (onu) => {
+    const isBusy = !!busy[actionKey(onu)];
+    const items = [];
+    items.push(isPinned(onu)
+        ? { key: 'map', group: 'view', label: t('portonus.act_view_map'), icon: MapPinned, onClick: () => viewOnMap(onu) }
+        : { key: 'map', group: 'view', label: t('portonus.act_add_map'), icon: MapPin, onClick: () => openAddMap(onu) });
+    if (acsFor(onu)) items.push({ key: 'clients', group: 'customer', label: t('acsclients.action'), icon: Laptop, onClick: () => openClients(onu) });
+    if (acsFor(onu) && canManageOlt.value) items.push({ key: 'wifi', group: 'customer', label: t('acswifi.action'), icon: Wifi, onClick: () => openWifi(onu) });
+    if (caps.value.supports_onu_info_write) items.push({ key: 'edit', group: 'edit', label: t('portonus.act_edit_info'), icon: Pencil, onClick: () => openEdit(onu) });
+    if (caps.value.supports_onu_toggle) {
+        const active = onu.admin_state === 'active';
+        items.push({
+            key: 'toggle', group: 'edit', disabled: isBusy,
+            label: active ? t('portonus.act_disable') : t('portonus.act_enable'),
+            icon: active ? ToggleRight : ToggleLeft,
+            variant: active ? 'warning' : 'success',
+            onClick: () => toggleOnu(onu),
+        });
+    }
+    if (caps.value.supports_reboot) items.push({ key: 'reboot', group: 'danger', label: t('portonus.act_reboot'), icon: Power, variant: 'warning', disabled: isBusy, onClick: () => rebootOnu(onu) });
+    if (caps.value.supports_onu_delete) items.push({ key: 'delete', group: 'danger', label: t('portonus.act_delete'), icon: Trash2, variant: 'danger', disabled: isBusy, onClick: () => deleteOnu(onu) });
+    return items;
+};
+
 const rebootOnu = async (onu) => {
     const ok = await confirm({
         title: t('portonus.act_reboot'),
@@ -560,17 +610,15 @@ const rxBadgeClass = (value) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight sm:text-xl text-white">
-                        ONU Slot {{ slot }} Port {{ port }}
-                        <span v-if="isEpon" class="kv-pill kv-pill-info">EPON</span>
-                    </h2>
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ olt.name }} · {{ olt.ip }}
-                    </p>
-                </div>
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:items-center sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
+            <OltPageHeader :olt="olt" :title="`Slot ${slot} / Port ${port}`" :crumbs="headerCrumbs">
+                <template #badges>
+                    <span v-if="isEpon" class="kv-pill kv-pill-info">EPON</span>
+                </template>
+                <template #subtitle>
+                    <span class="font-medium tabular-nums text-emerald-400">{{ snapshot.onus.filter((o) => o.online).length }}</span>
+                    {{ $t('gponports.onu_online_of', { total: snapshot.onus.length }) }}
+                </template>
+                <template #actions>
                     <div v-if="navPorts.length > 1" class="flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 p-1">
                         <button
                             type="button"
@@ -601,34 +649,21 @@ const rxBadgeClass = (value) => {
                             <ChevronRight class="h-4 w-4" />
                         </button>
                     </div>
-                    <Link :href="route('smartolt.gpon-ports', olt.id)">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            GPON Port & ONU
-                        </SecondaryButton>
-                    </Link>
-                    <SecondaryButton v-if="canTr069" type="button" @click="tr069ModalOpen = true">
-                        <Cloud class="mr-2 h-4 w-4" />
-                        {{ $t('portonus.tr069_bulk') }}
-                    </SecondaryButton>
                     <Link v-if="canRegisterEpon" :href="route('smartolt.register', { olt: olt.id, slot, port })">
                         <SecondaryButton type="button">
                             <ClipboardPlus class="mr-2 h-4 w-4" />
                             {{ $t('portonus.register_epon') }}
                         </SecondaryButton>
                     </Link>
-                    <Link v-if="canPreregister" :href="route('smartolt.register', { olt: olt.id, slot, port, pre: 1 })" :title="$t('portonus.preregister_hint')">
-                        <SecondaryButton type="button">
-                            <ClipboardPlus class="mr-2 h-4 w-4" />
-                            Pre-Register ONU
-                        </SecondaryButton>
-                    </Link>
-                    <PrimaryButton type="button" @click="refresh">
-                        <RefreshCw class="mr-2 h-4 w-4" />
+                    <div v-if="portToolItems.length">
+                        <ActionMenu :label="$t('portonus.port_tools')" :items="portToolItems" />
+                    </div>
+                    <PrimaryButton type="button" :disabled="refreshing" @click="refresh">
+                        <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         {{ $t('portonus.refresh_onu') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -812,7 +847,14 @@ const rxBadgeClass = (value) => {
                                             @change="toggleSelect(onu)"
                                         />
                                         <div class="min-w-0">
-                                            <h4 class="kv-mobile-card-title" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</h4>
+                                            <h4 class="kv-mobile-card-title" :title="onu.interface">
+                                                <Link
+                                                    v-if="caps.supports_cli_onu_detail"
+                                                    :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
+                                                    class="rounded hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                                                >{{ onuPrimaryLabel(onu) }}</Link>
+                                                <template v-else>{{ onuPrimaryLabel(onu) }}</template>
+                                            </h4>
                                             <p class="kv-mobile-card-subtitle">{{ onuSecondaryLabel(onu) }}</p>
                                         </div>
                                     </div>
@@ -872,23 +914,6 @@ const rxBadgeClass = (value) => {
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
-                                    <IconButton v-if="acsFor(onu) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(onu)">
-                                        <Wifi class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="acsFor(onu) && canUseAcs"
-                                        class="order-last" :title="$t('acsclients.action')"
-                                        @click="openClients(onu)"
-                                    >
-                                        <Laptop class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="caps.supports_onu_info_write"
-                                        :title="$t('portonus.act_edit_info')"
-                                        @click="openEdit(onu)"
-                                    >
-                                        <Pencil class="h-4 w-4" />
-                                    </IconButton>
                                     <IconButton
                                         v-if="caps.supports_cli_onu_detail"
                                         :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
@@ -904,42 +929,12 @@ const rxBadgeClass = (value) => {
                                     >
                                         <Settings class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton
-                                        :variant="isPinned(onu) ? 'success' : 'primary'"
-                                        :title="isPinned(onu) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')"
-                                        @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
-                                    >
-                                        <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
-                                        <MapPin v-else class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="caps.supports_onu_toggle"
-                                        :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
-                                        :disabled="busy[actionKey(onu)]"
-                                        :title="onu.admin_state === 'active' ? $t('portonus.act_disable') : $t('portonus.act_enable')"
-                                        @click="toggleOnu(onu)"
-                                    >
-                                        <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
-                                        <ToggleLeft v-else class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="caps.supports_reboot"
-                                        variant="danger"
-                                        :disabled="busy[actionKey(onu)]"
-                                        :title="$t('portonus.act_reboot')"
-                                        @click="rebootOnu(onu)"
-                                    >
-                                        <Power class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="caps.supports_onu_delete"
-                                        variant="danger"
-                                        :disabled="busy[actionKey(onu)]"
-                                        :title="$t('portonus.act_delete')"
-                                        @click="deleteOnu(onu)"
-                                    >
-                                        <Trash2 class="h-4 w-4" />
-                                    </IconButton>
+                                    <ActionMenu
+                                        v-if="onuMenu(onu).length"
+                                        :items="onuMenu(onu)"
+                                        :groups="onuMenuGroups"
+                                        :title="$t('portonus.more_actions', { id: onu.onu_id })"
+                                    />
                                 </div>
                             </article>
                         </div>
@@ -985,7 +980,13 @@ const rxBadgeClass = (value) => {
                                         />
                                     </td>
                                     <td class="min-w-[14rem] px-4 py-3">
-                                        <div class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
+                                        <Link
+                                            v-if="caps.supports_cli_onu_detail"
+                                            :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
+                                            class="rounded font-semibold text-slate-100 hover:text-cyan-300 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                                            :title="onu.interface"
+                                        >{{ onuPrimaryLabel(onu) }}</Link>
+                                        <div v-else class="font-semibold text-white" :title="onu.interface">{{ onuPrimaryLabel(onu) }}</div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ onuSecondaryLabel(onu) }}</div>
                                     </td>
                                     <td class="px-4 py-3">
@@ -1044,24 +1045,7 @@ const rxBadgeClass = (value) => {
                                         <span :title="onu.last_down_cause || ''">{{ lastDownCauseLabel(onu.last_down_cause) }}</span>
                                     </td>
                                     <td class="px-4 py-3">
-                                        <div class="grid w-max grid-flow-col grid-rows-2 gap-1.5">
-                                            <IconButton v-if="acsFor(onu) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(onu)">
-                                                <Wifi class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="acsFor(onu) && canUseAcs"
-                                                class="order-last" :title="$t('acsclients.action')"
-                                                @click="openClients(onu)"
-                                            >
-                                                <Laptop class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="caps.supports_onu_info_write"
-                                                :title="$t('portonus.act_edit_info')"
-                                                @click="openEdit(onu)"
-                                            >
-                                                <Pencil class="h-4 w-4" />
-                                            </IconButton>
+                                        <div class="flex w-max items-center gap-1.5">
                                             <IconButton
                                                 v-if="caps.supports_cli_onu_detail"
                                                 :href="route('smartolt.onu.detail', [olt.id, slot, port, onu.onu_id])"
@@ -1077,42 +1061,12 @@ const rxBadgeClass = (value) => {
                                             >
                                                 <Settings class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton
-                                                :variant="isPinned(onu) ? 'success' : 'primary'"
-                                                :title="isPinned(onu) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')"
-                                                @click="isPinned(onu) ? viewOnMap(onu) : openAddMap(onu)"
-                                            >
-                                                <MapPinned v-if="isPinned(onu)" class="h-4 w-4" />
-                                                <MapPin v-else class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="caps.supports_onu_toggle"
-                                                :variant="onu.admin_state === 'active' ? 'warning' : 'success'"
-                                                :disabled="busy[actionKey(onu)]"
-                                                :title="onu.admin_state === 'active' ? $t('portonus.act_disable') : $t('portonus.act_enable')"
-                                                @click="toggleOnu(onu)"
-                                            >
-                                                <ToggleRight v-if="onu.admin_state === 'active'" class="h-4 w-4" />
-                                                <ToggleLeft v-else class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="caps.supports_reboot"
-                                                variant="danger"
-                                                :disabled="busy[actionKey(onu)]"
-                                                :title="$t('portonus.act_reboot')"
-                                                @click="rebootOnu(onu)"
-                                            >
-                                                <Power class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="caps.supports_onu_delete"
-                                                variant="danger"
-                                                :disabled="busy[actionKey(onu)]"
-                                                :title="$t('portonus.act_delete')"
-                                                @click="deleteOnu(onu)"
-                                            >
-                                                <Trash2 class="h-4 w-4" />
-                                            </IconButton>
+                                            <ActionMenu
+                                                v-if="onuMenu(onu).length"
+                                                :items="onuMenu(onu)"
+                                                :groups="onuMenuGroups"
+                                                :title="$t('portonus.more_actions', { id: onu.onu_id })"
+                                            />
                                         </div>
                                     </td>
                                 </tr>

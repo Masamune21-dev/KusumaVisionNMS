@@ -1,5 +1,38 @@
 # Worklog
 
+## 2026-11-16 — Changed: bilah tab & menu aksi bersama di semua halaman OLT, halaman ONU Monitoring dihapus
+
+- **Created — `Components/SmartOlt/OltPageHeader.vue`:** satu kepala halaman untuk ZTE, C-Data, HiOSO, dan HSGQ —
+  remah roti (indeks OLT → Detail / Port PON & ONU / Port / ONU), judul + status, dan **bilah tab** (Ringkasan,
+  Port PON & ONU, Registrasi, Profil, Cadangan config) yang menyala sesuai halaman aktif. Tab Cadangan mengikuti
+  `olt.can.read_backups` bila dikirim server, kalau tidak ditampilkan (gerbangnya tetap di rute).
+- **Created — `Components/SmartOlt/ActionMenu.vue`:** menu «⋯» berkelompok (Lihat / Pelanggan / Ubah / Berbahaya)
+  untuk aksi per-ONU dan aksi per-OLT, menggantikan deretan tombol ikon yang makin panjang di tabel.
+- **Created — `Components/SmartOlt/OltThumb.vue` + `lib/oltImage.js`:** gambar perangkat per family/model di
+  daftar dan detail OLT (`public/img/olt/`), dengan cadangan ke gambar lama (`/img/c300.webp` dst.).
+- **Deleted — halaman ONU Monitoring:** `Pages/SmartOlt/OnuMonitor.vue`, rute `monitoring.onu` /
+  `monitoring.onu.refresh`, method `onuMonitor()`/`refreshOnuMonitor()`, dan method bantuannya di
+  `OnuOdpService`. Daftar ONU kini per port di dalam OLT (tab «Port PON & ONU»); `/onu-monitoring` dialihkan ke
+  `/smartolt` supaya bookmark lama tetap mendarat. Agregasi lintas OLT `OnuInventoryService` tetap ada untuk
+  pencarian global, Peta, dan REST API.
+- **Changed — 20 halaman OLT** (`SmartOlt/*`, `CDataOlt/*`, `Hioso/*`, `Hsgq/*`): memakai kepala halaman dan menu
+  aksi bersama; tombol Sunting/Peta tetap di baris, sisanya pindah ke «⋯» (termasuk Ubah WiFi & perangkat
+  terhubung dari GenieACS). Form Sunting/Detail memakai header baru; `Panduan/Index.vue` ikut memakai ikon baru;
+  `Welcome.vue` tak lagi menyebut halaman ONU Monitoring (entri galeri screenshot-nya dibuang).
+- **Changed — `resources/js/lang/{id,en}.json`:** +36 kunci (`oltnav.*`, `actionmenu.*`, label menu) dan −44 kunci
+  halaman Monitoring; kunci `shot_monitoring_*` ikut dibuang.
+- **Changed — dokumen:** `docs/handbook/{01-overview,06-routing,07-modul-fitur,12-frontend,16-peta-onu}.md`.
+- **Notes — penyesuaian untuk edisi publik (tidak menyalin kode internal):** butir menu **«Trafik PPPoE»** tidak
+  ikut (butuh jembatan MikroTik/Billing), `canToggleAlarms` mengikuti izin `manage_olt` (publik tak menghitung
+  izin per-OLT di server), dan tidak ada prop `olt.can` dari server — sehingga tab Cadangan memakai pola
+  "tampil kecuali server menolak".
+- **Notes — verifikasi:** `scripts/test.sh` 896 lulus (5.174 assertion; `OdpTest` yang dulu menguji halaman
+  Monitoring kini menguji `OnuInventoryService` langsung), `npm test` 66 lulus, `kv-ui-check` 0 pelanggaran keras
+  (metrik `text-[Npx]` 87→81, `text-[<=10px]` 42→40, `<button>` 140→140, `backdrop-blur` 140→137).
+  Dirender dengan Playwright di server lokal (sqlite + data demo, satu OLT uji per family): **13 halaman**
+  — indeks OLT, Detail/PON Ports/Port ONU untuk ZTE, C-Data, HiOSO, HSGQ, serta Panduan — semuanya HTTP 200,
+  **0 galat konsol**, tab bersama tampil, menu «⋯» ada di baris ONU, dan `/onu-monitoring` teralihkan ke `/smartolt`.
+
 ## 2026-11-16 — Changed: sidebar padat gaya Billing, panel sistem (CPU/RAM/disk) dihapus
 
 - **Changed — `Layouts/AuthenticatedLayout.vue`:** sidebar memakai latar **padat `bg-surface-1` + `shadow-2xl`**

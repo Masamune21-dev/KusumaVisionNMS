@@ -1,10 +1,11 @@
 <script setup>
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, RefreshCw, Search } from '@lucide/vue';
+import { Cable, RefreshCw, Search, SlidersHorizontal } from '@lucide/vue';
+import { ztePortDetailHref } from '@/lib/zteInterface';
 import { computed, ref } from 'vue';
 
 /**
@@ -21,6 +22,8 @@ const props = defineProps({
 
 const ponLabel = computed(() => props.olt.capabilities?.pon_label ?? 'PON');
 const isZte = computed(() => props.route_prefix === 'smartolt');
+const FAMILY = { smartolt: 'zte', 'cdata-olt': 'cdata', 'hioso-olt': 'hioso', 'hsgq-olt': 'hsgq' };
+const family = computed(() => FAMILY[props.route_prefix] ?? 'zte');
 
 const search = ref('');
 const term = computed(() => search.value.trim().toLowerCase());
@@ -51,7 +54,14 @@ const scan = () => {
     });
 };
 
-const detailRoute = computed(() => route(`${props.route_prefix}.detail`, props.olt.id));
+// Detail port: ZTE GPON (nama interface CLI) atau C-Data firmware V3 (`cdata-olt.port.detail`, kind = gpon/epon).
+const portDetailHref = (port) => {
+    if (isZte.value) return ztePortDetailHref(props.olt, port.slot, port.port, port.pon_type);
+    if (family.value === 'cdata' && props.olt.capabilities?.supports_cli_port_detail) {
+        return route('cdata-olt.port.detail', [props.olt.id, ponLabel.value.toLowerCase(), port.slot, port.port]);
+    }
+    return null;
+};
 const onusRoute = (port) => route(`${props.route_prefix}.port-onus`, [props.olt.id, port.slot, port.port]);
 // Port yang tidak `up` (down, lowerlayerdown, notpresent, …) ditandai merah.
 const isDown = (port) => String(port.oper_status ?? '').toLowerCase() !== 'up';
@@ -65,29 +75,18 @@ const onlinePct = (port) => (port.onu_count ? Math.round(((port.online_onu_count
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">{{ $t('ponports.title', { label: ponLabel }) }}</h2>
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ olt.name }} · {{ olt.ip }} ·
-                        <span class="font-medium text-emerald-400">{{ onuOnline }}</span>
-                        <span class="text-slate-400">{{ $t('gponports.onu_online_of', { total: onuTotal }) }}</span>
-                    </p>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="detailRoute">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.detail_olt') }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader :olt="olt" :family="family" :title="$t('ponports.title', { label: ponLabel })">
+                <template #subtitle>
+                    <span class="font-medium text-emerald-400">{{ onuOnline }}</span>
+                    {{ $t('gponports.onu_online_of', { total: onuTotal }) }}
+                </template>
+                <template #actions>
                     <PrimaryButton type="button" :disabled="refreshing" @click="scan">
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         {{ isZte ? $t('gponports.refresh_snmp') : $t('cdatadetail.scan_onu') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -138,14 +137,17 @@ const onlinePct = (port) => (port.onu_count ? Math.round(((port.online_onu_count
                     <div v-if="ports.length === 0" class="px-6 py-12 text-center text-sm text-slate-500" v-html="$t('cdatadetail.empty_ports')"></div>
                     <div v-else-if="filteredPorts.length === 0" class="px-6 py-12 text-center text-sm text-slate-500">{{ $t('gponports.no_match') }}</div>
                     <div v-else class="grid gap-3 p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3 xl:grid-cols-4">
-                        <Link
+                        <div
                             v-for="port in filteredPorts"
                             :key="port.if_index ?? port.name"
-                            :href="onusRoute(port)"
-                            class="group block rounded-lg border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
+                            class="flex flex-col rounded-lg border transition"
                             :class="isDown(port)
                                 ? 'border-rose-500/40 bg-rose-500/10 hover:border-rose-400/60 hover:bg-rose-500/15'
                                 : 'border-white/10 bg-canvas-3/40 hover:border-cyan-500/40 hover:bg-cyan-500/5'"
+                        >
+                        <Link
+                            :href="onusRoute(port)"
+                            class="group block flex-1 rounded-lg p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60"
                         >
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
@@ -175,6 +177,16 @@ const onlinePct = (port) => (port.onu_count ? Math.round(((port.online_onu_count
                                 <div v-if="port.matching_onus.length > 3" class="text-xs font-medium text-slate-500">+{{ port.matching_onus.length - 3 }} ONU</div>
                             </div>
                         </Link>
+                        <div v-if="portDetailHref(port)" class="flex items-center justify-between gap-2 border-t border-white/10 px-4 py-2 text-xs">
+                            <Link :href="onusRoute(port)" class="inline-flex min-h-9 items-center gap-1 rounded font-medium text-cyan-300 hover:text-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                                {{ $t('ponports.open_onus') }}
+                            </Link>
+                            <Link :href="portDetailHref(port)" class="inline-flex min-h-9 items-center gap-1.5 rounded font-medium text-slate-400 hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                                <SlidersHorizontal class="h-3.5 w-3.5" />
+                                {{ $t('ponports.open_port_detail') }}
+                            </Link>
+                        </div>
+                        </div>
                     </div>
                 </section>
             </div>

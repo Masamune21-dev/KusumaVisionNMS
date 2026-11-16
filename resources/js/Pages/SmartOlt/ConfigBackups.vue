@@ -1,12 +1,13 @@
 <script setup>
 import Modal from '@/Components/Modal.vue';
 import Pagination from '@/Components/Pagination.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { formatDateTime } from '@/lib/datetime';
 import { diffStats, lineDiff } from '@/lib/linediff';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, Clock, Database, Download, Eye, History, Save, ShieldCheck, ToggleLeft, ToggleRight, TriangleAlert } from '@lucide/vue';
+import { Clock, Database, Download, Eye, History, Save, ShieldCheck, ToggleLeft, ToggleRight, TriangleAlert } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -109,20 +110,11 @@ const labelFor = (id) => {
     <Head :title="`Backup Config ${olt.name}`" />
 
     <AuthenticatedLayout>
-        <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-            <!-- Header -->
-            <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <Link :href="route('smartolt.detail', olt.id)" class="mb-2 inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-cyan-300">
-                        <ArrowLeft class="h-4 w-4" /> {{ $t('configbackups.back_to', { name: olt.name }) }}
-                    </Link>
-                    <h1 class="flex items-center gap-2 text-xl font-semibold text-white">
-                        <Database class="h-6 w-6 text-cyan-400" /> {{ $t('configbackups.title') }}
-                    </h1>
-                    <p class="mt-1 text-sm text-slate-400">{{ olt.name }} · {{ olt.ip }}</p>
-                </div>
-            </div>
+        <template #header>
+            <OltPageHeader :olt="olt" :title="$t('configbackups.title')" :subtitle="$t('oltnav.backups_subtitle')" />
+        </template>
 
+        <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
             <!-- Banner tak didukung -->
             <div v-if="!supported" class="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
                 <TriangleAlert class="mt-0.5 h-5 w-5 flex-shrink-0" />

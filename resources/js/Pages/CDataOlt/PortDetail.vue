@@ -6,10 +6,11 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import { formatBytes, formatCount, formatKbps } from '@/lib/cdataPorts';
 import { formatDateTime } from '@/lib/datetime';
 import { Deferred, Head, Link, router, useForm } from '@inertiajs/vue3';
-import { Activity, ArrowLeft, Cable, ListTree, Network, Plus, RefreshCw, Save, Tag, Users, Zap } from '@lucide/vue';
+import { Activity, Cable, ListTree, Network, Plus, RefreshCw, Save, Tag, Users, Zap } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -147,37 +148,24 @@ const submitTag = async () => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-3">
-                    <span class="kv-circle-cyan !h-10 !w-10 flex-shrink-0"><Cable class="h-5 w-5" /></span>
-                    <div>
-                        <h1 class="font-mono text-xl font-semibold text-slate-100">{{ name }}</h1>
-                        <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                            <span :class="isPon ? 'kv-pill-info' : 'kv-pill-muted'">{{ kind.toUpperCase() }}</span>
-                            <span>{{ olt.name }}</span>
-                            <span v-if="olt.model" class="font-mono text-xs">· {{ olt.model }}</span>
-                            <span v-if="port_label">· {{ port_label }}</span>
-                        </p>
-                    </div>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('cdata-olt.detail', olt.id)">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader
+                :olt="olt"
+                family="cdata"
+                :title="name"
+                :crumbs="[{ label: $t('oltnav.ports_generic', { label: olt.capabilities?.pon_label ?? 'PON' }), href: route('cdata-olt.pon-ports', olt.id) }, { label: name }]"
+            >
+                <template #badges>
+                    <span :class="isPon ? 'kv-pill-info' : 'kv-pill-muted'">{{ kind.toUpperCase() }}</span>
+                </template>
+                <template #subtitle>
+                    <span v-if="olt.model" class="font-mono text-xs">{{ olt.model }}</span>
+                    <span v-if="port_label"><template v-if="olt.model"> · </template>{{ port_label }}</span>
+                </template>
+                <template #actions>
                     <Link v-if="isPon" :href="route('cdata-olt.port-onus', [olt.id, slot, port])">
                         <SecondaryButton type="button">
                             <Users class="mr-2 h-4 w-4" />
                             {{ $t('cdataport.view_onu') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link v-if="olt.capabilities?.supports_cli_vlan" :href="route('cdata-olt.vlans', olt.id)">
-                        <SecondaryButton type="button">
-                            <Network class="mr-2 h-4 w-4" />
-                            {{ $t('cdataport.vlan_page') }}
                         </SecondaryButton>
                     </Link>
                     <SecondaryButton v-if="canSaveConfig" type="button" :disabled="saving" @click="saveConfig">
@@ -188,8 +176,8 @@ const submitTag = async () => {
                         <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': reloading }" />
                         {{ $t('cdatavlan.reload') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

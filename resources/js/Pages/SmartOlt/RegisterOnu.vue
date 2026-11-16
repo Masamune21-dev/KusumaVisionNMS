@@ -6,6 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -337,10 +338,12 @@ const submitC600 = async (execute) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div>
-                <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ preregister ? 'Pre-Register ONU' : 'Register ONU' }}</h2>
-                <p class="mt-1 text-sm text-slate-500">{{ $t(preregister ? 'registeronu.prereg_subtitle' : 'registeronu.subtitle', { olt: olt.name }) }}</p>
-            </div>
+            <OltPageHeader
+                :olt="olt"
+                :title="preregister ? $t('portonus.preregister_label') : 'Register ONU'"
+                :subtitle="$t(preregister ? 'registeronu.prereg_subtitle' : 'registeronu.subtitle', { olt: olt.name })"
+                :crumbs="[{ label: $t('oltnav.unconfigured'), href: route('smartolt.unconfigured', olt.id) }, { label: preregister ? $t('portonus.preregister_label') : 'Register ONU' }]"
+            />
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

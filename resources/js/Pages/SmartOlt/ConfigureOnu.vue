@@ -3,11 +3,12 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import OnuConfigEditor from '@/Components/SmartOlt/OnuConfigEditor.vue';
 import OnuConfigTree from '@/Components/SmartOlt/OnuConfigTree.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import {
-    AlertTriangle, ArrowLeft, Check, Copy, Eye, ListChecks, Lock, RefreshCw, Settings, Terminal,
+    AlertTriangle, Check, Info, Copy, Eye, ListChecks, Lock, RefreshCw, Settings, Terminal,
 } from '@lucide/vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 
@@ -125,6 +126,12 @@ const apply = () => {
 };
 
 const ifaceLabel = computed(() => props.interface);
+const headerCrumbs = computed(() => [
+    { label: t('oltnav.ports'), href: route('smartolt.gpon-ports', props.olt.id) },
+    { label: `Slot ${props.slot} / Port ${props.port}`, href: route('smartolt.port-onus', [props.olt.id, props.slot, props.port]) },
+    { label: `ONU ${props.onu_id}` },
+]);
+
 
 // Tampilan: 'tree' = editor per-bagian gaya NetNumen (OK langsung ke OLT), 'full' = editor lama
 // (ubah banyak sekaligus lalu Terapkan). Pilihan diingat per browser.
@@ -157,28 +164,25 @@ const errorList = computed(() => Object.values(form.errors ?? {}));
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <h2 class="flex items-center gap-2 text-lg font-semibold leading-tight sm:text-xl text-white">
-                        <Settings class="h-5 w-5 text-cyan-400" />
-                        Configure ONU (CLI): {{ ifaceLabel }}
-                    </h2>
-                    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                        <span>{{ olt.name }}</span>
-                        <span>· OLT {{ olt.ip }}</span>
-                        <span v-if="meta.sn">· SN <span class="font-mono text-slate-400">{{ meta.sn }}</span></span>
-                        <span class="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-cyan-300 ring-1 ring-cyan-500/30">
-                            CLI (show running-config + show onu running config)
-                        </span>
-                    </p>
-                </div>
-                <Link :href="route('smartolt.port-onus', [olt.id, slot, port])">
-                    <SecondaryButton type="button">
-                        <ArrowLeft class="mr-2 h-4 w-4" />
-                        {{ $t('configonu.back_to_port') }}
-                    </SecondaryButton>
-                </Link>
-            </div>
+            <OltPageHeader :olt="olt" :title="meta.name || ifaceLabel" :crumbs="headerCrumbs">
+                <template #subtitle>
+                    <span class="font-mono">{{ ifaceLabel }}</span>
+                    <template v-if="meta.sn"> · SN <span class="font-mono text-slate-300">{{ meta.sn }}</span></template>
+                    <span class="ml-1 text-xs text-slate-500">(CLI · show running-config + show onu running config)</span>
+                </template>
+                <template #actions>
+                    <Link v-if="olt.capabilities?.supports_cli_onu_detail" :href="route('smartolt.onu.detail', [olt.id, slot, port, onu_id])">
+                        <SecondaryButton type="button">
+                            <Info class="mr-2 h-4 w-4" />
+                            {{ $t('portonus.act_detail') }}
+                        </SecondaryButton>
+                    </Link>
+                    <PrimaryButton type="button" @click="refresh">
+                        <RefreshCw class="mr-2 h-4 w-4" />
+                        {{ $t('common.refresh') }}
+                    </PrimaryButton>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

@@ -3,9 +3,10 @@ import IconButton from '@/Components/IconButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import BindOnuModal from '@/Components/SmartOlt/BindOnuModal.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, ClipboardPlus, Plus, RefreshCw, Replace, Wifi } from '@lucide/vue';
+import { ClipboardPlus, Plus, RefreshCw, Replace, Wifi } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import { formatDateTime } from '@/lib/datetime';
 
@@ -43,35 +44,20 @@ const bindTarget = ref(null);
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                        {{ $t('unconfigured.title') }}
-                    </h2>
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ olt.name }} · {{ olt.ip }}
-                    </p>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('smartolt.detail', olt.id)">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.detail_olt') }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader :olt="olt" :title="$t('unconfigured.title')" :subtitle="$t('oltnav.unconfigured_subtitle')">
+                <template #actions>
                     <Link v-if="canPreregister" :href="route('smartolt.register', { olt: olt.id, pre: 1 })" :title="$t('portonus.preregister_hint')">
                         <SecondaryButton type="button">
                             <ClipboardPlus class="mr-2 h-4 w-4" />
-                            Pre-Register ONU
+                            {{ $t('portonus.preregister_label') }}
                         </SecondaryButton>
                     </Link>
                     <PrimaryButton type="button" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         {{ $t('common.refresh_discovery') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

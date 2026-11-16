@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, useForm } from '@inertiajs/vue3';
@@ -113,13 +114,14 @@ const selectClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40
 
     <AuthenticatedLayout>
         <template #header>
-            <div>
-                <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight text-white sm:text-xl">
-                    {{ $t('registerepon.title') }}
-                    <span class="kv-pill kv-pill-info">EPON</span>
-                </h2>
-                <p class="mt-1 text-sm text-slate-500">{{ $t('registerepon.subtitle', { olt: olt.name }) }}</p>
-            </div>
+            <OltPageHeader
+                :olt="olt"
+                :title="$t('registerepon.title')"
+                :subtitle="$t('registerepon.subtitle', { olt: olt.name })"
+                :crumbs="[{ label: $t('oltnav.unconfigured'), href: route('smartolt.unconfigured', olt.id) }, { label: $t('registerepon.title') }]"
+            >
+                <template #badges><span class="kv-pill kv-pill-info">EPON</span></template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

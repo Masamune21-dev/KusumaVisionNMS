@@ -208,8 +208,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/smartolt/create', [SmartOltController::class, 'create'])->middleware('role:admin,operator,partner')->name('smartolt.create');
     Route::post('/smartolt', [SmartOltController::class, 'store'])->middleware('role:admin,operator,partner')->name('smartolt.store');
     Route::get('/smartolt/unconfigured', [SmartOltController::class, 'unconfiguredGlobal'])->name('smartolt.unconfigured-all');
-    Route::get('/onu-monitoring', [SmartOltController::class, 'onuMonitor'])->name('monitoring.onu');
-    Route::post('/onu-monitoring/{olt}/refresh', [SmartOltController::class, 'refreshOnuMonitor'])->middleware('throttle:olt-refresh')->name('monitoring.onu.refresh');
+    // Halaman ONU Monitoring dihapus 9 Nov 2026 (keputusan pemilik) — daftar ONU kini per port di dalam
+    // OLT. URL lama dialihkan supaya bookmark teknisi tak 404.
+    Route::redirect('/onu-monitoring', '/smartolt');
 
     // Peta ONU — sebaran pin ONU pelanggan lintas-OLT (Leaflet + tile Google keyless).
     Route::get('/map', [OnuMapController::class, 'index'])->name('map.index');

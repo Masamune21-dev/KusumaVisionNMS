@@ -1,13 +1,14 @@
 <script setup>
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import ActionMenu from '@/Components/SmartOlt/ActionMenu.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { Antenna, BellOff, BellRing, Cable, Database, Eye, Pencil, Plus, RadioTower, RefreshCw, Save, SaveAll, SaveOff, Server, Terminal, Trash2 } from '@lucide/vue';
+import { Antenna, Archive, BellOff, BellRing, Cable, ClipboardList, Database, Eye, Network, Pencil, Plus, RadioTower, RefreshCw, Save, SaveAll, SaveOff, Server, Terminal, Trash2 } from '@lucide/vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -43,6 +44,9 @@ const canManageInventory = computed(() => Boolean(page.props.auth?.can?.manage_o
 const canAddOlt = computed(() => Boolean(page.props.auth?.can?.add_olt));
 // Boleh hapus OLT ini: admin/operator utk OLT global, partner hanya utk OLT miliknya.
 const canDeleteOlt = (olt) => canManageInventory.value || Boolean(olt.owned);
+// Toggle alarm per-OLT: publik tak menghitung izin per-OLT di server, jadi mengikuti izin
+// kelola OLT — sama seperti tombol alarm langsung sebelum menu aksi ini ada.
+const canToggleAlarms = () => Boolean(canManageOlt.value);
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +157,90 @@ const alarmTitle = (olt) => {
     return olt.alarms_enabled
         ? t('smartolt.alarm_on_admin')
         : t('smartolt.alarm_off_admin');
+};
+
+/* ------------------------------------------------------------------ */
+/* Menu «⋯» baris OLT ZTE — urutan tetap: buka → operasi → ubah → hapus */
+/* (Detail & Telnet tetap tampil sebagai tombol karena paling sering).  */
+/* ------------------------------------------------------------------ */
+const oltMenuGroups = computed(() => ({
+    open: t('actionmenu.group_open'),
+    ops: t('actionmenu.group_ops'),
+    edit: t('actionmenu.group_edit'),
+}));
+const zteOltMenu = (olt) => {
+    const items = [
+        { key: 'ports', group: 'open', label: t('oltnav.ports'), icon: Cable, href: route('smartolt.gpon-ports', olt.id) },
+    ];
+    if (olt.capabilities?.supports_provisioning !== false) {
+        items.push({ key: 'registrations', group: 'open', label: t('oltnav.registrations'), icon: ClipboardList, href: route('smartolt.registrations', olt.id) });
+        items.push({ key: 'profiles', group: 'open', label: t('oltnav.profiles'), icon: Database, href: route('smartolt.profiles.index', olt.id) });
+    }
+    if (olt.can?.read_backups !== false) {
+        items.push({ key: 'backups', group: 'open', label: t('oltnav.backups'), icon: Archive, href: route('smartolt.config-backups.index', olt.id) });
+    }
+    if (!olt.connection_locked) {
+        items.push({ key: 'test', group: 'ops', label: t('common.test_snmp'), icon: RefreshCw, onClick: () => testOlt(olt) });
+    }
+    if (canSaveConfig(olt)) {
+        items.push({ key: 'save', group: 'ops', label: t('smartolt.title_save_config'), icon: Save, disabled: savingId.value === olt.id, onClick: () => saveConfig(olt) });
+        items.push({
+            key: 'autosave', group: 'ops',
+            label: olt.config_autosave?.enabled ? t('smartolt.menu_autosave_off') : t('smartolt.menu_autosave_on'),
+            icon: olt.config_autosave?.enabled ? SaveOff : SaveAll,
+            onClick: () => toggleAutosave(olt),
+        });
+    }
+    if (canToggleAlarms(olt)) {
+        items.push({
+            key: 'alarm', group: 'ops',
+            label: olt.alarms_enabled ? t('smartolt.menu_alarm_off') : t('smartolt.menu_alarm_on'),
+            icon: olt.alarms_enabled ? BellOff : BellRing,
+            variant: olt.alarms_enabled ? 'warning' : 'success',
+            onClick: () => toggleAlarms(olt),
+        });
+    }
+    items.push({ key: 'edit', group: 'edit', label: t('oltnav.settings'), icon: Pencil, href: route('smartolt.edit', olt.id) });
+    if (canDeleteOlt(olt)) {
+        items.push({ key: 'delete', group: 'danger', label: t('smartolt.confirm_delete_title'), icon: Trash2, variant: 'danger', onClick: () => destroyOlt(olt) });
+    }
+    return items;
+};
+
+// Menu «⋯» baris OLT C-Data / HiOSO / HSGQ — urutan sama dengan baris ZTE.
+const nonZteOltMenu = (olt) => {
+    const items = [
+        { key: 'ports', group: 'open', label: t('oltnav.ports_generic', { label: olt.capabilities?.pon_label ?? 'PON' }), icon: Cable, href: nonZteRoute('pon-ports', olt.id) },
+    ];
+    if (nonZtePrefix.value === 'cdata-olt' && olt.capabilities?.supports_cli_vlan) {
+        items.push({ key: 'vlans', group: 'open', label: t('oltnav.vlans'), icon: Network, href: route('cdata-olt.vlans', olt.id) });
+    }
+    if (!olt.connection_locked) {
+        items.push({ key: 'test', group: 'ops', label: t('common.test_snmp'), icon: RefreshCw, onClick: () => testCdataOlt(olt) });
+    }
+    if (canSaveConfig(olt)) {
+        items.push({ key: 'save', group: 'ops', label: t('smartolt.title_save_config_short'), icon: Save, disabled: savingId.value === olt.id, onClick: () => saveConfig(olt) });
+        items.push({
+            key: 'autosave', group: 'ops',
+            label: olt.config_autosave?.enabled ? t('smartolt.menu_autosave_off') : t('smartolt.menu_autosave_on'),
+            icon: olt.config_autosave?.enabled ? SaveOff : SaveAll,
+            onClick: () => toggleAutosave(olt),
+        });
+    }
+    if (canToggleAlarms(olt)) {
+        items.push({
+            key: 'alarm', group: 'ops',
+            label: olt.alarms_enabled ? t('smartolt.menu_alarm_off') : t('smartolt.menu_alarm_on'),
+            icon: olt.alarms_enabled ? BellOff : BellRing,
+            variant: olt.alarms_enabled ? 'warning' : 'success',
+            onClick: () => toggleAlarms(olt),
+        });
+    }
+    items.push({ key: 'edit', group: 'edit', label: t('oltnav.settings'), icon: Pencil, href: nonZteRoute('edit', olt.id) });
+    if (canDeleteOlt(olt)) {
+        items.push({ key: 'delete', group: 'danger', label: t(nonZteFamily.value.deleteTitle), icon: Trash2, variant: 'danger', onClick: () => destroyCdataOlt(olt) });
+    }
+    return items;
 };
 
 /* ------------------------------------------------------------------ */
@@ -396,7 +484,7 @@ const formatDate = (value) => formatDateTime(value);
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <h4 class="kv-mobile-card-title">
-                                            {{ olt.name }}
+                                            <Link :href="route('smartolt.detail', olt.id)" class="rounded hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">{{ olt.name }}</Link>
                                             <span v-if="olt.is_private" class="ml-1.5 inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </h4>
                                         <p class="kv-mobile-card-subtitle">{{ olt.vendor || $t('smartolt.vendor_empty') }}</p>
@@ -453,53 +541,17 @@ const formatDate = (value) => formatDateTime(value);
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
-                                    <IconButton :href="route('smartolt.detail', olt.id)" :title="$t('common.detail')">
+                                    <IconButton :href="route('smartolt.detail', olt.id)" variant="primary" :title="$t('common.detail')">
                                         <Eye class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt"
-                                        :variant="olt.alarms_enabled ? 'success' : 'warning'"
-                                        :title="alarmTitle(olt)"
-                                        @click="toggleAlarms(olt)"
-                                    >
-                                        <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testOlt(olt)">
-                                        <RefreshCw class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton :href="route('smartolt.edit', olt.id)" :title="$t('common.edit')">
-                                        <Pencil class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton :href="route('smartolt.profiles.index', olt.id)" :title="$t('smartolt.title_profile')">
-                                        <Database class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="canSaveConfig(olt)"
-                                        :title="$t('smartolt.title_save_config')"
-                                        :disabled="savingId === olt.id"
-                                        @click="saveConfig(olt)"
-                                    >
-                                        <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="canSaveConfig(olt)"
-                                        :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
-                                        :title="autosaveTitle(olt)"
-                                        @click="toggleAutosave(olt)"
-                                    >
-                                        <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
                                         v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
-                                        variant="primary"
                                         :title="$t('common.telnet_to_olt')"
                                         @click="openTelnet(olt)"
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canDeleteOlt(olt)" variant="danger" :title="$t('smartolt.confirm_delete_title')" @click="destroyOlt(olt)">
-                                        <Trash2 class="h-4 w-4" />
-                                    </IconButton>
+                                    <ActionMenu :items="zteOltMenu(olt)" :groups="oltMenuGroups" :title="$t('smartolt.more_actions', { name: olt.name })" />
                                 </div>
                             </article>
                         </div>
@@ -523,7 +575,7 @@ const formatDate = (value) => formatDateTime(value);
                                 >
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5 font-medium text-white">
-                                            {{ olt.name }}
+                                            <Link :href="route('smartolt.detail', olt.id)" class="rounded hover:text-cyan-300 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">{{ olt.name }}</Link>
                                             <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || $t('smartolt.vendor_empty') }}</div>
@@ -597,53 +649,17 @@ const formatDate = (value) => formatDateTime(value);
                                     </td>
                                     <td class="px-4 py-3">
                                         <div class="flex justify-center gap-1.5">
-                                            <IconButton :href="route('smartolt.detail', olt.id)" :title="$t('common.detail')">
+                                            <IconButton :href="route('smartolt.detail', olt.id)" variant="primary" :title="$t('common.detail')">
                                                 <Eye class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt"
-                                                :variant="olt.alarms_enabled ? 'success' : 'warning'"
-                                                :title="alarmTitle(olt)"
-                                                @click="toggleAlarms(olt)"
-                                            >
-                                                <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testOlt(olt)">
-                                                <RefreshCw class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton :href="route('smartolt.edit', olt.id)" :title="$t('common.edit')">
-                                                <Pencil class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton :href="route('smartolt.profiles.index', olt.id)" :title="$t('smartolt.title_profile')">
-                                                <Database class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="canSaveConfig(olt)"
-                                                :title="$t('smartolt.title_save_config')"
-                                                :disabled="savingId === olt.id"
-                                                @click="saveConfig(olt)"
-                                            >
-                                                <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="canSaveConfig(olt)"
-                                                :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
-                                                :title="autosaveTitle(olt)"
-                                                @click="toggleAutosave(olt)"
-                                            >
-                                                <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
                                                 v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
-                                                variant="primary"
                                                 :title="$t('common.telnet_to_olt')"
                                                 @click="openTelnet(olt)"
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton v-if="canDeleteOlt(olt)" variant="danger" :title="$t('smartolt.confirm_delete_title')" @click="destroyOlt(olt)">
-                                                <Trash2 class="h-4 w-4" />
-                                            </IconButton>
+                                            <ActionMenu :items="zteOltMenu(olt)" :groups="oltMenuGroups" :title="$t('smartolt.more_actions', { name: olt.name })" />
                                         </div>
                                     </td>
                                 </tr>
@@ -690,7 +706,7 @@ const formatDate = (value) => formatDateTime(value);
                                 <div class="kv-mobile-card-header">
                                     <div class="min-w-0">
                                         <h4 class="kv-mobile-card-title">
-                                            {{ olt.name }}
+                                            <Link :href="nonZteRoute('detail', olt.id)" class="rounded hover:text-cyan-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">{{ olt.name }}</Link>
                                             <span v-if="olt.is_private" class="ml-1.5 inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </h4>
                                         <p class="kv-mobile-card-subtitle">{{ olt.vendor || $t('smartolt.family_empty') }}</p>
@@ -749,50 +765,17 @@ const formatDate = (value) => formatDateTime(value);
                                 </div>
 
                                 <div class="mt-4 flex flex-wrap gap-2">
-                                    <IconButton :href="nonZteRoute('detail', olt.id)" :title="$t('common.detail')">
+                                    <IconButton :href="nonZteRoute('detail', olt.id)" variant="primary" :title="$t('common.detail')">
                                         <Eye class="h-4 w-4" />
                                     </IconButton>
                                     <IconButton
-                                        v-if="canManageOlt"
-                                        :variant="olt.alarms_enabled ? 'success' : 'warning'"
-                                        :title="alarmTitle(olt)"
-                                        @click="toggleAlarms(olt)"
-                                    >
-                                        <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
-                                        <RefreshCw class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton :href="nonZteRoute('edit', olt.id)" :title="$t('common.edit')">
-                                        <Pencil class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="canSaveConfig(olt)"
-                                        :title="$t('smartolt.title_save_config_short')"
-                                        :disabled="savingId === olt.id"
-                                        @click="saveConfig(olt)"
-                                    >
-                                        <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
-                                    </IconButton>
-                                    <IconButton
-                                        v-if="canSaveConfig(olt)"
-                                        :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
-                                        :title="autosaveTitle(olt)"
-                                        @click="toggleAutosave(olt)"
-                                    >
-                                        <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton
                                         v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
-                                        variant="primary"
                                         :title="$t('common.telnet_to_olt')"
                                         @click="openTelnet(olt)"
                                     >
                                         <Terminal class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canDeleteOlt(olt)" variant="danger" :title="$t('smartolt.confirm_delete_title')" @click="destroyCdataOlt(olt)">
-                                        <Trash2 class="h-4 w-4" />
-                                    </IconButton>
+                                    <ActionMenu :items="nonZteOltMenu(olt)" :groups="oltMenuGroups" :title="$t('smartolt.more_actions', { name: olt.name })" />
                                 </div>
                             </article>
                         </div>
@@ -816,7 +799,7 @@ const formatDate = (value) => formatDateTime(value);
                                 >
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-1.5 font-medium text-white">
-                                            {{ olt.name }}
+                                            <Link :href="nonZteRoute('detail', olt.id)" class="rounded hover:text-cyan-300 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">{{ olt.name }}</Link>
                                             <span v-if="olt.is_private" class="inline-flex items-center rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-medium text-fuchsia-200 ring-1 ring-fuchsia-400/30" :title="$t('common.private_hint')">{{ $t('common.private') }}</span>
                                         </div>
                                         <div class="mt-0.5 text-xs text-slate-500">{{ olt.vendor || $t('smartolt.family_empty') }}</div>
@@ -890,50 +873,17 @@ const formatDate = (value) => formatDateTime(value);
                                     </td>
                                     <td class="px-4 py-3">
                                         <div class="flex justify-center gap-1.5">
-                                            <IconButton :href="nonZteRoute('detail', olt.id)" :title="$t('common.detail')">
+                                            <IconButton :href="nonZteRoute('detail', olt.id)" variant="primary" :title="$t('common.detail')">
                                                 <Eye class="h-4 w-4" />
                                             </IconButton>
                                             <IconButton
-                                                v-if="canManageOlt"
-                                                :variant="olt.alarms_enabled ? 'success' : 'warning'"
-                                                :title="alarmTitle(olt)"
-                                                @click="toggleAlarms(olt)"
-                                            >
-                                                <component :is="olt.alarms_enabled ? BellRing : BellOff" class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton v-if="!olt.connection_locked" :title="$t('common.test_snmp')" @click="testCdataOlt(olt)">
-                                                <RefreshCw class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton :href="nonZteRoute('edit', olt.id)" :title="$t('common.edit')">
-                                                <Pencil class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="canSaveConfig(olt)"
-                                                :title="$t('smartolt.title_save_config_short')"
-                                                :disabled="savingId === olt.id"
-                                                @click="saveConfig(olt)"
-                                            >
-                                                <Save class="h-4 w-4" :class="{ 'animate-pulse': savingId === olt.id }" />
-                                            </IconButton>
-                                            <IconButton
-                                                v-if="canSaveConfig(olt)"
-                                                :variant="olt.config_autosave?.enabled ? 'success' : 'default'"
-                                                :title="autosaveTitle(olt)"
-                                                @click="toggleAutosave(olt)"
-                                            >
-                                                <component :is="olt.config_autosave?.enabled ? SaveAll : SaveOff" class="h-4 w-4" />
-                                            </IconButton>
-                                            <IconButton
                                                 v-if="olt.can_telnet && olt.cli_transport === 'telnet'"
-                                                variant="primary"
                                                 :title="$t('common.telnet_to_olt')"
                                                 @click="openTelnet(olt)"
                                             >
                                                 <Terminal class="h-4 w-4" />
                                             </IconButton>
-                                            <IconButton v-if="canDeleteOlt(olt)" variant="danger" :title="$t('smartolt.confirm_delete_title')" @click="destroyCdataOlt(olt)">
-                                                <Trash2 class="h-4 w-4" />
-                                            </IconButton>
+                                            <ActionMenu :items="nonZteOltMenu(olt)" :groups="oltMenuGroups" :title="$t('smartolt.more_actions', { name: olt.name })" />
                                         </div>
                                     </td>
                                 </tr>

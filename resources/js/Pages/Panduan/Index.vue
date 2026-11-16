@@ -4,9 +4,9 @@ import { Head, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-    BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard, LifeBuoy,
-    ListChecks, MapPin, Network, PlugZap, Power, Radar, RadioTower, Replace, Rocket, ScrollText, Send,
-    ShieldCheck, Smartphone, Sparkles, Terminal, Users, Waypoints, Wrench, WifiOff,
+    BellRing, BookOpen, Cable, Compass, FileBarChart, KeyRound, LayoutDashboard,
+    LifeBuoy, MapPin, Network, PlugZap, Power, Radar, RadioTower, Replace, Rocket,
+    ScrollText, Send, ShieldCheck, Smartphone, Sparkles, Terminal, Users, Waypoints, Wrench, WifiOff,
 } from '@lucide/vue';
 
 const page = usePage();
@@ -52,7 +52,6 @@ const SECTION_DEFS = [
     { id: 'bind-onu', icon: Replace, accent: 'sky', ordered: true, items: [false, false, false, false], tip: true },
     { id: 'aksi-onu', icon: Wrench, accent: 'orange', ordered: false, items: [true, true, true, true, true, true, true, true], tip: true },
     { id: 'genieacs', icon: RadioTower, accent: 'emerald', ordered: false, items: [true, true, true, true], tip: true },
-    { id: 'monitoring', icon: ListChecks, accent: 'cyan', ordered: false, items: [false, false, false, false] },
     { id: 'peta', icon: MapPin, accent: 'rose', ordered: true, items: [true, true, true, true] },
     { id: 'odp', icon: Waypoints, accent: 'emerald', ordered: false, items: [true, true, true, true, true, true], tip: true },
     { id: 'alarm', icon: BellRing, accent: 'amber', ordered: false, items: [true, true, true, true, true], tip: true },

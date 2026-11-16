@@ -59,7 +59,7 @@ Lisensi open-source MIT (lihat `LICENSE`). Autentikasi memakai login lokal **Lar
   rename/reboot/enable-disable/hapus ONU via CLI, label port sisi-NMS, VLAN & detail port C-Data V3.
 - **Profil** — katalog profil per-OLT (onu_type/tcont/vlan/ip), sync dari OLT via CLI.
   (`SmartOltProfileController` + `ZteProfileCatalogService`)
-- **ONU Monitoring** — agregasi ONU lintas semua OLT dari cache `port_onus`. (route `monitoring.onu`)
+- ~~ONU Monitoring~~ — halaman dihapus 9 Nov 2026; agregasi lintas OLT tetap di `OnuInventoryService` (API, pencarian, peta).
 - **Unconfigured** — daftar ONU yang terdeteksi tapi belum di-provision (global), dengan kolom
   "Pertama Terlihat".
 - **Peta & ODP** — pin ONU/ODP lintas OLT (Leaflet), relasi ONU↔ODP, warna & foto ODP, halaman ODP.

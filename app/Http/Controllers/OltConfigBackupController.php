@@ -35,6 +35,13 @@ class OltConfigBackupController extends Controller
                 'ip' => $olt->ip,
                 'vendor' => $olt->vendor,
                 'config_backup_enabled' => (bool) $olt->config_backup_enabled,
+                // Untuk bilah tab OLT bersama (Components/SmartOlt/OltPageHeader.vue).
+                'capabilities' => SmartOltSupport::capabilities(SmartOltSupport::driverKey(
+                    $olt,
+                    data_get($olt->last_test_result, 'system.sys_descr'),
+                    data_get($olt->last_test_result, 'system.sys_object_id'),
+                ), $olt),
+                'last_test_result' => ['ok' => (bool) data_get($olt->last_test_result, 'ok')],
             ],
             'supported' => SmartOltSupport::driverKey($olt) === SmartOltSupport::DRIVER_ZTE,
             'backups' => $backups,

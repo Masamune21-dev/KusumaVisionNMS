@@ -8,7 +8,9 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, ClipboardCopy, List, Pencil, RefreshCw, Save, Server, Stethoscope, TriangleAlert } from '@lucide/vue';
+import { Cable, ChevronRight, ClipboardCopy, List, RefreshCw, Save, Server, Stethoscope, TriangleAlert } from '@lucide/vue';
+import ActionMenu from '@/Components/SmartOlt/ActionMenu.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -61,6 +63,13 @@ const counterText = (p) => (p.onu_registered_snmp === null || p.onu_registered_s
 
 const scan = () => router.post(route('hsgq-olt.refresh', props.olt.id), {}, { preserveScroll: true });
 const runTest = () => router.post(route('hsgq-olt.test', props.olt.id), {}, { preserveScroll: true });
+// Test & simpan config dikumpulkan di menu «Alat OLT» (pola sama dengan header halaman ZTE).
+const oltToolItems = computed(() => {
+    const items = [];
+    if (!props.olt.connection_locked) items.push({ key: 'test', label: t('hsgq.run_test'), icon: Stethoscope, onClick: runTest });
+    if (canSaveConfig.value) items.push({ key: 'save', label: t('hsgq.save_config'), icon: Save, disabled: saving.value, onClick: saveConfig });
+    return items;
+});
 
 const saving = ref(false);
 const saveConfig = async () => {
@@ -103,49 +112,24 @@ const fmt = (v) => formatDateTime(v);
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight text-white sm:text-xl">
-                        {{ olt.name }}
-                        <span class="kv-pill-info">{{ caps.vendor_family }}</span>
-                        <span v-if="caps.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
-                    </h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ olt.ip }}:{{ olt.snmp_port }} · {{ olt.snmp_version }}<span v-if="olt.web_port"> · web :{{ olt.web_port }}</span></p>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('smartolt.index', { tab: 'hsgq' })">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link v-if="canManageOlt" :href="route('hsgq-olt.edit', olt.id)">
-                        <SecondaryButton type="button">
-                            <Pencil class="mr-2 h-4 w-4" />
-                            {{ $t('common.edit') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('hsgq-olt.pon-ports', olt.id)">
-                        <SecondaryButton type="button">
-                            <Cable class="mr-2 h-4 w-4" />
-                            {{ $t('ponports.title', { label: caps.pon_label }) }}
-                        </SecondaryButton>
-                    </Link>
-                    <SecondaryButton v-if="!olt.connection_locked" type="button" @click="runTest">
-                        <Stethoscope class="mr-2 h-4 w-4" />
-                        {{ $t('hsgq.run_test') }}
-                    </SecondaryButton>
-                    <SecondaryButton v-if="canSaveConfig" type="button" :disabled="saving" @click="saveConfig">
-                        <Save class="mr-2 h-4 w-4" />
-                        {{ $t('hsgq.save_config') }}
-                    </SecondaryButton>
+            <OltPageHeader :olt="olt" family="hsgq" :title="olt.name">
+                <template #badges>
+                    <span class="kv-pill-info">{{ caps.vendor_family }}</span>
+                    <span v-if="caps.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
+                </template>
+                <template #subtitle>
+                    <span class="font-mono">{{ olt.ip }}:{{ olt.snmp_port }}</span> · {{ olt.snmp_version }}<span v-if="olt.web_port"> · web :{{ olt.web_port }}</span>
+                </template>
+                <template #actions>
+                    <div v-if="oltToolItems.length">
+                        <ActionMenu :label="$t('oltnav.olt_tools')" :items="oltToolItems" />
+                    </div>
                     <PrimaryButton type="button" @click="scan">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         {{ $t('cdatadetail.scan_onu') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -162,22 +146,22 @@ const fmt = (v) => formatDateTime(v);
 
                 <!-- Ringkasan -->
                 <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('portonus.stat_total_onu') }}</p>
+                    <Link :href="route('hsgq-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('portonus.stat_total_onu') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
                         <p class="mt-1 text-2xl font-semibold tabular-nums text-white">{{ onuTotals.total.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.online') }}</p>
+                    </Link>
+                    <Link :href="route('hsgq-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('common.online') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
                         <p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-300">{{ onuTotals.online.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('common.offline') }}</p>
+                    </Link>
+                    <Link :href="route('hsgq-olt.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('common.offline') }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
                         <p class="mt-1 text-2xl font-semibold tabular-nums" :class="onuTotals.offline > 0 ? 'text-rose-300' : 'text-slate-300'">{{ onuTotals.offline.toLocaleString('id-ID') }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs uppercase tracking-wider text-slate-500">{{ $t('cdatadetail.port_pon_up', { label: caps.pon_label }) }}</p>
+                    </Link>
+                    <Link :href="route('hsgq-olt' + '.pon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400"><span>{{ $t('cdatadetail.port_pon_up', { label: caps.pon_label }) }}</span><ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" /></p>
                         <p class="mt-1 text-2xl font-semibold tabular-nums text-white">{{ portsUp }}<span class="text-base text-slate-500"> / {{ ports.length }}</span></p>
-                    </div>
+                    </Link>
                 </div>
 
                 <!-- Info sistem + gambar OLT -->

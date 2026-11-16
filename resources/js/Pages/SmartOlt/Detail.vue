@@ -1,12 +1,13 @@
 <script setup>
 import OltImage from '@/Components/OltImage.vue';
 import OltChassis from '@/Components/SmartOlt/OltChassis.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import { formatDateTime } from '@/lib/datetime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Cable, ClipboardList, Database, Pencil, RefreshCw, Server } from '@lucide/vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ChevronRight, RefreshCw, Server } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -28,19 +29,21 @@ const props = defineProps({
     },
 });
 
-const page = usePage();
-const flash = computed(() => page.props.flash ?? {});
-
 const onuTotal  = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.onu_count ?? 0), 0));
 const onuOnline = computed(() => props.snapshot.ports.reduce((s, p) => s + (p.online_onu_count ?? 0), 0));
 const hardwareRefreshing = ref(false);
 const hardwareLastRefresh = computed(() => props.cards[0]?.refreshed_at ?? null);
 
+const refreshing = ref(false);
 const refresh = () => {
+    refreshing.value = true;
     router.post(route('smartolt.refresh', props.olt.id), {}, {
         preserveScroll: true,
+        onFinish: () => { refreshing.value = false; },
     });
 };
+const onuOffline = computed(() => Math.max(0, onuTotal.value - onuOnline.value));
+const portsDown = computed(() => props.snapshot.ports.filter((p) => String(p.oper_status ?? '').toLowerCase() !== 'up').length);
 
 const refreshHardware = () => {
     hardwareRefreshing.value = true;
@@ -78,79 +81,61 @@ const formatUptime = (timeticks) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                        {{ olt.name }}
-                    </h2>
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ olt.ip }}:{{ olt.snmp_port }} · {{ olt.capabilities.vendor_family }}
-                    </p>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('smartolt.index')">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.edit', olt.id)">
-                        <SecondaryButton type="button">
-                            <Pencil class="mr-2 h-4 w-4" />
-                            {{ $t('common.edit') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.gpon-ports', olt.id)">
-                        <SecondaryButton type="button">
-                            <Cable class="mr-2 h-4 w-4" />
-                            {{ $t('gponports.title') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.registrations', olt.id)">
-                        <SecondaryButton type="button">
-                            <ClipboardList class="mr-2 h-4 w-4" />
-                            {{ $t('detail.registrations') }}
-                        </SecondaryButton>
-                    </Link>
-                    <Link :href="route('smartolt.config-backups.index', olt.id)">
-                        <SecondaryButton type="button">
-                            <Database class="mr-2 h-4 w-4" />
-                            {{ $t('detail.backup_config') }}
-                        </SecondaryButton>
-                    </Link>
-                    <PrimaryButton type="button" @click="refresh">
-                        <RefreshCw class="mr-2 h-4 w-4" />
+            <OltPageHeader :olt="olt" :title="olt.name">
+                <template #badges>
+                    <span class="kv-pill" :class="snapshot.ok ? 'kv-pill-success' : 'kv-pill-muted'">
+                        {{ snapshot.ok ? $t('common.online') : $t('common.unknown') }}
+                    </span>
+                </template>
+                <template #subtitle>
+                    <span class="font-mono">{{ olt.ip }}:{{ olt.snmp_port }}</span> · {{ olt.capabilities.vendor_family }}
+                </template>
+                <template #actions>
+                    <PrimaryButton type="button" :disabled="refreshing" @click="refresh">
+                        <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
                         {{ $t('gponports.refresh_snmp') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
             <div class="w-full space-y-6 px-4 sm:px-6 lg:px-8">
 
                 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.status') }}</p>
-                        <p class="mt-3 text-2xl font-bold"
-                            :class="snapshot.ok ? 'text-emerald-400' : 'text-slate-400'">
-                            {{ snapshot.ok ? $t('common.online') : $t('common.unknown') }}
+                    <Link :href="route('smartolt.gpon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400">
+                            {{ $t('gponports.stat_gpon_port') }}
+                            <ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" />
                         </p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('gponports.stat_gpon_port') }}</p>
-                        <p class="mt-3 text-2xl font-bold text-white">{{ snapshot.ports.length }}</p>
-                    </div>
-                    <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('detail.total_onu') }}</p>
-                        <p class="mt-3 text-2xl font-bold text-white">
-                            {{ onuOnline }}<span class="text-sm font-normal text-slate-500">{{ $t('detail.onu_online_suffix', { total: onuTotal }) }}</span>
+                        <p class="mt-3 text-2xl font-semibold tabular-nums text-slate-100">{{ snapshot.ports.length }}</p>
+                        <p class="mt-1 text-xs" :class="portsDown ? 'text-rose-300' : 'text-slate-500'">
+                            {{ portsDown ? $t('ponports.ports_down', { count: portsDown }) : $t('oltdetail.all_ports_up') }}
                         </p>
-                    </div>
+                    </Link>
+                    <Link :href="route('smartolt.gpon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400">
+                            {{ $t('gponports.stat_onu_online') }}
+                            <ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" />
+                        </p>
+                        <p class="mt-3 text-2xl font-semibold tabular-nums text-emerald-300">
+                            {{ onuOnline }}<span class="text-sm font-normal text-slate-500"> / {{ onuTotal }}</span>
+                        </p>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700/40">
+                            <div class="h-full rounded-full bg-emerald-400" :style="{ width: `${onuTotal ? Math.round((onuOnline / onuTotal) * 100) : 0}%` }"></div>
+                        </div>
+                    </Link>
+                    <Link :href="route('smartolt.gpon-ports', olt.id)" class="kv-stat group block transition-colors hover:border-cyan-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60">
+                        <p class="flex items-center justify-between text-xs font-medium text-slate-400">
+                            {{ $t('common.offline') }}
+                            <ChevronRight class="h-4 w-4 text-slate-600 transition-colors group-hover:text-cyan-300" />
+                        </p>
+                        <p class="mt-3 text-2xl font-semibold tabular-nums" :class="onuOffline ? 'text-rose-300' : 'text-slate-300'">{{ onuOffline }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ $t('oltdetail.offline_hint') }}</p>
+                    </Link>
                     <div class="kv-stat">
-                        <p class="text-xs font-medium uppercase tracking-wider text-slate-500">{{ $t('common.last_refresh') }}</p>
-                        <p class="mt-3 text-sm font-semibold text-white">{{ formatDate(snapshot.last_tested_at) }}</p>
+                        <p class="text-xs font-medium text-slate-400">{{ $t('common.last_refresh') }}</p>
+                        <p class="mt-3 text-sm font-semibold text-slate-100">{{ formatDate(snapshot.last_tested_at) }}</p>
                         <p class="mt-1 text-xs" :class="olt.polling_enabled ? 'text-emerald-400' : 'text-slate-400'">
                             {{ $t('smartolt.col_autopoll') }} {{ olt.polling_enabled ? $t('common.on') : $t('common.off') }}
                         </p>

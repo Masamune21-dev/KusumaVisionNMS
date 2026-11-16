@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import CDataOltForm from './Partials/CDataOltForm.vue';
 import { Head } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
@@ -22,9 +23,7 @@ const title = computed(() => (props.olt.driver === 'hioso-epon-25355' ? t('cdata
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                {{ title }}
-            </h2>
+            <OltPageHeader :olt="olt" :family="olt.driver === 'hioso-epon-25355' ? 'hioso' : 'cdata'" :title="title" :subtitle="$t('oltnav.settings_subtitle')" />
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

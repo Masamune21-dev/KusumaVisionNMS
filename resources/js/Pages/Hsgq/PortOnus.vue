@@ -1,7 +1,9 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import ActionMenu from '@/Components/SmartOlt/ActionMenu.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
@@ -18,7 +20,7 @@ import PinDeviceModal from '@/Components/Genieacs/PinDeviceModal.vue';
 import WifiSettingsModal from '@/Components/Genieacs/WifiSettingsModal.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Save, Search, TriangleAlert, Wifi, WifiOff } from '@lucide/vue';
+import { Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Save, Search, TriangleAlert, Wifi, WifiOff } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -63,6 +65,22 @@ const portLabel = computed(() => props.port_labels?.[`${props.slot}_${props.port
 const webReady = computed(() => Boolean(props.olt.web_port));
 const canReboot = computed(() => canManage.value && webReady.value && Boolean(caps.value.supports_reboot));
 const canRename = computed(() => canManage.value && webReady.value && Boolean(caps.value.supports_onu_info_write));
+
+// Menu «⋯» per ONU — urutan tetap seperti halaman ZTE: lihat → perangkat pelanggan → ubah →
+// reboot/hapus paling bawah. Ubah nama & peta tetap tampil sebagai tombol di baris.
+const onuMenuGroups = computed(() => ({
+    view: t('actionmenu.group_view'),
+    customer: t('actionmenu.group_customer'),
+    edit: t('actionmenu.group_edit'),
+}));
+const onuMenu = (o) => {
+    const items = [];
+    if (acsFor(o)) items.push({ key: 'clients', group: 'customer', label: t('acsclients.action'), icon: Laptop, onClick: () => openClients(o) });
+    if (acsFor(o) && canManage.value) items.push({ key: 'wifi', group: 'customer', label: t('acswifi.action'), icon: Wifi, onClick: () => openWifi(o) });
+    if (canReboot.value) items.push({ key: 'reboot', group: 'danger', label: t('portonus.act_reboot'), icon: Power, variant: 'warning', onClick: () => rebootOnu(o) });
+    return items;
+};
+
 const canSaveConfig = computed(() => canManage.value && webReady.value && Boolean(caps.value.supports_config_save));
 
 const search = ref(props.q ?? '');
@@ -221,30 +239,29 @@ const viewOnMap = (onu) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-3">
-                    <Link :href="route('hsgq-olt.detail', olt.id)" :title="$t('common.back')" :aria-label="$t('common.back')" class="text-slate-400 hover:text-white">
-                        <ArrowLeft class="h-5 w-5" />
-                    </Link>
-                    <div>
-                        <h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold leading-tight text-white sm:text-xl">
-                            {{ olt.name }} · {{ caps.pon_label }} {{ portName }}
-                            <span v-if="caps.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
-                        </h2>
-                        <div class="mt-1 flex items-center gap-2">
-                            <span class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portlabel.column') }}</span>
-                            <OltPortLabel
-                                :olt-id="olt.id"
-                                :slot="slot"
-                                :port="port"
-                                :label="portLabel"
-                                :editable="canEditPortLabel"
-                                variant="header"
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div class="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <OltPageHeader
+                :olt="olt"
+                family="hsgq"
+                :title="`${caps.pon_label} ${portName}`"
+                :crumbs="[{ label: $t('oltnav.ports_generic', { label: caps.pon_label }), href: route('hsgq-olt.pon-ports', olt.id) }, { label: `${caps.pon_label} ${portName}` }]"
+            >
+                <template #badges>
+                    <span v-if="caps.hsgq_unverified" class="kv-pill-warning" :title="$t('hsgq.unverified_hint')">{{ $t('hsgq.unverified_badge') }}</span>
+                </template>
+                <template #subtitle>
+                    <span class="inline-flex flex-wrap items-center gap-2">
+                        <span class="text-xs text-slate-500">{{ $t('portlabel.column') }}</span>
+                        <OltPortLabel
+                            :olt-id="olt.id"
+                            :slot="slot"
+                            :port="port"
+                            :label="portLabel"
+                            :editable="canEditPortLabel"
+                            variant="header"
+                        />
+                    </span>
+                </template>
+                <template #actions>
                     <PortSwitcher
                         :olt-id="olt.id"
                         :slot="slot"
@@ -257,11 +274,11 @@ const viewOnMap = (onu) => {
                     <SecondaryButton v-if="canSaveConfig" type="button" class="w-full justify-center sm:w-auto" :disabled="saving" @click="saveConfig">
                         <Save class="mr-2 h-4 w-4" /> {{ $t('hsgq.save_config') }}
                     </SecondaryButton>
-                    <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
+                    <PrimaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}
-                    </SecondaryButton>
-                </div>
-            </div>
+                    </PrimaryButton>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -381,23 +398,20 @@ const viewOnMap = (onu) => {
                                             <div v-if="o.distance_m" class="mt-0.5 text-xs tabular-nums text-slate-500">{{ $t('hsgq.distance_m', { m: o.distance_m }) }}</div>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <div class="grid w-max grid-flow-col grid-rows-2 gap-1.5">
-                                                <IconButton v-if="acsFor(o) && canManage" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
-                                                    <Wifi class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton v-if="acsFor(o)" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
-                                                    <Laptop class="h-4 w-4" />
-                                                </IconButton>
+                                            <div class="flex w-max items-center gap-1.5">
                                                 <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
-                                                    <Power class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                                <IconButton :variant="isPinned(o) ? 'success' : 'default'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                                     <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                                     <MapPin v-else class="h-4 w-4" />
                                                 </IconButton>
+                                                <ActionMenu
+                                                    v-if="onuMenu(o).length"
+                                                    :items="onuMenu(o)"
+                                                    :groups="onuMenuGroups"
+                                                    :title="$t('portonus.more_actions', { id: o.onu_id ?? o.interface })"
+                                                />
                                             </div>
                                         </td>
                                     </tr>
@@ -425,23 +439,20 @@ const viewOnMap = (onu) => {
                                     <span class="shrink-0 text-slate-500">{{ $t('portonus.col_odp') }}</span>
                                     <OnuOdpCell :onu="o" :odps="odps" :current-odp-id="odpIdFor(o)" :olt-id="olt.id" :slot="slot" :port="port" />
                                 </div>
-                                <div class="mt-3 flex gap-2">
-                                    <IconButton v-if="acsFor(o) && canManage" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
-                                        <Wifi class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="acsFor(o)" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
-                                        <Laptop class="h-4 w-4" />
-                                    </IconButton>
+                                <div class="mt-3 flex flex-wrap gap-2">
                                     <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
-                                        <Power class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                    <IconButton :variant="isPinned(o) ? 'success' : 'default'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                         <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                         <MapPin v-else class="h-4 w-4" />
                                     </IconButton>
+                                    <ActionMenu
+                                        v-if="onuMenu(o).length"
+                                        :items="onuMenu(o)"
+                                        :groups="onuMenuGroups"
+                                        :title="$t('portonus.more_actions', { id: o.onu_id ?? o.interface })"
+                                    />
                                 </div>
                             </article>
                         </div>

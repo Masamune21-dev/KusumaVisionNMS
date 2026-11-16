@@ -3,13 +3,14 @@ import ConfirmModal from '@/Components/ConfirmModal.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import { formatDateTime, formatTimeOfDay } from '@/lib/datetime';
 import { parseOnuDescription } from '@/lib/onu';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { useConfirm } from '@/Composables/useConfirm';
-import { Activity, ArrowLeft, Cable, Gauge, Network, Plus, Power, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
+import { Activity, Gauge, Network, Plus, Power, RefreshCw, Tag, Users, Zap } from '@lucide/vue';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 // Chart.js dimuat malas di dalam ChartCanvas — lihat komentar di sana.
 import ChartCanvas from '@/Components/Charts/ChartCanvas.vue';
@@ -38,6 +39,10 @@ const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
 
 const isUplink = computed(() => props.type === 'uplink');
+const headerCrumbs = computed(() => [
+    { label: t('oltnav.ports'), href: route('smartolt.gpon-ports', props.olt.id) },
+    { label: props.slot !== null ? `Slot ${props.slot} / Port ${props.port}` : props.interface },
+]);
 const isGpon = computed(() => props.type === 'gpon');
 const d = computed(() => props.detail ?? {});
 const hasData = computed(() => props.detail !== null && props.detail !== undefined);
@@ -341,36 +346,22 @@ const setAdminState = async (enabled) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-sky-500/15 ring-1 ring-cyan-500/30">
-                        <Cable class="h-5 w-5 text-cyan-400" />
-                    </div>
-                    <div>
-                        <h2 class="font-mono text-lg font-semibold leading-tight text-white sm:text-xl">{{ interface }}</h2>
-                        <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                            <span class="rounded-full px-2 py-0.5 text-xs font-medium"
-                                  :class="isGpon ? 'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30' : 'bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30'">
-                                {{ isGpon ? 'GPON' : 'Uplink' }}
-                            </span>
-                            <span>{{ olt.name }}</span>
-                            <span v-if="card_type">· {{ card_type }}</span>
-                            <span v-if="slot !== null">· Slot {{ slot }}/Port {{ port }}</span>
-                        </p>
-                    </div>
-                </div>
-
-                <div class="grid gap-2 [&>a>button]:w-full [&>button]:w-full sm:flex sm:flex-wrap sm:[&>a>button]:w-auto sm:[&>button]:w-auto">
-                    <Link :href="route('smartolt.detail', olt.id)">
+            <OltPageHeader :olt="olt" :title="interface" :crumbs="headerCrumbs">
+                <template #badges>
+                    <span class="kv-pill" :class="isGpon ? 'kv-pill-info' : 'kv-pill-muted'">{{ isGpon ? 'GPON' : 'Uplink' }}</span>
+                    <span v-if="portIsShutdown" class="kv-pill kv-pill-danger">{{ $t('oltnav.port_shutdown') }}</span>
+                </template>
+                <template #subtitle>
+                    <span v-if="card_type">{{ card_type }}</span>
+                    <span v-if="slot !== null"><template v-if="card_type"> · </template>Slot {{ slot }} / Port {{ port }}</span>
+                </template>
+                <template #actions>
+                    <Link v-if="isGpon && slot !== null" :href="route('smartolt.port-onus', [olt.id, slot, port])">
                         <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.back') }}
+                            <Users class="mr-2 h-4 w-4" />
+                            {{ $t('ponports.open_onus') }}
                         </SecondaryButton>
                     </Link>
-                    <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
-                        <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
-                        {{ $t('portdetail.refresh_from_olt') }}
-                    </PrimaryButton>
                     <template v-if="canSetAdminState">
                         <SecondaryButton v-if="portIsShutdown" type="button" :disabled="adminForm.submitting" @click="setAdminState(true)">
                             <Power class="mr-2 h-4 w-4" />
@@ -381,8 +372,12 @@ const setAdminState = async (enabled) => {
                             {{ adminForm.submitting ? $t('portdetail.admin_state_running') : $t('portdetail.disable_port') }}
                         </DangerButton>
                     </template>
-                </div>
-            </div>
+                    <PrimaryButton type="button" :disabled="refreshing" @click="doRefresh">
+                        <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': refreshing }" />
+                        {{ $t('portdetail.refresh_from_olt') }}
+                    </PrimaryButton>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

@@ -94,8 +94,12 @@ describe("Hsgq/PortOnus", () => {
         expect(wrapper.text()).toContain("PON01/0");
         expect(wrapper.text()).toContain("Laser out");
         expect(wrapper.text()).toContain("hsgq.save_config");
-        expect(wrapper.find('[title="portonus.act_reboot"]').exists()).toBe(true);
-        expect(wrapper.find('[title="portonus.act_delete"]').exists()).toBe(false);
+        // Reboot kini di menu «⋯» baris (Components/SmartOlt/ActionMenu.vue) — buka dulu menunya.
+        await wrapper.find('[aria-haspopup="menu"]').trigger('click');
+        await flushPromises();
+        const menuItems = wrapper.findAll('[role="menuitem"]').map((el) => el.text());
+        expect(menuItems).toContain("portonus.act_reboot");
+        expect(menuItems).not.toContain("portonus.act_delete");
         expect(wrapper.text()).not.toContain("hsgq.status_unverified");
         wrapper.unmount();
     });
@@ -110,6 +114,12 @@ describe("Hsgq/PortOnus", () => {
 
         expect(errors).toEqual([]);
         expect(wrapper.find('[title="portonus.act_reboot"]').exists()).toBe(false);
+        // Tanpa port web tak ada aksi tulis; menu «⋯» hanya muncul bila berisi item.
+        for (const trigger of wrapper.findAll('[aria-haspopup="menu"]')) {
+            await trigger.trigger('click');
+        }
+        await flushPromises();
+        expect(wrapper.findAll('[role="menuitem"]').map((el) => el.text())).not.toContain("portonus.act_reboot");
         expect(wrapper.text()).toContain("hsgq.web_not_configured");
         expect(wrapper.text()).toContain("hsgq.status_unverified");
         wrapper.unmount();

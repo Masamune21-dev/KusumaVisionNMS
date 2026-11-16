@@ -1,7 +1,9 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
+import ActionMenu from '@/Components/SmartOlt/ActionMenu.vue';
 import OltPortLabel from '@/Components/OltPortLabel.vue';
 import PortOnuStats from '@/Components/CDataOlt/PortOnuStats.vue';
 import PortSwitcher from '@/Components/CDataOlt/PortSwitcher.vue';
@@ -18,7 +20,7 @@ import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import Modal from '@/Components/Modal.vue';
-import { ArrowLeft, Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
+import { Laptop, Link2, MapPin, MapPinned, Pencil, Power, RefreshCw, Router, Search, ToggleLeft, ToggleRight, Trash2, Wifi, WifiOff, X } from '@lucide/vue';
 import { computed, reactive, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -107,6 +109,30 @@ const canDelete = computed(() => canManage.value && caps.value.supports_onu_dele
 const isEnabled = (onu) => onu.admin_state !== 'disable';
 // Pin peta tersedia untuk semua user terautentikasi (anotasi lokasi, bukan tulis ke OLT).
 const hasActions = computed(() => true);
+
+// Menu «⋯» per ONU — urutan tetap seperti halaman ZTE: lihat → perangkat pelanggan → ubah →
+// reboot/hapus paling bawah. Ubah nama & peta tetap tampil sebagai tombol di baris.
+const onuMenuGroups = computed(() => ({
+    view: t('actionmenu.group_view'),
+    customer: t('actionmenu.group_customer'),
+    edit: t('actionmenu.group_edit'),
+}));
+const onuMenu = (o) => {
+    const items = [];
+    if (acsFor(o)) items.push({ key: 'clients', group: 'customer', label: t('acsclients.action'), icon: Laptop, onClick: () => openClients(o) });
+    if (acsFor(o) && canManage.value) items.push({ key: 'wifi', group: 'customer', label: t('acswifi.action'), icon: Wifi, onClick: () => openWifi(o) });
+    if (canToggle.value) {
+        const on = isEnabled(o);
+        items.push({
+            key: 'toggle', group: 'edit', label: on ? t('portonus.act_disable') : t('portonus.act_enable'),
+            icon: on ? ToggleRight : ToggleLeft, variant: on ? 'warning' : 'success', onClick: () => toggleOnu(o),
+        });
+    }
+    if (canReboot.value) items.push({ key: 'reboot', group: 'danger', label: t('portonus.act_reboot'), icon: Power, variant: 'warning', onClick: () => rebootOnu(o) });
+    if (canDelete.value) items.push({ key: 'delete', group: 'danger', label: t('portonus.act_delete'), icon: Trash2, variant: 'danger', onClick: () => deleteOnu(o) });
+    return items;
+};
+
 
 const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
@@ -233,29 +259,26 @@ const viewOnMap = (onu) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex items-center gap-3">
-                    <Link :href="route('hioso-olt.detail', olt.id)" :title="$t('common.back')" :aria-label="$t('common.back')" class="text-slate-400 hover:text-white">
-                        <ArrowLeft class="h-5 w-5" />
-                    </Link>
-                    <div>
-                        <h2 class="text-lg font-semibold leading-tight text-white sm:text-xl">
-                            {{ olt.name }} · {{ olt.capabilities.pon_label }} 0/{{ slot }}/{{ port }}
-                        </h2>
-                        <div class="mt-1 flex items-center gap-2">
-                            <span class="text-xs uppercase tracking-wide text-slate-500">{{ $t('portlabel.column') }}</span>
-                            <OltPortLabel
-                                :olt-id="olt.id"
-                                :slot="slot"
-                                :port="port"
-                                :label="portLabel"
-                                :editable="canEditPortLabel"
-                                variant="header"
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div class="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <OltPageHeader
+                :olt="olt"
+                family="hioso"
+                :title="`${olt.capabilities.pon_label} 0/${slot}/${port}`"
+                :crumbs="[{ label: $t('oltnav.ports_generic', { label: olt.capabilities.pon_label }), href: route('hioso-olt.pon-ports', olt.id) }, { label: `${olt.capabilities.pon_label} 0/${slot}/${port}` }]"
+            >
+                <template #subtitle>
+                    <span class="inline-flex flex-wrap items-center gap-2">
+                        <span class="text-xs text-slate-500">{{ $t('portlabel.column') }}</span>
+                        <OltPortLabel
+                            :olt-id="olt.id"
+                            :slot="slot"
+                            :port="port"
+                            :label="portLabel"
+                            :editable="canEditPortLabel"
+                            variant="header"
+                        />
+                    </span>
+                </template>
+                <template #actions>
                     <PortSwitcher
                         :olt-id="olt.id"
                         :slot="slot"
@@ -265,11 +288,11 @@ const viewOnMap = (onu) => {
                         :pon-label="olt.capabilities.pon_label"
                         route-name="hioso-olt.port-onus"
                     />
-                    <SecondaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
+                    <PrimaryButton type="button" class="w-full justify-center sm:w-auto" @click="refresh">
                         <RefreshCw class="mr-2 h-4 w-4" /> {{ $t('common.refresh') }}
-                    </SecondaryButton>
-                </div>
-            </div>
+                    </PrimaryButton>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">
@@ -392,30 +415,20 @@ const viewOnMap = (onu) => {
                                             {{ o.rx_power_label || (o.rx_power_dbm != null ? o.rx_power_dbm + ' dBm' : '—') }}
                                         </td>
                                         <td v-if="hasActions" class="px-4 py-3">
-                                            <div class="grid w-max grid-flow-col grid-rows-2 gap-1.5">
-                                                <IconButton v-if="acsFor(o) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
-                                                    <Wifi class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton v-if="acsFor(o) && canUseAcs" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
-                                                    <Laptop class="h-4 w-4" />
-                                                </IconButton>
+                                            <div class="flex w-max items-center gap-1.5">
                                                 <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                                     <Pencil class="h-4 w-4" />
                                                 </IconButton>
-                                                <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? $t('portonus.act_disable') : $t('portonus.act_enable')" @click="toggleOnu(o)">
-                                                    <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
-                                                    <ToggleLeft v-else class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
-                                                    <Power class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton v-if="canDelete" variant="danger" :title="$t('portonus.act_delete')" @click="deleteOnu(o)">
-                                                    <Trash2 class="h-4 w-4" />
-                                                </IconButton>
-                                                <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                                <IconButton :variant="isPinned(o) ? 'success' : 'default'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                                     <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                                     <MapPin v-else class="h-4 w-4" />
                                                 </IconButton>
+                                                <ActionMenu
+                                                    v-if="onuMenu(o).length"
+                                                    :items="onuMenu(o)"
+                                                    :groups="onuMenuGroups"
+                                                    :title="$t('portonus.more_actions', { id: o.onu_id ?? o.interface })"
+                                                />
                                             </div>
                                         </td>
                                     </tr>
@@ -449,30 +462,20 @@ const viewOnMap = (onu) => {
                                         :port="port"
                                     />
                                 </div>
-                                <div v-if="hasActions" class="mt-3 flex gap-2">
-                                    <IconButton v-if="acsFor(o) && canUseAcs" variant="primary" class="order-last" :title="$t('acswifi.action')" @click="openWifi(o)">
-                                        <Wifi class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="acsFor(o) && canUseAcs" class="order-last" :title="$t('acsclients.action')" @click="openClients(o)">
-                                        <Laptop class="h-4 w-4" />
-                                    </IconButton>
+                                <div v-if="hasActions" class="mt-3 flex flex-wrap gap-2">
                                     <IconButton v-if="canRename" :title="$t('cdataportonus.rename_title')" @click="openRename(o)">
                                         <Pencil class="h-4 w-4" />
                                     </IconButton>
-                                    <IconButton v-if="canToggle" :variant="isEnabled(o) ? 'warning' : 'success'" :title="isEnabled(o) ? $t('portonus.act_disable') : $t('portonus.act_enable')" @click="toggleOnu(o)">
-                                        <ToggleRight v-if="isEnabled(o)" class="h-4 w-4" />
-                                        <ToggleLeft v-else class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="canReboot" variant="danger" :title="$t('portonus.act_reboot')" @click="rebootOnu(o)">
-                                        <Power class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton v-if="canDelete" variant="danger" :title="$t('portonus.act_delete')" @click="deleteOnu(o)">
-                                        <Trash2 class="h-4 w-4" />
-                                    </IconButton>
-                                    <IconButton :variant="isPinned(o) ? 'success' : 'primary'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
+                                    <IconButton :variant="isPinned(o) ? 'success' : 'default'" :title="isPinned(o) ? $t('portonus.act_view_map') : $t('portonus.act_add_map')" @click="isPinned(o) ? viewOnMap(o) : openAddMap(o)">
                                         <MapPinned v-if="isPinned(o)" class="h-4 w-4" />
                                         <MapPin v-else class="h-4 w-4" />
                                     </IconButton>
+                                    <ActionMenu
+                                        v-if="onuMenu(o).length"
+                                        :items="onuMenu(o)"
+                                        :groups="onuMenuGroups"
+                                        :title="$t('portonus.more_actions', { id: o.onu_id ?? o.interface })"
+                                    />
                                 </div>
                             </article>
                         </div>

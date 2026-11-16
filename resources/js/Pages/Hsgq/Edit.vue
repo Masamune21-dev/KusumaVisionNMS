@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import HsgqOltForm from './Partials/HsgqOltForm.vue';
 import { Head } from '@inertiajs/vue3';
 
@@ -16,9 +17,7 @@ defineProps({
 
     <AuthenticatedLayout>
         <template #header>
-            <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">
-                {{ $t('hsgq.edit_title') }}
-            </h2>
+            <OltPageHeader :olt="olt" family="hsgq" :title="$t('hsgq.edit_title')" :subtitle="$t('oltnav.settings_subtitle')" />
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

@@ -6,11 +6,12 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, Check, Database, Pencil, Plus, RefreshCw, ServerOff, Trash2, X } from '@lucide/vue';
+import { Check, Database, Pencil, Plus, RefreshCw, ServerOff, Trash2, X } from '@lucide/vue';
 import { computed, reactive } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -145,24 +146,14 @@ const syncFromOlt = () => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">SmartOLT Profiles</h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ olt.name }} · {{ olt.ip }}</p>
-                </div>
-                <div class="flex gap-2">
-                    <Link :href="route('smartolt.detail', olt.id)">
-                        <SecondaryButton type="button">
-                            <ArrowLeft class="mr-2 h-4 w-4" />
-                            {{ $t('common.detail_olt') }}
-                        </SecondaryButton>
-                    </Link>
+            <OltPageHeader :olt="olt" :title="$t('oltnav.profiles')" :subtitle="$t('oltnav.profiles_subtitle')">
+                <template #actions>
                     <PrimaryButton type="button" @click="syncFromOlt">
                         <RefreshCw class="mr-2 h-4 w-4" />
                         {{ $t('profiles.sync_from_olt') }}
                     </PrimaryButton>
-                </div>
-            </div>
+                </template>
+            </OltPageHeader>
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

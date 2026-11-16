@@ -2,12 +2,13 @@
 import ConfirmModal from '@/Components/ConfirmModal.vue';
 import IconButton from '@/Components/IconButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { useConfirm } from '@/Composables/useConfirm';
 import { formatDateTime } from '@/lib/datetime';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { ArrowLeft, CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, Trash2, XCircle } from '@lucide/vue';
+import { CheckCircle2, ClipboardList, Clock3, Eye, EyeOff, History, Play, Trash2, XCircle } from '@lucide/vue';
 import { computed, ref } from 'vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -177,18 +178,7 @@ const deleteRegistration = async (registration) => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h2 class="text-lg font-semibold leading-tight sm:text-xl text-white">{{ $t('registrations.title') }}</h2>
-                    <p class="mt-1 text-sm text-slate-500">{{ olt.name }}</p>
-                </div>
-                <Link :href="route('smartolt.unconfigured-all', { olt_id: olt.id })">
-                    <SecondaryButton type="button">
-                        <ArrowLeft class="mr-2 h-4 w-4" />
-                        Unconfigured
-                    </SecondaryButton>
-                </Link>
-            </div>
+            <OltPageHeader :olt="olt" :title="$t('registrations.title')" :subtitle="$t('oltnav.registrations_subtitle')" />
         </template>
 
         <div class="min-h-[60vh] pt-5 pb-16 sm:pt-8">

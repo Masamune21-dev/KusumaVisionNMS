@@ -179,7 +179,7 @@ komponen bersama `Components/OnuOdpCell.vue` — dropdown pilih ODP (lebar mengi
 yang submit ke `onu-odp.assign`. Ketiga halaman itu juga punya **filter ODP** (`semua` / `tanpa ODP`
 / ODP tertentu) di bar filter masing-masing.
 
-**Di Monitoring ONU** (`monitoring.onu`): dropdown filter ODP + kolom ODP. Datanya ikut baris ONU —
+**Di Monitoring ONU** (halaman dihapus 9 Nov 2026 — catatan di bawah tinggal riwayat; kolom ODP tetap di `OnuInventoryService` untuk API): dropdown filter ODP + kolom ODP. Datanya ikut baris ONU —
 `OnuInventoryService::normalize()` menambahkan `odp_id`/`odp_name` dari peta lookup `OnuOdpLink`
 yang dibangun **sekali** per request di `collect()`/`forPort()` (hindari N+1 di ribuan ONU).
 `findOne()` sengaja TIDAK melakukan lookup ODP karena dipanggil di dalam loop
