@@ -3,6 +3,7 @@
 namespace App\Services\CData\Concerns;
 
 use App\Models\SnmpOlt;
+use App\Support\OltTargetGuard;
 use RuntimeException;
 
 /**
@@ -30,6 +31,8 @@ trait InteractsWithCDataCli
         if ($olt->cli_transport !== 'telnet') {
             throw new RuntimeException(__('cdata.cli_telnet_only'));
         }
+
+        OltTargetGuard::assertAllowed($olt);
 
         $connection = @fsockopen($olt->ip, (int) ($olt->cli_port ?: 23), $errno, $errstr, 10);
         if (! $connection) {

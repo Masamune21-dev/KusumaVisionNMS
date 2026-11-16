@@ -3,6 +3,7 @@
 namespace App\Services\Hioso;
 
 use App\Models\SnmpOlt;
+use App\Support\OltTargetGuard;
 use App\Support\SmartOltSupport;
 use App\Support\Telnet\TelnetIacFilter;
 use RuntimeException;
@@ -186,6 +187,8 @@ class HiosoCliWriteService
         // HA7302 menahan banner sampai opsi telnet IAC dijawab → aktifkan negosiator untuk sesi ini.
         // HA7304 tetap null (tanpa IAC, seperti semula). Reset tiap openSession (filter stateful).
         $this->iac = SmartOltSupport::isHiosoHa7302($olt) ? new TelnetIacFilter : null;
+
+        OltTargetGuard::assertAllowed($olt);
 
         $connection = @fsockopen($olt->ip, (int) ($olt->cli_port ?: 23), $errno, $errstr, 12);
         if (! $connection) {

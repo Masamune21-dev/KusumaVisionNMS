@@ -34,4 +34,6 @@ return [
     'proxy_connecting' => '[proxy] connecting to :name (:target)...',
     'proxy_connected' => '[proxy] connected. Auto-login as :username...',
     'proxy_connect_failed' => '[proxy] failed to connect to :target: :error',
+    'target_not_allowed' => 'This OLT address may not be contacted from the NMS server (loopback, link-local, multicast, or the NMS server\'s own address).',
+    'target_partner_range' => 'A partner OLT may only use an address on an allowed partner path. Ask the admin to add it to NMS_OLT_PARTNER_CIDRS if this address really is the partner\'s path.',
 ];

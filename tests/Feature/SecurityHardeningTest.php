@@ -97,6 +97,10 @@ class SecurityHardeningTest extends TestCase
 
     public function test_partner_can_change_ip_of_own_private_olt_and_admin_unrestricted(): void
     {
+        // OLT milik partner hanya boleh di jalur partner yang diizinkan (OltTargetGuard) —
+        // di sini jalurnya 10.9.0.0/16, sama dengan alamat OLT mitra pada tes ini.
+        config(['olt.target_guard.partner_cidrs' => ['10.9.0.0/16']]);
+
         $partner = User::factory()->partner()->create();
         $own = $this->makeOlt('OLT-MITRA', '10.9.5.1', $partner->id);
 

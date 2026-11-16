@@ -22,6 +22,15 @@ class PartnerRoleTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Partner hanya boleh menambah OLT di jalur yang disiapkan admin lewat
+        // NMS_OLT_PARTNER_CIDRS (OltTargetGuard). Tes ini memakai 10.9.x untuk OLT mitra.
+        config(['olt.target_guard.partner_cidrs' => ['10.9.0.0/16']]);
+    }
+
     private function makeOlt(string $name, string $ip): SnmpOlt
     {
         return SnmpOlt::create([

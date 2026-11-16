@@ -11,7 +11,6 @@ return [
     'olt_deleted' => 'HSGQ OLT deleted.',
     'test_ok' => 'SNMP OK. Family: :family. Latency: :latency ms. ONUs read: :onus. The diagnostic report is on this page.',
     'web_credentials_missing' => 'The OLT web username/password is empty (OLT form → Web & CLI access).',
-    'web_target_blocked' => 'This OLT address may not be contacted from the server (loopback/link-local/multicast/reserved).',
     'demo_device' => 'Demo OLTs are not connected to a device.',
     'web_port_missing' => 'The OLT web port is empty — HSGQ ONU actions over the web need the HTTP port (usually 80).',
     'web_captcha_required' => 'The OLT web login asks for a captcha, so the NMS cannot log in automatically. Disable the login captcha on the OLT web UI.',

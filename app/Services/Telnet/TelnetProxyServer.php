@@ -5,6 +5,7 @@ namespace App\Services\Telnet;
 use App\Models\SnmpOlt;
 use App\Models\User;
 use App\Support\Locale;
+use App\Support\OltTargetGuard;
 use App\Support\Telnet\TelnetIacFilter;
 use App\Support\Telnet\TelnetTicket;
 use Illuminate\Support\Facades\Log;
@@ -136,6 +137,16 @@ class TelnetProxyServer
         // diturunkan/dihapus di antara keduanya tidak boleh masuk CLI.
         $user = User::find($ticket['u']);
         if (! $user || ! $user->canAccessOltSecrets($olt)) {
+            $conn->end("HTTP/1.1 403 Forbidden\r\n\r\n");
+
+            return;
+        }
+
+        // Alamat OLT dinilai ulang saat dial: proxy ini meneruskan byte mentah, jadi baris OLT
+        // lama yang ber-IP internal (dibuat sebelum aturan penjaga berlaku) tak boleh jadi
+        // relai TCP dari server ini.
+        if (! OltTargetGuard::allows($olt)) {
+            Log::warning("telnet-proxy: user {$user->id} ditolak — alamat OLT {$olt->id} ({$olt->ip}) di luar rentang yang diizinkan");
             $conn->end("HTTP/1.1 403 Forbidden\r\n\r\n");
 
             return;

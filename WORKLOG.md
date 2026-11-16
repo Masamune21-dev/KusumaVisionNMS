@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-11-16 — Fixed: alamat OLT dibatasi — proxy telnet & CLI tak lagi jadi relai ke jaringan internal
+
+- **Created — `App\Support\OltTargetGuard`:** satu penjaga alamat tujuan OLT, karena server ini sendirilah yang
+  membuka soket ke `ip:cli_port` (CLI telnet, proxy telnet browser, klien web HSGQ). Tanpa penjaga, akun yang
+  berhak menambah OLT bisa memakai server ini sebagai jembatan ke alamat mana pun yang terjangkau darinya —
+  termasuk layanan internal yang tak punya autentikasi sendiri (ACS/TR-069, panel manajemen, basis data) dan
+  layanan loopback mesin ini. Yang selalu ditolak: `0.0.0.0/8`, loopback, link-local (termasuk metadata cloud
+  `169.254.169.254`), multicast/cadangan, alamat server NMS ini sendiri (best-effort dari `SERVER_ADDR` +
+  nama host), dan `NMS_OLT_BLOCKED_CIDRS`. OLT GLOBAL (staf Pusat) bebas di luar itu; OLT milik **partner**
+  hanya boleh di jalur yang disiapkan admin lewat `NMS_OLT_PARTNER_CIDRS` — daftar kosong = partner tidak
+  boleh menambah OLT sendiri (OLT untuknya dibuat staf Pusat lalu di-assign, fitur lain tetap jalan).
+- **Created — `config/olt.php`** + dua variabel baru di `.env.example` (`NMS_OLT_PARTNER_CIDRS`,
+  `NMS_OLT_BLOCKED_CIDRS`).
+- **Changed — validasi form keempat family** (`SmartOltController`, `CDataOltController`, `HiosoOltController`,
+  `HsgqOltController`) lewat `ManagesOltOwnership::oltTargetRule()`: alamat yang ditolak ditandai di kolom `ip`
+  (bukan error 500), pemiliknya dinilai dari OLT yang diubah atau dari pembuatnya untuk OLT baru.
+- **Changed — titik sambung memeriksa ulang saat menyambung** (`ZteCliProvisioningExecutor` dua tempat,
+  `InteractsWithCDataCli`, `HiosoCliWriteService`, `HsgqWebClient`, dan `TelnetProxyServer` yang menutup
+  WebSocket dengan `403` + catatan log), supaya baris OLT ber-IP internal yang tersimpan sebelum aturan ini
+  berlaku tetap tertahan. `HsgqWebClient` kini memakai penjaga tunggal itu (pengganti penjaga lokalnya).
+- **Changed — `lang/{id,en}/olt.php`:** dua pesan (`target_not_allowed`, `target_partner_range`); kunci
+  `hsgq.web_target_blocked` yang tak terpakai lagi dihapus.
+- **Created — `tests/Feature/OltTargetGuardTest.php`** (12 test): daftar terlarang untuk kedua jenis pemilik,
+  daftar terblokir tambahan, partner tanpa/dengan jalur, IPv4-mapped & link-local IPv6, baris lama yang
+  ditahan `assertAllowed()` dengan pesan yang berbeda per pemilik, klien CLI menolak sebelum membuka soket,
+  serta form create menolak loopback (Pusat) dan alamat di luar jalur (partner) — dan menerimanya bila jalur
+  partner dikonfigurasi. `PartnerRoleTest` & `SecurityHardeningTest` diberi jalur partner eksplisit di
+  pengaturan tes (OLT mitra di berkas itu beralamat 10.9.x).
+- **Notes — dampak update:** instalasi yang memakai partner perlu mengisi `NMS_OLT_PARTNER_CIDRS` sebelum
+  partner bisa menambah OLT-nya sendiri. Dijelaskan di `docs/INSTALL.md` §9 (catatan pembaruan November 2026),
+  `docs/LOCAL_PRODUCTION_HARDENING.md` §OLT Target Addresses, dan catatan di README (id/en).
+- **Notes — verifikasi:** `scripts/test.sh` 896 lulus (5.188 assertion), `npm test` 66 lulus, `pint` bersih.
+  Diuji juga di browser (Playwright, sqlite + data demo): `ip = 127.0.0.1` ditolak dengan pesan
+  «Alamat OLT ini tidak boleh dihubungi…» di form, `ip = 10.20.30.40` tersimpan, 0 galat konsol.
+
 ## 2026-11-16 — Changed: sidebar kelompok dropdown, kerangka isi flex-fill, dan tiga perapian kecil
 
 - **Changed — `Layouts/AuthenticatedLayout.vue`:**

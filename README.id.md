@@ -72,6 +72,15 @@ Platform manajemen jaringan FTTH berbasis web untuk mengelola OLT **ZTE C300/C32
 >
 > Rincian dan perintah upgrade khusus PHP: [`docs/INSTALL.md` §9](docs/INSTALL.md#catatan-keamanan-oktober-2026-php2shell).
 
+> ⚠️ **Catatan pembaruan — alamat OLT (November 2026).** Rilis ini membatasi alamat yang boleh dipakai OLT, karena
+> server NMS sendiri yang membuka soketnya (CLI telnet, proxy telnet browser, dan klien web HSGQ): loopback,
+> link-local (termasuk `169.254.169.254`), multicast/cadangan, dan alamat server NMS sendiri kini selalu ditolak.
+> Isi layanan yang tak pernah menjadi OLT (host ACS/TR-069, VLAN manajemen, jaringan kantor) ke
+> `NMS_OLT_BLOCKED_CIDRS`, dan beri OLT milik partner jalurnya lewat `NMS_OLT_PARTNER_CIDRS` — dibiarkan kosong
+> (bawaan), partner tidak lagi bisa menambah OLT-nya sendiri lewat form; staf Pusat yang membuat lalu meng-assign.
+> Sesudahnya jalankan `php artisan config:cache` dan restart `kusumavision-worker` + `kusumavision-telnet-proxy`.
+> Rincian: [`docs/LOCAL_PRODUCTION_HARDENING.md` §OLT Target Addresses](docs/LOCAL_PRODUCTION_HARDENING.md#olt-target-addresses).
+
 ---
 
 ## Instalasi

@@ -231,6 +231,37 @@ Node runtime audit:
 npm audit --omit=dev --audit-level=moderate
 ```
 
+## OLT Target Addresses
+
+The server itself opens sockets to `ip:cli_port` for every OLT (CLI telnet, the browser telnet proxy,
+and the HSGQ web client). Without a limit, any account allowed to add an OLT could point it at an
+arbitrary address and use this server as a bridge into the local network — including services that
+have no authentication of their own (ACS/TR-069, admin panels, databases) and loopback.
+
+`App\Support\OltTargetGuard` closes that path. Always rejected: `0.0.0.0/8`, loopback, link-local
+(including the cloud metadata address), multicast/reserved, and the NMS server's own addresses.
+Addresses that should never be an OLT — your ACS host, management VLAN, office network — go in
+`NMS_OLT_BLOCKED_CIDRS`:
+
+```dotenv
+NMS_OLT_BLOCKED_CIDRS=172.20.0.0/16,192.168.99.0/24
+```
+
+OLTs owned by a **partner** are additionally restricted to the paths you prepared for them, listed in
+`NMS_OLT_PARTNER_CIDRS` (their WireGuard/tunnel subnet, or the public block NAT-ed to their OLTs):
+
+```dotenv
+NMS_OLT_PARTNER_CIDRS=100.64.10.0/24,203.0.113.0/28
+```
+
+Left empty — the default — partners cannot add their own OLT through the form; OLTs for them are
+created by head-office staff and assigned to the partner, which keeps every other feature working.
+Partner-owned rows stored before this rule are still re-checked when a CLI session or telnet proxy
+socket is opened, so they cannot be used as a relay.
+
+After changing either variable run `php artisan config:cache` (and restart the worker and the
+telnet proxy: `supervisorctl restart kusumavision-worker kusumavision-telnet-proxy`).
+
 ## Smoke Tests
 
 ```bash

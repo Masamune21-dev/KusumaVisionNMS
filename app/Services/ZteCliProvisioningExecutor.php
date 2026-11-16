@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\SnmpOlt;
 use App\Support\CliOutputSanitizer;
+use App\Support\OltTargetGuard;
 use RuntimeException;
 
 class ZteCliProvisioningExecutor
@@ -55,6 +56,8 @@ class ZteCliProvisioningExecutor
         if (! $olt->cli_username || ! $olt->cli_password) {
             throw new RuntimeException(__('olt.cli_save_credentials_missing'));
         }
+
+        OltTargetGuard::assertAllowed($olt);
 
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $connection = @fsockopen($olt->ip, $port, $errno, $errstr, 10);
@@ -122,6 +125,8 @@ class ZteCliProvisioningExecutor
         if (! $olt->cli_username || ! $olt->cli_password) {
             throw new RuntimeException(__('olt.cli_exec_credentials_missing'));
         }
+
+        OltTargetGuard::assertAllowed($olt);
 
         $port = $olt->cli_port ?: $olt->defaultCliPort();
         $connection = @fsockopen($olt->ip, $port, $errno, $errstr, 10);

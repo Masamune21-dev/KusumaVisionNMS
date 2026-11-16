@@ -572,6 +572,7 @@ class CDataOltController extends Controller
                 Rule::unique('snmp_olts', 'ip')
                     ->where(fn ($query) => $query->where('snmp_port', $request->integer('snmp_port')))
                     ->ignore($olt),
+                $this->oltTargetRule($request, $olt),
             ],
             'snmp_port' => ['required', 'integer', 'between:1,65535'],
             'snmp_read_community' => [$olt ? 'nullable' : 'required', 'string', 'max:255'],

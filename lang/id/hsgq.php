@@ -11,7 +11,6 @@ return [
     'olt_deleted' => 'OLT HSGQ dihapus.',
     'test_ok' => 'SNMP OK. Family: :family. Latency: :latency ms. ONU terbaca: :onus. Laporan diagnostik ada di halaman ini.',
     'web_credentials_missing' => 'Username/sandi web OLT belum diisi (form OLT → Akses web & CLI).',
-    'web_target_blocked' => 'Alamat OLT ini tidak boleh dihubungi dari server (loopback/link-local/multicast/cadangan).',
     'demo_device' => 'OLT demo tidak terhubung ke perangkat.',
     'web_port_missing' => 'Port web OLT belum diisi — aksi ONU HSGQ lewat web butuh port HTTP (biasanya 80).',
     'web_captcha_required' => 'Web OLT meminta captcha, jadi NMS tidak bisa login otomatis. Matikan captcha login di web OLT.',

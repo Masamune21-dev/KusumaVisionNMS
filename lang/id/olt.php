@@ -34,4 +34,6 @@ return [
     'proxy_connecting' => '[proxy] menghubungkan ke :name (:target)...',
     'proxy_connected' => '[proxy] tersambung. Auto-login sebagai :username...',
     'proxy_connect_failed' => '[proxy] gagal connect ke :target: :error',
+    'target_not_allowed' => 'Alamat OLT ini tidak boleh dihubungi dari server NMS (loopback, link-local, multicast, atau alamat server NMS sendiri).',
+    'target_partner_range' => 'OLT milik partner hanya boleh memakai alamat di jalur partner yang diizinkan. Minta admin menambahkannya di NMS_OLT_PARTNER_CIDRS bila alamat ini memang jalur partner.',
 ];

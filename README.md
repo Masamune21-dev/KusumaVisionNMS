@@ -72,6 +72,16 @@ A web-based FTTH network management platform for operating **ZTE C300/C320/C600*
 >
 > Details and a PHP-only upgrade command: [`docs/INSTALL.md` §9](docs/INSTALL.md#catatan-keamanan-oktober-2026-php2shell) (Indonesian).
 
+> ⚠️ **Update note — OLT target addresses (November 2026).** This release restricts which addresses an OLT
+> may use, because the NMS server itself opens the socket (CLI telnet, the browser telnet proxy, and the
+> HSGQ web client): loopback, link-local (incl. `169.254.169.254`), multicast/reserved, and the NMS host's
+> own addresses are now always rejected. Put services that must never be an OLT (ACS/TR-069 host, management
+> VLAN, office network) in `NMS_OLT_BLOCKED_CIDRS`, and give partner-owned OLTs their own path via
+> `NMS_OLT_PARTNER_CIDRS` — left empty (default), partners can no longer add their own OLT through the form;
+> head-office staff creates those OLTs and assigns them. Afterwards run `php artisan config:cache` and restart
+> `kusumavision-worker` + `kusumavision-telnet-proxy`.
+> Details: [`docs/LOCAL_PRODUCTION_HARDENING.md` §OLT Target Addresses](docs/LOCAL_PRODUCTION_HARDENING.md#olt-target-addresses).
+
 ---
 
 ## Installation

@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Concerns;
 
 use App\Models\SnmpOlt;
 use App\Models\User;
+use App\Support\OltTargetGuard;
+use Closure;
+use Illuminate\Http\Request;
 
 /**
  * Perilaku kepemilikan OLT bersama untuk controller inventori (ZTE/C-Data/HiOSO).
@@ -43,6 +46,27 @@ trait ManagesOltOwnership
         if ($user && $user->isPartner()) {
             abort_unless($user->ownsOlt($olt), 403, __('olt.delete_own_olt_only'));
         }
+    }
+
+    /**
+     * Aturan validasi `ip` OLT (semua family) — {@see OltTargetGuard}. Pemiliknya dinilai dari
+     * OLT yang diubah, atau dari pembuatnya untuk OLT baru (partner → privat miliknya).
+     * Nilai yang bukan IP dibiarkan ke aturan `ip` supaya tak muncul dua pesan galat.
+     */
+    protected function oltTargetRule(Request $request, ?SnmpOlt $olt = null): Closure
+    {
+        $user = $request->user();
+        $ownerId = $olt ? $olt->owner_user_id : ($user?->isPartner() ? $user->id : null);
+
+        return function (string $attribute, mixed $value, Closure $fail) use ($ownerId): void {
+            if (! is_string($value) || filter_var($value, FILTER_VALIDATE_IP) === false) {
+                return;
+            }
+
+            if (! OltTargetGuard::allowsAddress($value, $ownerId)) {
+                $fail($ownerId === null ? __('olt.target_not_allowed') : __('olt.target_partner_range'));
+            }
+        };
     }
 
     /**

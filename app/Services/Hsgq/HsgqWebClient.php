@@ -3,6 +3,7 @@
 namespace App\Services\Hsgq;
 
 use App\Models\SnmpOlt;
+use App\Support\OltTargetGuard;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -17,8 +18,8 @@ use RuntimeException;
  * Token basi dijawab `message: "Token Check Failed"` (atau `code: -1`) → login ulang sekali.
  *
  * Keamanan: server NMS yang membuka koneksi HTTP ke `ip:web_port` isian pengguna (termasuk partner), jadi
- * setiap request lewat {@see self::assertTargetAllowed()} (menolak loopback, link-local/metadata cloud,
- * multicast, dan alamat cadangan), host = IP OLT, redirect TIDAK diikuti, timeout pendek, ukuran respons
+ * setiap request lewat {@see OltTargetGuard} (menolak loopback, link-local/metadata cloud, multicast,
+ * alamat server NMS sendiri, dan OLT partner di luar jalur yang diizinkan), host = IP OLT, redirect TIDAK diikuti, timeout pendek, ukuran respons
  * dibatasi. Tambahkan blokir jaringan internal Anda sendiri di firewall server bila perlu.
  * Web HSGQ hanya HTTP polos — sandi lewat jaringan apa adanya, jadi akses wajib lewat VPN/jaringan mgmt.
  * Sandi & token tak pernah ditulis ke log/audit; token hanya hidup selama instance ini (satu request).
@@ -183,21 +184,13 @@ class HsgqWebClient
     }
 
     /**
-     * Penjaga SSRF generik: alamat OLT harus IP unicast biasa — bukan loopback, link-local (termasuk
-     * metadata cloud 169.254.169.254), multicast, atau rentang cadangan.
+     * Penjaga alamat tujuan: jalur yang sama dengan CLI telnet & proxy telnet, lihat
+     * {@see OltTargetGuard} — loopback, link-local (termasuk metadata cloud), multicast,
+     * alamat server NMS sendiri, dan OLT partner di luar jalur yang diizinkan ditolak.
      */
     private function assertTargetAllowed(SnmpOlt $olt): void
     {
-        $ip = trim((string) $olt->ip);
-
-        $allowed = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE) !== false
-            && ! str_starts_with($ip, '0.')
-            && ! preg_match('/^(?:22[4-9]|23\d|24\d|25[0-5])\./', $ip)
-            && ! preg_match('/^(?:::|::ffff:127\.|fe[89ab]|ff)/i', $ip);
-
-        if (! $allowed) {
-            throw new RuntimeException(__('hsgq.web_target_blocked'));
-        }
+        OltTargetGuard::assertAllowed($olt);
     }
 
     private function url(SnmpOlt $olt, string $path): string

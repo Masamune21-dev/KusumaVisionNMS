@@ -222,6 +222,20 @@ Lalu muat ulang browser dengan Ctrl+Shift+R (nama berkas aset berubah).
 `git pull` hanya memperbarui kode NMS. PHP, PostgreSQL, Redis, dan nginx adalah paket sistem — perbarui lewat
 `sudo apt update && sudo apt upgrade` secara berkala.
 
+### Catatan pembaruan November 2026 (alamat OLT)
+
+**Alamat OLT kini dibatasi** supaya server NMS tak dipakai sebagai jembatan ke jaringan internal (CLI telnet,
+proxy telnet browser, dan klien web HSGQ semuanya membuka soket ke `ip:cli_port` OLT). Yang selalu ditolak:
+`0.0.0.0/8`, loopback, link-local (termasuk `169.254.169.254`), multicast/cadangan, dan alamat server NMS sendiri.
+Setelah update, `php artisan config:cache` dan restart `kusumavision-worker` + `kusumavision-telnet-proxy`.
+
+- Ada layanan yang **tidak pernah** menjadi OLT (host ACS/TR-069, VLAN manajemen, jaringan kantor)? Tambahkan ke
+  `NMS_OLT_BLOCKED_CIDRS` (CIDR, dipisah koma).
+- **OLT milik partner** hanya boleh di jalur yang Anda siapkan: isi `NMS_OLT_PARTNER_CIDRS` (mis. subnet
+  WireGuard/tunnel partner atau blok publik yang di-NAT ke OLT mereka). Dibiarkan kosong = partner tidak bisa
+  menambah OLT lewat form — OLT untuk partner dibuat staf Pusat lalu di-assign ke dia (fitur lain tetap jalan).
+- Rincian: [LOCAL_PRODUCTION_HARDENING.md](LOCAL_PRODUCTION_HARDENING.md) §OLT Target Addresses.
+
 ### Catatan keamanan Oktober 2026 (PHP2Shell)
 
 **PHP2Shell** — CVE-2026-109618 (kehabisan memori saat *request startup* merusak memori) dan CVE-2026-109619
