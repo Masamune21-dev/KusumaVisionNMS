@@ -1,5 +1,29 @@
 # Worklog
 
+## 2026-11-16 — Changed: sidebar padat gaya Billing, panel sistem (CPU/RAM/disk) dihapus
+
+- **Changed — `Layouts/AuthenticatedLayout.vue`:** sidebar memakai latar **padat `bg-surface-1` + `shadow-2xl`**
+  (tanpa kaca/blur dan tanpa vinyet `SidebarConstellation`, jadi tak ada lagi layer compositor di kedua tema);
+  warna item tak aktif `text-slate-300 hover:bg-slate-800/60 hover:text-white` dan tombol Keluar memakai merah
+  `rose` (sama dengan Billing); drawer HP kini punya **tombol tutup X** di kepala sidebar; blok akun/tema/profil/
+  keluar hanya dirender di HP (`lg:hidden`) — di desktop akun ada di `UserMenu` header, jadi dasar sidebar kosong.
+- **Deleted — `Components/Shell/SystemInfoPanel.vue` & `Components/Shell/SidebarConstellation.vue`:** panel sistem
+  (versi/uptime/users online + CPU/RAM/disk, polling 20 detik) dan vinyet sidebar dihapus — tak ada pemakai lain.
+- **Changed — `Http/Middleware/HandleInertiaRequests.php`:** prop bersama `systemInfo` beserta seluruh pembacanya
+  (`systemInfoPayload`, `serverHealth`, `cpuHealth`/`cpuCores`, `memoryHealth`, `diskHealth`, `humanBytes`,
+  `formatUptime`, `estimateActiveUsers`) dihapus, termasuk import `DB`. Telemetri server tidak lagi dibagikan ke
+  klien sama sekali (bukan sekadar disembunyikan per peran).
+- **Deleted — `lang/{id,en}/system.php`** dan 6 kunci `sys_*` di `resources/js/lang/{id,en}.json` (label panel).
+- **Changed — dokumen:** `docs/handbook/02-arsitektur.md` (daftar prop bersama), `docs/handbook/12-frontend.md`
+  (daftar komponen shell + prop), `docs/handbook/15-ui-tema-dashboard.md` (sidebar padat, tombol X, dasar sidebar
+  desktop kosong), dan `UI_DESIGN_SYSTEM.md` (aturan latar sidebar padat).
+- **Notes** Verifikasi: `scripts/test.sh` 896 lulus (5.188 assertion), `npm test` 66 lulus, `kv-ui-check`
+  0 pelanggaran keras dan `backdrop-blur` pada berkas yang disentuh turun 9 → 5. Dirender dengan Playwright di
+  server lokal (sqlite + data demo): latar sidebar `rgb(12, 22, 48)` opak, `backdrop-filter: none`, ada shadow;
+  prop `systemInfo` **tidak ada** lagi di payload halaman; footer tetap di dasar viewport di `/dashboard`,
+  `/smartolt`, `/panduan` tanpa scroll ganda; dropdown kelompok sidebar dari rilis sebelumnya tetap jalan;
+  di viewport HP drawer terbuka lewat tombol menu dan tertutup lewat tombol X; 0 galat konsol di kedua ukuran.
+
 ## 2026-11-16 — Fixed: alamat OLT dibatasi — proxy telnet & CLI tak lagi jadi relai ke jaringan internal
 
 - **Created — `App\Support\OltTargetGuard`:** satu penjaga alamat tujuan OLT, karena server ini sendirilah yang

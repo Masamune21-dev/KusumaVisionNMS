@@ -202,9 +202,10 @@ layout (jangan dibuat ulang di halaman):
   `Welcome`/`GuestLayout`).
 - **Sidebar kiri** — logo, menu berkelompok `navGroups` (label kelompok saat lebar, garis pemisah
   saat diciutkan; kelompok kosong disembunyikan), collapse (persist di `localStorage`
-  `kv-sidebar-collapsed`), drawer di mobile, `SidebarConstellation` + `SystemInfoPanel`
-  (desktop-only, `v-if="isDesktop"` — di HP tak di-mount). Di HP dasar drawer memuat kartu akun,
-  `ThemeSegmented` (pilih tema), Profil, Keluar.
+  `kv-sidebar-collapsed`), drawer di mobile (tombol tutup X). Latar **padat `bg-surface-1`** seperti
+  Billing, tanpa kaca/blur (panel sistem CPU/RAM/disk dan `SidebarConstellation` dihapus 2 Nov 2026 atas
+  permintaan pemilik). Di HP dasar drawer memuat kartu akun, `ThemeSegmented` (pilih tema), Profil,
+  Keluar; di desktop dasar sidebar kosong (akun ada di `UserMenu` header).
 - **Header atas (desktop)** — trigger search (⌘K), `LanguageSwitcher`, `NotificationBell`, `UserMenu`
   (berisi pilihan tema Gelap/Terang/Sistem).
 - **Top bar mobile** — tombol menu, logo, search, `LanguageSwitcher`, bell.

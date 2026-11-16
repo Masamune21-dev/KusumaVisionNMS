@@ -149,6 +149,10 @@ jadi menambahkannya **tidak menggeser tema gelap satu piksel pun**.
 | Kelas | Pasang di | Efek di tema terang |
 | :--- | :--- | :--- |
 | `kv-shell-sidebar` / `kv-shell-bar` | sidebar; header, footer, bar HP di `AuthenticatedLayout` | `surface-1` opak |
+
+- **Latar sidebar padat `bg-surface-1 shadow-2xl` (= Billing)**, tanpa kaca/blur/vinyet; dasar sidebar
+  desktop kosong (panel sistem CPU/RAM/disk dihapus 2 Nov 2026), drawer HP punya tombol tutup X dan kartu
+  akun di dasar. Item tak aktif `text-slate-300 hover:bg-slate-800/60 hover:text-white`.
 | `kv-popover` | panel mengambang: notifikasi, menu pengguna, pemilih app/bahasa, palet pencarian | `surface-1` opak, tanpa blur, bayangan lembut |
 | `kv-toast` | kartu toast di `Shell/FlashMessages.vue` | kertas opak; warna tepi/ikon/teks tetap |
 | `kv-surface` | kartu kaca ad-hoc tingkat atas (`bg-slate-900/30–60` + blur + `shadow-lg`) yang bukan `kv-card`/`kv-panel` | kertas opak + bayangan tipis |

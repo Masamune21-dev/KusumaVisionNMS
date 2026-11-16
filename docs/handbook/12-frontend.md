@@ -96,9 +96,9 @@ terakhir dipakai bersama `Pages/{CDataOlt,Hioso}/PortOnus.vue`; faceplate dipaka
 
 **Shell (`Components/Shell/`):** `GlobalSearch` (⌘K → `dashboard.search`), `NotificationBell`
 (pakai props `notifications` global; klik → `notifications.alarms.open`, target diputuskan server),
-`UserMenu`, `SystemInfoPanel` (versi/uptime/users online), `LanguageSwitcher`, `ThemeSegmented`
+`UserMenu`, `LanguageSwitcher`, `ThemeSegmented`
 (aplikasi) / `ThemeToggle` (landing `Welcome.vue`), `FlashMessages`, `FilterCard`, `ClientPagination`,
-`ListSkeleton`, `AuroraBackground`, `ParticleNetwork`, `SidebarConstellation` (efek visual),
+`ListSkeleton`, `AuroraBackground`, `ParticleNetwork` (efek visual landing),
 **`TelnetWindow`** (terminal xterm.js, draggable/min/max — lihat [09](09-cli-telnet.md)).
 
 **GenieACS (`Components/Genieacs/` + `Components/OnuAcsBadge.vue`):** `OnuAcsBadge` (lencana tiga
@@ -134,7 +134,6 @@ Setiap Page bisa akses lewat `usePage().props`:
 - `flash.success` / `flash.error` (dari `session()->flash`). Partial reload `only: [...]` ikut
   menyaring shared prop — sertakan `'flash'` bila aksi menampilkan toast.
 - `notifications` (`items[]`, `unread_count`) — untuk bell.
-- `systemInfo` (`version`, `uptime`, `users_online`, `health` — CPU/memori/disk).
 - `branding` (`name`, `version`, `logo_url`) — dari `general_settings`, di-cache 1 jam.
 - `locale` (`id`/`en`), `locales` (opsi), `theme` (`dark`/`light`/`system`).
 

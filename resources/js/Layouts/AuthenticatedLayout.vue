@@ -5,13 +5,12 @@ import FlashMessages from '@/Components/Shell/FlashMessages.vue';
 import GlobalSearch from '@/Components/Shell/GlobalSearch.vue';
 import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import NotificationBell from '@/Components/Shell/NotificationBell.vue';
-import SidebarConstellation from '@/Components/Shell/SidebarConstellation.vue';
-import SystemInfoPanel from '@/Components/Shell/SystemInfoPanel.vue';
 import ThemeSegmented from '@/Components/Shell/ThemeSegmented.vue';
+import IconButton from '@/Components/IconButton.vue';
 import UserMenu from '@/Components/Shell/UserMenu.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
-import { BellRing, BookOpen, Cable, ChevronDown, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Network, Radar, ScrollText, Search, Send, Settings, ShieldCheck, User, Users, Waypoints, WifiOff } from '@lucide/vue';
+import { BellRing, BookOpen, Cable, ChevronDown, ChevronLeft, Eye, FileBarChart, LayoutDashboard, LogOut, MapPin, Menu, Network, Radar, ScrollText, Search, Send, Settings, ShieldCheck, User, Users, Waypoints, WifiOff, X } from '@lucide/vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -243,21 +242,20 @@ onUnmounted(() => {
         </Transition>
 
         <!-- Sidebar — mobile: drawer fixed; desktop: setinggi layar, diam saat konten digulir.
-             Menu yang panjang menggulir di dalam <nav>, panel sistem tetap di dasar. -->
+             Menu yang panjang menggulir di dalam <nav>. Latar padat surface-1 seperti Billing
+             (tanpa kaca/blur): tegas di kedua tema dan tak membuat layer compositor. -->
         <aside
-            class="kv-shell-sidebar fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-canvas-3/35 backdrop-blur-xl transition-all duration-200 ease-in-out lg:relative lg:flex-shrink-0 lg:translate-x-0"
+            class="kv-shell-sidebar fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-1rem)] flex-col border-r border-white/10 bg-surface-1 shadow-2xl transition-all duration-200 ease-in-out lg:relative lg:flex-shrink-0 lg:translate-x-0"
             :class="[
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full',
                 sidebarCollapsed ? 'w-64 lg:w-20' : 'w-64',
             ]"
         >
-            <SidebarConstellation v-if="showSidebarContent" />
-
             <!-- Blok atas: logo + navigasi. Mengisi sisa tinggi sidebar; <nav> menggulir sendiri. -->
             <div class="relative z-10 min-h-0 flex-1">
                 <div class="flex h-full flex-col">
                     <!-- Logo -->
-                    <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 bg-canvas-3/20 px-5 backdrop-blur-sm">
+                    <div class="relative flex h-[72px] flex-shrink-0 items-center justify-between border-b border-white/10 px-5">
                         <Link
                             :href="route('dashboard')"
                             prefetch
@@ -282,6 +280,10 @@ onUnmounted(() => {
                         >
                             <ChevronLeft class="h-4 w-4 transition-transform" :class="{ 'rotate-180': sidebarCollapsed }" />
                         </button>
+                        <!-- Tutup drawer (HP) -->
+                        <IconButton class="flex-shrink-0 lg:hidden" :title="$t('common.close')" @click="sidebarOpen = false">
+                            <X class="h-5 w-5" />
+                        </IconButton>
                     </div>
 
                     <!-- Navigation -->
@@ -336,7 +338,7 @@ onUnmounted(() => {
                                     :class="[
                                         isActive(link)
                                             ? 'bg-gradient-to-r from-cyan-500 to-sky-500 text-onaccent shadow-lg shadow-cyan-500/30'
-                                            : 'text-slate-400 hover:bg-white/5 hover:text-slate-100',
+                                            : 'text-slate-300 hover:bg-slate-800/60 hover:text-white',
                                         // Di dalam dropdown sedikit lebih rapat supaya nama panjang
                                         // tidak terpotong oleh indentasi.
                                         showSidebarContent
@@ -356,10 +358,10 @@ onUnmounted(() => {
             </div>
             <!-- /Blok atas -->
 
-            <!-- Blok bawah: akun (mobile) + panel sistem (desktop-only), selalu di dasar sidebar. -->
-            <div v-if="showSidebarContent" class="relative z-10 mt-auto flex-shrink-0">
+            <!-- Blok bawah (HP saja): akun, tema, profil, keluar. Di desktop akun ada di UserMenu header. -->
+            <div v-if="showSidebarContent" class="relative z-10 mt-auto flex-shrink-0 lg:hidden">
                 <!-- User account (mobile only — desktop uses header UserMenu) -->
-                <div class="border-t border-white/10 px-3 py-3 lg:hidden">
+                <div class="border-t border-white/10 px-3 py-3">
                     <div class="flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2.5">
                         <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-sky-600 text-sm font-bold text-onaccent shadow-inner shadow-white/10">
                             {{ userInitial }}
@@ -383,7 +385,7 @@ onUnmounted(() => {
                             :href="route('logout')"
                             method="post"
                             as="button"
-                            class="flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 hover:text-red-200"
+                            class="flex items-center justify-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/20 hover:text-rose-200"
                         >
                             <LogOut class="h-4 w-4" />
                             {{ $t('common.logout') }}
@@ -391,9 +393,6 @@ onUnmounted(() => {
                     </div>
                 </div>
 
-                <!-- System info panel (desktop saja — di HP tak di-mount: drawer lebih lega
-                     dan timer jam/polling health-nya tidak jalan sia-sia) -->
-                <SystemInfoPanel v-if="isDesktop" />
             </div>
             <!-- /Blok bawah -->
         </aside>

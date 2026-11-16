@@ -239,8 +239,8 @@ admin di `/users` atau lewat `php artisan user:create`. Percobaan login dibatasi
   URL jadi `http://` dan form berakhir 419.
 - Exception `/api/*` selalu dirender JSON.
 
-`HandleInertiaRequests` men-share `auth` (+ `auth.can.*`), `flash`, `notifications`, `systemInfo`,
-`branding`, `locale`, `locales`, dan `theme`. Detail RBAC, kepemilikan OLT partner
+`HandleInertiaRequests` men-share `auth` (+ `auth.can.*`), `flash`, `notifications`, `branding`,
+`locale`, `locales`, dan `theme`. Detail RBAC, kepemilikan OLT partner
 (`PartnerOltScope`), dan demo di [11 — Keamanan, RBAC & Audit](11-keamanan-rbac-audit.md).
 
 ## Audit trail otomatis
