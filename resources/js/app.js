@@ -7,7 +7,8 @@ import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { i18n, setI18nLocale } from './i18n';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const defaultAppName = window.__kvAppName || import.meta.env.VITE_APP_NAME || 'KusumaVision';
+let currentAppName = defaultAppName;
 const chunkReloadKey = 'kusumavision-nms:chunk-reload-at';
 
 window.addEventListener('vite:preloadError', (event) => {
@@ -31,7 +32,12 @@ window.addEventListener('vite:preloadError', (event) => {
 });
 
 createInertiaApp({
-    title: (title) => `${title} - ${appName}`,
+    title: (title) => {
+        const appName = currentAppName;
+        if (!title) return appName;
+        if (title.toLowerCase().includes(appName.toLowerCase())) return title;
+        return `${title} - ${appName}`;
+    },
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.vue`,
@@ -39,6 +45,8 @@ createInertiaApp({
         ),
     setup({ el, App, props, plugin }) {
         // Locale awal dari prop Inertia (di-set backend SetLocale), sebelum mount.
+        currentAppName = props.initialPage?.props?.branding?.name || currentAppName;
+
         setI18nLocale(props.initialPage.props.locale || 'id');
 
         // Sinkronkan i18n dgn locale hasil resolusi server pada tiap navigasi SPA —
@@ -47,6 +55,8 @@ createInertiaApp({
         router.on('success', (event) => {
             const locale = event.detail.page?.props?.locale;
             if (locale) setI18nLocale(locale);
+            const name = event.detail.page?.props?.branding?.name;
+            if (name) currentAppName = name;
         });
 
         return createApp({ render: () => h(App, props) })

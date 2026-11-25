@@ -6,7 +6,7 @@ return [
     'page_forbidden' => 'Anda tidak memiliki akses ke halaman ini.',
     'fcm_device_not_registered' => 'Perangkat ini belum terdaftar untuk notifikasi. Coba keluar lalu masuk lagi, dan izinkan notifikasi.',
     'fcm_test_title' => '🔔 Tes Notifikasi',
-    'fcm_test_body' => 'Push FCM KusumaVision NMS berhasil diterima.',
+    'fcm_test_body' => 'Push FCM :app berhasil diterima.',
     'fcm_test_sent' => 'Notifikasi tes terkirim ke :count perangkat. Cek bar notifikasi.',
     'onu_reboot_sent' => 'Perintah reboot terkirim. ONU restart 30-60 detik.',
     'onu_reboot_warn' => 'Reboot selesai dengan indikasi error.',

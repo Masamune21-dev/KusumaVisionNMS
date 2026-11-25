@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\FcmDeviceToken;
+use App\Models\GeneralSetting;
 use App\Services\Fcm\FcmAlarmNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,7 +86,7 @@ class DeviceController extends Controller
             ]]);
         }
 
-        $res = $notifier->sendTest($tokens, __('common.fcm_test_title'), __('common.fcm_test_body'));
+        $res = $notifier->sendTest($tokens, __('common.fcm_test_title'), __('common.fcm_test_body', ['app' => GeneralSetting::brandingPayload()['name']]));
 
         return response()->json(['data' => [
             'ok' => $res['ok'],

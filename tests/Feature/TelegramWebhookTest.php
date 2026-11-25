@@ -217,7 +217,7 @@ class TelegramWebhookTest extends TestCase
         $this->postWebhook($this->update('999', '/help'))->assertOk();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
-            && str_contains($request['text'], 'KusumaVision NMS')
+            && str_contains($request['text'], \App\Models\GeneralSetting::brandingPayload()['name'])
             && str_contains($request['text'], '/refresh')
             && str_contains($request['text'], '/search')
             && str_contains($request['text'], '/status')
@@ -293,7 +293,7 @@ class TelegramWebhookTest extends TestCase
         $this->postWebhook($this->update('111', '/menu'))->assertOk();
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'sendMessage')
-            && str_contains($request['text'], 'KusumaVision NMS')
+            && str_contains($request['text'], \App\Models\GeneralSetting::brandingPayload()['name'])
             && isset($request['reply_markup']['inline_keyboard']));
     }
 
@@ -348,7 +348,7 @@ class TelegramWebhookTest extends TestCase
         $this->postWebhook($this->callbackUpdate('999', 'm'))->assertOk();
 
         Http::assertSent(fn ($request) => str_contains($request['text'] ?? '', 'Akses ditolak'));
-        Http::assertNotSent(fn ($request) => str_contains($request['text'] ?? '', 'KusumaVision NMS'));
+        Http::assertNotSent(fn ($request) => str_contains($request['text'] ?? '', \App\Models\GeneralSetting::brandingPayload()['name']));
     }
 
     public function test_noop_callback_only_acknowledges(): void

@@ -6,7 +6,7 @@ return [
     'page_forbidden' => 'You do not have access to this page.',
     'fcm_device_not_registered' => 'This device is not registered for notifications yet. Try signing out and back in, and allow notifications.',
     'fcm_test_title' => '🔔 Test Notification',
-    'fcm_test_body' => 'KusumaVision NMS FCM push received successfully.',
+    'fcm_test_body' => ':app FCM push received successfully.',
     'fcm_test_sent' => 'Test notification sent to :count device(s). Check the notification bar.',
     'onu_reboot_sent' => 'Reboot command sent. The ONU restarts in 30-60 seconds.',
     'onu_reboot_warn' => 'Reboot finished with error indications.',

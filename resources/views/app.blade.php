@@ -27,10 +27,10 @@
 
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+        <link rel="icon" href="{{ \App\Models\GeneralSetting::brandingPayload()['logo_url'] ?: '/favicon.ico' }}" sizes="any">
+        <link rel="apple-touch-icon" href="{{ \App\Models\GeneralSetting::brandingPayload()['logo_url'] ?: '/apple-touch-icon.png' }}">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ \App\Models\GeneralSetting::brandingPayload()['name'] }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -40,6 +40,7 @@
         <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
             window.KV_DISPLAY_TZ = @json(\App\Support\DisplayTime::timezone());
             window.KV_DISPLAY_TZ_LABEL = @json(\App\Support\DisplayTime::label());
+            window.__kvAppName = @json(\App\Models\GeneralSetting::brandingPayload()['name']);
         </script>
 
         <!-- Scripts -->

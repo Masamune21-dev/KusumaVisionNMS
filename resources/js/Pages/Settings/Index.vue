@@ -32,6 +32,7 @@ const props = defineProps({
 
 const page = usePage();
 const flash = computed(() => page.props.flash ?? {});
+const appName = computed(() => page.props.branding?.name ?? 'NMS');
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -52,6 +53,7 @@ const activeTab = ref('general');
 const generalForm = useForm({
     app_name: props.general.app_name,
     app_version: props.general.app_version,
+    owner: props.general.owner ?? 'PT Berkah Media Kusuma Vision',
     logo: null,
     remove_logo: false,
 });
@@ -414,6 +416,19 @@ const copyText = async (text, key) => {
                                 <p class="mt-1 text-xs text-slate-400">{{ $t('settings.app_version_hint') }}</p>
                             </div>
 
+                            <div>
+                                <InputLabel for="owner" :value="$t('settings.owner')" />
+                                <TextInput
+                                    id="owner"
+                                    v-model="generalForm.owner"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                    maxlength="80"
+                                    :placeholder="$t('settings.owner_placeholder')"
+                                />
+                                <InputError :message="generalForm.errors.owner" class="mt-2" />
+                            </div>
+
                             <div class="flex flex-wrap items-center gap-3 border-t border-white/10 pt-5 lg:col-span-2">
                                 <PrimaryButton :disabled="generalForm.processing">{{ $t('common.save') }}</PrimaryButton>
                                 <span v-if="generalForm.recentlySuccessful" class="text-xs text-emerald-400">{{ $t('settings.saved') }}</span>
@@ -488,7 +503,7 @@ const copyText = async (text, key) => {
                                     <Smartphone class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-400" />
                                     <div class="min-w-0">
                                         <p class="text-sm font-medium text-white">
-                                            KusumaVision NMS
+                                            {{ appName }}
                                             <span v-if="mobileApk.version" class="text-slate-400">v{{ mobileApk.version }}</span>
                                         </p>
                                         <p class="text-xs text-slate-500">

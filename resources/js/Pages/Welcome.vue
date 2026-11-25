@@ -2,7 +2,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import LanguageSwitcher from '@/Components/Shell/LanguageSwitcher.vue';
 import ThemeToggle from '@/Components/Shell/ThemeToggle.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     Activity,
     ArrowRight,
@@ -203,6 +203,10 @@ const vSpotlight = {
 };
 
 const { t } = useI18n({ useScope: 'global' });
+const page = usePage();
+const appName = computed(() => page.props.branding?.name ?? 'KusumaVision');
+const owner = computed(() => page.props.branding?.owner ?? 'PT Berkah Media Kusuma Vision');
+const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '2026');
 
 const mobileOpen = ref(false);
 const scrolled = ref(false);
@@ -630,7 +634,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="KusumaVision NMS — ZTE OLT Management & Provisioning Platform" />
+    <Head :title="`${appName} — ZTE OLT Management & Provisioning Platform`" />
 
     <div class="min-h-screen bg-canvas-3 text-slate-100">
         <!-- ===== Top nav ===== -->
@@ -644,7 +648,7 @@ onBeforeUnmount(() => {
                 <Link href="/" class="flex items-center gap-2.5">
                     <ApplicationLogo class="h-9 w-auto" />
                     <div class="leading-tight">
-                        <div class="text-[15px] font-bold text-white">KusumaVision</div>
+                        <div class="text-[15px] font-bold text-white">{{ appName }}</div>
                         <div class="text-[11px] text-slate-500">NMS v2 &middot; GPON Management</div>
                     </div>
                 </Link>
@@ -1223,8 +1227,8 @@ onBeforeUnmount(() => {
                         <div class="flex items-center gap-2.5">
                             <ApplicationLogo class="h-8 w-auto" />
                             <div class="leading-tight">
-                                <div class="text-sm font-bold text-white">KusumaVision NMS</div>
-                                <div class="text-[10px] text-slate-500">PT Berkah Media Kusuma Vision</div>
+                                <div class="text-sm font-bold text-white">{{ appName }}</div>
+                                <div class="text-[10px] text-slate-500">{{ owner }}</div>
                             </div>
                         </div>
                         <p class="mt-4 max-w-sm text-sm leading-6 text-slate-400">
@@ -1293,7 +1297,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="mt-10 flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row">
-                    <p>{{ $t('welcome.footer_made') }}</p>
+                    <p>&copy; {{ copyrightYear }} {{ appName }} &middot; Built by Masamune</p>
                     <p>ZTE OLT Management &amp; Provisioning Platform</p>
                 </div>
             </div>

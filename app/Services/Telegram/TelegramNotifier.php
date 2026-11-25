@@ -4,6 +4,7 @@ namespace App\Services\Telegram;
 
 use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\AlarmEvent;
+use App\Models\GeneralSetting;
 use App\Models\PartnerTelegramBot;
 use App\Models\SnmpOlt;
 use App\Models\TelegramSetting;
@@ -138,7 +139,7 @@ class TelegramNotifier
 
         try {
             foreach ($chunks as $index => $chunk) {
-                $header = '<b>KusumaVision NMS — Alarm</b>'
+                $header = '<b>'.GeneralSetting::brandingPayload()['name'].' — Alarm</b>'
                     .($total > 1 ? ' ('.($index + 1).'/'.$total.')' : '')."\n"
                     .'OLT: <b>'.$this->escape((string) $olt->name).'</b>';
 
@@ -165,7 +166,7 @@ class TelegramNotifier
             return ['ok' => false, 'error' => __('alarm.telegram.not_configured')];
         }
 
-        $text = '✅ <b>KusumaVision NMS</b>'."\n"
+        $text = '✅ <b>'.GeneralSetting::brandingPayload()['name'].'</b>'."\n"
             .SystemText::get('alarm.telegram.test_ok')
             ."\n\n🕒 ".DisplayTime::stamp();
 

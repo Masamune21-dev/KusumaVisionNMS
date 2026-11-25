@@ -48,7 +48,7 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
         <Link href="/" class="relative flex flex-col items-center gap-2">
             <ApplicationLogo class="h-14 w-auto" />
             <div class="text-center">
-                <div class="text-lg font-bold text-white">KusumaVision NMS</div>
+                <div class="text-lg font-bold text-white">{{ appName }}</div>
                 <div class="text-[11px] text-slate-500">ZTE OLT Management & Provisioning Platform</div>
             </div>
         </Link>
@@ -62,7 +62,7 @@ const copyrightYear = computed(() => page.props.branding?.copyright_year ?? '202
         </div>
 
         <p class="relative mt-6 text-center text-xs text-slate-500">
-            &copy; {{ copyrightYear }} {{ appName }} NMS &middot; {{ owner }}
+            &copy; {{ copyrightYear }} {{ appName }} &middot; {{ owner }}
         </p>
     </div>
 </template>
