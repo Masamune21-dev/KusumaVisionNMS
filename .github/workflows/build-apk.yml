@@ -22,6 +22,11 @@ jobs:
 
     env:
       API_BASE_URL: ${{ inputs.api_base_url || secrets.API_BASE_URL || vars.API_BASE_URL }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
 
     steps:
       - name: Checkout
@@ -50,20 +55,20 @@ jobs:
           fi
 
       - name: Decode signing keystore (optional)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > mobile/android/upload-keystore.jks
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/android/upload-keystore.jks
           cat > mobile/android/key.properties <<EOF
           storeFile=$GITHUB_WORKSPACE/mobile/android/upload-keystore.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
       - name: Decode google-services.json (optional)
-        if: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 != '' }}
+        if: ${{ env.GOOGLE_SERVICES_JSON_BASE64 != '' }}
         run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > mobile/android/app/google-services.json
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > mobile/android/app/google-services.json
 
       - name: Build APK
         run: bash bin/build-apk.sh
