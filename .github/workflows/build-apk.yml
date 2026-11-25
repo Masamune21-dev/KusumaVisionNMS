@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - master
+      - mcn
     tags:
       - 'v*'
 
