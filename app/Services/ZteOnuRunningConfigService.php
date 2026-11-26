@@ -329,16 +329,20 @@ class ZteOnuRunningConfigService
             return;
         }
 
-        // OLT gaya bridge (mis. Bulumanis Lor) menyimpan bentuk panjang
+        // OLT gaya bridge (mis. OLT cabang) menyimpan bentuk panjang
         // `gemport 1 name 1 unicast tcont 1 dir both`; OLT routed memakai bentuk
         // pendek `gemport 1 name 1 tcont 1`; SmartOLT memakai `gemport 1 tcont 1`
-        // (tanpa `name`). Token `name` & `unicast`/… dibuat opsional.
-        if (preg_match('/^gemport\s+(\d+)\s+(?:name\s+(\S+)\s+(?:unicast\s+|multicast\s+|broadcast\s+)?)?tcont\s+(\d+)/i', $line, $m)) {
+        // (tanpa `name`). Token `name`, jenis GEM (unicast/multicast/broadcast) dan
+        // `dir both|ds|us` opsional; jenis & arah disimpan supaya edit/salin ONU
+        // menulis ulang bentuk yang sama (null = bentuk pendek, bawaan OLT).
+        if (preg_match('/^gemport\s+(\d+)\s+(?:name\s+(\S+)\s+)?(?:(unicast|multicast|broadcast)\s+)?tcont\s+(\d+)(?:\s+dir\s+(both|ds|us))?/i', $line, $m)) {
             $id = (int) $m[1];
             $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['traffic_up' => null, 'traffic_down' => null], [
                 'id' => $id,
                 'name' => ($m[2] ?? '') !== '' ? $m[2] : null,
-                'tcont' => (int) $m[3],
+                'type' => ($m[3] ?? '') !== '' ? strtolower($m[3]) : null,
+                'tcont' => (int) $m[4],
+                'dir' => ($m[5] ?? '') !== '' ? strtolower($m[5]) : null,
             ]);
 
             return;
@@ -348,7 +352,7 @@ class ZteOnuRunningConfigService
         // saja (SmartOLT — hanya batasi downstream). Token upstream dibuat opsional.
         if (preg_match('/^gemport\s+(\d+)\s+traffic-limit\s+(?:upstream\s+(\S+)\s+)?downstream\s+(\S+)/i', $line, $m)) {
             $id = (int) $m[1];
-            $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['name' => null, 'tcont' => null], [
+            $config['gemports'][$id] = array_merge($config['gemports'][$id] ?? ['name' => null, 'type' => null, 'tcont' => null, 'dir' => null], [
                 'id' => $id,
                 'traffic_up' => ($m[2] ?? '') !== '' ? $m[2] : null,
                 'traffic_down' => $m[3],
@@ -357,10 +361,53 @@ class ZteOnuRunningConfigService
             return;
         }
 
+        // `user-vlan untagged vlan 100` (trafik polos → VLAN): tanpa user-vlan.
+        if (preg_match('/^service-port\s+(\d+)\s+vport\s+(\d+)\s+user-vlan\s+untagged\s+vlan\s+(\d+)/i', $line, $m)) {
+            $config['service_ports'][] = [
+                'id' => (int) $m[1],
+                'vport' => (int) $m[2],
+                'mode' => 'untagged',
+                'user_vlan' => null,
+                'vlan' => (int) $m[3],
+            ];
+
+            return;
+        }
+
+        // `user-vlan {N} transparent` (VLAN pengguna diteruskan apa adanya, tanpa translasi):
+        // tanpa `vlan` tujuan. Angkanya WAJIB — firmware menolak `user-vlan transparent` polos.
+        if (preg_match('/^service-port\s+(\d+)\s+vport\s+(\d+)\s+user-vlan\s+(\d+)\s+transparent\b/i', $line, $m)) {
+            $config['service_ports'][] = [
+                'id' => (int) $m[1],
+                'vport' => (int) $m[2],
+                'mode' => 'transparent',
+                'user_vlan' => (int) $m[3],
+                'vlan' => null,
+            ];
+
+            return;
+        }
+
+        // Bentuk tanpa angka `user-vlan transparent` (ditolak firmware, tapi mungkin tersisa
+        // dari konfigurasi lama) tetap dibaca dengan `user_vlan` kosong supaya bisa diisi
+        // ulang dari editor, bukan dianggap baris tak dikenal.
+        if (preg_match('/^service-port\s+(\d+)\s+vport\s+(\d+)\s+user-vlan\s+transparent\b/i', $line, $m)) {
+            $config['service_ports'][] = [
+                'id' => (int) $m[1],
+                'vport' => (int) $m[2],
+                'mode' => 'transparent',
+                'user_vlan' => null,
+                'vlan' => null,
+            ];
+
+            return;
+        }
+
         if (preg_match('/^service-port\s+(\d+)\s+vport\s+(\d+)\s+user-vlan\s+(\d+)\s+vlan\s+(\d+)/i', $line, $m)) {
             $config['service_ports'][] = [
                 'id' => (int) $m[1],
                 'vport' => (int) $m[2],
+                'mode' => 'tag',
                 'user_vlan' => (int) $m[3],
                 'vlan' => (int) $m[4],
             ];

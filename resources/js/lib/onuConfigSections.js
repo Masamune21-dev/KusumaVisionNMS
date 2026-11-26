@@ -80,21 +80,28 @@ export const sections = [
                 columns: [
                     { key: 'id', label: 'ID' },
                     { key: 'name', label: 'Name' },
+                    { key: 'type', label: 'Type' },
                     { key: 'tcont', label: 'T-CONT' },
+                    { key: 'dir', label: 'Dir' },
                     { key: 'traffic_up', label: 'Upstream' },
                     { key: 'traffic_down', label: 'Downstream' },
                 ],
                 fields: [
                     { key: 'id', label: 'GEM port ID', type: 'number', min: 1, max: 128, immutable: true },
                     { key: 'name', label: 'Name', type: 'text' },
+                    // Bentuk panjang `gemport N name X unicast tcont M dir both`; '' = bawaan OLT.
+                    { key: 'type', label: 'GEM type', type: 'select', options: () => ['', 'unicast', 'multicast', 'broadcast'] },
                     { key: 'tcont', label: 'T-CONT', type: 'number', min: 1, max: 8 },
+                    { key: 'dir', label: 'Direction', type: 'select', options: () => ['', 'both', 'ds', 'us'] },
                     { key: 'traffic_up', label: 'Traffic limit upstream', type: 'text' },
                     { key: 'traffic_down', label: 'Traffic limit downstream', type: 'text' },
                 ],
                 newRow: (cfg) => ({
                     id: nextId(cfg.gemports),
                     name: '1',
+                    type: '',
                     tcont: cfg.tconts?.[0]?.id ?? 1,
+                    dir: '',
                     traffic_up: '',
                     traffic_down: '',
                 }),
@@ -115,16 +122,20 @@ export const sections = [
                 columns: [
                     { key: 'id', label: 'ID' },
                     { key: 'vport', label: 'VPort' },
+                    { key: 'mode', label: 'Mode' },
                     { key: 'user_vlan', label: 'User VLAN' },
                     { key: 'vlan', label: 'VLAN' },
                 ],
                 fields: [
                     { key: 'id', label: 'Service-port ID', type: 'number', min: 1, max: 128, immutable: true },
                     { key: 'vport', label: 'VPort', type: 'number', min: 1, max: 128 },
-                    { key: 'user_vlan', label: 'User VLAN', type: 'number', min: 1, max: 4094 },
-                    { key: 'vlan', label: 'VLAN', type: 'number', min: 1, max: 4094 },
+                    // tag = user-vlan → vlan · transparent = `user-vlan {N} transparent` (VLAN pengguna diteruskan apa adanya) · untagged = trafik polos → vlan.
+                    // `mode` kosong (config/API versi lama) dianggap tag, sama seperti server.
+                    { key: 'mode', label: 'onucfg.f_sp_mode', type: 'select', options: () => ['tag', 'transparent', 'untagged'] },
+                    { key: 'user_vlan', label: 'User VLAN', type: 'number', min: 1, max: 4094, required: true, showIf: (r) => (r.mode ?? 'tag') !== 'untagged' },
+                    { key: 'vlan', label: 'VLAN', type: 'number', min: 1, max: 4094, required: true, showIf: (r) => (r.mode ?? 'tag') !== 'transparent' },
                 ],
-                newRow: (cfg) => ({ id: nextId(cfg.service_ports), vport: 1, user_vlan: null, vlan: null }),
+                newRow: (cfg) => ({ id: nextId(cfg.service_ports), vport: 1, mode: 'tag', user_vlan: null, vlan: null }),
             },
         ],
     },

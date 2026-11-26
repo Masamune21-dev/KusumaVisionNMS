@@ -42,7 +42,38 @@ const trafficTitle = (name) => {
 (cfg.gemports ?? []).forEach((row) => {
     row.traffic_up ??= '';
     row.traffic_down ??= '';
+    // Jenis GEM & arah: '' = bawaan OLT (unicast, both) → baris pendek `gemport N name X tcont M`.
+    row.type ??= '';
+    row.dir ??= '';
 });
+
+// Bentuk panjang ZTE C300/C320: `gemport N name X unicast tcont M dir both`.
+const gemTypes = ['unicast', 'multicast', 'broadcast'];
+const gemDirs = ['both', 'ds', 'us'];
+
+// Config lama/API versi lama tak membawa `mode` service-port — defaultnya tag.
+(cfg.service_ports ?? []).forEach((row) => {
+    row.mode ??= 'tag';
+});
+
+// Bentuk service-port ZTE C300/C320 (lihat ZteOnuReconfigureScriptBuilder::servicePortDesc).
+const servicePortModes = [
+    { value: 'tag', label: 'configonu.sp_mode_tag' },
+    { value: 'transparent', label: 'configonu.sp_mode_transparent' },
+    { value: 'untagged', label: 'configonu.sp_mode_untagged' },
+];
+
+// Mode `transparent` tak memakai user-vlan/vlan, `untagged` tak memakai user-vlan.
+// Nilai lama dibuang supaya kiriman (dan pratinjau CLI) kanonik.
+const applyServicePortMode = (row) => {
+    if (row.mode === 'untagged') {
+        row.user_vlan = null;
+    }
+    if (row.mode === 'transparent') {
+        row.vlan = null;
+    }
+};
+(cfg.service_ports ?? []).forEach(applyServicePortMode);
 
 // Visibilitas password PPPoE per-baris WAN-IP (key = index baris).
 const pppoeShown = ref({});
@@ -50,8 +81,8 @@ const pppoeShown = ref({});
 const nextId = (rows) => (rows.length ? Math.max(...rows.map((r) => Number(r.id) || 0)) + 1 : 1);
 
 const addTcont = () => cfg.tconts.push({ id: nextId(cfg.tconts), name: '1', profile: tcontProfiles.value[0]?.name ?? '', gap: 'mode0' });
-const addGemport = () => cfg.gemports.push({ id: nextId(cfg.gemports), name: '1', tcont: 1, traffic_up: '', traffic_down: '' });
-const addServicePort = () => cfg.service_ports.push({ id: nextId(cfg.service_ports), vport: 1, user_vlan: null, vlan: null });
+const addGemport = () => cfg.gemports.push({ id: nextId(cfg.gemports), name: '1', type: '', tcont: 1, dir: '', traffic_up: '', traffic_down: '' });
+const addServicePort = () => cfg.service_ports.push({ id: nextId(cfg.service_ports), vport: 1, mode: 'tag', user_vlan: null, vlan: null });
 const addService = () => cfg.services.push({ name: '', type: null, mode: 'vlanpri', gem: 1, cos: 0, vlan: null });
 const addVlanPort = () => cfg.vlan_ports.push({ port_type: 'eth', port: 1, mode: 'tag', def_vlan: null, priority: null });
 const addWanService = () => cfg.wan_services.push({ id: nextId(cfg.wan_services), services: [], mvlan: '', ethuni: '', ssid: '', host: '' });
@@ -134,8 +165,8 @@ onUnmounted(() => {
 const cols = {
     tcont: '4rem minmax(8rem,1fr) minmax(8rem,1fr) minmax(6rem,1fr) 2.75rem',
     // Kolom batas lebih lebar: label dropdown traffic memuat laju (`SERVER · 1024 Mbps`).
-    gemport: '4rem minmax(5rem,0.6fr) 5rem minmax(10rem,1.2fr) minmax(10rem,1.2fr) 2.75rem',
-    servicePort: '4rem minmax(6rem,1fr) minmax(7rem,1fr) minmax(6rem,1fr) 2.75rem',
+    gemport: '4rem minmax(5rem,0.6fr) 7.5rem 5rem 5.5rem minmax(10rem,1.2fr) minmax(10rem,1.2fr) 2.75rem',
+    servicePort: '4rem minmax(6rem,1fr) 8.5rem minmax(6rem,1fr) minmax(6rem,1fr) 2.75rem',
     service: 'minmax(8rem,1.3fr) minmax(6rem,1fr) 4rem 4rem minmax(5rem,1fr) 2.75rem',
     uniVlan: '8rem 6rem 7rem minmax(5rem,1fr) minmax(5rem,1fr) 2.75rem',
 };
@@ -202,14 +233,28 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 
                 <button type="button" class="kv-add" @click="addGemport"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                <div class="space-y-3 md:min-w-[700px] md:space-y-1.5">
+                <div class="space-y-3 md:min-w-[900px] md:space-y-1.5">
                     <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.gemport }">
-                        <span>ID</span><span>Name</span><span>T-CONT</span><span>Upstream Limit</span><span>Downstream Limit</span><span></span>
+                        <span>ID</span><span>Name</span><span>Type</span><span>T-CONT</span><span>Dir</span><span>Upstream Limit</span><span>Downstream Limit</span><span></span>
                     </div>
                     <div v-for="(row, i) in cfg.gemports" :key="`gp-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.gemport } : null">
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">Name</span><TextInput v-model="row.name" :class="fieldClass" /></div>
+                        <div class="kv-cell">
+                            <span v-if="!isWide" class="kv-flabel">Type</span>
+                            <select v-model="row.type" :class="fieldClass" aria-label="GEM type">
+                                <option value="">—</option>
+                                <option v-for="t in gemTypes" :key="t" :value="t">{{ t }}</option>
+                            </select>
+                        </div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">T-CONT</span><TextInput v-model.number="row.tcont" type="number" :class="fieldClass" /></div>
+                        <div class="kv-cell">
+                            <span v-if="!isWide" class="kv-flabel">Dir</span>
+                            <select v-model="row.dir" :class="fieldClass" aria-label="GEM direction">
+                                <option value="">—</option>
+                                <option v-for="d in gemDirs" :key="d" :value="d">{{ d }}</option>
+                            </select>
+                        </div>
                         <div v-for="dir in ['traffic_up', 'traffic_down']" :key="dir" class="kv-cell" :class="{ 'col-span-2': !isWide }">
                             <span v-if="!isWide" class="kv-flabel">{{ dir === 'traffic_up' ? 'Upstream Limit' : 'Downstream Limit' }}</span>
                             <select v-if="trafficProfiles.length" v-model="row[dir]" :class="fieldClass" :title="trafficTitle(row[dir])">
@@ -236,20 +281,26 @@ const fieldClass = 'mt-1 block w-full rounded-md border-white/10 bg-canvas-3/40 
                 <button type="button" class="kv-add" @click="addServicePort"><Plus class="h-3.5 w-3.5" /> {{ $t('configonu.cfg_add') }}</button>
             </header>
             <div class="overflow-x-auto px-3 py-3 sm:px-4">
-                <div class="space-y-3 md:min-w-[560px] md:space-y-1.5">
+                <div class="space-y-3 md:min-w-[680px] md:space-y-1.5">
                     <div v-if="isWide" class="kv-thead" :style="{ gridTemplateColumns: cols.servicePort }">
-                        <span>ID</span><span>VPort</span><span>User VLAN</span><span>VLAN</span><span></span>
+                        <span>ID</span><span>VPort</span><span>{{ $t('configonu.sp_mode') }}</span><span>User VLAN</span><span>VLAN</span><span></span>
                     </div>
                     <div v-for="(row, i) in cfg.service_ports" :key="`sp-${i}`" :class="isWide ? 'kv-trow' : 'kv-rowcard'" :style="isWide ? { gridTemplateColumns: cols.servicePort } : null">
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">ID</span><TextInput v-model.number="row.id" type="number" :class="fieldClass" /></div>
                         <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VPort</span><TextInput v-model.number="row.vport" type="number" :class="fieldClass" /></div>
-                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">User VLAN</span><TextInput v-model.number="row.user_vlan" type="number" :class="fieldClass" /></div>
-                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" /></div>
+                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">{{ $t('configonu.sp_mode') }}</span>
+                            <select v-model="row.mode" :class="fieldClass" @change="applyServicePortMode(row)">
+                                <option v-for="m in servicePortModes" :key="m.value" :value="m.value">{{ $t(m.label) }}</option>
+                            </select>
+                        </div>
+                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">User VLAN</span><TextInput v-model.number="row.user_vlan" type="number" :class="fieldClass" :disabled="row.mode === 'untagged'" /></div>
+                        <div class="kv-cell"><span v-if="!isWide" class="kv-flabel">VLAN</span><TextInput v-model.number="row.vlan" type="number" :class="fieldClass" :disabled="row.mode === 'transparent'" /></div>
                         <div class="kv-cell kv-action-cell">
                             <button type="button" :class="isWide ? 'kv-del' : 'kv-del-mobile'" @click="removeRow(cfg.service_ports, i)"><Trash2 class="h-4 w-4" /><span v-if="!isWide">{{ $t('configonu.cfg_del_row') }}</span></button>
                         </div>
                     </div>
                     <p v-if="!cfg.service_ports.length" class="py-1 text-xs text-slate-500">{{ $t('configonu.cfg_no_serviceport') }}</p>
+                    <p class="pt-1 text-xs text-slate-500">{{ $t('configonu.sp_mode_hint') }}</p>
                 </div>
             </div>
         </section>

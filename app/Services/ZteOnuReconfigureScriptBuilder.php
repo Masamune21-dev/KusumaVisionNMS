@@ -235,15 +235,16 @@ class ZteOnuReconfigureScriptBuilder
         foreach ($next as $id => $row) {
             $name = $this->str($row['name'] ?? '');
             $tcont = $this->str($row['tcont'] ?? '1');
+            $type = strtolower($this->str($row['type'] ?? ''));
+            $dir = strtolower($this->str($row['dir'] ?? ''));
             $prev = $base[$id] ?? null;
 
             if ($prev === null
                 || ! $this->same($name, $this->str($prev['name'] ?? ''))
-                || ! $this->same($tcont, $this->str($prev['tcont'] ?? ''))) {
-                // SmartOLT: `gemport N tcont M` (tanpa name); routed: dengan `name`.
-                $line = $name === ''
-                    ? "gemport {$id} tcont {$tcont}"
-                    : "gemport {$id} name {$name} tcont {$tcont}";
+                || ! $this->same($tcont, $this->str($prev['tcont'] ?? ''))
+                || ! $this->same($type, strtolower($this->str($prev['type'] ?? '')))
+                || ! $this->same($dir, strtolower($this->str($prev['dir'] ?? '')))) {
+                $line = $this->gemportLine($id, $name, $type, $tcont, $dir);
                 $lines[] = $line;
                 $changes[] = $this->change("GEM Port {$id}", $this->fmtGemport($prev), ltrim(substr($line, strlen("gemport {$id} "))));
             }
@@ -274,15 +275,19 @@ class ZteOnuReconfigureScriptBuilder
         $next = $this->keyById($target['service_ports'] ?? []);
 
         foreach ($next as $id => $row) {
-            $vport = (int) ($row['vport'] ?? 1);
-            $userVlan = (int) ($row['user_vlan'] ?? 0);
-            $vlan = (int) ($row['vlan'] ?? 0);
-            if ($userVlan < 1 || $vlan < 1) {
+            // Token yang tak dipakai mode terpilih dibuang dari target (klien lama bisa
+            // masih mengirim user-vlan saat untagged / vlan saat transparent) supaya
+            // baris yang di-emit kanonik.
+            $row = $this->normalizedServicePort($row);
+
+            // Baris tak lengkap (VLAN wajib belum diisi) dilewati, bukan dianggap
+            // baris valid — sama seperti perilaku lama untuk user-vlan/vlan kosong.
+            $newDesc = $this->servicePortDesc($row);
+            if ($newDesc === null) {
                 continue;
             }
 
             $prev = $base[$id] ?? null;
-            $newDesc = "vport {$vport} user-vlan {$userVlan} vlan {$vlan}";
             if ($prev === null || $this->fmtServicePort($prev) !== $newDesc) {
                 // ZTE menolak membuat ulang service-port dengan id yang sudah ada
                 // (%Code 66661: The service is already existed). Untuk MENGUBAH entri
@@ -320,7 +325,7 @@ class ZteOnuReconfigureScriptBuilder
             }
 
             $prev = $base[$name] ?? null;
-            // Pertahankan `type …` (mis. `type internet` gaya bridge Bulumanis Lor):
+            // Pertahankan `type …` (mis. `type internet` gaya bridge OLT cabang):
             // pakai type dari target, atau warisi dari baseline bila form tak
             // membawanya — supaya reconfigure tak menghapusnya secara diam-diam.
             $type = $this->str($row['type'] ?? '') ?: $this->str($prev['type'] ?? '');
@@ -695,14 +700,108 @@ class ZteOnuReconfigureScriptBuilder
         return $row ? sprintf('name %s profile %s', $this->str($row['name'] ?? ''), $this->str($row['profile'] ?? '')) : '';
     }
 
+    /**
+     * Baris `gemport` ZTE C300/C320. Tiga bentuk yang dikenal di running-config:
+     *  - SmartOLT  : `gemport N tcont M` (tanpa name)
+     *  - routed    : `gemport N name X tcont M`
+     *  - bridge    : `gemport N name X unicast tcont M dir both` (bentuk panjang)
+     * Jenis GEM (unicast/multicast/broadcast) & arah (both/ds/us) hanya ditulis bila diisi —
+     * kosong = biarkan nilai bawaan OLT (unicast, both), sama seperti bentuk pendek. Bentuk
+     * panjang selalu memakai `name` (token jenis mengikuti nama di running-config); bila nama
+     * kosong dipakai nomor gemport-nya.
+     */
+    private function gemportLine(int|string $id, string $name, string $type, string $tcont, string $dir): string
+    {
+        if ($type === '' && $dir === '') {
+            return $name === '' ? "gemport {$id} tcont {$tcont}" : "gemport {$id} name {$name} tcont {$tcont}";
+        }
+
+        $name = $name !== '' ? $name : (string) $id;
+
+        return trim(sprintf(
+            'gemport %s name %s %stcont %s%s',
+            $id,
+            $name,
+            $type !== '' ? "{$type} " : '',
+            $tcont,
+            $dir !== '' ? " dir {$dir}" : '',
+        ));
+    }
+
     private function fmtGemport(?array $row): string
     {
-        return $row ? sprintf('name %s tcont %s', $this->str($row['name'] ?? ''), $this->str($row['tcont'] ?? '')) : '';
+        if (! $row) {
+            return '';
+        }
+
+        $id = $this->str($row['id'] ?? '') ?: '0';
+        $line = $this->gemportLine(
+            $id,
+            $this->str($row['name'] ?? ''),
+            strtolower($this->str($row['type'] ?? '')),
+            $this->str($row['tcont'] ?? ''),
+            strtolower($this->str($row['dir'] ?? '')),
+        );
+
+        return substr($line, strlen("gemport {$id} "));
     }
 
     private function fmtServicePort(?array $row): string
     {
-        return $row ? sprintf('vport %d user-vlan %d vlan %d', (int) ($row['vport'] ?? 0), (int) ($row['user_vlan'] ?? 0), (int) ($row['vlan'] ?? 0)) : '';
+        return $row ? ($this->servicePortDesc($row) ?? '') : '';
+    }
+
+    /**
+     * Buang token yang tak dipakai mode terpilih: `untagged` tak butuh `user_vlan`, dan
+     * `transparent` tak butuh `vlan` (angkanya tetap dipakai — lihat {@see servicePortDesc}).
+     * Dipakai pada jalur *target* saja — baris baseline dibiarkan apa adanya supaya bentuk
+     * lama (mis. `user-vlan 1 transparent` saat target `1114`) terbaca sebagai perubahan.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function normalizedServicePort(array $row): array
+    {
+        $mode = strtolower($this->str($row['mode'] ?? 'tag'));
+
+        if ($mode === 'untagged') {
+            $row['user_vlan'] = null;
+        }
+
+        if ($mode === 'transparent') {
+            $row['vlan'] = null;
+        }
+
+        return $row;
+    }
+
+    /**
+     * Deskriptor service-port (tanpa `service-port {id}`) untuk satu baris form. Tiga
+     * bentuk yang dipakai ZTE C300/C320, dipilih lewat kolom `mode`:
+     *   tag         → `vport 1 user-vlan 100 vlan 100`        (tag / translation VLAN)
+     *   transparent → `vport 1 user-vlan 100 transparent`     (VLAN pengguna diteruskan apa adanya)
+     *   untagged    → `vport 1 user-vlan untagged vlan 100`   (trafik polos → VLAN)
+     * `mode` kosong dianggap `tag` (config lama / API versi lama). Null bila token
+     * wajib untuk mode itu belum lengkap — pemanggil melewati baris tersebut.
+     *
+     * Firmware di lapangan (C300 V2.1.0) MENOLAK `user-vlan transparent` tanpa angka:
+     * `transparent` mengikuti `user-vlan {N}`, jadi angkanya wajib untuk mode ini.
+     */
+    private function servicePortDesc(array $row): ?string
+    {
+        $vport = (int) ($row['vport'] ?? 1);
+        if ($vport < 1) {
+            $vport = 1;
+        }
+
+        $userVlan = (int) ($row['user_vlan'] ?? 0);
+        $vlan = (int) ($row['vlan'] ?? 0);
+
+        return match (strtolower($this->str($row['mode'] ?? 'tag'))) {
+            'transparent' => $userVlan >= 1 ? "vport {$vport} user-vlan {$userVlan} transparent" : null,
+            'untagged' => $vlan >= 1 ? "vport {$vport} user-vlan untagged vlan {$vlan}" : null,
+            default => ($userVlan >= 1 && $vlan >= 1) ? "vport {$vport} user-vlan {$userVlan} vlan {$vlan}" : null,
+        };
     }
 
     private function fmtService(?array $row): string

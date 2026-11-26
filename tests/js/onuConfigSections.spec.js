@@ -26,6 +26,35 @@ describe('onuConfigSections', () => {
         expect(row).toEqual({ id: 3, vport: 1, user_vlan: null, vlan: 2101 });
     });
 
+    it('menyimpan mode service-port dan menyembunyikan kolom yang tak relevan', () => {
+        const item = findItem('service_ports');
+        const row = normalizeRow(item, { id: '3', vport: '1', mode: 'untagged', user_vlan: '', vlan: '100' });
+        expect(row).toEqual({ id: 3, vport: 1, mode: 'untagged', user_vlan: null, vlan: 100 });
+
+        const field = (key) => item.fields.find((f) => f.key === key);
+        // User VLAN dipakai tag & transparent (`user-vlan {N} transparent`), hanya untagged
+        // yang membuangnya. VLAN tujuan hanya tidak relevan untuk transparent.
+        expect(field('user_vlan').showIf({ mode: 'tag' })).toBe(true);
+        expect(field('user_vlan').showIf({ mode: 'transparent' })).toBe(true);
+        expect(field('user_vlan').showIf({ mode: 'untagged' })).toBe(false);
+        expect(field('vlan').showIf({ mode: 'tag' })).toBe(true);
+        expect(field('vlan').showIf({ mode: 'untagged' })).toBe(true);
+        expect(field('vlan').showIf({ mode: 'transparent' })).toBe(false);
+        expect(item.newRow({ service_ports: [] }).mode).toBe('tag');
+    });
+
+    it('mewajibkan user-vlan & vlan sesuai mode service-port', () => {
+        const item = findItem('service_ports');
+        // tag butuh keduanya.
+        expect(validateRow(item, { id: 2, vport: 1, mode: 'tag', user_vlan: null, vlan: 100 }, [], null)?.key).toBe('onucfg.v_required');
+        // transparent butuh user-vlan (angka wajib), tak butuh VLAN tujuan.
+        expect(validateRow(item, { id: 2, vport: 1, mode: 'transparent', user_vlan: null, vlan: null }, [], null)?.key).toBe('onucfg.v_required');
+        expect(validateRow(item, { id: 2, vport: 1, mode: 'transparent', user_vlan: 1114, vlan: null }, [], null)).toBeNull();
+        // untagged tak butuh user-vlan, butuh VLAN tujuan.
+        expect(validateRow(item, { id: 2, vport: 1, mode: 'untagged', user_vlan: null, vlan: 100 }, [], null)).toBeNull();
+        expect(validateRow(item, { id: 2, vport: 1, mode: 'untagged', user_vlan: null, vlan: null }, [], null)?.key).toBe('onucfg.v_required');
+    });
+
     it('menolak VLAN di luar rentang dan ID kembar', () => {
         const item = findItem('service_ports');
         const rows = [{ id: 1, vport: 1, user_vlan: 2100, vlan: 2100 }];

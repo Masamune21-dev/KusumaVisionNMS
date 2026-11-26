@@ -303,6 +303,12 @@ class SmartOltSupport
             // Matikan/nyalakan port PON via CLI `interface gpon-olt_… / shutdown | no shutdown`.
             // Perintahnya terlihat di context-help C300 & C320 asli (30 Sep 2026); C600 belum dicek.
             'supports_port_admin_write' => ! $isC600,
+            // Status fan: C300/C320 lewat SNMP `zxAnEnvFan`, C600 hanya CLI `show fan`
+            // (firmware V1.2.2 tidak mengekspos tabel fan di SNMP — lihat
+            // docs/SMARTOLT_ZTE_FAN_CONTROL.md). Tulis fan belum dibuka untuk C600.
+            'supports_fan_read' => true,
+            'supports_fan_write' => ! $isC600,
+            'fan_speed_unit' => $isC600 ? 'percent' : 'rpm',
             'rx_source_label' => 'Rx ONU (SNMP)',
         ];
     }

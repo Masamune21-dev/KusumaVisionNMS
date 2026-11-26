@@ -21,6 +21,7 @@ use App\Services\AlarmEvaluator;
 use App\Services\Fcm\FcmAlarmNotifier;
 use App\Services\Genieacs\GenieacsMapService;
 use App\Services\Olt\OltConfigAutosaveService;
+use App\Services\Olt\OltFanStatusService;
 use App\Services\OnuOdpService;
 use App\Services\Snmp\OltSnmpClient;
 use App\Services\Telegram\TelegramNotifier;
@@ -106,7 +107,7 @@ class SmartOltController extends Controller
         ]);
     }
 
-    public function detail(SnmpOlt $olt, ZteCardUplinkService $service): Response
+    public function detail(SnmpOlt $olt, ZteCardUplinkService $service, OltFanStatusService $fans): Response
     {
         // Lean per-interface status (link/admin) so the chassis can colour uplink ports live.
         $interfaces = collect($service->getStoredInterfaceDetails($olt))
@@ -127,6 +128,7 @@ class SmartOltController extends Controller
             'snapshot' => $this->serializeSnapshot($olt),
             'cards' => $service->getCardStatus($olt),
             'interfaces' => $interfaces,
+            'fan' => $fans->stored($olt),
         ]);
     }
 
@@ -276,6 +278,21 @@ class SmartOltController extends Controller
             return redirect()
                 ->route('smartolt.detail', $olt)
                 ->with('error', __('flash.hardware_refresh_failed').$e->getMessage());
+        }
+    }
+
+    public function refreshFan(SnmpOlt $olt, OltFanStatusService $service): RedirectResponse
+    {
+        try {
+            $data = $service->refresh($olt);
+
+            return redirect()
+                ->route('smartolt.detail', $olt)
+                ->with('success', sprintf(__('flash.fan_refreshed_fmt'), count($data['fans'])));
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('smartolt.detail', $olt)
+                ->with('error', __('flash.fan_refresh_failed').CliOutputSanitizer::clean($e->getMessage()));
         }
     }
 
@@ -554,8 +571,8 @@ class SmartOltController extends Controller
                 'name' => '',
                 'description' => '',
                 'tconts' => [['id' => 1, 'name' => '1', 'profile' => $this->firstProfileName($olt, 'tcont', 'SERVER'), 'gap' => 'mode0']],
-                'gemports' => [['id' => 1, 'name' => '1', 'tcont' => 1, 'traffic_up' => '', 'traffic_down' => '']],
-                'service_ports' => [['id' => 1, 'vport' => 1, 'user_vlan' => 100, 'vlan' => 100]],
+                'gemports' => [['id' => 1, 'name' => '1', 'type' => '', 'tcont' => 1, 'dir' => '', 'traffic_up' => '', 'traffic_down' => '']],
+                'service_ports' => [['id' => 1, 'vport' => 1, 'mode' => 'tag', 'user_vlan' => 100, 'vlan' => 100]],
                 'services' => [['name' => 'ServiceName', 'type' => null, 'mode' => 'vlanpri', 'gem' => 1, 'cos' => 0, 'vlan' => 100]],
                 'vlan_ports' => [],
                 'wan_services' => [],
@@ -2497,11 +2514,17 @@ class SmartOltController extends Controller
             'config.gemports.*.id' => ['required', 'integer', 'between:1,128'],
             'config.gemports.*.name' => ['nullable', 'string', 'max:64'],
             'config.gemports.*.tcont' => ['nullable', 'integer', 'between:1,8'],
+            // Bentuk panjang `gemport N name X unicast tcont M dir both`; kosong = bawaan OLT.
+            'config.gemports.*.type' => ['nullable', Rule::in(['unicast', 'multicast', 'broadcast'])],
+            'config.gemports.*.dir' => ['nullable', Rule::in(['both', 'ds', 'us'])],
             'config.gemports.*.traffic_up' => ['nullable', 'string', 'max:32'],
             'config.gemports.*.traffic_down' => ['nullable', 'string', 'max:32'],
             'config.service_ports' => ['array'],
             'config.service_ports.*.id' => ['required', 'integer', 'between:1,128'],
             'config.service_ports.*.vport' => ['nullable', 'integer', 'between:1,128'],
+            // Bentuk service-port: tag (user-vlan → vlan), transparent (user-vlan transparent),
+            // untagged (user-vlan untagged vlan …). Kosong = tag (kompatibel klien lama).
+            'config.service_ports.*.mode' => ['nullable', Rule::in(['tag', 'transparent', 'untagged'])],
             'config.service_ports.*.user_vlan' => ['nullable', 'integer', 'between:1,4094'],
             'config.service_ports.*.vlan' => ['nullable', 'integer', 'between:1,4094'],
             'config.services' => ['array'],
@@ -2630,8 +2653,12 @@ class SmartOltController extends Controller
     private function resolvePrimaryVlan(array $config): int
     {
         foreach (($config['service_ports'] ?? []) as $row) {
-            if ((int) ($row['vlan'] ?? 0) > 0) {
-                return (int) $row['vlan'];
+            // Baris `transparent` tak punya VLAN tujuan — nilai audit diambil dari user-vlan-nya.
+            $vlan = strtolower((string) ($row['mode'] ?? 'tag')) === 'transparent'
+                ? (int) ($row['user_vlan'] ?? 0)
+                : (int) ($row['vlan'] ?? 0);
+            if ($vlan > 0) {
+                return $vlan;
             }
         }
 

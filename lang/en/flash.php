@@ -105,6 +105,8 @@ return [
     'profile_sync_ok_fmt' => 'Profile sync from the OLT finished. %s profiles processed.',
     'hardware_ok_fmt' => 'Hardware status refreshed. %s cards found.',
     'hardware_uplink_fmt' => ' %s uplink interfaces refreshed.',
+    'fan_refreshed_fmt' => 'Fan status refreshed. %s fan units read.',
+    'fan_refresh_failed' => 'Fan status refresh failed: ',
     'rx_read_failed_suffix' => ' (RX power could not be read)',
     'onu_enabled' => 'ONU enabled.',
     'onu_disabled' => 'ONU disabled.',

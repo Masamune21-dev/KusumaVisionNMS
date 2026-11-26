@@ -83,8 +83,8 @@ class ZteProvisioningScriptBuilder
      */
     private function serviceLine(string $serviceName, string $mode, int $vlan, bool $withType = false): string
     {
-        // `type internet` dipakai OLT gaya bridge (mis. Bulumanis Lor); OLT gaya
-        // routed (Pati/Sekarjalak) menghilangkannya (default = internet).
+        // `type internet` dipakai OLT gaya bridge (mis. OLT cabang); OLT gaya
+        // routed (OLT pusat) menghilangkannya (default = internet).
         $type = $withType ? 'type internet ' : '';
 
         if (strtolower($mode) === 'transparent') {

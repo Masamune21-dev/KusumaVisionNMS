@@ -275,6 +275,25 @@ pon-onu-mng gpon-onu_1/…:{onuId}
 
 Mode service `transparent` menghasilkan `service {SERVICE_NAME} gemport 1` (tanpa cos/vlan).
 
+**Mode service-port (`service_ports[].mode`, sejak 15 Nov 2026).** Baris `service-port` di editor ONU
+(Configure ONU & Register ONU · mode Lanjutan) punya kolom **Mode** — satu baris form bisa berarti
+tiga bentuk CLI berbeda (dibangun [`ZteOnuReconfigureScriptBuilder::servicePortDesc()`](../app/Services/ZteOnuReconfigureScriptBuilder.php),
+diparse kembali oleh [`ZteOnuRunningConfigService::parse()`](../app/Services/ZteOnuRunningConfigService.php)):
+
+| Mode | Baris CLI | Arti |
+|---|---|---|
+| `tag` (default) | `service-port 1 vport 1 user-vlan 125 vlan 125` | Tag/teruskan satu VLAN; `user-vlan` = `vlan` untuk lewat apa adanya, beda nilai untuk **translation** (`user-vlan 10 vlan 1010`) |
+| `transparent` | `service-port 1 vport 1 user-vlan 1114 transparent` | VLAN pengguna (angka **wajib**) diteruskan apa adanya, tanpa translasi & tanpa VLAN tujuan |
+| `untagged` | `service-port 1 vport 1 user-vlan untagged vlan 100` | Selipkan VLAN ke trafik polos pelanggan (tanpa `user-vlan`) |
+
+`mode` kosong dari klien lama dianggap `tag`. Firmware di lapangan (C300 V2.1.0) menolak
+`user-vlan transparent` tanpa angka, jadi angka tetap wajib untuk `transparent`; bentuk tanpa angka
+yang mungkin tersisa dari konfigurasi lama tetap dibaca (user-vlan kosong) agar bisa diisi ulang.
+Kolom `user-vlan` muncul untuk `tag` dan `transparent`, disembunyikan untuk `untagged`; kolom `vlan`
+disembunyikan untuk `transparent`. Builder membuang token yang tak dipakai mode terpilih di jalur
+target dan melewati baris yang token wajibnya belum lengkap. Jalur mobile (`KusumanetOne` →
+`POST /api/v1/olts/{olt}/register/advanced`) memakai bentuk `config` yang sama.
+
 **Kolom Deskripsi (sejak 30 Sep 2026).** Form Register ONU punya kolom Deskripsi opsional di samping Nama:
 
 | Form | Diisi | Kosong |

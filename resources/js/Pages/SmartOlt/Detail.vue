@@ -1,5 +1,6 @@
 <script setup>
 import OltImage from '@/Components/OltImage.vue';
+import FanStatusCard from '@/Components/SmartOlt/FanStatusCard.vue';
 import OltChassis from '@/Components/SmartOlt/OltChassis.vue';
 import OltPageHeader from '@/Components/SmartOlt/OltPageHeader.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -26,6 +27,10 @@ const props = defineProps({
     interfaces: {
         type: Array,
         default: () => [],
+    },
+    fan: {
+        type: Object,
+        default: null,
     },
 });
 
@@ -190,6 +195,8 @@ const formatUptime = (timeticks) => {
                         </SecondaryButton>
                     </template>
                 </OltChassis>
+
+                <FanStatusCard :olt="olt" :fan="fan" />
 
             </div>
         </div>

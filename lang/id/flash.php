@@ -105,6 +105,8 @@ return [
     'profile_sync_ok_fmt' => 'Sync profile dari OLT selesai. %s profile diproses.',
     'hardware_ok_fmt' => 'Status hardware berhasil diperbarui. %s card ditemukan.',
     'hardware_uplink_fmt' => ' %s interface uplink diperbarui.',
+    'fan_refreshed_fmt' => 'Status fan diperbarui. %s unit fan terbaca.',
+    'fan_refresh_failed' => 'Refresh status fan gagal: ',
     'rx_read_failed_suffix' => ' (RX power gagal dibaca)',
     'onu_enabled' => 'ONU berhasil di-enable.',
     'onu_disabled' => 'ONU berhasil di-disable.',

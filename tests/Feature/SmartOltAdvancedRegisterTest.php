@@ -33,6 +33,31 @@ class SmartOltAdvancedRegisterTest extends TestCase
         $this->assertStringContainsString('service-port 2 vport 1 user-vlan 15 vlan 15', $script);
     }
 
+    public function test_advanced_preview_accepts_long_gemport_form_and_rejects_unknown_tokens(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+
+        $payload = $this->payload();
+        $payload['config']['gemports'][0] = ['id' => 1, 'name' => 'FF', 'type' => 'unicast', 'tcont' => 1, 'dir' => 'both'];
+        $payload['config']['gemports'][1] = ['id' => 2, 'name' => '2', 'type' => null, 'tcont' => 1, 'dir' => null];
+
+        $script = $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertOk()
+            ->json('script');
+
+        $this->assertStringContainsString("\ngemport 1 name FF unicast tcont 1 dir both\n", $script);
+        $this->assertStringContainsString("\ngemport 2 name 2 tcont 1\n", $script);
+
+        $payload['config']['gemports'][0]['type'] = 'anycast';
+        $payload['config']['gemports'][0]['dir'] = 'up';
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['config.gemports.0.type', 'config.gemports.0.dir']);
+    }
+
     public function test_advanced_store_generated_saves_audit_without_executing(): void
     {
         $user = User::factory()->create();
@@ -120,6 +145,36 @@ class SmartOltAdvancedRegisterTest extends TestCase
             ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
             ->assertUnprocessable()
             ->assertJsonValidationErrors('config.vlan_ports.0.port_type');
+    }
+
+    public function test_advanced_preview_accepts_service_port_modes(): void
+    {
+        $user = User::factory()->create();
+        $olt = $this->makeOlt();
+        $payload = $this->payload();
+        $payload['config']['service_ports'] = [
+            ['id' => 1, 'vport' => 1, 'mode' => 'transparent', 'user_vlan' => 1114, 'vlan' => 1114],
+            ['id' => 2, 'vport' => 1, 'mode' => 'tag', 'user_vlan' => 10, 'vlan' => 1010],
+            ['id' => 3, 'vport' => 1, 'mode' => 'untagged', 'user_vlan' => 7, 'vlan' => 100],
+        ];
+
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertOk()
+            ->assertJsonPath('script', function (string $script) {
+                // transparent memakai angka user-vlan (tanpa VLAN tujuan); untagged membuang user-vlan.
+                return str_contains($script, 'service-port 1 vport 1 user-vlan 1114 transparent')
+                    && ! str_contains($script, 'user-vlan transparent')
+                    && str_contains($script, 'service-port 2 vport 1 user-vlan 10 vlan 1010')
+                    && str_contains($script, 'service-port 3 vport 1 user-vlan untagged vlan 100');
+            });
+
+        // Mode tak dikenal ditolak sebelum menyentuh OLT.
+        $payload['config']['service_ports'][0]['mode'] = 'bogus';
+        $this->actingAs($user)
+            ->postJson(route('smartolt.register.advanced.preview', $olt), $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('config.service_ports.0.mode');
     }
 
     public function test_simple_register_writes_separate_description(): void

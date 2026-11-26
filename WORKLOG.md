@@ -1,5 +1,39 @@
 # Worklog
 
+## 2026-11-26 — Changed: status fan OLT ZTE, mode service-port & gemport bentuk panjang di editor ONU
+
+- **Created — kartu «Fan & Suhu» di Detail OLT ZTE (fase 1, baca-saja):** tabel `smartolt_fan_statuses`
+  + `smartolt_fan_summaries` (migrasi `2026_11_13_100000_*`), model `SmartOltFanStatus` /
+  `SmartOltFanSummary`, dan `App\Services\Olt\OltFanStatusService`. C300/C320 dibaca lewat SNMP
+  `zxAnEnvFan` (`1.3.6.1.4.1.3902.1015.2.1.3.10.10`); C600 hanya lewat CLI `show fan` karena firmware
+  V1.2.2 tidak mengekspos tabel fan di SNMP. `SmartOltSupport::capabilities()` menambah
+  `supports_fan_read`, `supports_fan_write`, dan `fan_speed_unit` (rpm/percent). Rute
+  `smartolt.fan.refresh` (`throttle:olt-refresh`), komponen `Components/SmartOlt/FanStatusCard.vue`
+  (mode, suhu, level, kecepatan per unit, ambang, waktu refresh terakhir), kunci `detail.fan_*` +
+  `lang/{id,en}/fan.php`. Penulisan fan (fase 2) sengaja belum dibuka.
+- **Changed — mode service-port ZTE:** `ZteOnuReconfigureScriptBuilder` menyusun tiga bentuk baris lewat
+  `servicePortDesc()` — `tag` (`vport 1 user-vlan 100 vlan 100`), `transparent`
+  (`user-vlan 100 transparent`), `untagged` (`user-vlan untagged vlan 100`) — dan
+  `normalizedServicePort()` membuang token yang tak dipakai mode terpilih supaya baris yang di-emit
+  kanonik. `ZteOnuRunningConfigService` membaca ketiganya (termasuk `user-vlan transparent` tanpa angka
+  dari config lama). Validasi `config.service_ports.*.mode` ditambahkan di Register/Configure ONU,
+  `OnuConfigEditor` mendapat dropdown mode + petunjuk singkat, dan `resolvePrimaryVlan()` memakai
+  user-vlan untuk baris transparent.
+- **Changed — gemport bentuk panjang:** field `type` (`unicast`/`multicast`/`broadcast`) dan `dir`
+  (`both`/`ds`/`us`) di registrasi Lanjutan & Configure ONU; builder meng-emit
+  `gemport N name X unicast tcont M dir both`, parser running-config membacanya kembali, dan editor
+  menampilkan dua dropdown. Kosong = bentuk pendek seperti sebelumnya (kompatibel config lama).
+- **Notes — penyesuaian edisi publik:** logika registrasi Lanjutan di repo ini masih berada di controller
+  (belum dipecah ke service tersendiri), jadi aturan validasi & template awal dipasang di sana; rujukan
+  ke modul internal tidak disalin. Dokumen `docs/SMARTOLT_ZTE_FAN_CONTROL.md` memakai nama OLT & alamat
+  contoh fiktif (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`); komentar kode yang menyebut nama
+  lokasi OLT internal ikut dibersihkan.
+- **Verified:** `scripts/test.sh` **931 lulus (5.360 asersi)**, `npm test` **68 lulus / 14 berkas**,
+  `npm run build` bersih, `kv-ui-check` **0 pelanggaran keras** pada 3 berkas `.vue`. Dirender Playwright
+  (sqlite + data demo): Detail OLT menampilkan kartu fan + tombol Refresh Fan, Register ONU mode Lanjutan
+  menampilkan dropdown mode service-port (tag/transparent/untagged) dan arah gemport. Galat konsol hanya
+  422 `register/advanced/preview` yang memang sudah ada sebelumnya (form masih kosong).
+
 ## 2026-11-16 — Changed: cadangan Rx dari TR-069 untuk ONU HiOSO, poll Rx dilewati saat belum jatuh tempo
 
 - **Created — `App\Services\Genieacs\GenieacsRxReadings`:** bacaan redaman ONU hasil TR-069 (dari kolom baru

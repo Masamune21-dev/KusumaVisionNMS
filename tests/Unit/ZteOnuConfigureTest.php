@@ -350,6 +350,226 @@ RAW;
         $this->assertStringNotContainsString('no service-port 1', $delta['script']);
     }
 
+    public function test_service_port_modes_parse_emit_and_round_trip(): void
+    {
+        $raw = <<<'RAW'
+--- show running-config interface gpon-onu_1/2/1:9 ---
+interface gpon-onu_1/2/1:9
+  name Multi Mode
+  tcont 1 name 1 profile SERVER
+  gemport 1 name 1 tcont 1
+  service-port 1 vport 1 user-vlan 1114 transparent
+  service-port 2 vport 1 user-vlan 125 vlan 125
+  service-port 3 vport 1 user-vlan untagged vlan 100
+  service-port 4 vport 1 user-vlan 10 vlan 1010
+!
+end
+RAW;
+
+        $config = $this->parser()->parse($raw);
+
+        $this->assertCount(4, $config['service_ports']);
+        $this->assertSame('transparent', $config['service_ports'][0]['mode']);
+        // Angka user-vlan tetap ada pada bentuk transparent (firmware menolak tanpa angka).
+        $this->assertSame(1114, $config['service_ports'][0]['user_vlan']);
+        $this->assertNull($config['service_ports'][0]['vlan']);
+        $this->assertSame('tag', $config['service_ports'][1]['mode']);
+        $this->assertSame('untagged', $config['service_ports'][2]['mode']);
+        $this->assertNull($config['service_ports'][2]['user_vlan']);
+        $this->assertSame(100, $config['service_ports'][2]['vlan']);
+        // Translation: user-vlan 10 → vlan 1010 tetap mode tag.
+        $this->assertSame('tag', $config['service_ports'][3]['mode']);
+        $this->assertSame(1010, $config['service_ports'][3]['vlan']);
+
+        // Target = baseline → delta kosong (tiga bentuk diparse & diformat simetris).
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($config, $config, ['onu_iface' => 'gpon-onu_1/2/1:9']);
+        $this->assertSame('', $delta['script']);
+
+        // Ubah mode baris yang ada → hapus dulu, lalu baris bentuk baru.
+        $target = $config;
+        $target['service_ports'][1]['mode'] = 'untagged';
+        $target['service_ports'][1]['user_vlan'] = null;
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($config, $target, ['onu_iface' => 'gpon-onu_1/2/1:9']);
+        $this->assertStringContainsString('no service-port 2', $delta['script']);
+        $this->assertStringContainsString('service-port 2 vport 1 user-vlan untagged vlan 125', $delta['script']);
+    }
+
+    public function test_numberless_transparent_service_port_is_read_and_corrected(): void
+    {
+        // `user-vlan transparent` TANPA angka ditolak firmware di lapangan, tetapi bila masih
+        // tersisa dari konfigurasi lama parser membacanya (user_vlan kosong) supaya bisa diisi
+        // ulang dari editor — bukan dianggap baris tak dikenal.
+        $base = $this->parser()->parse(
+            "interface gpon-onu_1/2/3:52\n  service-port 1 vport 1 user-vlan transparent\n!"
+        );
+        $this->assertSame('transparent', $base['service_ports'][0]['mode']);
+        $this->assertNull($base['service_ports'][0]['user_vlan']);
+
+        // Tanpa angka builder TIDAK pernah meng-emit bentuk yang ditolak OLT itu.
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $base, ['onu_iface' => 'gpon-onu_1/2/3:52']);
+        $this->assertSame('', $delta['script']);
+
+        // Editor mengisi user-vlan → baris dibuat ulang dengan angka (bentuk yang diterima OLT).
+        $target = $base;
+        $target['service_ports'][0]['user_vlan'] = 1114;
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/3:52']);
+
+        $this->assertStringContainsString('no service-port 1', $delta['script']);
+        $this->assertStringContainsString('service-port 1 vport 1 user-vlan 1114 transparent', $delta['script']);
+    }
+
+    private function longGemportRaw(): string
+    {
+        return <<<'RAW'
+--- show running-config interface gpon-onu_1/1/1:2 ---
+Building configuration...
+!
+interface gpon-onu_1/1/1:2
+  name WOSO
+  description 2$$WOSO$$
+  tcont 1 name GAG profile SERVER
+  gemport 1 name FF unicast tcont 1 dir both
+  switchport mode hybrid vport 1
+  service-port 1 vport 1 user-vlan 100 vlan 100
+!
+end
+
+--- show onu running config gpon-onu_1/1/1:2 ---
+pon-onu-mng gpon-onu_1/1/1:2
+  service ServiceName type internet gemport 1 cos 0 vlan 100
+!
+RAW;
+    }
+
+    public function test_parses_long_gemport_form_with_type_and_direction(): void
+    {
+        $config = $this->parser()->parse($this->longGemportRaw());
+
+        $this->assertSame(
+            ['traffic_up' => null, 'traffic_down' => null, 'id' => 1, 'name' => 'FF', 'type' => 'unicast', 'tcont' => 1, 'dir' => 'both'],
+            $config['gemports'][0],
+        );
+
+        // Bentuk pendek: jenis & arah null (= bawaan OLT).
+        $short = $this->parser()->parse($this->sampleRaw());
+        $this->assertNull($short['gemports'][0]['type']);
+        $this->assertNull($short['gemports'][0]['dir']);
+        $this->assertSame('1', $short['gemports'][0]['name']);
+    }
+
+    public function test_parses_gemport_variants_without_name_or_direction(): void
+    {
+        $raw = str_replace('gemport 1 name FF unicast tcont 1 dir both', "gemport 1 multicast tcont 2\n  gemport 2 name IPTV tcont 1 dir ds", $this->longGemportRaw());
+        $gems = $this->parser()->parse($raw)['gemports'];
+
+        $this->assertSame([null, 'multicast', 2, null], [$gems[0]['name'], $gems[0]['type'], $gems[0]['tcont'], $gems[0]['dir']]);
+        $this->assertSame(['IPTV', null, 1, 'ds'], [$gems[1]['name'], $gems[1]['type'], $gems[1]['tcont'], $gems[1]['dir']]);
+    }
+
+    public function test_long_gemport_round_trips_without_delta_and_survives_other_edits(): void
+    {
+        $config = $this->parser()->parse($this->longGemportRaw());
+        $ctx = ['onu_iface' => 'gpon-onu_1/1/1:2'];
+
+        $this->assertSame('', (new ZteOnuReconfigureScriptBuilder)->build($config, $config, $ctx)['script']);
+
+        // Editor mengirim '' untuk select kosong — tetap dianggap sama dengan null.
+        $short = $this->parser()->parse($this->sampleRaw());
+        $target = $short;
+        $target['gemports'][0]['type'] = '';
+        $target['gemports'][0]['dir'] = '';
+        $this->assertSame('', (new ZteOnuReconfigureScriptBuilder)->build($short, $target, ['onu_iface' => 'gpon-onu_1/2/1:3'])['script']);
+
+        // Ganti T-CONT: baris ditulis ulang dalam bentuk panjang yang sama.
+        $target = $config;
+        $target['gemports'][0]['tcont'] = 2;
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($config, $target, $ctx);
+        $this->assertStringContainsString('gemport 1 name FF unicast tcont 2 dir both', $delta['script']);
+        $this->assertSame('name FF unicast tcont 1 dir both', $delta['changes'][0]['from']);
+        $this->assertSame('name FF unicast tcont 2 dir both', $delta['changes'][0]['to']);
+    }
+
+    public function test_changing_gemport_type_or_direction_emits_long_line(): void
+    {
+        $base = $this->parser()->parse($this->sampleRaw());
+        $target = $base;
+        $target['gemports'][0]['type'] = 'unicast';
+        $target['gemports'][0]['dir'] = 'both';
+
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+        $this->assertStringContainsString("interface gpon-onu_1/2/1:3\ngemport 1 name 1 unicast tcont 1 dir both\nexit", $delta['script']);
+
+        // Jenis/arah tanpa nama: nama diisi nomor gemport (token jenis mengikuti `name`).
+        $target['gemports'][0]['name'] = null;
+        $target['gemports'][0]['type'] = '';
+        $target['gemports'][0]['dir'] = 'ds';
+        $delta = (new ZteOnuReconfigureScriptBuilder)->build($base, $target, ['onu_iface' => 'gpon-onu_1/2/1:3']);
+        $this->assertStringContainsString('gemport 1 name 1 tcont 1 dir ds', $delta['script']);
+    }
+
+    public function test_registration_and_copy_keep_long_gemport_form(): void
+    {
+        $context = [
+            'olt_iface' => 'gpon-olt_1/1/1',
+            'onu_iface' => 'gpon-onu_1/1/1:2',
+            'onu_id' => 2,
+            'sn' => 'ZTEGC0800001',
+            'onu_type' => 'ALL-ONT',
+        ];
+        $builder = new ZteOnuReconfigureScriptBuilder;
+
+        $script = $builder->buildForRegistration([
+            'name' => 'WOSO',
+            'tconts' => [['id' => 1, 'name' => 'GAG', 'profile' => 'SERVER']],
+            'gemports' => [
+                ['id' => 1, 'name' => 'FF', 'type' => 'unicast', 'tcont' => 1, 'dir' => 'both'],
+                ['id' => 2, 'name' => '2', 'type' => '', 'tcont' => 1, 'dir' => ''],
+            ],
+            'service_ports' => [['id' => 1, 'vport' => 1, 'user_vlan' => 100, 'vlan' => 100]],
+            'services' => [],
+            'vlan_ports' => [],
+            'wan_ips' => [],
+        ], $context);
+
+        $this->assertStringContainsString("\ngemport 1 name FF unicast tcont 1 dir both\n", $script);
+        $this->assertStringContainsString("\ngemport 2 name 2 tcont 1\n", $script);
+
+        $copy = $builder->buildForCopy($this->parser()->parse($this->longGemportRaw()), $context);
+        $this->assertStringContainsString("\ngemport 1 name FF unicast tcont 1 dir both\n", $copy);
+    }
+
+    public function test_registration_builds_service_port_modes(): void
+    {
+        $script = (new ZteOnuReconfigureScriptBuilder)->buildForRegistration([
+            'name' => 'Multi Mode',
+            'tconts' => [['id' => 1, 'name' => '1', 'profile' => 'SERVER']],
+            'gemports' => [['id' => 1, 'name' => '1', 'tcont' => 1]],
+            'service_ports' => [
+                ['id' => 1, 'vport' => 1, 'mode' => 'transparent', 'user_vlan' => 1114, 'vlan' => 1114],
+                ['id' => 2, 'vport' => 1, 'mode' => 'tag', 'user_vlan' => 10, 'vlan' => 1010],
+                ['id' => 3, 'vport' => 1, 'mode' => 'untagged', 'user_vlan' => 7, 'vlan' => 100],
+                ['id' => 4, 'vport' => 1, 'mode' => 'transparent', 'user_vlan' => null, 'vlan' => null],
+            ],
+            'services' => [],
+            'vlan_ports' => [],
+            'wan_ips' => [],
+        ], [
+            'olt_iface' => 'gpon-olt_1/2/1',
+            'onu_iface' => 'gpon-onu_1/2/1:9',
+            'onu_id' => 9,
+            'sn' => 'ZTEGCAF12345',
+            'onu_type' => 'ALL-ONT',
+        ]);
+
+        // Token yang tak dipakai mode dibuang: transparent tanpa VLAN tujuan, untagged tanpa
+        // user-vlan. Baris transparent tanpa user-vlan (tidak valid di OLT) dilewati.
+        $this->assertStringContainsString('service-port 1 vport 1 user-vlan 1114 transparent', $script);
+        $this->assertStringContainsString('service-port 2 vport 1 user-vlan 10 vlan 1010', $script);
+        $this->assertStringContainsString('service-port 3 vport 1 user-vlan untagged vlan 100', $script);
+        $this->assertStringNotContainsString('service-port 4', $script);
+        $this->assertStringNotContainsString('user-vlan transparent', $script);
+    }
+
     public function test_wan_and_toggle_deltas(): void
     {
         $base = $this->parser()->parse($this->sampleRaw());

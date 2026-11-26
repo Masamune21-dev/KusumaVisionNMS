@@ -275,6 +275,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/odp/{odp}/onus', [OdpController::class, 'onus'])->name('odp.onus');
     Route::get('/smartolt/{olt}/detail', [SmartOltController::class, 'detail'])->name('smartolt.detail');
     Route::post('/smartolt/{olt}/hardware/refresh', [SmartOltController::class, 'refreshHardware'])->name('smartolt.hardware.refresh');
+    // Fase baca-saja: fan dibaca dari SNMP (C300/C320) atau CLI `show fan` (C600) lalu disimpan.
+    Route::post('/smartolt/{olt}/fan/refresh', [SmartOltController::class, 'refreshFan'])->middleware('throttle:olt-refresh')->name('smartolt.fan.refresh');
     Route::get('/smartolt/{olt}/gpon-ports', [SmartOltController::class, 'gponPorts'])->name('smartolt.gpon-ports');
     Route::get('/smartolt/{olt}/port-detail', [SmartOltController::class, 'portDetail'])->name('smartolt.port.detail');
     Route::post('/smartolt/{olt}/port-detail/refresh', [SmartOltController::class, 'refreshPortDetail'])->name('smartolt.port.refresh');
