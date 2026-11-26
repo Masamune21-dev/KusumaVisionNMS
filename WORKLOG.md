@@ -1,5 +1,32 @@
 # Worklog
 
+## 2026-11-26 — Fixed: HA7302 tampil 2 port PON, label uplink `GE`/`GigabitEthernet`, kredit & panduan kontribusi
+
+- **Fixed — HA7302 hanya tampil 1 port:** firmware HA7302 punya 2 PON fisik tetapi IF-MIB tidak memuat
+  `Pon-Nni`. `HiosoEponSnmpService::ponNumbers()` sekarang mengembalikan `[1, 2]` bila varian terdeteksi
+  (cache `last_test_result` lewat `SmartOltSupport::isHiosoHa7302()`, fallback query firmware SNMP
+  `.25355.3.1.8.1.1.2.1` untuk OLT yang baru ditambahkan), sehingga `getPorts()` menghasilkan
+  `epon 0/1/1` + `epon 0/1/2`. Walk tabel ONU tidak terpengaruh: index LLID datar HA7302 memakai
+  `oltId` = 1, jadi `{base}.1` mengembalikan seluruh tabel dan `{base}.2` kosong. Model HiOSO lain
+  tanpa `Pon-Nni` tetap 1 port agregat.
+- **Fixed — status uplink tak terbaca:** regex faceplate menerima `G1`, `GE1`, dan `GigabitEthernet 1`
+  (sebelumnya hanya `G{n}`). Untuk HA7302, port GE dianggap `up` bila `ifOperStatus` uplink sama sekali
+  tak dilaporkan firmware — membedakan "tak dilaporkan" dari "benar-benar down"; status yang dilaporkan
+  tetap dipakai apa adanya.
+- **Test:** 4 test `getPorts` (cache firmware, query SNMP langsung, non-HA7302, firmware tak terbaca)
+  dan 2 test faceplate (label `GE`/`GigabitEthernet`, default `up`, status terlaporkan dihormati).
+  `bash scripts/test.sh` 1.620 test lulus, `npm test` 8/8 pada `PortSwitcher`, `pint` bersih.
+- **Created — `CONTRIBUTING.md` + `CONTRIBUTORS.md`:** panduan kontribusi (satu topik per PR, wajib
+  test, larangan data produksi, larangan mengubah workflow CI, atribusi pemilik tidak boleh dihapus,
+  lisensi MIT) dan daftar kontributor. `README.md` & `README.id.md` menautkan keduanya. Kontributor
+  pertama: `@gerandonk` (laporan port HA7302, PR #4) — tanpa akses tulis.
+- **Notes — temuan PR #4 yang tidak diambil:** kolom `general_settings.owner` + field «Atribusi
+  Pemilik» (bertentangan dengan kebijakan atribusi permanen & MIT), workflow `build-apk.yml` baru
+  (membaca secrets keystore), penghapusan `flutter analyze`, dan string Inggris hardcoded pengganti
+  kunci i18n. Perbaikan HiOSO-nya diterapkan lewat jalur maintainer ini.
+- **Notes — dokumentasi:** `docs/SMARTOLT_HIOSO_GUIDE.md` (§3 varian HA7302, quirk #14, peta berkas)
+  dan `docs/handbook/07-modul-fitur.md` diselaraskan.
+
 ## 2026-11-26 — Changed: status fan OLT ZTE, mode service-port & gemport bentuk panjang di editor ONU
 
 - **Created — kartu «Fan & Suhu» di Detail OLT ZTE (fase 1, baca-saja):** tabel `smartolt_fan_statuses`

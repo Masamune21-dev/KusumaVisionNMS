@@ -105,7 +105,30 @@ class HiosoFaceplateServiceTest extends TestCase
         $this->assertSame('copper', $panel['groups'][1]['kind']);
         $this->assertSame(1, $panel['groups'][1]['rows']);
         $this->assertSame(['G1', 'G2', 'G3', 'G4'], array_column($panel['groups'][1]['ports'], 'name'));
+        // Status yang memang dilaporkan firmware tetap dipakai (G1/G2 up, G3/G4 down di stub).
+        $this->assertSame(['up', 'up', 'down', 'down'], array_column($panel['groups'][1]['ports'], 'status'));
         $this->assertSame(['CONSOLE'], array_column($panel['groups'][2]['ports'], 'name'));
+    }
+
+    public function test_ha7302_ge_uplinks_default_to_up_when_snmp_exposes_no_status(): void
+    {
+        // Firmware HA7302 kadang memberi label `GE1`/`GigabitEthernet 1` dan tak melaporkan ifOperStatus
+        // uplink sama sekali — port tetap harus tampil (2 GE), bukan hilang atau "down" palsu.
+        $snmp = new FakeHiosoFaceplateSnmp(
+            walks: [
+                '1.3.6.1.2.1.2.2.1.2' => [
+                    '1.3.6.1.2.1.2.2.1.2.1' => 'GE1',
+                    '1.3.6.1.2.1.2.2.1.2.2' => 'GigabitEthernet 2',
+                ],
+            ],
+            gets: ['1.3.6.1.4.1.25355.3.1.8.1.1.2.1' => '7.76/HA7302CSM/SN2020-01-00001'],
+        );
+
+        $panel = (new HiosoFaceplateService($snmp))->build(new SnmpOlt, $this->ponPorts());
+
+        $ge = $panel['groups'][1];
+        $this->assertSame(['G1', 'G2'], array_column($ge['ports'], 'name'));
+        $this->assertSame(['up', 'up'], array_column($ge['ports'], 'status'));
     }
 
     public function test_unknown_model_falls_back_to_generic_copper_row(): void

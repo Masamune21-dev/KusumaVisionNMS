@@ -202,7 +202,7 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   Sejak 4 Okt 2026 polanya disamakan dengan ZTE: **pemilih port** ◀ dropdown ▶ di header
   (`Components/CDataOlt/PortSwitcher.vue`; daftar port dari cache `olt.last_test_result.ports`, tanpa
   SNMP/perubahan controller; opsi memuat label sisi-NMS; tersembunyi bila OLT hanya punya satu port,
-  mis. HiOSO HA7302 agregat), **kartu status** Status data / Total ONU / Online / Refresh terakhir
+  mis. model tanpa `Pon-Nni` selain HA7302), **kartu status** Status data / Total ONU / Online / Refresh terakhir
   (`Components/CDataOlt/PortOnuStats.vue`), dan baris toolbar cari + filter **Online/Offline** (dari
   `onu.online`; tanpa filter admin-state karena EPON/HiOSO melaporkan `unknown`) + filter ODP + Reset.
   Halaman ZTE masih menulis pemilih port & kartunya inline (belum memakai komponen ini).
@@ -216,8 +216,8 @@ dan `UserMenu` (tema). Mapping route ada di [06 — Routing](06-routing.md).
   otomatis ikut VLAN baru, uplink Trunk; EPON: uplink & port PON Hybrid, port PON di-tag manual. Rincian
   CLI: `docs/SMARTOLT_CDATA_GUIDE.md` §14.
 - **HiOSO HA7302** (`SmartOltSupport::isHiosoHa7302()`, dikenali dari firmware/vendor/nama memuat
-  `ha7302`): SNMP menyajikan ONU sebagai ruang LLID datar 1..128 (tanpa `Pon-Nni`, jadi satu port EPON
-  agregat), CLI login 3-lapis + dialek beda (`set onu … reboot`, `delete onu 1/{pon}/{onu}`,
+  `ha7302`): SNMP menyajikan ONU sebagai ruang LLID datar 1..128 (tanpa `Pon-Nni`; port PON diturunkan
+  dari deteksi firmware sehingga tampil **2 port**), CLI login 3-lapis + dialek beda (`set onu … reboot`, `delete onu 1/{pon}/{onu}`,
   `auth-mode pass|deny`), dan **rename lewat SNMP SET** (`description_mode = 'snmp'`) karena CLI-nya tak
   punya perintah rename. HA7304 tetap rename via CLI. Status online HiOSO diambil dari link-state
   SNMP `.39.1`, **bukan** dari Rx — Rx `na` pada ONU online itu normal

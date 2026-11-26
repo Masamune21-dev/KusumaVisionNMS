@@ -191,6 +191,13 @@ kebutuhan operasional harian, bukan dari eksperimen.
 
 ---
 
+## Berkontribusi
+
+Laporan bug dan pull request sangat diterima — lihat [`CONTRIBUTING.md`](CONTRIBUTING.md) dan daftar
+orang yang sudah membantu di [`CONTRIBUTORS.md`](CONTRIBUTORS.md).
+
+---
+
 ## Lisensi
 
 MIT — PT Berkah Media Kusuma Vision (BMKV). Lihat [`LICENSE`](LICENSE).

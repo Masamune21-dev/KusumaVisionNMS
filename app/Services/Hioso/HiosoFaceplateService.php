@@ -64,7 +64,8 @@ class HiosoFaceplateService
         $opers = $this->safeWalk($olt, self::IF_OPER);
         $uplink = [];
         foreach ($descrs as $oid => $label) {
-            if (preg_match('/^G(\d+)$/i', trim((string) $label), $m)) {
+            // Sebagian firmware memberi label panjang (`GE1`, `GigabitEthernet 1`), bukan `G1`.
+            if (preg_match('/^(?:G|GE|GigabitEthernet)\s*(\d+)$/i', trim((string) $label), $m)) {
                 $idx = substr($oid, strrpos($oid, '.') + 1);
                 $uplink[(int) $m[1]] = ((int) ($opers[self::IF_OPER.'.'.$idx] ?? 0)) === 1 ? 'up' : 'down';
             }
@@ -99,8 +100,16 @@ class HiosoFaceplateService
             // Blok RJ45 2×2: kolom kiri G4 (atas) / G3 (bawah), kolom kanan CONSOLE (atas) / MGMT (bawah).
             $groups[] = ['key' => 'ge', 'label' => 'GE', 'kind' => 'copper', 'rows' => 2, 'module' => 1, 'ports' => [$g(4), $g(3), $console, $mgmt]];
         } elseif (str_starts_with($model, 'HA7302')) {
+            // HA7302 tak melaporkan status GE via SNMP/CLI. Bila ifOperStatus uplink sama sekali tak
+            // terbaca, port dianggap up (OLT-nya jelas merespons SNMP) alih-alih menampilkan "down"
+            // palsu; status yang benar-benar dilaporkan firmware tetap dipakai apa adanya.
+            $gHa7302 = fn (int $n) => [
+                'pos' => $n,
+                'name' => "G{$n}",
+                'status' => $opers === [] ? 'up' : ($uplink[$n] ?? 'up'),
+            ];
             $known = $uplink === [] ? [1, 2] : array_keys($uplink);
-            $groups[] = ['key' => 'ge', 'label' => 'GE', 'kind' => 'copper', 'rows' => 1, 'module' => 1, 'ports' => array_map($g, $known)];
+            $groups[] = ['key' => 'ge', 'label' => 'GE', 'kind' => 'copper', 'rows' => 1, 'module' => 1, 'ports' => array_map($gHa7302, $known)];
             $groups[] = ['key' => 'mgmt', 'label' => '', 'kind' => 'copper', 'rows' => 1, 'module' => 1, 'ports' => [$console]];
         } else {
             $known = $uplink === [] ? [1, 2, 3, 4] : array_keys($uplink);

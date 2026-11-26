@@ -74,7 +74,7 @@ describe('PortSwitcher', () => {
         expect(last[1].attributes('aria-label')).toBe('portonus.port_last');
     });
 
-    it('disembunyikan bila OLT hanya punya satu port (HiOSO HA7302 agregat)', () => {
+    it('disembunyikan bila OLT hanya punya satu port (model tanpa Pon-Nni, mis. HiOSO non-HA7302)', () => {
         const w = mountSwitcher({ slot: 1, port: 1, ports: [{ slot: 1, port: 1 }] });
         expect(w.find('select').exists()).toBe(false);
     });

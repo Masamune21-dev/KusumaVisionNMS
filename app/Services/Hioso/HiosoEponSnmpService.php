@@ -7,6 +7,7 @@ use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
 use App\Services\AlarmEvaluator;
 use App\Services\Genieacs\GenieacsRxReadings;
+use App\Support\SmartOltSupport;
 use Illuminate\Support\Carbon;
 use Throwable;
 
@@ -125,11 +126,10 @@ class HiosoEponSnmpService implements SkipsRxWalk, SmartOltSnmpDriver
      * status PON physical, jadi tidak dipakai — status ditentukan dari jumlah ONU online di scanner.
      *
      * Firmware HA7302 (mis. HA7302CSM v7.76) TIDAK meng-expose interface `Pon-Nni` di IF-MIB dan
-     * menyajikan ONU sebagai satu ruang LLID datar (index `.{oltId}.{onu}`, oltId selalu 1). Untuk itu,
-     * bila tak ada `Pon-Nni`, kembalikan **satu port EPON agregat** (slot 1 / port 1) supaya OLT tetap
-     * tampil punya port & faceplate — konsisten dengan ONU yang seluruhnya masuk port 1
-     * ({@see self::getRegisteredOnus} men-scope via {@see self::ponNumbers}, bukan getPorts, agar walk
-     * fallback full-table tetap utuh).
+     * menyajikan ONU sebagai satu ruang LLID datar (index `.{oltId}.{onu}`, oltId selalu 1). Nomor
+     * PON-nya tetap diturunkan {@see self::ponNumbers} (2 port untuk HA7302) sehingga OLT tampil
+     * dengan 2 port PON. Model HiOSO lain yang juga tanpa `Pon-Nni` tetap memakai **satu port EPON
+     * agregat** (slot 1 / port 1) supaya OLT tidak tampil tanpa port.
      */
     public function getPorts(SnmpOlt $olt): array
     {
@@ -164,7 +164,13 @@ class HiosoEponSnmpService implements SkipsRxWalk, SmartOltSnmpDriver
     /**
      * Nomor PON dari ifDescr `Pon-Nni{n}` (mungkin kosong bila firmware tak meng-expose-nya, mis.
      * HA7302). Dipakai untuk men-scope walk tabel ONU per-PON; kosong = jalur fallback full-table
-     * ({@see self::walkTable}) — JANGAN samakan dengan {@see self::getPorts} yang menambah port sintetik.
+     * ({@see self::walkTable}).
+     *
+     * HA7302 punya 2 port PON fisik tetapi tidak memuat `Pon-Nni` di IF-MIB, sehingga tanpa
+     * penanganan khusus OLT-nya hanya tampil 1 port. Nomor PON di sini juga dipakai sebagai scope
+     * walk, dan itu aman untuk HA7302: index tabel ONU-nya `.{oltId}.{onu}` dengan oltId selalu 1,
+     * jadi `{base}.1` mengembalikan SELURUH tabel (bukan sebagian) dan `{base}.2` kosong — tidak
+     * ada ONU yang hilang dari hasil walk.
      *
      * @return array<int, int>
      */
@@ -180,7 +186,32 @@ class HiosoEponSnmpService implements SkipsRxWalk, SmartOltSnmpDriver
 
         sort($ports);
 
-        return array_values(array_unique($ports));
+        $ports = array_values(array_unique($ports));
+
+        if ($ports === [] && $this->isHiosoHa7302($olt)) {
+            return [1, 2];
+        }
+
+        return $ports;
+    }
+
+    /**
+     * Deteksi varian HA7302: prioritas cache firmware (`last_test_result`), fallback query SNMP
+     * langsung supaya OLT yang baru ditambahkan (cache belum ada) tetap terbaca 2 port.
+     */
+    private function isHiosoHa7302(SnmpOlt $olt): bool
+    {
+        if (SmartOltSupport::isHiosoHa7302($olt)) {
+            return true;
+        }
+
+        try {
+            $firmware = $this->snmp->get($olt, self::OLT_FIRMWARE);
+
+            return str_contains(strtolower((string) $firmware), 'ha7302');
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public function getRegisteredOnusWithoutRx(SnmpOlt $olt): array

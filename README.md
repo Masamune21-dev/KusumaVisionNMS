@@ -185,6 +185,13 @@ The maintainer works as a NOC engineer at an FTTH ISP; this project grew out of 
 
 ---
 
+## Contributing
+
+Bug reports and pull requests are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+list of people who already helped in [`CONTRIBUTORS.md`](CONTRIBUTORS.md).
+
+---
+
 ## License
 
 MIT — PT Berkah Media Kusuma Vision (BMKV). See [`LICENSE`](LICENSE).

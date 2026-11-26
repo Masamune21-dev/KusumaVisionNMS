@@ -113,8 +113,11 @@ CLI HiOSO pakai 2-level path: `interface epon 0/{port}` → `onu {onuId} <action
 
 **Varian HA7302** (mis. HA7302CSM v7.76, terverifikasi live Jul 2026): SNMP menyajikan ONU sebagai **satu ruang LLID datar**
 — index `.{oltId}.{onu}` dengan `oltId` = 1 dan `onu` = 1..128 — dan IF-MIB **tidak** memuat `Pon-Nni`. OID nama/MAC/Rx/
-link-state kanonik §4.3 tetap sama, jadi inventory + Rx terbaca. Karena tak ada `Pon-Nni`, `getPorts()` mengembalikan
-**satu port EPON agregat** (slot 1 / port 1) dan walk tabel ONU memakai jalur full-table. Pemetaan LLID datar → CLI
+link-state kanonik §4.3 tetap sama, jadi inventory + Rx terbaca. Karena tak ada `Pon-Nni`, nomor PON
+diturunkan dari deteksi varian: HA7302 tampil dengan **2 port PON** (`ponNumbers()` mengembalikan `[1, 2]`,
+karena unit ini memang 2 PON fisik), sedangkan model HiOSO lain tanpa `Pon-Nni` tetap memakai satu port
+EPON agregat (slot 1 / port 1). Walk tabel ONU tidak terpengaruh: index LLID datar HA7302 memakai `oltId`
+= 1, jadi `{base}.1` mengembalikan seluruh tabel dan `{base}.2` kosong. Pemetaan LLID datar → CLI
 **terverifikasi 1:1** lewat `search mac-address` (index SNMP == onuId CLI; 1 PON = 128 ONU, bukan dibagi /64), sehingga
 aksi CLI per-ONU aktif. CLI HA7302 tidak punya `interface epon`; ONU dialamati `olt/pon/onu` = `1/{port}/{onu}` (§5).
 
@@ -767,7 +770,7 @@ Ringkasan semua quirk yang sudah ditemukan, ditulis biar tidak terulang:
 | 11 | HA7302: login telnet diam lalu timeout | agen menahan banner sampai opsi IAC telnet dijawab | `TelnetIacFilter` aktif khusus HA7302 di `HiosoCliWriteService` |
 | 12 | HA7302: CLI minta 3 password beruntun | login + *Access* + *Enable* | loop `loginMultiTier()` menjawab semuanya dengan `cli_password`, kirim `enable` saat prompt `>` |
 | 13 | HA7302: tak ada `interface epon` & tak ada rename di CLI | dialek firmware beda | aksi lewat node `epon` (`1/{pon}/{onu}`), rename via SNMP SET OID nama (butuh write community) |
-| 14 | HA7302: IF-MIB tanpa `Pon-Nni` | ONU = ruang LLID datar 1..128 | satu port EPON agregat (slot 1/port 1), walk full-table |
+| 14 | HA7302: IF-MIB tanpa `Pon-Nni` | ONU = ruang LLID datar 1..128 | 2 port PON diturunkan dari deteksi firmware (`ponNumbers()` → `[1, 2]`); walk tabel ONU tetap utuh karena index `oltId` = 1 (`{base}.1` = seluruh tabel) |
 | 15 | Anti-flap tampilan | satu pembacaan buruk membuat status port berkedip | ONU online baru ditandai offline setelah `MAX_OFFLINE_STRIKES` (2) poll down beruntun; Rx `na` lama dibawa `snmp_stale` maks `MAX_RX_NA_STRIKES` (2) poll |
 
 ---
@@ -814,7 +817,7 @@ telnet HOST PORT
 
 | File | Fungsi |
 |---|---|
-| [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk **4** OID kanonik `.37.1`/`.11.1`/`.8.1` + link-state `.39.1` per-PON (`robustWalk`, target kelengkapan dari tabel MAC) + carry-forward roster + anti-flap; port agregat & `setOnuName()` (SNMP SET) untuk HA7302 |
+| [app/Services/Hioso/HiosoEponSnmpService.php](../app/Services/Hioso/HiosoEponSnmpService.php) | driver SNMP read (implements `SmartOltSnmpDriver`): inventory ONU, MAC, Rx, status; walk **4** OID kanonik `.37.1`/`.11.1`/`.8.1` + link-state `.39.1` per-PON (`robustWalk`, target kelengkapan dari tabel MAC) + carry-forward roster + anti-flap; 2 port PON untuk HA7302 & `setOnuName()` (SNMP SET) |
 | [app/Services/Hioso/HiosoSnmp.php](../app/Services/Hioso/HiosoSnmp.php) | koneksi SNMP low-level (`robustWalk`, timeout floor, `set()` pakai write community) |
 | [app/Services/Hioso/HiosoValue.php](../app/Services/Hioso/HiosoValue.php) | helper parsing murni (MAC hex, Rx string+`na`, indeks `{PON}.{ONU}`) |
 | [app/Services/Genieacs/GenieacsRxReadings.php](../app/Services/Genieacs/GenieacsRxReadings.php) | bacaan Rx TR-069 segar per OLT (tabel lokal `genieacs_device_map`, ≤ 30 mnt) — cadangan Rx `na`; kapan dipakai diputuskan driver (`tr069Reading()`: link Up sekarang + lebih baru dari `link_down_at`) |
@@ -827,7 +830,7 @@ telnet HOST PORT
 | [app/Support/Telnet/TelnetIacFilter.php](../app/Support/Telnet/TelnetIacFilter.php) | negosiasi IAC telnet (dipakai HA7302) |
 | [app/Services/OltPortLabelService.php](../app/Services/OltPortLabelService.php) | label port PON sisi-NMS (bersama C-Data) |
 | [app/Http/Controllers/HiosoOltController.php](../app/Http/Controllers/HiosoOltController.php) | controller + rute `hioso-olt.*` (index/detail/ponPorts/portOnus/test/refresh/save-config + onu reboot/state/info/delete); rename bercabang CLI (HA7304) / SNMP (HA7302) |
-| `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/{OltFaceplate,PortSwitcher,PortOnuStats}.vue`; pemilih port tersembunyi di HA7302 yang hanya punya 1 port agregat) |
+| `resources/js/Pages/Hioso/*` (Create/Edit/Detail/PortOnus + Partials/HiosoOltForm) | UI Inertia (reuse `Components/CDataOlt/{OltFaceplate,PortSwitcher,PortOnuStats}.vue`; HA7302 kini tampil 2 port PON, model tanpa `Pon-Nni` lain tetap 1 port agregat) |
 
 Rute HiOSO (`routes/web.php`, prefix `hioso-olt`): `hioso-olt.{index,create,store,edit,update,destroy,test,detail,refresh,config.save,pon-ports,port-onus,port-onus.refresh}` + aksi ONU `hioso-olt.onu.{reboot,state,info,delete}` + label port bersama `olt.port-label.store`. Aksi ONU juga tersedia dari REST API (`OnuActionController`) dan pin peta (`OnuMapController`), keduanya bercabang HA7302. Pemilihan rute lintas halaman via [`SmartOltSupport::inventoryRoutePrefix()`](../app/Support/SmartOltSupport.php) → `hioso-olt`.
 

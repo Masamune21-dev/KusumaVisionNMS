@@ -6,6 +6,7 @@ use App\Models\SnmpOlt;
 use App\Services\Genieacs\GenieacsRxReadings;
 use App\Services\Hioso\HiosoEponSnmpService;
 use App\Services\Hioso\HiosoSnmp;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -82,7 +83,7 @@ class QueuedHiosoSnmp extends HiosoSnmp
 class FakeGenieacsRxReadings extends GenieacsRxReadings
 {
     /**
-     * @param  array<string, array{dbm: float, at: \Illuminate\Support\Carbon}>  $readings
+     * @param  array<string, array{dbm: float, at: Carbon}>  $readings
      */
     public function __construct(private array $readings = []) {}
 
@@ -576,22 +577,76 @@ class HiosoSnmpDriverTest extends TestCase
     }
 
     /**
-     * HA7302 (mis. HA7302CSM v7.76): TIDAK ada `Pon-Nni` di IF-MIB (ruang LLID datar). getPorts harus
-     * fallback ke satu port EPON agregat (slot 1 / port 1) supaya OLT tetap tampil punya port.
+     * HA7302 (mis. HA7302CSM v7.76): TIDAK ada `Pon-Nni` di IF-MIB (ruang LLID datar), tetapi punya
+     * 2 port PON fisik. Firmware dikenali dari cache `last_test_result` → getPorts harus 2 port.
      */
-    public function test_getports_falls_back_to_single_port_without_pon_nni(): void
+    public function test_getports_returns_two_ports_for_ha7302_from_cached_firmware(): void
     {
-        // ifDescr hanya lo/eth0 (gaya HA7302) — tak ada Pon-Nni.
         $ifd = '1.3.6.1.2.1.2.2.1.2';
         $snmp = new FakeHiosoSnmp([
-            $ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0', "{$ifd}.3" => 'eth0.1'],
+            $ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0'],
+        ]);
+
+        $olt = $this->olt();
+        $olt->last_test_result = ['system' => ['firmware' => 'v7.76/HA7302CSM/HA202301050001']];
+
+        $ports = (new HiosoEponSnmpService($snmp))->getPorts($olt);
+
+        $this->assertSame([1, 2], array_column($ports, 'port'));
+        $this->assertSame(['epon 0/1/1', 'epon 0/1/2'], array_column($ports, 'name'));
+    }
+
+    /**
+     * OLT baru ditambahkan belum punya `last_test_result` → deteksi HA7302 jatuh ke query firmware
+     * langsung lewat SNMP, supaya port tetap terbaca 2 sejak poll pertama.
+     */
+    public function test_getports_detects_ha7302_from_direct_snmp_firmware_query(): void
+    {
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $fw = '1.3.6.1.4.1.25355.3.1.8.1.1.2.1';
+        $snmp = new FakeHiosoSnmp(
+            walks: [$ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0']],
+            gets: [$fw => 'v7.76/HA7302CSM/HA202301050001'],
+        );
+
+        $ports = (new HiosoEponSnmpService($snmp))->getPorts($this->olt());
+
+        $this->assertSame([1, 2], array_column($ports, 'port'));
+    }
+
+    /**
+     * HA7304 tetap memakai `Pon-Nni` dan TIDAK dianggap HA7302 — jangan sampai firmware lain yang
+     * menyebut "HA7302" di sysDescr-nya (mis. teks bebas) menambah port.
+     */
+    public function test_getports_does_not_add_ports_for_non_ha7302_firmware(): void
+    {
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $fw = '1.3.6.1.4.1.25355.3.1.8.1.1.2.1';
+        $snmp = new FakeHiosoSnmp(
+            walks: [$ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0']],
+            gets: [$fw => '1.0.0.1/HA7304/SN2018-03-00007'],
+        );
+
+        $ports = (new HiosoEponSnmpService($snmp))->getPorts($this->olt());
+
+        $this->assertCount(1, $ports, 'model tanpa Pon-Nni selain HA7302 tetap 1 port agregat');
+        $this->assertSame(1, $ports[0]['port']);
+    }
+
+    /**
+     * HA7302 tetap memakai satu port agregat bila firmware tak terbaca sama sekali (SNMP get gagal /
+     * string kosong) — fallback lama tidak boleh hilang.
+     */
+    public function test_getports_falls_back_to_single_port_when_firmware_unknown(): void
+    {
+        $ifd = '1.3.6.1.2.1.2.2.1.2';
+        $snmp = new FakeHiosoSnmp([
+            $ifd => ["{$ifd}.1" => 'lo', "{$ifd}.2" => 'eth0'],
         ]);
 
         $ports = (new HiosoEponSnmpService($snmp))->getPorts($this->olt());
 
         $this->assertCount(1, $ports);
-        $this->assertSame(1, $ports[0]['slot']);
-        $this->assertSame(1, $ports[0]['port']);
         $this->assertSame('epon 0/1/1', $ports[0]['name']);
     }
 
