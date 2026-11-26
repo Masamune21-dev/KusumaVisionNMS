@@ -4,6 +4,7 @@ namespace App\Services\Telegram;
 
 use App\Contracts\Telegram\TelegramBotConfig;
 use App\Models\AlarmEvent;
+use App\Models\GeneralSetting;
 use App\Models\SnmpOlt;
 use App\Services\CData\CDataCliWriteService;
 use App\Services\CData\CDataOltScanner;
@@ -150,7 +151,7 @@ class TelegramCommandHandler
 
     private function help(): TelegramReply
     {
-        $text = "🤖 <b>KusumaVision NMS — Bot Telegram</b>\n\n"
+        $text = "🤖 <b>".GeneralSetting::brandingPayload()['name']." — Bot Telegram</b>\n\n"
             ."Pantau OLT &amp; ONU FTTH langsung dari Telegram: status jaringan, ONU LOS, redaman, cari pelanggan, alarm, sampai refresh OLT C-Data. Cara termudah: tekan tombol di /menu.\n\n"
 
             ."📊 <b>Pantau jaringan</b>\n"
@@ -226,7 +227,7 @@ class TelegramCommandHandler
         $olt = $cards['olt'];
         $onu = $cards['onu'];
 
-        $text = "🤖 <b>KusumaVision NMS</b>\n🕒 ".$this->now()."\n\n"
+        $text = "🤖 <b>".GeneralSetting::brandingPayload()['name']."</b>\n🕒 ".$this->now()."\n\n"
             ."🖥️ OLT: {$olt['total']} (✅ {$olt['online']} · ⚠️ {$olt['offline']})\n"
             ."📶 ONU: {$onu['total']} — ✅ {$onu['online']} online · ❌ {$onu['offline']} offline\n"
             ."📉 Redaman bermasalah: {$onu['warning']}\n\n"

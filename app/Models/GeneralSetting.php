@@ -18,16 +18,11 @@ class GeneralSetting extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Atribusi pemilik — PERMANEN (level kode, bukan database)
+    | Atribusi pemilik — nilai awal (dapat diubah di Pengaturan)
     |--------------------------------------------------------------------------
-    | Konstanta ini sengaja TIDAK disimpan di tabel general_settings dan TIDAK
-    | diekspos di halaman Pengaturan, sehingga tidak dapat diubah lewat UI.
-    | Nama aplikasi (app_name) tetap dapat di-white-label, tetapi atribusi
-    | pemilik di bawah ini selalu tampil di footer seluruh halaman.
-    |
-    | Atribusi ini dilindungi oleh LICENSE (proprietary). Mengubah/menghapusnya
-    | di luar izin tertulis PT Berkah Media Kusuma Vision adalah pelanggaran
-    | lisensi.
+    | OWNER dipakai sebagai default saat row settings belum dibuat / kolom
+    | kosong. Nilai aktif disimpan di `general_settings.owner` dan diekspos
+    | lewat brandingPayload() supaya footer & dokumen mengikuti white-label.
     */
     public const OWNER = 'PT Berkah Media Kusuma Vision';
 
@@ -38,6 +33,7 @@ class GeneralSetting extends Model
     protected $fillable = [
         'app_name',
         'app_version',
+        'owner',
         'logo_path',
     ];
 
@@ -59,6 +55,7 @@ class GeneralSetting extends Model
         return static::query()->firstOrNew([], [
             'app_name' => self::DEFAULT_NAME,
             'app_version' => self::DEFAULT_VERSION,
+            'owner' => self::OWNER,
         ]);
     }
 
@@ -91,7 +88,7 @@ class GeneralSetting extends Model
                     'name' => $setting->app_name ?: self::DEFAULT_NAME,
                     'version' => $setting->app_version ?: self::DEFAULT_VERSION,
                     'logo_url' => $setting->logoUrl(),
-                    'owner' => self::OWNER,
+                    'owner' => $setting->owner ?: self::OWNER,
                     'owner_short' => self::OWNER_SHORT,
                     'copyright_year' => self::COPYRIGHT_YEAR,
                 ];

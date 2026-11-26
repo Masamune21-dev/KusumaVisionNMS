@@ -5,6 +5,7 @@ namespace App\Services\Hioso;
 use App\Contracts\SkipsRxWalk;
 use App\Contracts\SmartOltSnmpDriver;
 use App\Models\SnmpOlt;
+use App\Support\SmartOltSupport;
 use App\Services\AlarmEvaluator;
 use App\Services\Genieacs\GenieacsRxReadings;
 use Illuminate\Support\Carbon;
@@ -180,7 +181,34 @@ class HiosoEponSnmpService implements SkipsRxWalk, SmartOltSnmpDriver
 
         sort($ports);
 
-        return array_values(array_unique($ports));
+        $ports = array_values(array_unique($ports));
+
+        // HA7302 (LLID datar) tak meng-expose `Pon-Nni` di IF-MIB, tapi punya 2 PON.
+        // Deteksi dari cache firmware maupun query SNMP langsung (penting saat OLT baru ditambah,
+        // sebelum last_test_result terisi) agar port langsung terbaca 2, bukan 1.
+        if ($ports === [] && $this->isHiosoHa7302($olt)) {
+            return [1, 2];
+        }
+
+        return $ports;
+    }
+
+    /**
+     * Deteksi varian HA7302. Prioritas cache firmware (last_test_result), fallback query SNMP
+     * langsung agar tetap benar saat OLT baru ditambah (cache belum ada).
+     */
+    private function isHiosoHa7302(SnmpOlt $olt): bool
+    {
+        if (SmartOltSupport::isHiosoHa7302($olt)) {
+            return true;
+        }
+
+        try {
+            $firmware = $this->snmp->get($olt, self::OLT_FIRMWARE);
+            return str_contains(strtolower((string) $firmware), 'ha7302');
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     public function getRegisteredOnusWithoutRx(SnmpOlt $olt): array

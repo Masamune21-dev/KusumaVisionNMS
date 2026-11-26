@@ -1,0 +1,91 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Alamat API NMS (contoh: https://nms.domain/api/v1)'
+        required: false
+        type: string
+  push:
+    branches:
+      - main
+      - master
+      - mcn
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      API_BASE_URL: ${{ inputs.api_base_url || secrets.API_BASE_URL || vars.API_BASE_URL }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          cache: true
+
+      - name: Validate API_BASE_URL
+        run: |
+          if [[ ! "$API_BASE_URL" =~ ^https?://[^/]+ ]]; then
+            echo "ERROR: set repository secret/variable API_BASE_URL or workflow input api_base_url" >&2
+            exit 1
+          fi
+
+      - name: Decode signing keystore (optional)
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/android/upload-keystore.jks
+          test -s mobile/android/upload-keystore.jks
+          file mobile/android/upload-keystore.jks
+          keytool -list -keystore mobile/android/upload-keystore.jks -storepass "$ANDROID_KEYSTORE_PASSWORD" >/dev/null
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$GITHUB_WORKSPACE/mobile/android/upload-keystore.jks" \
+            "$ANDROID_KEYSTORE_PASSWORD" \
+            "$ANDROID_KEY_ALIAS" \
+            "$ANDROID_KEY_PASSWORD" > mobile/android/key.properties
+
+      - name: Decode google-services.json (optional)
+        if: ${{ env.GOOGLE_SERVICES_JSON_BASE64 != '' }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > mobile/android/app/google-services.json
+          python3 -m json.tool mobile/android/app/google-services.json >/dev/null
+
+      - name: Build APK
+        run: bash bin/build-apk.sh
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: kusumavision-nms-apk
+          path: |
+            mobile/build/app/outputs/flutter-apk/*.apk
+            public/downloads/*.apk
+          if-no-files-found: error
+          retention-days: 30

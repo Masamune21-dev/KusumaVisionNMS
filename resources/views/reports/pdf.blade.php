@@ -27,8 +27,8 @@
 </head>
 <body>
     <div class="header">
-        <div class="brand">KusumaVision NMS</div>
-        <div class="subtitle">PT BERKAH MEDIA KUSUMA VISION &middot; FTTH/GPON Network Management</div>
+        <div class="brand">{{ \App\Models\GeneralSetting::brandingPayload()['name'] }}</div>
+        <div class="subtitle">{{ \App\Models\GeneralSetting::brandingPayload()['owner'] }} &middot; FTTH/GPON Network Management</div>
     </div>
 
     <h1>{{ $report['title'] }}</h1>
@@ -66,7 +66,7 @@
     </table>
 
     <div class="footer">
-        &copy; {{ date('Y') }} KusumaVision NMS &middot; {{ __('reports.pdf_footer') }}
+        &copy; {{ date('Y') }} {{ \App\Models\GeneralSetting::brandingPayload()['name'] }} &middot; {{ __('reports.pdf_footer') }}
     </div>
 </body>
 </html>

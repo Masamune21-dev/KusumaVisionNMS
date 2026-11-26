@@ -49,6 +49,7 @@ class SettingsController extends Controller
             'general' => [
                 'app_name' => $general->app_name ?? GeneralSetting::DEFAULT_NAME,
                 'app_version' => $general->app_version ?? GeneralSetting::DEFAULT_VERSION,
+                'owner' => $general->owner ?? GeneralSetting::OWNER,
                 'logo_url' => $general->logoUrl(),
             ],
             'acs' => [
@@ -234,6 +235,7 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'app_name' => ['required', 'string', 'max:60'],
             'app_version' => ['required', 'string', 'max:30'],
+            'owner' => ['required', 'string', 'max:80'],
             // SVG ditolak: bisa memuat script (XSS tersimpan).
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
             'remove_logo' => ['boolean'],
@@ -244,6 +246,7 @@ class SettingsController extends Controller
         $setting->fill([
             'app_name' => $validated['app_name'],
             'app_version' => $validated['app_version'],
+            'owner' => $validated['owner'],
         ]);
 
         // Replace the logo when a new file is uploaded, or clear it on request.
@@ -562,7 +565,7 @@ class SettingsController extends Controller
     {
         return [
             'description' => __('common.app_description'),
-            'owner' => 'PT BERKAH MEDIA KUSUMA VISION (BMKV)',
+            'owner' => GeneralSetting::brandingPayload()['owner'],
             'stack' => [
                 ['label' => 'Backend', 'value' => 'Laravel '.app()->version()],
                 ['label' => 'PHP', 'value' => PHP_VERSION],

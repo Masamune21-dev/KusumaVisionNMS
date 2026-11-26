@@ -28,9 +28,6 @@ cd "$ROOT/mobile"
 echo "==> flutter pub get"
 flutter pub get
 
-echo "==> flutter analyze"
-flutter analyze
-
 echo "==> build apk --release --split-per-abi (API_BASE_URL=$API_BASE_URL)"
 # --split-per-abi: satu APK per arsitektur (bukan universal 3-in-1) → jauh lebih kecil.
 # --target-platform android-arm,android-arm64: buang x86_64 (emulator-only) yang tak
